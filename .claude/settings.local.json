@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./venv/Scripts/python.exe --version)",
+      "Bash(./venv/Scripts/pip.exe list *)",
+      "Bash(./venv/Scripts/pip.exe install *)",
+      "Bash(py -0p)",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(winget list *)",
+      "Bash(winget install *)",
+      "Bash(py -3.12 -m venv venv)"
+    ]
+  }
+}

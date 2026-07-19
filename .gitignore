@@ -1,0 +1,13 @@
+backend/venv/
+backend/data_cache/
+backend/.env
+frontend/node_modules/
+__pycache__/
+*.pyc
+
+# model_artifacts/ IS committed on purpose — Railway needs the already-trained model files, and
+# there's no build step that retrains from scratch on deploy (see deploy notes in README).
+
+# scratch logs/output from ad-hoc runs at repo root, not part of the app
+*.log
+h_today.json

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend-api",
+      "runtimeExecutable": "C:\\Users\\actsl.DESKTOP-5CTNC21\\OneDrive\\Documents\\Desktop\\mlb-predictor\\backend\\venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--port", "8000", "--app-dir", "C:\\Users\\actsl.DESKTOP-5CTNC21\\OneDrive\\Documents\\Desktop\\mlb-predictor\\backend"],
+      "port": 8000
+    },
+    {
+      "name": "frontend-dashboard",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "C:\\Users\\actsl.DESKTOP-5CTNC21\\OneDrive\\Documents\\Desktop\\mlb-predictor\\.claude\\run-frontend.bat"],
+      "port": 5173
+    }
+  ]
+}
