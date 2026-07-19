@@ -89,7 +89,6 @@ app.add_middleware(
 # anything; only the actual prediction data behind /api/* is gated. See frontend/src/auth.js +
 # PasswordGate.jsx for the client side.
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD")
-_last_log_error = None  # TEMPORARY diagnostic — see /api/_debug_last_log_error, remove after use
 
 
 @app.middleware("http")
@@ -1186,12 +1185,6 @@ def model_status():
     }
 
 
-@app.get("/api/_debug_last_log_error")
-def _debug_last_log_error():
-    """TEMPORARY — remove once the Railway logging-failure investigation is done."""
-    return {"error": _last_log_error}
-
-
 @app.get("/api/history/dates")
 def history_dates():
     """Every date with at least one logged prediction, most recent first — powers the
@@ -1792,9 +1785,7 @@ def today(date: str = None):
         log_strikeout_predictions(resolved_date, results)
         settle_strikeout_predictions()
     except Exception:
-        import traceback
-        global _last_log_error
-        _last_log_error = traceback.format_exc()
+        pass  # tracking is a bonus, never let it block serving predictions
 
     return {
         "date": resolved_date,
