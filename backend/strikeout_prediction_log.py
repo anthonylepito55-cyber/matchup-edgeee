@@ -13,6 +13,7 @@ Each row: one pitcher's strikeout call for one game, keyed by
 """
 
 import os
+import time
 import requests
 import pandas as pd
 import numpy as np
@@ -26,6 +27,9 @@ LOG_COLUMNS = [
     "date", "game_pk", "pitcher_id", "pitcher_name", "team_abbr", "opp_team_abbr",
     "predicted_k", "line", "line_source", "call",  # call: "over" or "under"
     "over_prob", "under_prob",  # kept so a decided game's displayed prop card can be frozen, not just its hit-rate call
+    "bookmaker", "over_price", "under_price",  # the actual sportsbook's own line/juice at prediction time — lets the
+    # previous-day tab show whether a call would have beaten the book, not just whether it hit. Added after the fact,
+    # so only populated for rows logged from here on; older rows read back as None via the LOG_COLUMNS backfill below.
     "logged_at",
     "settled", "actual_k", "actual_ip", "correct",  # correct: True/False/None (None = push, line_source model exact match)
 ]
@@ -44,7 +48,25 @@ def _read_log() -> pd.DataFrame:
 
 
 def _write_log(df: pd.DataFrame):
-    df.to_parquet(LOG_PATH)
+    # Atomic write (temp file + os.replace) + retry — same fix, same reasoning, and same real
+    # OneDrive-sync corruption incident as prediction_log._write_log; this file lives under the
+    # same synced data_cache/ and gets the same concurrent-writer exposure (logged/settled on
+    # every /api/today request), so it gets the same protection.
+    tmp_path = f"{LOG_PATH}.{os.getpid()}.{time.time_ns()}.tmp"
+    for attempt in range(5):
+        try:
+            df.to_parquet(tmp_path)
+            os.replace(tmp_path, LOG_PATH)
+            return
+        except OSError:
+            if attempt == 4:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+                df.to_parquet(LOG_PATH)
+                return
+            time.sleep(0.2 * (attempt + 1))
 
 
 def log_strikeout_predictions(date: str, games: list[dict]):
@@ -89,6 +111,8 @@ def log_strikeout_predictions(date: str, games: list[dict]):
                 "predicted_k": pred.get("predicted"), "line": pred.get("line"), "line_source": pred.get("line_source"),
                 "call": "over" if (pred.get("over_prob") or 0) >= 0.5 else "under",
                 "over_prob": pred.get("over_prob"), "under_prob": pred.get("under_prob"),
+                "bookmaker": pred.get("bookmaker"),
+                "over_price": pred.get("over_price"), "under_price": pred.get("under_price"),
                 "logged_at": datetime.now().isoformat(),
             }
 
@@ -252,6 +276,9 @@ def get_strikeouts_for_date(date: str) -> list[dict]:
             "predicted_k": float(r["predicted_k"]) if pd.notna(r["predicted_k"]) else None,
             "line": float(r["line"]) if pd.notna(r["line"]) else None,
             "call": r["call"],
+            "bookmaker": r.get("bookmaker") if pd.notna(r.get("bookmaker")) else None,
+            "over_price": int(r["over_price"]) if pd.notna(r.get("over_price")) else None,
+            "under_price": int(r["under_price"]) if pd.notna(r.get("under_price")) else None,
             "settled": bool(r["settled"]) if pd.notna(r["settled"]) else False,
             "actual_k": float(r["actual_k"]) if pd.notna(r["actual_k"]) else None,
             "correct": None if pd.isna(r["correct"]) else bool(r["correct"]),

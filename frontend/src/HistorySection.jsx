@@ -219,16 +219,25 @@ function HistoryGameCard({ game: g }) {
 
       {g.strikeouts && g.strikeouts.length > 0 && (
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8 }}>
-          {g.strikeouts.map(k => (
-            <span key={k.pitcher_name} className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-              {k.pitcher_name}: {k.call} {k.line} (pred {k.predicted_k})
-              {k.settled && (
-                <span style={{ color: k.correct ? 'var(--edge-pos)' : k.correct === false ? 'var(--edge-neg)' : 'var(--text-tertiary)', marginLeft: 4 }}>
-                  → actual {k.actual_k} {k.correct === true ? '✓' : k.correct === false ? '✗' : '(push)'}
-                </span>
-              )}
-            </span>
-          ))}
+          {g.strikeouts.map(k => {
+            const price = k.call === 'over' ? k.over_price : k.under_price
+            const priceStr = price != null ? (price > 0 ? `+${price}` : `${price}`) : null
+            return (
+              <span key={k.pitcher_name} className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                {k.pitcher_name}: {k.call} {k.line} (pred {k.predicted_k})
+                {priceStr && (
+                  <span style={{ marginLeft: 4 }}>
+                    @ {priceStr}{k.bookmaker ? ` (${k.bookmaker})` : ''}
+                  </span>
+                )}
+                {k.settled && (
+                  <span style={{ color: k.correct ? 'var(--edge-pos)' : k.correct === false ? 'var(--edge-neg)' : 'var(--text-tertiary)', marginLeft: 4 }}>
+                    → actual {k.actual_k} {k.correct === true ? '✓' : k.correct === false ? '✗' : '(push)'}
+                  </span>
+                )}
+              </span>
+            )
+          })}
         </div>
       )}
     </div>
