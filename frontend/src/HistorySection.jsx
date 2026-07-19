@@ -230,10 +230,12 @@ function HistoryGameCard({ game: g }) {
                     @ {priceStr}{k.bookmaker ? ` (${k.bookmaker})` : ''}
                   </span>
                 )}
-                {k.settled && (
-                  <span style={{ color: k.correct ? 'var(--edge-pos)' : k.correct === false ? 'var(--edge-neg)' : 'var(--text-tertiary)', marginLeft: 4 }}>
-                    → actual {k.actual_k} {k.correct === true ? '✓' : k.correct === false ? '✗' : '(push)'}
+                {k.settled ? (
+                  <span style={{ color: k.correct ? 'var(--edge-pos)' : k.correct === false ? 'var(--edge-neg)' : 'var(--text-tertiary)', marginLeft: 4, fontWeight: 700 }}>
+                    → actual {k.actual_k} — {k.correct === true ? 'HIT' : k.correct === false ? 'MISS' : 'PUSH'}
                   </span>
+                ) : (
+                  <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>(not yet settled)</span>
                 )}
               </span>
             )
