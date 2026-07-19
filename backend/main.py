@@ -1249,20 +1249,40 @@ def today(date: str = None):
     model_trained = model_module.load_model(model_module.BASELINE_MODEL_PATH)[0] is not None
     market_model_trained = model_module.load_model(model_module.MODEL_PATH)[0] is not None
     rating_fitted = rating_system.load_rating_system()  # display-only "why" breakdown, see rating_system.py
-    live_odds = get_moneyline_odds(date)
-    # One shared fetch backing line_movement/market_divergence/consensus/book-by-book/prediction
-    # markets — see odds_fetcher.get_market_snapshot for why this replaced 3-4 separate calls.
-    market_snapshot = get_market_snapshot(date)
-    injuries_by_team = get_active_injuries()  # live-only, display-only — see odds_fetcher.get_active_injuries
-    prop_lines = get_strikeout_prop_lines(date)
-    prizepicks_lines = get_prizepicks_strikeout_lines(date)
-    # {normalized_pitcher_name: {"strikeout_line":.., "outs_line":.., "er_line":.., "hits_allowed_line":..}}
-    # — feeds market_outs_line_diff/etc. (win-prob) and market_outs_line/etc. (strikeout model).
-    pitcher_market_lines = get_pitcher_market_lines(date)
-    try:
-        il_activations = get_recent_il_activations(as_of_date=resolved_date)
-    except Exception:
-        il_activations = {}
+
+    # All 7 of these are independent live/market fetches with no shared state — each already
+    # tolerates its own failure internally (returns {} / [] rather than raising), so running them
+    # concurrently is a pure latency win with no change in behavior. Same reasoning as the
+    # per-batter lineup fix below: on a cold cache (e.g. a fresh Railway deploy with no persisted
+    # data_cache/), doing 7+ independent network round-trips one at a time is the difference
+    # between a few seconds and a minute-plus.
+    with ThreadPoolExecutor(max_workers=7) as _setup_pool:
+        _live_odds_f = _setup_pool.submit(get_moneyline_odds, date)
+        # One shared fetch backing line_movement/market_divergence/consensus/book-by-book/
+        # prediction markets — see odds_fetcher.get_market_snapshot for why this replaced 3-4 calls.
+        _market_snapshot_f = _setup_pool.submit(get_market_snapshot, date)
+        _injuries_f = _setup_pool.submit(get_active_injuries)  # live-only, display-only
+        _prop_lines_f = _setup_pool.submit(get_strikeout_prop_lines, date)
+        _prizepicks_f = _setup_pool.submit(get_prizepicks_strikeout_lines, date)
+        # {normalized_pitcher_name: {"strikeout_line":.., "outs_line":.., "er_line":..,
+        # "hits_allowed_line":..}} — feeds market_outs_line_diff/etc. (win-prob) and
+        # market_outs_line/etc. (strikeout model).
+        _pitcher_market_lines_f = _setup_pool.submit(get_pitcher_market_lines, date)
+
+        def _il_activations_safe():
+            try:
+                return get_recent_il_activations(as_of_date=resolved_date)
+            except Exception:
+                return {}
+        _il_activations_f = _setup_pool.submit(_il_activations_safe)
+
+        live_odds = _live_odds_f.result()
+        market_snapshot = _market_snapshot_f.result()
+        injuries_by_team = _injuries_f.result()
+        prop_lines = _prop_lines_f.result()
+        prizepicks_lines = _prizepicks_f.result()
+        pitcher_market_lines = _pitcher_market_lines_f.result()
+        il_activations = _il_activations_f.result()
 
     # Baseball-Reference is an external scrape target and occasionally
     # blocks/fails; when that happens, we can't build model features, so
@@ -1272,29 +1292,53 @@ def today(date: str = None):
     data_error = None
     if model_trained:
         try:
-            season_stats = get_season_pitching_stats(season)
-            # Falls back gracefully to "no prior-season blending" if the previous
-            # year's Baseball-Reference data isn't available for some reason
-            # (e.g. a rookie's debut season) — see features.blend_with_prior_season.
-            try:
-                prior_season_stats = get_season_pitching_stats(season - 1)
-            except Exception:
-                prior_season_stats = None
-            team_batting = get_team_batting_splits(season)
-            bullpen_stats = get_team_bullpen_stats(season)
-            team_batting_vs_hand = {"L": get_team_batting_vs_hand(season, "L"), "R": get_team_batting_vs_hand(season, "R")}
-            high_leverage_bullpen_stats = get_team_high_leverage_bullpen_stats(season)
-            team_defense = get_team_defense_oaa(season)
-            player_batting = get_player_batting_stats(season)
-            # Current season, live — unlike training (which uses the PRIOR season for walk-forward
-            # safety, see build_training_data.py), this is safe to use as-is: it's always "today,"
-            # and Baseball Savant's leaderboard can't include games that haven't happened yet.
-            batter_arsenal = get_batter_pitch_arsenal(season)
-            batter_expected = get_batter_expected_stats(season)
-            batter_exitvelo = get_batter_exitvelo_barrels(season)
-            batter_percentile = get_batter_percentile_ranks(season)
-            batter_batted_ball = get_batted_ball_profile(season, "batter")
-            batter_team_map = get_batter_team_map(season)
+            # Same concurrency reasoning as the setup fetches above — these 13 calls are
+            # independent of each other (different endpoints/data sources), so fetching them one
+            # at a time serially was pure wasted wall-clock time, most painful on a cold cache.
+            def _prior_season_safe():
+                # Falls back gracefully to "no prior-season blending" if the previous year's
+                # Baseball-Reference data isn't available for some reason (e.g. a rookie's debut
+                # season) — see features.blend_with_prior_season.
+                try:
+                    return get_season_pitching_stats(season - 1)
+                except Exception:
+                    return None
+
+            with ThreadPoolExecutor(max_workers=13) as _stats_pool:
+                _season_stats_f = _stats_pool.submit(get_season_pitching_stats, season)
+                _prior_season_f = _stats_pool.submit(_prior_season_safe)
+                _team_batting_f = _stats_pool.submit(get_team_batting_splits, season)
+                _bullpen_stats_f = _stats_pool.submit(get_team_bullpen_stats, season)
+                _tbvh_l_f = _stats_pool.submit(get_team_batting_vs_hand, season, "L")
+                _tbvh_r_f = _stats_pool.submit(get_team_batting_vs_hand, season, "R")
+                _hl_bullpen_f = _stats_pool.submit(get_team_high_leverage_bullpen_stats, season)
+                _team_defense_f = _stats_pool.submit(get_team_defense_oaa, season)
+                _player_batting_f = _stats_pool.submit(get_player_batting_stats, season)
+                # Current season, live — unlike training (which uses the PRIOR season for
+                # walk-forward safety, see build_training_data.py), this is safe to use as-is:
+                # it's always "today," and Baseball Savant's leaderboard can't include games that
+                # haven't happened yet.
+                _batter_arsenal_f = _stats_pool.submit(get_batter_pitch_arsenal, season)
+                _batter_expected_f = _stats_pool.submit(get_batter_expected_stats, season)
+                _batter_exitvelo_f = _stats_pool.submit(get_batter_exitvelo_barrels, season)
+                _batter_percentile_f = _stats_pool.submit(get_batter_percentile_ranks, season)
+                _batter_batted_ball_f = _stats_pool.submit(get_batted_ball_profile, season, "batter")
+                _batter_team_map_f = _stats_pool.submit(get_batter_team_map, season)
+
+                season_stats = _season_stats_f.result()
+                prior_season_stats = _prior_season_f.result()
+                team_batting = _team_batting_f.result()
+                bullpen_stats = _bullpen_stats_f.result()
+                team_batting_vs_hand = {"L": _tbvh_l_f.result(), "R": _tbvh_r_f.result()}
+                high_leverage_bullpen_stats = _hl_bullpen_f.result()
+                team_defense = _team_defense_f.result()
+                player_batting = _player_batting_f.result()
+                batter_arsenal = _batter_arsenal_f.result()
+                batter_expected = _batter_expected_f.result()
+                batter_exitvelo = _batter_exitvelo_f.result()
+                batter_percentile = _batter_percentile_f.result()
+                batter_batted_ball = _batter_batted_ball_f.result()
+                batter_team_map = _batter_team_map_f.result()
         except Exception as e:
             model_trained = False
             data_error = f"Season stats unavailable, predictions skipped this refresh: {e}"
