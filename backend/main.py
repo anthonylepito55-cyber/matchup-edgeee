@@ -52,6 +52,7 @@ from features import (
 from odds_fetcher import (
     get_moneyline_odds, get_strikeout_prop_lines, get_prizepicks_strikeout_lines, devig_home_prob,
     get_market_snapshot, get_active_injuries, get_pitcher_market_lines, normalize_player_name,
+    get_all_player_props,
 )
 from weather import get_rain_risk, get_game_weather_live, team_travel_miles, TEAM_HOME_VENUE
 from prediction_log import (
@@ -1183,6 +1184,14 @@ def model_status():
         "strikeout_market_model_trained": k_market_model is not None,
         "strikeout_market_model_metrics": k_market_metrics,
     }
+
+
+@app.get("/api/props")
+def player_props(date: str = None):
+    """Every main-stat player prop for the slate, devigged against PrizePicks' own line and
+    sorted highest-probability-side-first — see odds_fetcher.get_all_player_props. Display-only,
+    doesn't feed either model."""
+    return {"date": date or datetime.now().strftime("%Y-%m-%d"), "props": get_all_player_props(date)}
 
 
 @app.get("/api/history/dates")

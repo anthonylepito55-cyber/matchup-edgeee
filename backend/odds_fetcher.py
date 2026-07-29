@@ -841,3 +841,158 @@ def get_strikeout_prop_lines(date: str = None, force_refresh: bool = False, spor
 def get_prizepicks_strikeout_lines(date: str = None, force_refresh: bool = False) -> dict:
     """PrizePicks' own strikeout line per pitcher — see get_strikeout_prop_lines."""
     return get_strikeout_prop_lines(date, force_refresh, sportsbooks=PRIZEPICKS_SPORTSBOOK)
+
+
+# The "main" per-game batter/pitcher stat props — deliberately excludes inning-by-inning slices
+# (1st/2nd/3rd Inning Player Strikeouts, etc.), fantasy-score composites (Player Batting Fantasy
+# Score, Player Pitching Fantasy Score), and "Combo"/"Either" multi-leg variants. Those are mostly
+# derivatives of the props below, not independent signal, and OpticOdds' MLB market list runs to
+# ~78 entries total once you count every one of those — confirmed live via GET /markets?league=mlb
+# (note: that endpoint's league filter doesn't actually restrict results; a couple of clearly
+# non-MLB entries like Player Defensive Interceptions show up in the raw list regardless).
+MAIN_PROP_MARKETS = {
+    "player_hits": "Hits",
+    "player_home_runs": "Home Runs",
+    "player_rbis": "RBIs",
+    "player_runs": "Runs",
+    "player_bases": "Total Bases",
+    "player_stolen_bases": "Stolen Bases",
+    "player_walks": "Walks",
+    "player_doubles": "Doubles",
+    "player_triples": "Triples",
+    "player_singles": "Singles",
+    "player_batting_strikeouts": "Batting Strikeouts",
+    "player_strikeouts": "Strikeouts",
+    "player_outs": "Outs",
+    "player_earned_runs": "Earned Runs",
+    "player_hits_allowed": "Hits Allowed",
+    "player_pitches_thrown": "Pitches Thrown",
+    "player_to_record_win": "To Record Win",
+}
+
+
+def get_all_player_props(date: str = None, force_refresh: bool = False) -> list:
+    """
+    Every MAIN_PROP_MARKETS prop (batter + pitcher, whole slate) with a posted PrizePicks line,
+    devigged against every traditional sportsbook that posts the SAME line PrizePicks does, and
+    combined into one consensus "fair" probability — sorted highest-probability side first.
+
+    Deliberately keyed off PrizePicks' own line, not each book's own main line: a book only
+    contributes to a prop's consensus if its own over/under line for that player/market is
+    numerically identical to PrizePicks' line (e.g. both at 4.5) — devigging a book's price at a
+    DIFFERENT line than PrizePicks' wouldn't answer "is PrizePicks' specific number fair," which
+    is the actual point of this comparison. A prop with no PrizePicks line at all, or with zero
+    books at a matching line, is dropped rather than shown with a misleading/partial number.
+
+    PrizePicks' own price is carried through for display but never devigged — it's a pick'em
+    price (typically -137/-137 both sides on this API), not a real two-sided market-clearing
+    price the way a sportsbook's is, so running it through the same devig math wouldn't produce a
+    meaningful "fair" probability the way it does for an actual book.
+
+    Display-only: this does not feed the win-prob or strikeout models, and team attribution is
+    only at the game-matchup level (OpticOdds' player-prop entries don't carry a team id) — a
+    row says "MIA @ PHI," not which of the two teams that specific batter is on.
+
+    Returns a flat list across every game, each row:
+    {player_name, matchup, market, line, prizepicks_over_price, prizepicks_under_price,
+     consensus_prob, side, num_books, books_used}
+    where `side`/`consensus_prob` is whichever of over/under has the higher fair probability.
+    """
+    if not OPTICODDS_API_KEY:
+        return []
+
+    date = date or datetime.now().strftime("%Y-%m-%d")
+    cache_path = os.path.join(CACHE_DIR, f"all_player_props_{date}.json")
+    if not force_refresh and os.path.exists(cache_path):
+        age_min = (time.time() - os.path.getmtime(cache_path)) / 60
+        if age_min < _CACHE_MAX_AGE_MIN:
+            with open(cache_path) as f:
+                return json.load(f)
+
+    headers = {"X-Api-Key": OPTICODDS_API_KEY}
+    fixture_ids = _get_active_fixture_ids(date)
+    if not fixture_ids:
+        return []
+
+    markets = list(MAIN_PROP_MARKETS.keys())
+    # /fixtures/odds caps at 5 sportsbooks per request (confirmed live: 6 returns
+    # {"error":"maximum 5 sportsbooks allowed"}) — CONSENSUS_BOOKS is already 5, so PrizePicks
+    # needs its own separate request per batch, same split get_strikeout_prop_lines/
+    # get_prizepicks_strikeout_lines already use for the same reason.
+    sportsbook_groups = [CONSENSUS_BOOKS, PRIZEPICKS_SPORTSBOOK]
+
+    # (player_norm, market_id) -> {"name": raw name, "matchup": "AWAY @ HOME", "books": {book: {"over": entry, "under": entry}}}
+    groups = {}
+    for i in range(0, len(fixture_ids), FIXTURE_BATCH_SIZE):
+        batch = fixture_ids[i:i + FIXTURE_BATCH_SIZE]
+        for sportsbooks in sportsbook_groups:
+            try:
+                resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
+                    "league": "mlb", "market": markets, "sportsbook": sportsbooks,
+                    "is_main": "true", "fixture_id": batch,
+                }, headers=headers, timeout=20)
+                resp.raise_for_status()
+                fixtures = resp.json().get("data", [])
+            except requests.exceptions.RequestException:
+                continue
+
+            for fixture in fixtures:
+                matchup = f"{fixture.get('away_team_display')} @ {fixture.get('home_team_display')}"
+                for o in fixture.get("odds") or []:
+                    market_id = o.get("market_id")
+                    player, book, side = o.get("selection"), o.get("sportsbook"), o.get("selection_line")
+                    if market_id not in MAIN_PROP_MARKETS or not player or not book or side not in ("over", "under"):
+                        continue
+                    key = (normalize_player_name(player), market_id)
+                    g = groups.setdefault(key, {"name": player, "matchup": matchup, "books": {}})
+                    g["books"].setdefault(book, {})[side] = o
+
+    props = []
+    prizepicks_book = PRIZEPICKS_SPORTSBOOK[0]
+    for (player_norm, market_id), g in groups.items():
+        pp = g["books"].get(prizepicks_book)
+        if not pp or "over" not in pp:
+            continue
+        pp_line = pp["over"].get("points")
+        if pp_line is None:
+            continue
+
+        book_probs = []
+        books_used = []
+        for book in CONSENSUS_BOOKS:
+            entry = g["books"].get(book)
+            if not entry or "over" not in entry or "under" not in entry:
+                continue
+            if entry["over"].get("points") != pp_line or entry["under"].get("points") != pp_line:
+                continue
+            p_over = devig_home_prob(entry["over"].get("price"), entry["under"].get("price"))
+            if p_over is None:
+                continue
+            book_probs.append(p_over)
+            books_used.append(book)
+
+        if not book_probs:
+            continue
+
+        consensus_over = sum(book_probs) / len(book_probs)
+        side = "over" if consensus_over >= 0.5 else "under"
+        consensus_prob = consensus_over if side == "over" else 1 - consensus_over
+
+        props.append({
+            "player_name": g["name"],
+            "matchup": g["matchup"],
+            "market": MAIN_PROP_MARKETS[market_id],
+            "line": pp_line,
+            "prizepicks_over_price": pp["over"].get("price"),
+            "prizepicks_under_price": pp.get("under", {}).get("price"),
+            "side": side,
+            "consensus_prob": round(consensus_prob, 4),
+            "num_books": len(books_used),
+            "books_used": books_used,
+        })
+
+    props.sort(key=lambda p: p["consensus_prob"], reverse=True)
+
+    with open(cache_path, "w") as f:
+        json.dump(props, f)
+    return props

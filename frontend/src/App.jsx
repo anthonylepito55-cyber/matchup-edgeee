@@ -7,6 +7,7 @@ import PitcherDetail from './PitcherDetail.jsx'
 import TeamDetail from './TeamDetail.jsx'
 import TennisSection from './TennisSection.jsx'
 import HistorySection from './HistorySection.jsx'
+import PropsSection from './PropsSection.jsx'
 import { americanOddsToImpliedProb } from './odds.js'
 import { getTeamColor } from './teamColors.js'
 
@@ -24,7 +25,7 @@ export default function App() {
   const [betFilter, setBetFilter] = useState('all') // 'all' | 'sure' | 'unsure'
   const [selectedPitcher, setSelectedPitcher] = useState(null) // { id, name } | null
   const [selectedTeam, setSelectedTeam] = useState(null) // { abbr, color } | null
-  const [sport, setSport] = useState('mlb') // 'mlb' | 'tennis'
+  const [sport, setSport] = useState('mlb') // 'mlb' | 'tennis' | 'props'
   const [view, setView] = useState('today') // 'today' | 'history' (MLB only)
 
   useEffect(() => {
@@ -150,8 +151,10 @@ export default function App() {
               </>
             )}
           </>
-        ) : (
+        ) : sport === 'tennis' ? (
           <TennisSection />
+        ) : (
+          <PropsSection />
         )}
       </main>
 
@@ -221,6 +224,7 @@ function SportTabs({ sport, onChange }) {
   const options = [
     { key: 'mlb', label: 'MLB' },
     { key: 'tennis', label: 'TENNIS' },
+    { key: 'props', label: 'PROPS' },
   ]
   return (
     <div style={{ display: 'flex', gap: 6 }}>
