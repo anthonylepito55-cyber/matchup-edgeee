@@ -322,7 +322,9 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 raw = json.load(f)
             return {tuple(k.split("|||")): v for k, v in raw.items()}
 
-    end_date = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1, hours=12)).strftime("%Y-%m-%d")
+    # +2 calendar days, not +1 day 12h — see _get_active_fixture_ids' comment on why a date-only
+    # bound can't represent a same-day hour offset (it gets silently truncated away).
+    end_date = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
     try:
         fixture_map = _fetch_fixture_map(date, end_date, statuses=("unplayed", "live", "completed"))
     except requests.exceptions.RequestException:
@@ -611,8 +613,20 @@ def _get_active_fixture_ids(date: str) -> list:
     # Games on a given US-local calendar date can start anywhere from
     # mid-afternoon to nearly midnight local, which crosses into the next
     # UTC day for evening/West-coast games — pad the window on both sides.
+    #
+    # BUG (fixed): this used to add timedelta(days=1, hours=12) and then format straight to a
+    # date-only string via strftime("%Y-%m-%d") — the +12h component gets silently discarded by
+    # that truncation (adding 12h to a midnight-aligned date just lands on noon of the SAME
+    # resulting calendar date), so the "padding" never actually did anything; start_before was
+    # always exactly date+1, identical to no padding at all. Caught directly: an SF@SD game
+    # posted at 2026-07-31T01:40:00Z (an evening Pacific-time start) was invisible to every
+    # date='2026-07-30' query — get_pitcher_market_lines, get_strikeout_prop_lines, and this
+    # function's other callers all silently excluded it, well past the point real props existed
+    # for it (a sportsbook already had a strikeout line up for the away starter). Fixed by
+    # padding a full extra CALENDAR day (date+2) instead of a same-day time-of-day offset that a
+    # date-only param can't represent — guaranteed to cover any real-world US-timezone crossing.
     start_after = date
-    start_before = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1, hours=12)).strftime("%Y-%m-%d")
+    start_before = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
     try:
         fixtures_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
             "league": "mlb", "start_date_after": start_after, "start_date_before": start_before,
@@ -724,7 +738,9 @@ def get_pitcher_market_lines(date: str = None, force_refresh: bool = False) -> d
             with open(cache_path) as f:
                 return json.load(f)
 
-    end_date = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1, hours=12)).strftime("%Y-%m-%d")
+    # +2 calendar days, not +1 day 12h — see _get_active_fixture_ids' comment on why a date-only
+    # bound can't represent a same-day hour offset (it gets silently truncated away).
+    end_date = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
     try:
         fixture_map = _fetch_fixture_map(date, end_date, statuses=("unplayed", "live", "completed"))
     except requests.exceptions.RequestException:

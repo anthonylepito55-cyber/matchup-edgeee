@@ -1356,6 +1356,32 @@ def _get_mlb_team_ids(force_refresh: bool = False) -> dict:
     return dict(zip(df["Team"], df["team_id"]))
 
 
+def get_team_roster(team_abbr: str, force_refresh: bool = False) -> dict:
+    """{raw full name: mlbID} for every player on team_abbr's current active roster — lets a
+    caller resolve a player NAME from an external source (e.g. a sportsbook's posted prop) back
+    to the MLB Stats API id everything else in this app keys off. Short-ish cache TTL (rosters
+    move via call-ups/trades, if rarely same-day) — see main.py's probable-pitcher fallback for
+    why this exists: MLB's own probablePitcher hydration sometimes lags a sportsbook's own
+    posted line by hours, and cross-checking a team's actual roster is what makes that fallback
+    safe (only ONE name should ever match both the roster and a posted line for a given team)."""
+    def fetch():
+        team_ids = _get_mlb_team_ids()
+        team_id = team_ids.get(team_abbr)
+        if not team_id:
+            return pd.DataFrame()
+        resp = requests.get(f"{MLB_STATS_API}/teams/{team_id}/roster", params={"rosterType": "active"}, timeout=15)
+        resp.raise_for_status()
+        rows = [
+            {"name": p["person"]["fullName"], "mlbID": p["person"]["id"]}
+            for p in resp.json().get("roster", []) if p.get("person")
+        ]
+        return pd.DataFrame(rows)
+    df = _load_or_fetch(f"team_roster_{team_abbr}", fetch, force_refresh, max_age_hours=6)
+    if df is None or df.empty:
+        return {}
+    return dict(zip(df["name"], df["mlbID"]))
+
+
 def get_team_batting_vs_hand(season: int, hand: str, force_refresh: bool = False) -> pd.DataFrame:
     """
     Team wOBA (and K%) specifically against left-handed (hand='L') or

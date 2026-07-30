@@ -739,9 +739,15 @@ export function SeasonStatsLine({ stats }) {
   }
   const fip = stats.fip != null ? stats.fip.toFixed(2) : '—'
   const kbb = stats.k_bb_pct != null ? stats.k_bb_pct.toFixed(1) : '—'
+  const hasLine = stats.ip_display != null
   return (
     <span className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
       season: {stats.era.toFixed(2)} ERA · {fip} FIP · {kbb}% K-BB
+      {hasLine && (
+        <span title="Raw current-season totals — never blended with prior-season data, unlike the rate stats above">
+          {' '}· {stats.ip_display} IP, {stats.h ?? '—'} H, {stats.k ?? '—'} K, {stats.bb ?? '—'} BB, {stats.hr ?? '—'} HR
+        </span>
+      )}
     </span>
   )
 }

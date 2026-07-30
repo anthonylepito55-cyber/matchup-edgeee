@@ -41,6 +41,7 @@ from data_collection import (
     get_recent_il_activations, days_since_il_return,
     get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern,
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
+    get_team_roster,
     CACHE_DIR,
 )
 from features import (
@@ -249,6 +250,35 @@ def _opener_substitution_warning(pitcher_name: str, bulk_name: str) -> list[str]
         f"come from {bulk_name}'s own starts/appearances, not specifically pitching in relief right after "
         f"{pitcher_name}). The strikeout prop below is still about {pitcher_name} specifically."
     ]
+
+
+def _resolve_tbd_pitcher_from_props(team_abbr: str, pitcher_market_lines: dict) -> tuple:
+    """
+    Fallback for when MLB Stats API's own probablePitcher hydration hasn't caught up yet:
+    sportsbooks routinely post a player-prop line (see odds_fetcher.get_pitcher_market_lines)
+    for a starter well before MLB's own feed reflects it — caught directly from a real case,
+    SF@SD, where DraftKings/FanDuel already had a strikeout line up for Robbie Ray while MLB's
+    feed still reported the away starter as unannounced.
+
+    Cross-references team_abbr's actual active roster against the set of pitcher names with a
+    posted prop today: if exactly one roster player has a posted line, that's a safe, specific
+    signal (no fuzzy name matching, no guessing across the whole league) — a team essentially
+    never has two different pitchers with a posted starter-type prop line on the same night.
+    Returns (pitcher_id, pitcher_name) if resolved, (None, None) otherwise (stays TBD — safer
+    to show nothing than guess wrong when the roster/props don't cleanly agree).
+    """
+    if not pitcher_market_lines:
+        return None, None
+    roster = get_team_roster(team_abbr)
+    if not roster:
+        return None, None
+    matches = [
+        (pid, name) for name, pid in roster.items()
+        if normalize_player_name(name) in pitcher_market_lines
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    return None, None
 
 
 def _prior_season_blend_warning(pitcher_name: str, current_ip, blended_ip) -> list[str]:
@@ -461,14 +491,38 @@ def _season_stat_lookup_blended(season_pitching_stats: pd.DataFrame, prior_seaso
     return blend_with_prior_season(current, prior)
 
 
+def _season_counting_stats(season_pitching_stats: pd.DataFrame, pid: int) -> dict:
+    """Raw, NEVER-blended current-season counting totals for display — the literal box-score
+    line (innings/hits/strikeouts/walks/homers allowed). Deliberately kept out of
+    blend_with_prior_season's rate-stat averaging: summing/blending counting totals across a
+    mix of two seasons wouldn't mean anything the way an ERA or FIP average does — a batter
+    doesn't care that a pitcher has "72 blended strikeouts," they want his real 2026 total."""
+    empty = {"ip_display": None, "h": None, "k": None, "bb": None, "hr": None}
+    if season_pitching_stats is None or "mlbID" not in season_pitching_stats.columns:
+        return empty
+    row = season_pitching_stats[season_pitching_stats["mlbID"] == pid]
+    if row.empty:
+        return empty
+    r = row.iloc[0]
+
+    def _int(v):
+        return None if v is None or pd.isna(v) else int(v)
+
+    return {
+        "ip_display": r.get("IP"),  # raw Baseball-Reference string, e.g. "107.2" (fractional-outs notation)
+        "h": _int(r.get("H")), "k": _int(r.get("SO")), "bb": _int(r.get("BB")), "hr": _int(r.get("HR")),
+    }
+
+
 def _season_stats_for_matchup(season_pitching_stats: pd.DataFrame, prior_season_pitching_stats: pd.DataFrame,
                                home_pitcher_id: int, away_pitcher_id: int) -> dict:
     """Display-friendly (JSON-safe) season stats for both starters — same source the model's
     fip_diff/k_bb_pct_diff features use, so what's displayed matches what actually drives the prediction."""
-    return {
-        "home": _json_safe(_season_stat_lookup_blended(season_pitching_stats, prior_season_pitching_stats, home_pitcher_id)),
-        "away": _json_safe(_season_stat_lookup_blended(season_pitching_stats, prior_season_pitching_stats, away_pitcher_id)),
-    }
+    def side(pid):
+        blended = _season_stat_lookup_blended(season_pitching_stats, prior_season_pitching_stats, pid)
+        counting = _season_counting_stats(season_pitching_stats, pid)
+        return _json_safe({**blended, **counting})
+    return {"home": side(home_pitcher_id), "away": side(away_pitcher_id)}
 
 
 def _team_stat_row(df: pd.DataFrame, team_abbr: str, col: str, decimals: int = 3):
@@ -1381,12 +1435,36 @@ def today(date: str = None):
             "away": injuries_by_team.get(g["away_team_abbr"], []),
         }
 
+        # MLB's own probablePitcher feed sometimes lags a sportsbook's posted line by hours —
+        # try resolving a still-TBD side from the same pitcher_market_lines already fetched
+        # above before giving up on this game. See _resolve_tbd_pitcher_from_props.
+        market_resolved_sides = []
+        if not g["home_pitcher_id"]:
+            resolved_id, resolved_name = _resolve_tbd_pitcher_from_props(g["home_team_abbr"], pitcher_market_lines)
+            if resolved_id:
+                g["home_pitcher_id"], g["home_pitcher_name"] = resolved_id, resolved_name
+                market_resolved_sides.append("home")
+        if not g["away_pitcher_id"]:
+            resolved_id, resolved_name = _resolve_tbd_pitcher_from_props(g["away_team_abbr"], pitcher_market_lines)
+            if resolved_id:
+                g["away_pitcher_id"], g["away_pitcher_name"] = resolved_id, resolved_name
+                market_resolved_sides.append("away")
+
         if not g["home_pitcher_id"] or not g["away_pitcher_id"]:
             results.append({
                 **g, "prediction": None, "live_odds": live_odds_out, "injuries": injuries_out,
                 "book_odds": book_odds_out, "note": "Probable pitcher not yet announced",
             })
             continue
+
+        market_resolved_warnings = []
+        for side in market_resolved_sides:
+            resolved_name = g["home_pitcher_name"] if side == "home" else g["away_pitcher_name"]
+            market_resolved_warnings.append(
+                f"{resolved_name} isn't officially confirmed by MLB yet — inferred from a posted sportsbook "
+                f"strikeout/outs/earned-runs/hits-allowed line, the only {side} roster pitcher with one today. "
+                f"Usually right, but treat this one game as slightly less certain than an MLB-confirmed starter."
+            )
 
         # This game's starters' own posted player-prop lines (outs/ER/hits-allowed/strikeouts) —
         # feeds market_outs_line_diff/etc. below and market_outs_line/etc. in strikeout_predictions.
@@ -1481,7 +1559,7 @@ def today(date: str = None):
             _pitcher_warnings(g["home_pitcher_name"], rest_days.get(g["home_pitcher_id"]), recent_form_out["home"]) +
             _pitcher_warnings(g["away_pitcher_name"], rest_days.get(g["away_pitcher_id"]), recent_form_out["away"]) +
             _weather_warnings(g["venue"], g["game_time_utc"]) +
-            blend_warnings + il_warnings + opener_sub_warnings
+            blend_warnings + il_warnings + opener_sub_warnings + market_resolved_warnings
         ) or None
 
         prediction = None
