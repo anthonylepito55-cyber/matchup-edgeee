@@ -499,16 +499,36 @@ def _h2h_weight(starts) -> float:
 # season stats," not "fall back to what we actually know about this guy."
 PRIOR_SEASON_DISCOUNT = 0.5
 
+# Past this many current-season IP, prior-season performance is fully faded out (0 remaining
+# weight) — the linear ramp runs from MIN_RELIABLE_SEASON_IP (fade starts) to this value (fade
+# complete). Below MIN_RELIABLE_SEASON_IP, prior season blends in at full (PRIOR_SEASON_DISCOUNT-
+# scaled) strength, same as before this existed.
+#
+# Added after a real discrepancy: Noah Cameron showed a 4.17 ERA on this app vs. ESPN's 4.93 —
+# his actual 2026 number, unblended — despite having 107.2 IP this season, more than 3x
+# MIN_RELIABLE_SEASON_IP. The function's own docstring already claimed "current season fully
+# dominates once it reaches MIN_RELIABLE_SEASON_IP" but nothing in the code actually implemented
+# that: prior_ip was blended in proportionally by raw innings with NO cutoff, so any established
+# starter with meaningful prior-season innings (i.e. most of the league) kept getting materially
+# diluted by a year-old number no matter how large and reliable their current sample got. This
+# fixes the blend to actually match its own stated intent, rather than removing blending
+# entirely — the thin-sample case this was originally built for (a pitcher back from injury with
+# one bad start hiding a real track record, see below) is still real and still needs it.
+PRIOR_SEASON_FADEOUT_IP = 90.0
+
 
 def blend_with_prior_season(current: dict, prior: dict) -> dict:
     """
     Blends a pitcher's current-season stat line ({"era","ip","fip","k_bb_pct","k9"})
     with their prior-season line, weighted by innings (prior innings
     discounted by PRIOR_SEASON_DISCOUNT — a year-old full season is real
-    signal but less current than this year's own innings). Current season
-    fully dominates once it reaches MIN_RELIABLE_SEASON_IP on its own; below
-    that, prior-season performance fills in rather than the pitcher being
-    treated as a blank slate.
+    signal but less current than this year's own innings) AND by a fade-out
+    ramp (see PRIOR_SEASON_FADEOUT_IP) that phases prior-season influence
+    down to zero as the current season grows past MIN_RELIABLE_SEASON_IP —
+    current season fully dominates on its own well before a full season's
+    worth of innings, rather than staying diluted by a year-old number
+    indefinitely; below MIN_RELIABLE_SEASON_IP, prior-season performance
+    fills in rather than the pitcher being treated as a blank slate.
 
     Falls back gracefully: no prior-season data (rookie's first year) ->
     current only, unchanged from before this existed. No current-season
@@ -520,7 +540,11 @@ def blend_with_prior_season(current: dict, prior: dict) -> dict:
     prior = prior or {}
     cur_ip = current.get("ip") or 0.0
     prior_ip_raw = prior.get("ip") or 0.0
-    prior_ip = prior_ip_raw * PRIOR_SEASON_DISCOUNT
+    if cur_ip > MIN_RELIABLE_SEASON_IP:
+        fade = max(0.0, 1.0 - (cur_ip - MIN_RELIABLE_SEASON_IP) / (PRIOR_SEASON_FADEOUT_IP - MIN_RELIABLE_SEASON_IP))
+    else:
+        fade = 1.0
+    prior_ip = prior_ip_raw * PRIOR_SEASON_DISCOUNT * fade
 
     if prior_ip <= 0:
         return current
