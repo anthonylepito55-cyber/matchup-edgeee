@@ -95,7 +95,13 @@ def _parse_ip(ip_val) -> float:
     except (ValueError, TypeError):
         return 0.0
 
-CACHE_DIR = os.path.join(os.path.dirname(__file__), "data_cache")
+# Overridable via DATA_DIR so a deployed instance can point this at a persistent volume instead
+# of the container's own (ephemeral) disk — Railway wipes the local filesystem on every redeploy,
+# which was silently resetting prediction_log.parquet/strikeout_prediction_log.parquet (the real
+# forward-test history, not a re-fetchable cache) back to zero every time this app shipped a fix.
+# Unset locally, so local dev behavior is unchanged — falls back to the same relative path as
+# before this existed.
+CACHE_DIR = os.environ.get("DATA_DIR") or os.path.join(os.path.dirname(__file__), "data_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 MLB_STATS_API = "https://statsapi.mlb.com/api/v1"
