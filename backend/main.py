@@ -41,7 +41,7 @@ from data_collection import (
     get_recent_il_activations, days_since_il_return,
     get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern,
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
-    get_team_roster,
+    get_team_roster, get_espn_probable_pitchers,
     CACHE_DIR,
 )
 from features import (
@@ -278,6 +278,29 @@ def _resolve_tbd_pitcher_from_props(team_abbr: str, pitcher_market_lines: dict) 
     ]
     if len(matches) == 1:
         return matches[0]
+    return None, None
+
+
+def _resolve_tbd_pitcher_from_espn(team_abbr: str, espn_pitchers: dict) -> tuple:
+    """
+    Second fallback for a still-TBD side, tried after _resolve_tbd_pitcher_from_props: ESPN's
+    own scoreboard sometimes has a probable starter posted before EITHER MLB's own feed AND
+    every sportsbook catch up — confirmed live 2026-08-03 (TEX/LAD both cases where no
+    sportsbook had a prop up yet, but ESPN already named the starter). Same safety pattern as
+    the props fallback: cross-reference the team's actual roster so an unrecognized/misspelled
+    ESPN name can't silently resolve to nothing (or, worse, hide a name-matching bug) — only an
+    EXACT normalized-name match against the roster is trusted.
+    """
+    espn_name = espn_pitchers.get(team_abbr)
+    if not espn_name:
+        return None, None
+    roster = get_team_roster(team_abbr)
+    if not roster:
+        return None, None
+    target = normalize_player_name(espn_name)
+    for name, pid in roster.items():
+        if normalize_player_name(name) == target:
+            return pid, name
     return None, None
 
 
@@ -1304,13 +1327,13 @@ def today(date: str = None):
     market_model_trained = model_module.load_model(model_module.MODEL_PATH)[0] is not None
     rating_fitted = rating_system.load_rating_system()  # display-only "why" breakdown, see rating_system.py
 
-    # All 7 of these are independent live/market fetches with no shared state — each already
+    # All 8 of these are independent live/market fetches with no shared state — each already
     # tolerates its own failure internally (returns {} / [] rather than raising), so running them
     # concurrently is a pure latency win with no change in behavior. Same reasoning as the
     # per-batter lineup fix below: on a cold cache (e.g. a fresh Railway deploy with no persisted
     # data_cache/), doing 7+ independent network round-trips one at a time is the difference
     # between a few seconds and a minute-plus.
-    with ThreadPoolExecutor(max_workers=7) as _setup_pool:
+    with ThreadPoolExecutor(max_workers=8) as _setup_pool:
         _live_odds_f = _setup_pool.submit(get_moneyline_odds, date)
         # One shared fetch backing line_movement/market_divergence/consensus/book-by-book/
         # prediction markets — see odds_fetcher.get_market_snapshot for why this replaced 3-4 calls.
@@ -1318,6 +1341,10 @@ def today(date: str = None):
         _injuries_f = _setup_pool.submit(get_active_injuries)  # live-only, display-only
         _prop_lines_f = _setup_pool.submit(get_strikeout_prop_lines, date)
         _prizepicks_f = _setup_pool.submit(get_prizepicks_strikeout_lines, date)
+        # Second-source probable-pitcher fallback (see _resolve_tbd_pitcher_from_espn) — tried
+        # after pitcher_market_lines below when MLB's own feed AND every sportsbook are both
+        # still without a starter for a side, since ESPN's scoreboard can beat both.
+        _espn_pitchers_f = _setup_pool.submit(get_espn_probable_pitchers, date)
         # {normalized_pitcher_name: {"strikeout_line":.., "outs_line":.., "er_line":..,
         # "hits_allowed_line":..}} — feeds market_outs_line_diff/etc. (win-prob) and
         # market_outs_line/etc. (strikeout model).
@@ -1337,6 +1364,7 @@ def today(date: str = None):
         prizepicks_lines = _prizepicks_f.result()
         pitcher_market_lines = _pitcher_market_lines_f.result()
         il_activations = _il_activations_f.result()
+        espn_pitchers = _espn_pitchers_f.result()
 
     # Baseball-Reference is an external scrape target and occasionally
     # blocks/fails; when that happens, we can't build model features, so
@@ -1435,20 +1463,34 @@ def today(date: str = None):
             "away": injuries_by_team.get(g["away_team_abbr"], []),
         }
 
-        # MLB's own probablePitcher feed sometimes lags a sportsbook's posted line by hours —
-        # try resolving a still-TBD side from the same pitcher_market_lines already fetched
-        # above before giving up on this game. See _resolve_tbd_pitcher_from_props.
-        market_resolved_sides = []
+        # MLB's own probablePitcher feed sometimes lags a sportsbook's posted line, or even ESPN's
+        # own scoreboard, by hours — try resolving a still-TBD side from the same
+        # pitcher_market_lines already fetched above first, then ESPN. See
+        # _resolve_tbd_pitcher_from_props / _resolve_tbd_pitcher_from_espn.
+        market_resolved_sides = []  # (side, source) — source is "props" or "espn", for the warning text below
         if not g["home_pitcher_id"]:
             resolved_id, resolved_name = _resolve_tbd_pitcher_from_props(g["home_team_abbr"], pitcher_market_lines)
             if resolved_id:
                 g["home_pitcher_id"], g["home_pitcher_name"] = resolved_id, resolved_name
-                market_resolved_sides.append("home")
+                market_resolved_sides.append(("home", "props"))
         if not g["away_pitcher_id"]:
             resolved_id, resolved_name = _resolve_tbd_pitcher_from_props(g["away_team_abbr"], pitcher_market_lines)
             if resolved_id:
                 g["away_pitcher_id"], g["away_pitcher_name"] = resolved_id, resolved_name
-                market_resolved_sides.append("away")
+                market_resolved_sides.append(("away", "props"))
+
+        # Still TBD after the props fallback above? Try ESPN's scoreboard next — it can beat
+        # BOTH MLB's own feed and every sportsbook. See _resolve_tbd_pitcher_from_espn.
+        if not g["home_pitcher_id"]:
+            resolved_id, resolved_name = _resolve_tbd_pitcher_from_espn(g["home_team_abbr"], espn_pitchers)
+            if resolved_id:
+                g["home_pitcher_id"], g["home_pitcher_name"] = resolved_id, resolved_name
+                market_resolved_sides.append(("home", "espn"))
+        if not g["away_pitcher_id"]:
+            resolved_id, resolved_name = _resolve_tbd_pitcher_from_espn(g["away_team_abbr"], espn_pitchers)
+            if resolved_id:
+                g["away_pitcher_id"], g["away_pitcher_name"] = resolved_id, resolved_name
+                market_resolved_sides.append(("away", "espn"))
 
         if not g["home_pitcher_id"] or not g["away_pitcher_id"]:
             results.append({
@@ -1458,13 +1500,20 @@ def today(date: str = None):
             continue
 
         market_resolved_warnings = []
-        for side in market_resolved_sides:
+        for side, source in market_resolved_sides:
             resolved_name = g["home_pitcher_name"] if side == "home" else g["away_pitcher_name"]
-            market_resolved_warnings.append(
-                f"{resolved_name} isn't officially confirmed by MLB yet — inferred from a posted sportsbook "
-                f"strikeout/outs/earned-runs/hits-allowed line, the only {side} roster pitcher with one today. "
-                f"Usually right, but treat this one game as slightly less certain than an MLB-confirmed starter."
-            )
+            if source == "props":
+                market_resolved_warnings.append(
+                    f"{resolved_name} isn't officially confirmed by MLB yet — inferred from a posted sportsbook "
+                    f"strikeout/outs/earned-runs/hits-allowed line, the only {side} roster pitcher with one today. "
+                    f"Usually right, but treat this one game as slightly less certain than an MLB-confirmed starter."
+                )
+            else:
+                market_resolved_warnings.append(
+                    f"{resolved_name} isn't officially confirmed by MLB yet — matched from ESPN's probable-starter "
+                    f"listing against the {side} team's active roster. Usually right, but treat this one game as "
+                    f"slightly less certain than an MLB-confirmed starter."
+                )
 
         # This game's starters' own posted player-prop lines (outs/ER/hits-allowed/strikeouts) —
         # feeds market_outs_line_diff/etc. below and market_outs_line/etc. in strikeout_predictions.

@@ -1507,6 +1507,64 @@ def get_probable_pitchers(date: str = None) -> list[dict]:
     return games
 
 
+# MLB Stats API is the canonical abbreviation this whole app keys off (team_abbr everywhere,
+# get_team_roster, _get_mlb_team_ids). ESPN's own scoreboard API uses a few different
+# abbreviations for the same teams — same class of mismatch already fixed for Baseball-Reference
+# (see the WSN/OAK/CHW/ARI -> WSH/ATH/CWS/AZ fix) — confirmed directly: ESPN returned "ARI" for
+# Arizona today while MLB Stats API's own probablePitcher feed for the same game used "AZ".
+_ESPN_TEAM_ABBR_FIX = {"ARI": "AZ", "WSN": "WSH", "CHW": "CWS", "OAK": "ATH"}
+
+
+def get_espn_probable_pitchers(date: str = None, force_refresh: bool = False) -> dict:
+    """
+    {team_abbr: pitcher_full_name} from ESPN's public scoreboard API, for today's (or a given
+    date's) probable starters — an independent second source from MLB Stats API's own
+    probablePitcher hydration in get_probable_pitchers above.
+
+    Built because MLB's own feed and sportsbook prop lines (see main.py's
+    _resolve_tbd_pitcher_from_props) can BOTH still be missing a starter that's already public —
+    confirmed live: on 2026-08-03, MLB Stats API had TEX and LAD's starters as unannounced, no
+    sportsbook had posted a prop for either pitcher yet either, but ESPN's scoreboard already
+    listed both (Cal Quantrill, Justin Wrobleski) by name. No player IDs here that map to MLB
+    Stats API's own pitcher ids — ESPN uses its own id space — so the caller must resolve the
+    name back to an MLB id itself (see main.py's roster cross-reference, same safety pattern
+    _resolve_tbd_pitcher_from_props already uses for the props fallback).
+
+    date format: 'YYYY-MM-DD'. Defaults to today. Short cache TTL (1hr) since this can change
+    throughout the day as teams announce starters.
+    """
+    if date is None:
+        date = datetime.now().strftime("%Y-%m-%d")
+    espn_date = date.replace("-", "")
+
+    def fetch():
+        resp = requests.get(
+            "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
+            params={"dates": espn_date}, timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        rows = []
+        for event in data.get("events", []):
+            competitions = event.get("competitions") or []
+            if not competitions:
+                continue
+            for competitor in competitions[0].get("competitors", []):
+                abbr = competitor.get("team", {}).get("abbreviation")
+                probables = competitor.get("probables") or []
+                if not abbr or not probables:
+                    continue
+                name = probables[0].get("athlete", {}).get("fullName")
+                if name:
+                    rows.append({"team_abbr": _ESPN_TEAM_ABBR_FIX.get(abbr, abbr), "pitcher_name": name})
+        return pd.DataFrame(rows)
+
+    df = _load_or_fetch(f"espn_probable_pitchers_{date}", fetch, force_refresh, max_age_hours=1)
+    if df is None or df.empty:
+        return {}
+    return dict(zip(df["team_abbr"], df["pitcher_name"]))
+
+
 IL_LOOKBACK_DAYS = 45  # how far back to look for an IL activation worth still flagging
 
 
