@@ -27,12 +27,19 @@ export default function App() {
   const [sport, setSport] = useState('mlb') // 'mlb' | 'tennis'
   const [view, setView] = useState('today') // 'today' | 'history' (MLB only)
 
+  const AUTO_REFRESH_MS = 120000 // 2 minutes — probable pitchers get announced/confirmed
+  // throughout the day, and the previous behavior (fetch once on page load, never again) meant
+  // a tab left open all afternoon kept showing "TBD" long after MLB/ESPN/sportsbooks had real
+  // starters up, with no way to see the update short of a manual reload.
+
   useEffect(() => {
     fetchToday()
-  }, [])
+    if (sport !== 'mlb' || view !== 'today') return
+    const id = setInterval(fetchToday, AUTO_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [sport, view])
 
   async function fetchToday() {
-    setLoading(true)
     setError(null)
     try {
       const res = await fetch(`${API_BASE}/api/today`)
