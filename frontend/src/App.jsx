@@ -529,6 +529,14 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
             </div>
           )}
 
+          {(game.ip_predictions || game.er_predictions) && (
+            <PitcherProjectionHeadline
+              awayName={game.away_pitcher_name} homeName={game.home_pitcher_name}
+              awayIp={game.ip_predictions?.away} homeIp={game.ip_predictions?.home}
+              awayEr={game.er_predictions?.away} homeEr={game.er_predictions?.home}
+            />
+          )}
+
           {game.strikeout_predictions && (
             <StrikeoutPropsTable
               awayName={game.away_pitcher_name} homeName={game.home_pitcher_name}
@@ -591,6 +599,57 @@ function ToggleLink({ onClick, open, label }) {
       <span style={{ display: 'inline-block', transition: 'transform 0.15s', transform: open ? 'rotate(90deg)' : 'none' }}>▸</span>
       {open ? 'hide' : 'show'} {label}
     </button>
+  )
+}
+
+function PitcherProjectionHeadline({ awayName, homeName, awayIp, homeIp, awayEr, homeEr }) {
+  if (!awayIp && !homeIp && !awayEr && !homeEr) return null
+  return (
+    <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+      <div className="mono" style={{
+        fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase',
+        letterSpacing: '0.05em', marginBottom: 8,
+      }}>
+        projection
+      </div>
+      <PitcherProjectionRow name={awayName} ip={awayIp} er={awayEr} />
+      <PitcherProjectionRow name={homeName} ip={homeIp} er={homeEr} />
+    </div>
+  )
+}
+
+function PitcherProjectionRow({ name, ip, er }) {
+  if (!ip && !er) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+      <span className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 90 }}>{name || 'TBD'}</span>
+      <span className="mono" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+        {ip && `${ip.display} IP`}
+        {ip && er && '  ·  '}
+        {er && `${er.predicted} ER`}
+      </span>
+      {er && er.line != null && (
+        <span
+          className="mono"
+          style={{ fontSize: 10, color: 'var(--text-tertiary)' }}
+          title="ER over/under against the posted sportsbook line"
+        >
+          O/U {er.line}: o {Math.round(er.over_prob * 100)}% / u {Math.round(er.under_prob * 100)}%
+        </span>
+      )}
+      {(ip?.market_model_predicted_ip != null || er?.market_model_predicted_er != null) && (
+        <span
+          className="mono"
+          style={{ fontSize: 10, color: 'var(--text-tertiary)' }}
+          title="A second model, trained on the same baseball features PLUS this pitcher's own posted player-prop lines — shown for comparison only, never the number driving the projection above."
+        >
+          (market-aware:
+          {ip?.market_model_predicted_ip != null && ` ${ip.market_model_predicted_ip} IP`}
+          {er?.market_model_predicted_er != null && ` ${er.market_model_predicted_er} ER`}
+          )
+        </span>
+      )}
+    </div>
   )
 }
 
