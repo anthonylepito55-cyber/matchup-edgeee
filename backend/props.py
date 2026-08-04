@@ -1,11 +1,16 @@
 """
 props.py
 
-Predicts a starting pitcher's strikeout total for one game, using an
-XGBoost regressor with a Poisson objective — strikeouts are a
-non-negative count (0, 1, 2, ...), which Poisson loss fits much better
-than plain squared-error regression assumes for a symmetric, unbounded
-target.
+Predicts a starting pitcher's strikeout total, innings pitched, and earned runs allowed for one
+game — every train/predict/backtest function here is generic over label_col/feature_columns/
+model_path/objective, so all three targets share this same code, just with different columns and
+model files (STRIKEOUT_MODEL_PATH/IP_MODEL_PATH/ER_MODEL_PATH — see features.py's
+STRIKEOUT_FEATURE_COLUMNS/IP_FEATURE_COLUMNS/ER_FEATURE_COLUMNS).
+
+Strikeouts and earned runs both use an XGBoost regressor with a Poisson objective — both are
+non-negative counts (0, 1, 2, ...), which Poisson loss fits much better than plain squared-error
+regression assumes for a symmetric, unbounded target. Innings pitched is continuous (not a count
+distribution), so it's trained with objective="reg:squarederror" instead — see train.py.
 
 Features (see features.py's STRIKEOUT_FEATURE_COLUMNS): the pitcher's own
 season and recent-form K/9, their recent average innings per start (a
@@ -46,6 +51,14 @@ os.makedirs(os.path.dirname(STRIKEOUT_MODEL_PATH), exist_ok=True)
 # this is purely additive, same pattern as model.py's BASELINE_MODEL_PATH.
 STRIKEOUT_BASELINE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "strikeout_model_baseline.joblib")
 
+# Innings-pitched / earned-runs-allowed projections — same per-outing regression shape and same
+# train/predict/backtest functions below (both are generic over label_col/feature_columns/
+# model_path/objective), just different targets. See features.IP_FEATURE_COLUMNS/ER_FEATURE_COLUMNS.
+IP_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "ip_model.joblib")
+IP_BASELINE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "ip_model_baseline.joblib")
+ER_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "er_model.joblib")
+ER_BASELINE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "er_model_baseline.joblib")
+
 DEFAULT_XGB_PARAMS = {
     # Grid-searched (strikeout_hyperparam_search.py) against the walk-
     # forward MAE backtest. Result: the original copied-in defaults were
@@ -66,7 +79,8 @@ DEFAULT_XGB_PARAMS = {
 
 
 def train_strikeout_model(training_df: pd.DataFrame, label_col: str = "strikeouts", save: bool = True,
-                           xgb_params: dict = None, feature_columns: list = None, model_path: str = None):
+                           xgb_params: dict = None, feature_columns: list = None, model_path: str = None,
+                           objective: str = "count:poisson"):
     """
     training_df must contain feature_columns (defaults to STRIKEOUT_FEATURE_COLUMNS) + label_col
     (actual strikeouts recorded in that start). Missing feature values are median-imputed.
@@ -77,6 +91,11 @@ def train_strikeout_model(training_df: pd.DataFrame, label_col: str = "strikeout
 
     feature_columns/model_path let train.py fit "Model A" (baseball-only) alongside the default
     full feature set without duplicating this function — see STRIKEOUT_BASELINE_MODEL_PATH above.
+
+    objective defaults to count:poisson (right shape for a non-negative integer count — strikeouts,
+    earned runs). Innings pitched is continuous (thirds-of-an-inning, already converted to true
+    decimal by the caller — see build_training_data.py's _parse_ip), not a count distribution, so
+    train.py passes objective="reg:squarederror" for that target instead — see props.IP_MODEL_PATH.
     """
     feature_columns = feature_columns or STRIKEOUT_FEATURE_COLUMNS
     model_path = model_path or STRIKEOUT_MODEL_PATH
@@ -91,7 +110,7 @@ def train_strikeout_model(training_df: pd.DataFrame, label_col: str = "strikeout
     params = {**DEFAULT_XGB_PARAMS, **(xgb_params or {})}
     model = xgb.XGBRegressor(
         **params,
-        objective="count:poisson",
+        objective=objective,
         random_state=42,
     )
     model.fit(X_train, y_train)
@@ -144,7 +163,8 @@ def over_under_prob(mean_k: float, line: float) -> dict:
 
 
 def backtest_strikeout_model(historical_df: pd.DataFrame, label_col: str = "strikeouts", n_folds: int = 5,
-                              xgb_params: dict = None, feature_columns: list = None) -> dict:
+                              xgb_params: dict = None, feature_columns: list = None,
+                              objective: str = "count:poisson") -> dict:
     """Walk-forward backtest: trains on earlier outings, tests on later ones."""
     feature_columns = feature_columns or STRIKEOUT_FEATURE_COLUMNS
     df = historical_df.sort_values("game_date").reset_index(drop=True)
@@ -159,7 +179,10 @@ def backtest_strikeout_model(historical_df: pd.DataFrame, label_col: str = "stri
         if len(train_df) < 50 or len(test_df) < 10:
             continue
 
-        model, medians, _ = train_strikeout_model(train_df, label_col, save=False, xgb_params=xgb_params, feature_columns=feature_columns)
+        model, medians, _ = train_strikeout_model(
+            train_df, label_col, save=False, xgb_params=xgb_params,
+            feature_columns=feature_columns, objective=objective,
+        )
 
         X_test = test_df[feature_columns].fillna(medians)
         y_test = test_df[label_col].astype(float)

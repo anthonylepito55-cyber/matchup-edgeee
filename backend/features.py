@@ -1280,6 +1280,62 @@ STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS = [
     c for c in STRIKEOUT_FEATURE_COLUMNS if c not in STRIKEOUT_MARKET_FEATURE_COLUMNS
 ]
 
+# IP_FEATURE_COLUMNS / ER_FEATURE_COLUMNS: same per-pitcher-outing prediction shape as the
+# strikeout model above (one row per starter's own outing), predicting innings pitched / earned
+# runs allowed instead of strikeouts. Reuses the same season/recent FIP plumbing already computed
+# for the K model (season_fip/recent_fip, not season_k9/recent_k9 — FIP, not ERA, is this
+# codebase's established season/recent pitcher-quality basis everywhere else, see fip_diff/
+# recent_fip_diff in FEATURE_COLUMNS above) rather than inventing new raw stats.
+IP_FEATURE_COLUMNS = [
+    "home_field",
+    "season_fip",            # this pitcher's own season FIP — better pitchers more often go deep
+    "recent_fip",             # same, last-5-starts
+    "season_ip_per_start",    # this pitcher's own season innings-per-start — the single most direct "how deep do they usually go" signal
+    "recent_ip_per_start",    # same, last-5-starts — catches a workload trend the season average smooths over
+    "h2h_ip_per_start",       # this pitcher's own innings-per-start specifically against tonight's opponent, when faced before
+    "opp_woba",                # opposing lineup's own wOBA (real confirmed lineup if posted, else season team average) — a tougher lineup means more stress per inning, a quicker hook
+    "season_pitches_per_start",
+    "recent_pitches_per_start",
+    "season_whiff_pct",       # more empty swings = fewer pitches per out = deeper outings, all else equal
+    "season_csw_pct",
+    "velo_trend",
+    "pitch_diversity",
+    "game_temp_f",
+    "game_wind_mph",
+    "rest_days_effect",
+    # Market-implied win prob for this pitcher's own team — a lopsided game (either direction)
+    # means a manager is more likely to pull the starter early once the outcome looks decided,
+    # same blowout-risk reasoning already used for the K model above.
+    "team_market_win_prob",
+    "market_outs_line",       # the market's own posted outs-recorded line for THIS pitcher tonight
+]
+
+IP_MARKET_FEATURE_COLUMNS = ["team_market_win_prob", "market_outs_line"]
+IP_BASEBALL_ONLY_FEATURE_COLUMNS = [c for c in IP_FEATURE_COLUMNS if c not in IP_MARKET_FEATURE_COLUMNS]
+
+ER_FEATURE_COLUMNS = [
+    "home_field",
+    "season_fip",
+    "recent_fip",
+    "season_ip_per_start",     # more innings pitched = more run-scoring exposure, independent of quality
+    "recent_ip_per_start",
+    "h2h_era",                  # this pitcher's own ERA specifically against tonight's opponent, when faced before
+    "opp_woba",                 # opposing lineup's own wOBA — the direct run-scoring-threat signal
+    "season_hard_hit_pct",      # this pitcher's own season-to-date hard-hit% allowed (95+ mph batted balls) — contact quality allowed, not just contact rate
+    "season_whiff_pct",
+    "season_csw_pct",
+    "velo_trend",
+    "pitch_diversity",
+    "game_temp_f",              # ball carries farther in heat — more relevant to runs allowed than to strikeouts
+    "game_wind_mph",
+    "rest_days_effect",
+    "team_market_win_prob",
+    "market_er_line",           # the market's own posted earned-runs line for THIS pitcher tonight
+]
+
+ER_MARKET_FEATURE_COLUMNS = ["team_market_win_prob", "market_er_line"]
+ER_BASEBALL_ONLY_FEATURE_COLUMNS = [c for c in ER_FEATURE_COLUMNS if c not in ER_MARKET_FEATURE_COLUMNS]
+
 
 def build_strikeout_features(
     pitcher_id: int,
@@ -1371,4 +1427,132 @@ def build_strikeout_features(
 
 def strikeout_features_to_row(features: dict) -> pd.DataFrame:
     row = {col: features.get(col, np.nan) for col in STRIKEOUT_FEATURE_COLUMNS}
+    return pd.DataFrame([row])
+
+
+def build_ip_features(
+    pitcher_id: int,
+    opp_team_abbr: str,
+    is_home: bool,
+    season_fip: float,
+    season_ip_per_start: float,
+    team_batting: pd.DataFrame,
+    recent_stats: dict = None,       # {pitcher_id: {"fip":.., "ip_per_start":..}}
+    statcast: dict = None,           # {pitcher_id: {"whiff_pct":.., "csw_pct":..}}
+    opp_lineup: list = None,
+    player_batting: pd.DataFrame = None,
+    rest_days: float = None,
+    velocity_trend: dict = None,
+    pitch_diversity: dict = None,
+    game_weather: dict = None,
+    h2h_stats: dict = None,          # {pitcher_id: {"era":.., "fip":.., "ip":.., "starts":..}}
+    team_market_prob: float = None,
+    pitcher_market_lines: dict = None,  # {"outs_line":.., ...} — see odds_fetcher.get_pitcher_market_lines
+) -> dict:
+    """Feature row for predicting one pitcher's innings pitched in one start. Same per-outing
+    shape as build_strikeout_features (one row per starter, not a home/away comparison)."""
+    pitcher_market_lines = pitcher_market_lines or {}
+    recent_stats = recent_stats or {}
+    statcast = statcast or {}
+    velocity_trend = velocity_trend or {}
+    pitch_diversity = pitch_diversity or {}
+    game_weather = game_weather or {}
+    h2h_stats = h2h_stats or {}
+    recent = recent_stats.get(pitcher_id, {})
+    pitcher_statcast = statcast.get(pitcher_id, {})
+
+    real_lineup_woba = _lineup_woba(opp_lineup, player_batting)
+    opp_woba = real_lineup_woba if pd.notna(real_lineup_woba) else _safe_get(team_batting, opp_team_abbr, "wOBA")
+
+    h2h = h2h_stats.get(pitcher_id, {})
+    h2h_starts = h2h.get("starts", 0)
+    h2h_ip_per_start = (h2h.get("ip", 0) / h2h_starts) if h2h_starts > 0 else np.nan
+
+    return {
+        "home_field": 1 if is_home else 0,
+        "season_fip": season_fip,
+        "recent_fip": recent.get("fip", np.nan),
+        "season_ip_per_start": season_ip_per_start,
+        "recent_ip_per_start": recent.get("ip_per_start", np.nan),
+        "h2h_ip_per_start": h2h_ip_per_start,
+        "opp_woba": opp_woba,
+        "season_pitches_per_start": pitcher_statcast.get("pitches_per_start", np.nan),
+        "recent_pitches_per_start": pitcher_statcast.get("pitches_per_start", np.nan),
+        "season_whiff_pct": pitcher_statcast.get("whiff_pct", np.nan),
+        "season_csw_pct": pitcher_statcast.get("csw_pct", np.nan),
+        "velo_trend": velocity_trend.get(pitcher_id, {}).get("velo_trend", np.nan),
+        "pitch_diversity": pitch_diversity.get(pitcher_id, {}).get("pitch_diversity", np.nan),
+        "game_temp_f": game_weather.get("temp_max_f", np.nan),
+        "game_wind_mph": game_weather.get("wind_mean_mph", np.nan),
+        "rest_days_effect": _rest_effect(rest_days) if rest_days is not None else np.nan,
+        "team_market_win_prob": team_market_prob if team_market_prob is not None else np.nan,
+        "market_outs_line": pitcher_market_lines.get("outs_line", np.nan),
+    }
+
+
+def ip_features_to_row(features: dict) -> pd.DataFrame:
+    row = {col: features.get(col, np.nan) for col in IP_FEATURE_COLUMNS}
+    return pd.DataFrame([row])
+
+
+def build_er_features(
+    pitcher_id: int,
+    opp_team_abbr: str,
+    is_home: bool,
+    season_fip: float,
+    season_ip_per_start: float,
+    team_batting: pd.DataFrame,
+    recent_stats: dict = None,       # {pitcher_id: {"fip":.., "ip_per_start":..}}
+    statcast: dict = None,           # {pitcher_id: {"whiff_pct":.., "csw_pct":.., "hard_hit_pct":..}}
+    opp_lineup: list = None,
+    player_batting: pd.DataFrame = None,
+    rest_days: float = None,
+    velocity_trend: dict = None,
+    pitch_diversity: dict = None,
+    game_weather: dict = None,
+    h2h_stats: dict = None,          # {pitcher_id: {"era":.., "fip":.., "ip":.., "starts":..}}
+    team_market_prob: float = None,
+    pitcher_market_lines: dict = None,  # {"er_line":.., ...} — see odds_fetcher.get_pitcher_market_lines
+) -> dict:
+    """Feature row for predicting one pitcher's earned runs allowed in one start. Same per-outing
+    shape as build_strikeout_features/build_ip_features."""
+    pitcher_market_lines = pitcher_market_lines or {}
+    recent_stats = recent_stats or {}
+    statcast = statcast or {}
+    velocity_trend = velocity_trend or {}
+    pitch_diversity = pitch_diversity or {}
+    game_weather = game_weather or {}
+    h2h_stats = h2h_stats or {}
+    recent = recent_stats.get(pitcher_id, {})
+    pitcher_statcast = statcast.get(pitcher_id, {})
+
+    real_lineup_woba = _lineup_woba(opp_lineup, player_batting)
+    opp_woba = real_lineup_woba if pd.notna(real_lineup_woba) else _safe_get(team_batting, opp_team_abbr, "wOBA")
+
+    h2h = h2h_stats.get(pitcher_id, {})
+    h2h_era = h2h.get("era", np.nan) if h2h.get("starts", 0) > 0 else np.nan
+
+    return {
+        "home_field": 1 if is_home else 0,
+        "season_fip": season_fip,
+        "recent_fip": recent.get("fip", np.nan),
+        "season_ip_per_start": season_ip_per_start,
+        "recent_ip_per_start": recent.get("ip_per_start", np.nan),
+        "h2h_era": h2h_era,
+        "opp_woba": opp_woba,
+        "season_hard_hit_pct": pitcher_statcast.get("hard_hit_pct", np.nan),
+        "season_whiff_pct": pitcher_statcast.get("whiff_pct", np.nan),
+        "season_csw_pct": pitcher_statcast.get("csw_pct", np.nan),
+        "velo_trend": velocity_trend.get(pitcher_id, {}).get("velo_trend", np.nan),
+        "pitch_diversity": pitch_diversity.get(pitcher_id, {}).get("pitch_diversity", np.nan),
+        "game_temp_f": game_weather.get("temp_max_f", np.nan),
+        "game_wind_mph": game_weather.get("wind_mean_mph", np.nan),
+        "rest_days_effect": _rest_effect(rest_days) if rest_days is not None else np.nan,
+        "team_market_win_prob": team_market_prob if team_market_prob is not None else np.nan,
+        "market_er_line": pitcher_market_lines.get("er_line", np.nan),
+    }
+
+
+def er_features_to_row(features: dict) -> pd.DataFrame:
+    row = {col: features.get(col, np.nan) for col in ER_FEATURE_COLUMNS}
     return pd.DataFrame([row])

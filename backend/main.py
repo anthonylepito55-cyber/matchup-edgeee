@@ -46,8 +46,10 @@ from data_collection import (
 )
 from features import (
     build_matchup_features, features_to_row, build_strikeout_features, strikeout_features_to_row,
+    build_ip_features, ip_features_to_row, build_er_features, er_features_to_row,
     MIN_RELIABLE_STARTS, MIN_RELIABLE_SEASON_IP, LONG_LAYOFF_DAYS, MIN_RELIABLE_IP_PER_START, FEATURE_COLUMNS,
     BASEBALL_ONLY_FEATURE_COLUMNS, STRIKEOUT_FEATURE_COLUMNS, STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS,
+    IP_FEATURE_COLUMNS, IP_BASEBALL_ONLY_FEATURE_COLUMNS, ER_FEATURE_COLUMNS, ER_BASEBALL_ONLY_FEATURE_COLUMNS,
     blend_with_prior_season,
 )
 from odds_fetcher import (
@@ -62,6 +64,7 @@ from prediction_log import (
 from strikeout_prediction_log import (
     log_strikeout_predictions, settle_strikeout_predictions, get_strikeout_track_record,
     get_logged_strikeout_prediction, get_strikeouts_for_date,
+    get_logged_ip_prediction, get_logged_er_prediction, get_ip_track_record, get_er_track_record,
 )
 import model as model_module
 import rating_system
@@ -690,6 +693,21 @@ def _natural_strikeout_line(mean_k: float) -> float:
     return min(candidates, key=lambda l: abs(props_module.over_under_prob(mean_k, l)["over"] - 0.5))
 
 
+def decimal_to_ip_thirds(decimal_ip: float) -> str | None:
+    """Converts the IP model's true-decimal prediction (e.g. 6.667) back to the familiar boxscore
+    X.1/X.2 notation (6⅔ -> "6.2") for display — cosmetic only, rounds to the nearest third, and
+    must never be fed back into any model input. See build_training_data._parse_ip for the
+    opposite conversion (boxscore notation -> true decimal, used at training time)."""
+    if decimal_ip is None or pd.isna(decimal_ip):
+        return None
+    whole = int(decimal_ip)
+    thirds = round((decimal_ip - whole) * 3)
+    if thirds == 3:
+        whole += 1
+        thirds = 0
+    return f"{whole}.{thirds}"
+
+
 def _one_strikeout_prediction(pitcher_id: int, pitcher_name: str, opp_team_abbr: str, is_home: bool,
                                season_stats: pd.DataFrame, team_batting: pd.DataFrame, recent_stats: dict,
                                prop_lines: dict, statcast: dict = None, opp_lineup: list = None,
@@ -817,6 +835,161 @@ def _strikeout_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitc
             team_market_prob=team_market_prob_away, pitch_mix=pitch_mix, batter_arsenal=batter_arsenal,
             pitcher_market_lines=away_pitcher_market_lines,
             strikeout_market_model_trained=strikeout_market_model_trained,
+        ),
+    }
+
+
+def _one_ip_prediction(pitcher_id: int, opp_team_abbr: str, is_home: bool,
+                        season_stats: pd.DataFrame, team_batting: pd.DataFrame, recent_stats: dict,
+                        statcast: dict = None, opp_lineup: list = None, player_batting: pd.DataFrame = None,
+                        rest_days: dict = None, prior_season_stats: pd.DataFrame = None,
+                        velocity_trend: dict = None, pitch_diversity: dict = None,
+                        game_weather: dict = None, h2h_stats: dict = None,
+                        team_market_prob: float = None, pitcher_market_lines: dict = None,
+                        ip_market_model_trained: bool = False) -> dict:
+    """Point projection only — no line/call, see strikeout_prediction_log.py's module docstring
+    on why IP has no natural over-under framing (continuous target, not a count)."""
+    blended = _season_stat_lookup_blended(season_stats, prior_season_stats, pitcher_id)
+    feats = build_ip_features(
+        pitcher_id=pitcher_id, opp_team_abbr=opp_team_abbr, is_home=is_home,
+        season_fip=blended.get("fip"), season_ip_per_start=blended.get("ip_per_start"),
+        team_batting=team_batting, recent_stats=recent_stats, statcast=statcast,
+        opp_lineup=opp_lineup, player_batting=player_batting, rest_days=(rest_days or {}).get(pitcher_id),
+        velocity_trend=velocity_trend, pitch_diversity=pitch_diversity, game_weather=game_weather,
+        h2h_stats=h2h_stats, team_market_prob=team_market_prob, pitcher_market_lines=pitcher_market_lines,
+    )
+    row = ip_features_to_row(feats)
+    # Model A (baseball-only) is the PRIMARY served prediction — same reasoning as win-prob/K.
+    predicted = props_module.predict_strikeouts(
+        row, model_path=props_module.IP_BASELINE_MODEL_PATH, feature_columns=IP_BASEBALL_ONLY_FEATURE_COLUMNS,
+    )
+    market_model_predicted_ip = None
+    if ip_market_model_trained:
+        try:
+            market_model_predicted_ip = round(props_module.predict_strikeouts(
+                row, model_path=props_module.IP_MODEL_PATH, feature_columns=IP_FEATURE_COLUMNS,
+            ), 1)
+        except Exception:
+            market_model_predicted_ip = None
+    return {
+        "predicted": round(predicted, 1),
+        "display": decimal_to_ip_thirds(predicted),
+        "market_model_predicted_ip": market_model_predicted_ip,
+    }
+
+
+def _ip_predictions(home_pitcher_id: int, away_pitcher_id: int, home_team_abbr: str, away_team_abbr: str,
+                     season_stats: pd.DataFrame, team_batting: pd.DataFrame, recent_stats: dict,
+                     statcast: dict = None, lineups: dict = None, player_batting: pd.DataFrame = None,
+                     rest_days: dict = None, prior_season_stats: pd.DataFrame = None,
+                     velocity_trend: dict = None, pitch_diversity: dict = None,
+                     game_weather: dict = None, h2h_stats: dict = None,
+                     market_home_prob: float = None, pitcher_market_lines_by_name: dict = None,
+                     home_pitcher_name: str = None, away_pitcher_name: str = None) -> dict | None:
+    """{"home": {...}, "away": {...}}, or None if the IP model isn't trained."""
+    if props_module.load_strikeout_model(props_module.IP_BASELINE_MODEL_PATH)[0] is None:
+        return None
+    ip_market_model_trained = props_module.load_strikeout_model(props_module.IP_MODEL_PATH)[0] is not None
+    lineups = lineups or {}
+    pitcher_market_lines_by_name = pitcher_market_lines_by_name or {}
+    team_market_prob_home = market_home_prob
+    team_market_prob_away = (1 - market_home_prob) if market_home_prob is not None else None
+    home_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(home_pitcher_name or ""))
+    away_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(away_pitcher_name or ""))
+    return {
+        "home": _one_ip_prediction(
+            home_pitcher_id, away_team_abbr, True, season_stats, team_batting, recent_stats, statcast,
+            opp_lineup=lineups.get("away"), player_batting=player_batting, rest_days=rest_days,
+            prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+            game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_home,
+            pitcher_market_lines=home_pitcher_market_lines, ip_market_model_trained=ip_market_model_trained,
+        ),
+        "away": _one_ip_prediction(
+            away_pitcher_id, home_team_abbr, False, season_stats, team_batting, recent_stats, statcast,
+            opp_lineup=lineups.get("home"), player_batting=player_batting, rest_days=rest_days,
+            prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+            game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_away,
+            pitcher_market_lines=away_pitcher_market_lines, ip_market_model_trained=ip_market_model_trained,
+        ),
+    }
+
+
+def _one_er_prediction(pitcher_id: int, opp_team_abbr: str, is_home: bool,
+                        season_stats: pd.DataFrame, team_batting: pd.DataFrame, recent_stats: dict,
+                        statcast: dict = None, opp_lineup: list = None, player_batting: pd.DataFrame = None,
+                        rest_days: dict = None, prior_season_stats: pd.DataFrame = None,
+                        velocity_trend: dict = None, pitch_diversity: dict = None,
+                        game_weather: dict = None, h2h_stats: dict = None,
+                        team_market_prob: float = None, pitcher_market_lines: dict = None,
+                        er_market_model_trained: bool = False) -> dict:
+    blended = _season_stat_lookup_blended(season_stats, prior_season_stats, pitcher_id)
+    feats = build_er_features(
+        pitcher_id=pitcher_id, opp_team_abbr=opp_team_abbr, is_home=is_home,
+        season_fip=blended.get("fip"), season_ip_per_start=blended.get("ip_per_start"),
+        team_batting=team_batting, recent_stats=recent_stats, statcast=statcast,
+        opp_lineup=opp_lineup, player_batting=player_batting, rest_days=(rest_days or {}).get(pitcher_id),
+        velocity_trend=velocity_trend, pitch_diversity=pitch_diversity, game_weather=game_weather,
+        h2h_stats=h2h_stats, team_market_prob=team_market_prob, pitcher_market_lines=pitcher_market_lines,
+    )
+    row = er_features_to_row(feats)
+    predicted = props_module.predict_strikeouts(
+        row, model_path=props_module.ER_BASELINE_MODEL_PATH, feature_columns=ER_BASEBALL_ONLY_FEATURE_COLUMNS,
+    )
+    market_model_predicted_er = None
+    if er_market_model_trained:
+        try:
+            market_model_predicted_er = round(props_module.predict_strikeouts(
+                row, model_path=props_module.ER_MODEL_PATH, feature_columns=ER_FEATURE_COLUMNS,
+            ), 1)
+        except Exception:
+            market_model_predicted_er = None
+
+    er_line = (pitcher_market_lines or {}).get("er_line")
+    line, line_source = (er_line, "book") if er_line else (None, None)
+    over_prob = under_prob = None
+    if line is not None:
+        probs = props_module.over_under_prob(predicted, line)
+        over_prob, under_prob = probs["over"], probs["under"]
+
+    return {
+        "predicted": round(predicted, 1),
+        "line": line, "line_source": line_source,
+        "over_prob": over_prob, "under_prob": under_prob,
+        "market_model_predicted_er": market_model_predicted_er,
+    }
+
+
+def _er_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitcher_name: str, away_pitcher_name: str,
+                     home_team_abbr: str, away_team_abbr: str, season_stats: pd.DataFrame,
+                     team_batting: pd.DataFrame, recent_stats: dict, statcast: dict = None, lineups: dict = None,
+                     player_batting: pd.DataFrame = None, rest_days: dict = None,
+                     prior_season_stats: pd.DataFrame = None, velocity_trend: dict = None,
+                     pitch_diversity: dict = None, game_weather: dict = None, h2h_stats: dict = None,
+                     market_home_prob: float = None, pitcher_market_lines_by_name: dict = None) -> dict | None:
+    """{"home": {...}, "away": {...}}, or None if the ER model isn't trained."""
+    if props_module.load_strikeout_model(props_module.ER_BASELINE_MODEL_PATH)[0] is None:
+        return None
+    er_market_model_trained = props_module.load_strikeout_model(props_module.ER_MODEL_PATH)[0] is not None
+    lineups = lineups or {}
+    pitcher_market_lines_by_name = pitcher_market_lines_by_name or {}
+    team_market_prob_home = market_home_prob
+    team_market_prob_away = (1 - market_home_prob) if market_home_prob is not None else None
+    home_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(home_pitcher_name))
+    away_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(away_pitcher_name))
+    return {
+        "home": _one_er_prediction(
+            home_pitcher_id, away_team_abbr, True, season_stats, team_batting, recent_stats, statcast,
+            opp_lineup=lineups.get("away"), player_batting=player_batting, rest_days=rest_days,
+            prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+            game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_home,
+            pitcher_market_lines=home_pitcher_market_lines, er_market_model_trained=er_market_model_trained,
+        ),
+        "away": _one_er_prediction(
+            away_pitcher_id, home_team_abbr, False, season_stats, team_batting, recent_stats, statcast,
+            opp_lineup=lineups.get("home"), player_batting=player_batting, rest_days=rest_days,
+            prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+            game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_away,
+            pitcher_market_lines=away_pitcher_market_lines, er_market_model_trained=er_market_model_trained,
         ),
     }
 
@@ -1614,6 +1787,8 @@ def today(date: str = None):
         prediction = None
         reason = None
         strikeout_predictions = None
+        ip_predictions = None
+        er_predictions = None
         h2h_out = None
         team_stats_out = None
         lineup_breakdown_out = None
@@ -1806,6 +1981,29 @@ def today(date: str = None):
                 pitch_mix=k_pitch_mix, batter_arsenal=batter_arsenal,
                 pitcher_market_lines_by_name=pitcher_market_lines,
             )
+            ip_predictions = _ip_predictions(
+                g["home_pitcher_id"], g["away_pitcher_id"], g["home_team_abbr"], g["away_team_abbr"],
+                season_stats, team_batting, recent_stats, k_statcast, lineups=lineups,
+                player_batting=player_batting, rest_days=rest_days, prior_season_stats=prior_season_stats,
+                velocity_trend=k_velocity_trend, pitch_diversity=k_pitch_diversity, game_weather=game_weather,
+                h2h_stats=k_h2h_stats,
+                market_home_prob=(
+                    devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None
+                ),
+                pitcher_market_lines_by_name=pitcher_market_lines,
+                home_pitcher_name=g["home_pitcher_name"], away_pitcher_name=g["away_pitcher_name"],
+            )
+            er_predictions = _er_predictions(
+                g["home_pitcher_id"], g["away_pitcher_id"], g["home_pitcher_name"], g["away_pitcher_name"],
+                g["home_team_abbr"], g["away_team_abbr"], season_stats, team_batting, recent_stats, k_statcast,
+                lineups=lineups, player_batting=player_batting, rest_days=rest_days,
+                prior_season_stats=prior_season_stats, velocity_trend=k_velocity_trend,
+                pitch_diversity=k_pitch_diversity, game_weather=game_weather, h2h_stats=k_h2h_stats,
+                market_home_prob=(
+                    devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None
+                ),
+                pitcher_market_lines_by_name=pitcher_market_lines,
+            )
             # Display-only (not a model feature — see the ablation note on h2h_fip_diff/h2h_k9 in
             # features.py): each pitcher's own head-to-head record against tonight's specific
             # opponent, real ids (not the opener-substituted ones), same reasoning as k_h2h_stats.
@@ -1888,6 +2086,18 @@ def today(date: str = None):
                     frozen_k = get_logged_strikeout_prediction(resolved_date, g["game_pk"], g.get(pid_key))
                     strikeout_predictions[side] = frozen_k if frozen_k else None
 
+            # Same freeze, same reason, for the IP/ER projections.
+            if ip_predictions and g.get("game_pk"):
+                for side, pid_key in (("home", "home_pitcher_id"), ("away", "away_pitcher_id")):
+                    frozen_ip = get_logged_ip_prediction(resolved_date, g["game_pk"], g.get(pid_key))
+                    if frozen_ip:
+                        frozen_ip["display"] = decimal_to_ip_thirds(frozen_ip["predicted"])
+                    ip_predictions[side] = frozen_ip if frozen_ip else None
+            if er_predictions and g.get("game_pk"):
+                for side, pid_key in (("home", "home_pitcher_id"), ("away", "away_pitcher_id")):
+                    frozen_er = get_logged_er_prediction(resolved_date, g["game_pk"], g.get(pid_key))
+                    er_predictions[side] = frozen_er if frozen_er else None
+
         # Recomputed here (not reused from earlier) so it reflects whichever recent_form_out is
         # actually being displayed — the frozen pre-game snapshot for a decided game, not a fresh
         # live recompute of it. Note: any_opener itself is still a live check (computed earlier this
@@ -1897,7 +2107,8 @@ def today(date: str = None):
         results.append({
             **g, "prediction": prediction, "live_odds": live_odds_out,
             "recent_form": recent_form_out, "season_stats": season_stats_out, "reason": reason,
-            "strikeout_predictions": strikeout_predictions, "pitcher_warnings": pitcher_warnings,
+            "strikeout_predictions": strikeout_predictions, "ip_predictions": ip_predictions,
+            "er_predictions": er_predictions, "pitcher_warnings": pitcher_warnings,
             "data_quality": data_quality, "prediction_frozen": prediction_frozen,
             "opener_affected": any_opener, "h2h": h2h_out, "team_stats": team_stats_out,
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
@@ -1929,6 +2140,16 @@ def track_record():
 @app.get("/api/strikeout-track-record")
 def strikeout_track_record():
     return get_strikeout_track_record()
+
+
+@app.get("/api/ip-track-record")
+def ip_track_record():
+    return get_ip_track_record()
+
+
+@app.get("/api/er-track-record")
+def er_track_record():
+    return get_er_track_record()
 
 
 @app.get("/api/matchup")

@@ -23,6 +23,8 @@ import rating_system
 from features import (
     FEATURE_COLUMNS, BASEBALL_ONLY_FEATURE_COLUMNS,
     STRIKEOUT_FEATURE_COLUMNS, STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS,
+    IP_FEATURE_COLUMNS, IP_BASEBALL_ONLY_FEATURE_COLUMNS,
+    ER_FEATURE_COLUMNS, ER_BASEBALL_ONLY_FEATURE_COLUMNS,
 )
 
 TRAINING_CACHE = os.path.join(CACHE_DIR, "training_dataset.parquet")
@@ -139,8 +141,81 @@ def main():
         )
         print(f"Validation MAE: {k_baseline_metrics['mae']:.3f} strikeouts")
         print(f"Model saved to model_artifacts/strikeout_model_baseline.joblib")
+
+        # --- Innings pitched: same shape as strikeouts, but objective=reg:squarederror (IP is
+        # continuous, not a count distribution — see props.train_strikeout_model's docstring) ---
+        print("\n--- IP walk-forward backtest: Model B (baseball + market features) ---")
+        ip_backtest = props_module.backtest_strikeout_model(
+            k_df, label_col="innings_pitched", feature_columns=IP_FEATURE_COLUMNS, objective="reg:squarederror"
+        )
+        print(f"Avg MAE: {ip_backtest['avg_mae']:.3f} innings")
+
+        print("\n--- IP walk-forward backtest: Model A (baseball-only) ---")
+        ip_baseline_backtest = props_module.backtest_strikeout_model(
+            k_df, label_col="innings_pitched", feature_columns=IP_BASEBALL_ONLY_FEATURE_COLUMNS,
+            objective="reg:squarederror",
+        )
+        print(f"Avg MAE: {ip_baseline_backtest['avg_mae']:.3f} innings")
+
+        print(f"\nIP A vs B delta — MAE: {ip_baseline_backtest['avg_mae'] - ip_backtest['avg_mae']:+.4f} "
+              f"(positive = B better, i.e. baseball-only is worse).")
+
+        # ip_a is the gating metric daily_retrain.py checks — same reasoning as strikeout_a above.
+        metrics_snapshot["ip_a"] = {"mae": ip_baseline_backtest["avg_mae"]}
+        metrics_snapshot["ip_b"] = {"mae": ip_backtest["avg_mae"]}
+
+        print("\n--- Training final IP Model B (full feature set) ---")
+        _, _, ip_metrics = props_module.train_strikeout_model(
+            k_df, label_col="innings_pitched", feature_columns=IP_FEATURE_COLUMNS,
+            model_path=props_module.IP_MODEL_PATH, objective="reg:squarederror",
+        )
+        print(f"Validation MAE: {ip_metrics['mae']:.3f} innings")
+        print(f"Model saved to model_artifacts/ip_model.joblib")
+
+        print("\n--- Training final IP Model A (baseball-only) ---")
+        _, _, ip_baseline_metrics = props_module.train_strikeout_model(
+            k_df, label_col="innings_pitched", feature_columns=IP_BASEBALL_ONLY_FEATURE_COLUMNS,
+            model_path=props_module.IP_BASELINE_MODEL_PATH, objective="reg:squarederror",
+        )
+        print(f"Validation MAE: {ip_baseline_metrics['mae']:.3f} innings")
+        print(f"Model saved to model_artifacts/ip_model_baseline.joblib")
+
+        # --- Earned runs allowed: same shape/objective as strikeouts (count:poisson) ---
+        print("\n--- ER walk-forward backtest: Model B (baseball + market features) ---")
+        er_backtest = props_module.backtest_strikeout_model(
+            k_df, label_col="earned_runs", feature_columns=ER_FEATURE_COLUMNS
+        )
+        print(f"Avg MAE: {er_backtest['avg_mae']:.3f} earned runs")
+
+        print("\n--- ER walk-forward backtest: Model A (baseball-only) ---")
+        er_baseline_backtest = props_module.backtest_strikeout_model(
+            k_df, label_col="earned_runs", feature_columns=ER_BASEBALL_ONLY_FEATURE_COLUMNS
+        )
+        print(f"Avg MAE: {er_baseline_backtest['avg_mae']:.3f} earned runs")
+
+        print(f"\nER A vs B delta — MAE: {er_baseline_backtest['avg_mae'] - er_backtest['avg_mae']:+.4f} "
+              f"(positive = B better, i.e. baseball-only is worse).")
+
+        metrics_snapshot["er_a"] = {"mae": er_baseline_backtest["avg_mae"]}
+        metrics_snapshot["er_b"] = {"mae": er_backtest["avg_mae"]}
+
+        print("\n--- Training final ER Model B (full feature set) ---")
+        _, _, er_metrics = props_module.train_strikeout_model(
+            k_df, label_col="earned_runs", feature_columns=ER_FEATURE_COLUMNS,
+            model_path=props_module.ER_MODEL_PATH,
+        )
+        print(f"Validation MAE: {er_metrics['mae']:.3f} earned runs")
+        print(f"Model saved to model_artifacts/er_model.joblib")
+
+        print("\n--- Training final ER Model A (baseball-only) ---")
+        _, _, er_baseline_metrics = props_module.train_strikeout_model(
+            k_df, label_col="earned_runs", feature_columns=ER_BASEBALL_ONLY_FEATURE_COLUMNS,
+            model_path=props_module.ER_BASELINE_MODEL_PATH,
+        )
+        print(f"Validation MAE: {er_baseline_metrics['mae']:.3f} earned runs")
+        print(f"Model saved to model_artifacts/er_model_baseline.joblib")
     else:
-        print(f"\nNo strikeout training data at {STRIKEOUT_TRAINING_CACHE} — skipping strikeout model.")
+        print(f"\nNo strikeout training data at {STRIKEOUT_TRAINING_CACHE} — skipping strikeout/IP/ER models.")
 
     metrics_snapshot["rating_system"] = {
         "auc": rating_backtest["avg_auc"], "brier": rating_backtest["avg_brier_score"],

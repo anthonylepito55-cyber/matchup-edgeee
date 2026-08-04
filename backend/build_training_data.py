@@ -55,6 +55,7 @@ from data_collection import (
 )
 from features import (
     build_matchup_features, features_to_row, FEATURE_COLUMNS, build_strikeout_features,
+    build_ip_features, build_er_features,
     blend_with_prior_season,
 )
 from weather import get_team_weather_range, TEAM_HOME_VENUE, venue_distance_miles
@@ -927,12 +928,28 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
 
 def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
     """
-    Builds a per-pitcher-outing training set for the strikeout-prop model:
-    one row per starting pitcher's actual outing, labeled with the
-    strikeouts they actually recorded. A single game contributes TWO rows
-    (the home starter's outing vs. the away lineup, and vice versa) since
-    this predicts one pitcher's own total, not a home/away comparison.
-    Reuses the same cached box scores as build_full_training_set.
+    Builds a per-pitcher-outing training set: one row per starting pitcher's actual outing,
+    labeled with THREE targets they actually recorded that night — strikeouts, innings pitched,
+    and earned runs allowed (see props.py's IP_MODEL_PATH/ER_MODEL_PATH, added alongside
+    STRIKEOUT_MODEL_PATH). A single game contributes TWO rows (the home starter's outing vs. the
+    away lineup, and vice versa) since this predicts one pitcher's own outing, not a home/away
+    comparison. Reuses the same cached box scores as build_full_training_set.
+
+    All three targets are computed in the SAME walk-forward pass rather than three separate
+    re-walks of this loop — the per-game cost here is dominated by the Statcast/lineup/market
+    lookups already amortized outside the row loop (prefetched into dicts before this function's
+    main loop starts), none of which differs by target; the labels themselves are pure column
+    lookups (home_k/home_ip/home_er, already present in game_logs_{season}.parquet from the
+    same boxscore fetch — see fetch_season_schedule_with_pitchers). Re-walking three times would
+    triple wall-clock time for zero new information, and risks the three training sets silently
+    drifting out of sync if one gets rebuilt after a fix and the others don't.
+
+    innings_pitched uses _parse_ip() to convert MLB's thirds-of-an-inning boxscore notation
+    (e.g. "6.2" meaning 6⅔, NOT 6.2 decimal) to true decimal — the same conversion already
+    applied to the IP values carried through pitcher_history below for the FEATURE side; it had
+    never been applied to IP as a LABEL before, since IP wasn't a training target until now. Left
+    unconverted, every ".2"-suffixed start would undercount by ~0.47 innings, a systematic bias,
+    not noise.
     """
     all_games = []
     for season in seasons:
@@ -1038,9 +1055,9 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
 
         game_weather = team_weather.get(row["home_team"], {}).get(row["game_date"], {})
 
-        for pid, opp_team, is_home, actual_k in [
-            (row["home_pitcher_id"], row["away_team"], True, row["home_k"]),
-            (row["away_pitcher_id"], row["home_team"], False, row["away_k"]),
+        for pid, opp_team, is_home, actual_k, actual_ip, actual_er in [
+            (row["home_pitcher_id"], row["away_team"], True, row["home_k"], row["home_ip"], row["home_er"]),
+            (row["away_pitcher_id"], row["home_team"], False, row["away_k"], row["away_ip"], row["away_er"]),
         ]:
             recent = _recent_stats_from_history(pitcher_history.get(pid, []))
             blended_season = blend_with_prior_season(
@@ -1088,8 +1105,34 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
                 batter_arsenal=prior_batter_arsenal.get(season, pd.DataFrame()),
                 pitcher_market_lines=pitcher_market_lines,
             )
+            # IP/ER use their own feature sets (season_fip/opp_woba/etc., not season_k9/opp_k_pct)
+            # — see features.IP_FEATURE_COLUMNS/ER_FEATURE_COLUMNS — but the SAME walk-forward
+            # state (recent/blended_season/statcast/h2h_stats/etc.) computed above for the K
+            # features, so these are two more calls into that same state, not a new fetch. Merged
+            # into the same feats dict since all three targets share one row per outing (see this
+            # function's docstring on why this pass emits all three together).
+            ip_feats = build_ip_features(
+                pitcher_id=pid, opp_team_abbr=opp_team, is_home=is_home,
+                season_fip=blended_season.get("fip"), season_ip_per_start=blended_season.get("ip_per_start"),
+                team_batting=team_batting, recent_stats={pid: recent}, statcast=statcast,
+                rest_days=rest_days, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+                game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob,
+                pitcher_market_lines=pitcher_market_lines,
+            )
+            er_feats = build_er_features(
+                pitcher_id=pid, opp_team_abbr=opp_team, is_home=is_home,
+                season_fip=blended_season.get("fip"), season_ip_per_start=blended_season.get("ip_per_start"),
+                team_batting=team_batting, recent_stats={pid: recent}, statcast=statcast,
+                rest_days=rest_days, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+                game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob,
+                pitcher_market_lines=pitcher_market_lines,
+            )
+            feats.update(ip_feats)
+            feats.update(er_feats)
             feats["game_date"] = row["game_date"]
             feats["strikeouts"] = actual_k
+            feats["innings_pitched"] = _parse_ip(actual_ip)
+            feats["earned_runs"] = actual_er
             rows.append(feats)
 
         # Now update recent-form history AFTER using pre-game state for features
@@ -1110,7 +1153,8 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
 
     training_df = pd.DataFrame(rows)
     training_df.to_parquet(STRIKEOUT_TRAINING_CACHE)
-    print(f"Strikeout training set built: {len(training_df)} rows -> {STRIKEOUT_TRAINING_CACHE}")
+    print(f"Pitcher-outing training set built (strikeouts + innings_pitched + earned_runs): "
+          f"{len(training_df)} rows -> {STRIKEOUT_TRAINING_CACHE}")
     return training_df
 
 

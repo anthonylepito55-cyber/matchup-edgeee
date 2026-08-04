@@ -2,14 +2,21 @@
 strikeout_prediction_log.py
 
 Same forward-test discipline as prediction_log.py (see that file's
-docstring), applied to strikeout props instead of moneyline: logs each
-pitcher's over/under call before their start, settles it against their
-actual final strikeout total once the game goes Final, and tracks a
-running hit rate. This is a genuine blind record — a call is only ever
-logged before the game starts, never backfilled with hindsight.
+docstring), applied to per-pitcher-outing props instead of moneyline: logs
+each pitcher's strikeout/earned-runs over-under calls and innings-pitched
+projection before their start, settles them against the real boxscore once
+the game goes Final, and tracks a running hit rate/MAE for each. This is a
+genuine blind record — a call is only ever logged before the game starts,
+never backfilled with hindsight.
 
-Each row: one pitcher's strikeout call for one game, keyed by
-(date, game_pk, pitcher_id) — two rows per game (one per starter).
+Each row: one pitcher's props for one game (strikeouts, innings pitched,
+earned runs — all three share this one log since they're the same
+per-start prediction event, settled from the same single boxscore fetch),
+keyed by (date, game_pk, pitcher_id) — two rows per game (one per starter).
+IP has no line/call (no natural over-under framing for a point projection,
+see props.py's docstring on IP using reg:squarederror not Poisson); ER
+gets the full line/call/over-under shape, same as K, since sportsbooks post
+an ER line (market_er_line) the same way they do for strikeouts.
 """
 
 import os
@@ -30,8 +37,12 @@ LOG_COLUMNS = [
     "bookmaker", "over_price", "under_price",  # the actual sportsbook's own line/juice at prediction time — lets the
     # previous-day tab show whether a call would have beaten the book, not just whether it hit. Added after the fact,
     # so only populated for rows logged from here on; older rows read back as None via the LOG_COLUMNS backfill below.
+    "predicted_ip",  # point projection only — no line/call, see module docstring
+    "predicted_er", "er_line", "er_line_source", "er_call", "er_over_prob", "er_under_prob",
     "logged_at",
-    "settled", "actual_k", "actual_ip", "correct",  # correct: True/False/None (None = push, line_source model exact match)
+    "settled", "actual_k", "actual_ip", "actual_er",
+    "correct",       # K call correct: True/False/None (None = push)
+    "er_correct",    # ER call correct: True/False/None (None = push, or no ER call was logged)
 ]
 
 PRE_GAME_STATUSES = {"Scheduled", "Pre-Game", "Warmup"}
@@ -90,6 +101,8 @@ def log_strikeout_predictions(date: str, games: list[dict]):
     updates = {}  # index -> row dict
     for g in games:
         sk = g.get("strikeout_predictions")
+        ip_preds = g.get("ip_predictions") or {}
+        er_preds = g.get("er_predictions") or {}
         game_pk = g.get("game_pk")
         if sk is None or game_pk is None:
             continue
@@ -104,6 +117,8 @@ def log_strikeout_predictions(date: str, games: list[dict]):
             pitcher_id = g.get(pid_key)
             if pred is None or pitcher_id is None:
                 continue
+            ip_pred = ip_preds.get(side) or {}
+            er_pred = er_preds.get(side) or {}
 
             row = {
                 "date": date, "game_pk": game_pk, "pitcher_id": pitcher_id,
@@ -113,6 +128,14 @@ def log_strikeout_predictions(date: str, games: list[dict]):
                 "over_prob": pred.get("over_prob"), "under_prob": pred.get("under_prob"),
                 "bookmaker": pred.get("bookmaker"),
                 "over_price": pred.get("over_price"), "under_price": pred.get("under_price"),
+                "predicted_ip": ip_pred.get("predicted"),
+                "predicted_er": er_pred.get("predicted"), "er_line": er_pred.get("line"),
+                "er_line_source": er_pred.get("line_source"),
+                "er_call": (
+                    ("over" if (er_pred.get("over_prob") or 0) >= 0.5 else "under")
+                    if er_pred.get("predicted") is not None else None
+                ),
+                "er_over_prob": er_pred.get("over_prob"), "er_under_prob": er_pred.get("under_prob"),
                 "logged_at": datetime.now().isoformat(),
             }
 
@@ -120,7 +143,10 @@ def log_strikeout_predictions(date: str, games: list[dict]):
             if key in existing_by_key:
                 updates[existing_by_key[key]] = row
             else:
-                new_rows.append({**row, "settled": False, "actual_k": None, "actual_ip": None, "correct": None})
+                new_rows.append({
+                    **row, "settled": False, "actual_k": None, "actual_ip": None, "actual_er": None,
+                    "correct": None, "er_correct": None,
+                })
 
     if not new_rows and not updates:
         return
@@ -131,6 +157,17 @@ def log_strikeout_predictions(date: str, games: list[dict]):
     if new_rows:
         log = pd.concat([log, pd.DataFrame(new_rows)], ignore_index=True)
     _write_log(log)
+
+
+def _get_logged_row(date: str, game_pk: int, pitcher_id: int):
+    """Shared row lookup backing get_logged_strikeout_prediction/get_logged_ip_prediction/
+    get_logged_er_prediction — one fetch, three thin accessors, since all three predictions live
+    in the same per-(date, game_pk, pitcher_id) row. Returns None if nothing was logged."""
+    log = _read_log()
+    if log.empty:
+        return None
+    row = log[(log["date"] == date) & (log["game_pk"] == game_pk) & (log["pitcher_id"] == pitcher_id)]
+    return row.iloc[0] if not row.empty else None
 
 
 def get_logged_strikeout_prediction(date: str, game_pk: int, pitcher_id: int) -> dict | None:
@@ -145,13 +182,9 @@ def get_logged_strikeout_prediction(date: str, game_pk: int, pitcher_id: int) ->
     already decided, nothing to act on. Returns None if nothing was logged,
     so callers should fall back to live computation in that case.
     """
-    log = _read_log()
-    if log.empty:
+    r = _get_logged_row(date, game_pk, pitcher_id)
+    if r is None:
         return None
-    row = log[(log["date"] == date) & (log["game_pk"] == game_pk) & (log["pitcher_id"] == pitcher_id)]
-    if row.empty:
-        return None
-    r = row.iloc[0]
     predicted = r["predicted_k"]
     if predicted is None or pd.isna(predicted):
         return None
@@ -165,14 +198,48 @@ def get_logged_strikeout_prediction(date: str, game_pk: int, pitcher_id: int) ->
     }
 
 
+def get_logged_ip_prediction(date: str, game_pk: int, pitcher_id: int) -> dict | None:
+    """Frozen, pre-game innings-pitched projection — point estimate only, same freeze reasoning
+    as get_logged_strikeout_prediction. Returns None if nothing was logged."""
+    r = _get_logged_row(date, game_pk, pitcher_id)
+    if r is None:
+        return None
+    predicted = r["predicted_ip"]
+    if predicted is None or pd.isna(predicted):
+        return None
+    return {"predicted": float(predicted)}
+
+
+def get_logged_er_prediction(date: str, game_pk: int, pitcher_id: int) -> dict | None:
+    """Frozen, pre-game earned-runs call — same shape/reasoning as get_logged_strikeout_prediction."""
+    r = _get_logged_row(date, game_pk, pitcher_id)
+    if r is None:
+        return None
+    predicted = r["predicted_er"]
+    if predicted is None or pd.isna(predicted):
+        return None
+    return {
+        "predicted": float(predicted),
+        "line": float(r["er_line"]) if pd.notna(r["er_line"]) else None,
+        "line_source": r["er_line_source"] if pd.notna(r["er_line_source"]) else None,
+        "over_prob": float(r["er_over_prob"]) if pd.notna(r["er_over_prob"]) else None,
+        "under_prob": float(r["er_under_prob"]) if pd.notna(r["er_under_prob"]) else None,
+        "bookmaker": None, "over_price": None, "under_price": None,
+    }
+
+
 def _pitcher_boxscore_line(game_pk, pitcher_id) -> tuple:
-    """(ip, k) for one pitcher in one game's final boxscore, or (None, None) if unavailable."""
+    """(ip, er, k) for one pitcher in one game's final boxscore, or (None, None, None) if
+    unavailable. ip is left in MLB's raw thirds-of-an-inning boxscore notation (e.g. 6.2 meaning
+    6⅔) here — same convention as the rest of this log (actual_ip already stored raw) — callers
+    computing IP-model MAE against predicted_ip (true decimal) must convert via
+    build_training_data._parse_ip first, same as training does."""
     try:
         resp = requests.get(f"{MLB_STATS_API}/game/{game_pk}/boxscore", timeout=15)
         resp.raise_for_status()
         box = resp.json()
     except requests.exceptions.RequestException:
-        return None, None
+        return None, None, None
     for side in ("home", "away"):
         players = box.get("teams", {}).get(side, {}).get("players", {})
         p = players.get(f"ID{pitcher_id}")
@@ -180,11 +247,12 @@ def _pitcher_boxscore_line(game_pk, pitcher_id) -> tuple:
             continue
         stats = p.get("stats", {}).get("pitching", {})
         ip = stats.get("inningsPitched")
+        er = stats.get("earnedRuns")
         k = stats.get("strikeOuts")
-        if ip is None or k is None:
-            return None, None
-        return float(ip), int(k)
-    return None, None
+        if ip is None or er is None or k is None:
+            return None, None, None
+        return float(ip), int(er), int(k)
+    return None, None, None
 
 
 def settle_strikeout_predictions(max_dates: int = 14):
@@ -210,7 +278,7 @@ def settle_strikeout_predictions(max_dates: int = 14):
         rows_to_settle = log[(log["date"] == date) & (log["settled"] == False) & (log["game_pk"].isin(final_pks))]  # noqa: E712
         for idx in rows_to_settle.index:
             game_pk, pitcher_id = log.at[idx, "game_pk"], log.at[idx, "pitcher_id"]
-            ip, k = _pitcher_boxscore_line(game_pk, pitcher_id)
+            ip, er, k = _pitcher_boxscore_line(game_pk, pitcher_id)
             if k is None:
                 continue
             line = log.at[idx, "line"]
@@ -220,9 +288,21 @@ def settle_strikeout_predictions(max_dates: int = 14):
             else:
                 actual_call = "over" if k > line else "under"
                 correct = (call == actual_call)
+
+            er_line = log.at[idx, "er_line"]
+            er_call = log.at[idx, "er_call"]
+            if er_call is None or pd.isna(er_line):
+                er_correct = None  # no ER call was logged for this row
+            elif er == er_line:
+                er_correct = None  # push
+            else:
+                er_correct = (er_call == ("over" if er > er_line else "under"))
+
             log.at[idx, "actual_k"] = k
             log.at[idx, "actual_ip"] = ip
+            log.at[idx, "actual_er"] = er
             log.at[idx, "correct"] = correct
+            log.at[idx, "er_correct"] = er_correct
             log.at[idx, "settled"] = True
 
     _write_log(log)
@@ -253,6 +333,62 @@ def get_strikeout_track_record() -> dict:
         for _, r in recent.iterrows()
     ]
 
+    return {
+        "total": total, "correct": correct, "pushes": pushes,
+        "accuracy": round(correct / total, 4) if total > 0 else None,
+        "mae": round(mae, 3),
+        "recent": recent_out,
+    }
+
+
+def get_ip_track_record() -> dict:
+    """Running MAE for the innings-pitched projection — point-estimate only, no hit-rate (no
+    line/call exists for IP, see module docstring), same blind forward-test spirit as
+    get_strikeout_track_record."""
+    log = _read_log()
+    settled = log[(log["settled"] == True) & log["predicted_ip"].notna() & log["actual_ip"].notna()]  # noqa: E712
+    if settled.empty:
+        return {"total": 0, "mae": None, "recent": []}
+
+    # actual_ip is stored in raw MLB thirds-notation (e.g. 6.2 = 6⅔) — convert to true decimal
+    # for a fair MAE against predicted_ip, which the model outputs in true decimal (see props.py).
+    from build_training_data import _parse_ip
+    actual_decimal = settled["actual_ip"].astype(str).apply(_parse_ip)
+    mae = float(np.mean(np.abs(settled["predicted_ip"].astype(float) - actual_decimal)))
+
+    recent = settled.sort_values("date", ascending=False).head(30)
+    recent_out = [
+        {
+            "date": r["date"], "pitcher": r["pitcher_name"], "matchup": f"{r['team_abbr']} vs {r['opp_team_abbr']}",
+            "predicted_ip": r["predicted_ip"], "actual_ip": r["actual_ip"],
+        }
+        for _, r in recent.iterrows()
+    ]
+    return {"total": len(settled), "mae": round(mae, 3), "recent": recent_out}
+
+
+def get_er_track_record() -> dict:
+    """Running hit-rate + MAE for the earned-runs call — same shape as get_strikeout_track_record."""
+    log = _read_log()
+    settled = log[(log["settled"] == True) & log["predicted_er"].notna() & log["actual_er"].notna()]  # noqa: E712
+    if settled.empty:
+        return {"total": 0, "correct": 0, "pushes": 0, "accuracy": None, "mae": None, "recent": []}
+
+    decided = settled[settled["er_correct"].notna()]
+    pushes = len(settled) - len(decided)
+    correct = int(decided["er_correct"].sum()) if not decided.empty else 0
+    total = len(decided)
+    mae = float(np.mean(np.abs(settled["predicted_er"].astype(float) - settled["actual_er"].astype(float))))
+
+    recent = settled.sort_values("date", ascending=False).head(30)
+    recent_out = [
+        {
+            "date": r["date"], "pitcher": r["pitcher_name"], "matchup": f"{r['team_abbr']} vs {r['opp_team_abbr']}",
+            "predicted_er": r["predicted_er"], "er_line": r["er_line"], "er_call": r["er_call"],
+            "actual_er": r["actual_er"], "correct": None if pd.isna(r["er_correct"]) else bool(r["er_correct"]),
+        }
+        for _, r in recent.iterrows()
+    ]
     return {
         "total": total, "correct": correct, "pushes": pushes,
         "accuracy": round(correct / total, 4) if total > 0 else None,

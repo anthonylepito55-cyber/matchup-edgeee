@@ -38,6 +38,12 @@ SEASONS = [2025, 2026]
 AUC_TOLERANCE = 0.002
 BRIER_TOLERANCE = 0.001
 MAE_TOLERANCE = 0.01
+# IP/ER MAE tolerances start smaller than strikeouts' since both targets have a smaller natural
+# scale (typical IP MAE ~1-1.5 innings, ER MAE ~1.2-1.5 runs, vs ~1.8 strikeouts) — recalibrate
+# once the first real backtest shows actual fold-to-fold variance for these two, same as
+# MAE_TOLERANCE above was sized off strikeouts' own observed noise floor, not guessed blind.
+IP_MAE_TOLERANCE = 0.05
+ER_MAE_TOLERANCE = 0.05
 
 
 def _git(*args, check=True):
@@ -72,6 +78,16 @@ def _passes_gate(old: dict, new: dict) -> tuple[bool, list[str]]:
     if old_k and new_k:
         if new_k["mae"] > old_k["mae"] + MAE_TOLERANCE:
             reasons.append(f"strikeout MAE regressed: {old_k['mae']:.3f} -> {new_k['mae']:.3f}")
+
+    old_ip, new_ip = old.get("ip_a"), new.get("ip_a")
+    if old_ip and new_ip:
+        if new_ip["mae"] > old_ip["mae"] + IP_MAE_TOLERANCE:
+            reasons.append(f"IP MAE regressed: {old_ip['mae']:.3f} -> {new_ip['mae']:.3f}")
+
+    old_er, new_er = old.get("er_a"), new.get("er_a")
+    if old_er and new_er:
+        if new_er["mae"] > old_er["mae"] + ER_MAE_TOLERANCE:
+            reasons.append(f"ER MAE regressed: {old_er['mae']:.3f} -> {new_er['mae']:.3f}")
 
     return len(reasons) == 0, reasons
 
@@ -113,6 +129,10 @@ def main():
                 summary_bits.append(f"win-prob AUC {new_metrics['win_prob_a']['auc']:.4f}")
             if "strikeout_a" in new_metrics:
                 summary_bits.append(f"strikeout MAE {new_metrics['strikeout_a']['mae']:.3f}")
+            if "ip_a" in new_metrics:
+                summary_bits.append(f"IP MAE {new_metrics['ip_a']['mae']:.3f}")
+            if "er_a" in new_metrics:
+                summary_bits.append(f"ER MAE {new_metrics['er_a']['mae']:.3f}")
             message = (
                 f"Daily retrain: {', '.join(summary_bits)} "
                 f"({new_metrics.get('win_prob_games', '?')} games)\n\n"
