@@ -71,12 +71,26 @@ def fetch_season_schedule_with_pitchers(season: int) -> pd.DataFrame:
     Pulls every completed game in a season with home/away teams, final
     score, and (where available) the starting pitcher line via the MLB
     Stats API boxscore endpoint. This is the single slowest step.
+
+    Incremental: if a cache already exists, only fetches games newer than the latest cached
+    game_date and appends them, rather than re-pulling the whole season from scratch every call.
+    Added for daily_retrain.py, which calls this once a day — re-fetching thousands of already-
+    cached box scores just to pick up the prior day's handful of new games would make a daily
+    job needlessly slow (and hammer the MLB Stats API for no reason).
     """
     cache_path = os.path.join(CACHE_DIR, f"game_logs_{season}.parquet")
-    if os.path.exists(cache_path):
-        return pd.read_parquet(cache_path)
-
+    existing_df = None
+    existing_pks = set()
     start = f"{season}-03-01"
+    if os.path.exists(cache_path):
+        existing_df = pd.read_parquet(cache_path)
+        if not existing_df.empty:
+            existing_pks = set(existing_df["game_pk"])
+            # Start back at the latest cached date (not the day after) — a doubleheader or a
+            # game that finished after this cache was last written could leave that day only
+            # partially captured; re-checking it is cheap (existing_pks dedupes) and safe.
+            start = pd.to_datetime(existing_df["game_date"]).max().strftime("%Y-%m-%d")
+
     end = f"{season}-11-15"
     url = f"{MLB_STATS_API}/schedule"
     params = {"sportId": 1, "startDate": start, "endDate": end, "gameType": "R"}
@@ -88,10 +102,13 @@ def fetch_season_schedule_with_pitchers(season: int) -> pd.DataFrame:
     # only reliable source for this; the boxscore endpoint doesn't carry a date field at all
     for d in data.get("dates", []):
         for g in d.get("games", []):
-            if g.get("status", {}).get("detailedState") == "Final":
+            if g.get("status", {}).get("detailedState") == "Final" and g["gamePk"] not in existing_pks:
                 game_pks.append((g["gamePk"], d["date"]))
 
-    print(f"[{season}] {len(game_pks)} completed games found. Pulling boxscores...")
+    if not game_pks:
+        return existing_df if existing_df is not None else pd.DataFrame()
+
+    print(f"[{season}] {len(game_pks)} new completed games found. Pulling boxscores...")
 
     rows = []
     for i, (pk, game_date) in enumerate(game_pks):
@@ -166,7 +183,11 @@ def fetch_season_schedule_with_pitchers(season: int) -> pd.DataFrame:
         except Exception as e:
             continue
 
-    df = pd.DataFrame(rows)
+    new_df = pd.DataFrame(rows)
+    if existing_df is not None and not existing_df.empty:
+        df = pd.concat([existing_df, new_df], ignore_index=True).drop_duplicates(subset="game_pk", keep="last")
+    else:
+        df = new_df
     if len(df) > 0:
         df.to_parquet(cache_path)
     return df
