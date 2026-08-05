@@ -146,15 +146,25 @@ def _statcast_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season: in
     Blended with the pitcher's prior-season Statcast rates when the current-season sample is thin
     (see features.blend_statcast_with_prior_season) — otherwise a 2-start pitcher's whiff%/hard-hit%/
     GB% get exactly the same trust as a full-season one, unlike every OTHER thin-sample stat in this
-    app (ERA/FIP already blend this way, recent-form already discounts for appearances/layoffs)."""
+    app (ERA/FIP already blend this way, recent-form already discounts for appearances/layoffs).
+
+    This now does 4 fetches (current+prior season x 2 pitchers) instead of 2 — run concurrently,
+    not sequentially, since this is called once per game inside the per-game loop (not pre-fetched
+    the way team-level data is) and doubling a cold-cache fetch cost there compounds across every
+    game in the slate."""
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        home_cur_f = pool.submit(get_pitcher_statcast_daily, home_pitcher_id, season)
+        home_prior_f = pool.submit(get_pitcher_statcast_daily, home_pitcher_id, season - 1)
+        away_cur_f = pool.submit(get_pitcher_statcast_daily, away_pitcher_id, season)
+        away_prior_f = pool.submit(get_pitcher_statcast_daily, away_pitcher_id, season - 1)
+        home_cur, home_prior = home_cur_f.result(), home_prior_f.result()
+        away_cur, away_prior = away_cur_f.result(), away_prior_f.result()
     return {
         home_pitcher_id: blend_statcast_with_prior_season(
-            statcast_cumulative_as_of(get_pitcher_statcast_daily(home_pitcher_id, season)),
-            statcast_cumulative_as_of(get_pitcher_statcast_daily(home_pitcher_id, season - 1)),
+            statcast_cumulative_as_of(home_cur), statcast_cumulative_as_of(home_prior),
         ),
         away_pitcher_id: blend_statcast_with_prior_season(
-            statcast_cumulative_as_of(get_pitcher_statcast_daily(away_pitcher_id, season)),
-            statcast_cumulative_as_of(get_pitcher_statcast_daily(away_pitcher_id, season - 1)),
+            statcast_cumulative_as_of(away_cur), statcast_cumulative_as_of(away_prior),
         ),
     }
 
