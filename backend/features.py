@@ -1357,6 +1357,21 @@ ER_FEATURE_COLUMNS = [
 ER_MARKET_FEATURE_COLUMNS = ["team_market_win_prob", "market_er_line"]
 ER_BASEBALL_ONLY_FEATURE_COLUMNS = [c for c in ER_FEATURE_COLUMNS if c not in ER_MARKET_FEATURE_COLUMNS]
 
+# BULLPEN_ER_FEATURE_COLUMNS: one row per (game, TEAM) — not per pitcher — predicting that team's
+# own bullpen's total earned runs allowed that night, replacing simulation.py's current crude
+# bullpen_fip/9 * remaining_innings rate estimate with an actual trained model. See
+# build_training_data.build_strikeout_training_set's own_bullpen_fip/own_bullpen_fatigue columns
+# and the bullpen_earned_runs label (from fetch_bullpen_appearances). No baseball-only/market split
+# — there's no posted market line for team bullpen runs to accidentally leak from.
+BULLPEN_ER_FEATURE_COLUMNS = [
+    "own_bullpen_fip",        # season bullpen quality (raw, not diffed)
+    "own_bullpen_fatigue",    # last-3-days bullpen innings thrown — a tired pen pitches worse than its season FIP suggests
+    "opp_woba",                # opposing lineup's own wOBA — the direct run-scoring-threat signal, same reasoning as ER_FEATURE_COLUMNS
+    "recent_ip_per_start",     # today's own starter's recent innings-per-start — a proxy for how many innings the bullpen will likely need to cover (ex-ante, not the actual outcome)
+    "park_factor_home",
+    "team_market_win_prob",   # blowout risk — a lopsided game means more low-leverage innings for worse arms, same reasoning used elsewhere
+]
+
 
 def build_strikeout_features(
     pitcher_id: int,

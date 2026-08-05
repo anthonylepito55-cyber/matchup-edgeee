@@ -58,6 +58,9 @@ IP_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "ip_m
 IP_BASELINE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "ip_model_baseline.joblib")
 ER_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "er_model.joblib")
 ER_BASELINE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "er_model_baseline.joblib")
+# Team-level (not per-pitcher) — predicts a team's own bullpen earned runs allowed, see
+# features.BULLPEN_ER_FEATURE_COLUMNS. No baseline/market split, see that constant's comment.
+BULLPEN_ER_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "bullpen_er_model.joblib")
 
 DEFAULT_XGB_PARAMS = {
     # Grid-searched (strikeout_hyperparam_search.py) against the walk-

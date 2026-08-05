@@ -1979,6 +1979,9 @@ def today(date: str = None):
             rating_out = (
                 rating_system.score_matchup(rating_fitted, feats) if rating_fitted is not None else None
             )
+            # Every individual raw diff behind rating_out's 10 category rollups above — "every
+            # factor," not just the category sums. Same feats dict, no extra computation.
+            feature_breakdown_out = rating_system.feature_level_breakdown(feats)
             # Strikeout props are about the actually-announced pitcher specifically (that's who the
             # real bet is on), never the substituted bulk reliever — so this needs its own statcast/
             # velocity/pitch-diversity pull keyed to the real ids, distinct from the win-prob versions
@@ -2115,10 +2118,13 @@ def today(date: str = None):
             # runs), but with no logged history to restore, the honest move is just not to show a
             # live-recomputed value at all rather than silently include this game's own result.
             h2h_out = None
-            # rating_out (the display-only category breakdown) isn't logged either, same leakage
-            # exposure as h2h_out — honest move is the same: don't show a live-recomputed value
-            # for an already-decided game.
+            # rating_out/feature_breakdown_out ARE logged (rating_breakdown_json) — restored below
+            # from the frozen snapshot if one exists, same as recent_form/season_stats/team_stats.
+            # Nulled here first so an ungraded/pre-dashboard-fix older log row (no rating_breakdown_json
+            # captured) still renders as "not captured" rather than falling through to a live,
+            # potentially leakage-exposed recompute.
             rating_out = None
+            feature_breakdown_out = None
             # market_model_prob (Model B's comparison probability) is a live re-inference off the
             # same feats dict as h2h_out/rating_out above and isn't logged anywhere either — same
             # leakage exposure, same honest fix: don't show a live-recomputed value once the
@@ -2150,6 +2156,10 @@ def today(date: str = None):
                     team_stats_out = frozen["team_stats"]
                 if frozen.get("lineup_breakdown"):
                     lineup_breakdown_out = frozen["lineup_breakdown"]
+                if frozen.get("rating_breakdown"):
+                    rating_out = frozen["rating_breakdown"]
+                if frozen.get("feature_breakdown"):
+                    feature_breakdown_out = frozen["feature_breakdown"]
                 prediction_frozen = True
 
             # Same freeze, same reason, for the K-prop card — it was still being
@@ -2190,6 +2200,7 @@ def today(date: str = None):
             "data_quality": data_quality, "prediction_frozen": prediction_frozen,
             "opener_affected": any_opener, "h2h": h2h_out, "team_stats": team_stats_out,
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
+            "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "simulation": simulation_out, "injuries": injuries_out,
             "book_odds": book_odds_out,
             "note": None if prediction else "Model not trained yet — run train.py",
@@ -2361,6 +2372,7 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
         result["rating_breakdown"] = (
             rating_system.score_matchup(rating_fitted, feats) if rating_fitted is not None else None
         )
+        result["feature_breakdown"] = rating_system.feature_level_breakdown(feats)
         # No pitcher names available on this endpoint (ID/team-abbr only), so strikeout
         # lines fall back to the model-generated "natural" line rather than a real book
         # line — /api/today (which has names) gets the real prop line when one exists.

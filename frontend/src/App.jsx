@@ -365,6 +365,7 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
   const [showStats, setShowStats] = useState(false)
   const [showLineup, setShowLineup] = useState(false)
   const [showRating, setShowRating] = useState(false)
+  const [showFeatures, setShowFeatures] = useState(false)
   const [showInjuries, setShowInjuries] = useState(false)
   const pred = game.prediction
   const liveOdds = game.live_odds
@@ -517,6 +518,19 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
               {showRating && (
                 <RatingBreakdown
                   rating={game.rating_breakdown}
+                  homeAbbr={game.home_team_abbr}
+                  awayAbbr={game.away_team_abbr}
+                />
+              )}
+            </div>
+          )}
+
+          {game.feature_breakdown && (
+            <div style={{ marginTop: 8 }}>
+              <ToggleLink onClick={() => setShowFeatures(s => !s)} open={showFeatures} label="every factor" />
+              {showFeatures && (
+                <FeatureBreakdown
+                  breakdown={game.feature_breakdown}
                   homeAbbr={game.home_team_abbr}
                   awayAbbr={game.away_team_abbr}
                 />
@@ -939,6 +953,62 @@ export function InjuryReport({ label, injuries }) {
             <span>{inj.type}</span>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+const FEATURE_LABELS = {
+  fip_diff: 'Season FIP', k_bb_pct_diff: 'K-BB%',
+  prior_season_fip_diff: 'Prior-season FIP', prior_season_k_bb_pct_diff: 'Prior-season K-BB%',
+  season_ip_per_start_diff: 'Innings/start (season)', hr9_diff: 'HR/9 allowed', h9_diff: 'Hits/9 allowed',
+  recent_fip_diff: 'Recent FIP (L5)', recent_k9_diff: 'Recent K/9 (L5)', recent_bb9_diff: 'Recent BB/9 (L5)',
+  recent_hr9_diff: 'Recent HR/9 (L5)', recent_h9_diff: 'Recent H/9 (L5)', recent_ip_per_start_diff: 'Recent innings/start (L5)',
+  whiff_pct_diff: 'Whiff%', chase_pct_diff: 'Chase% induced', hard_hit_pct_diff: 'Hard-hit% allowed',
+  gb_pct_diff: 'Ground-ball%', barrel_pct_diff: 'Barrel% allowed', rest_days_diff: 'Rest days',
+  bullpen_fip_diff: 'Bullpen FIP', bullpen_fatigue_diff: 'Bullpen fatigue (3d)',
+  high_leverage_bullpen_fip_diff: 'High-leverage bullpen FIP', bullpen_edge_when_close_diff: 'Bullpen edge (close game)',
+  arsenal_matchup_woba_diff: 'Pitch-arsenal matchup wOBA', park_factor_home: 'Park factor',
+  opp_lineup_woba_diff: 'Opposing lineup wOBA', opp_platoon_woba_diff: 'Opposing lineup wOBA vs hand',
+  recent_team_batting_diff: 'Recent team batting avg (7d)', recent_team_batting_30d_diff: 'Recent team batting avg (30d)',
+  defense_babip_diff: 'Defense (BABIP allowed)', line_movement_diff: 'Moneyline movement',
+  travel_fatigue_diff: 'Travel distance since last game',
+}
+
+// Every individual raw diff behind RatingBreakdown's 10 category rollups — same data, no
+// aggregation, sorted by magnitude so the single biggest driver of the prediction is always
+// first regardless of which category it belongs to. See rating_system.feature_level_breakdown.
+export function FeatureBreakdown({ breakdown, homeAbbr, awayAbbr }) {
+  if (!breakdown) return null
+  const flat = Object.values(breakdown).flat().filter(f => f.favors === 'home' || f.favors === 'away')
+  if (!flat.length) return null
+  flat.sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+  const maxAbs = Math.max(...flat.map(f => Math.abs(f.value)), 0.01)
+  return (
+    <div style={{ marginTop: 8 }} title="Every individual signal that feeds the model's win probability, not just the 10 category summaries above — sorted by size of impact.">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {flat.map(f => {
+          const leansHome = f.favors === 'home'
+          const magnitude = Math.min(Math.abs(f.value) / maxAbs, 1)
+          return (
+            <div key={f.feature} className="mono" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 210, color: 'var(--text-tertiary)' }}>{FEATURE_LABELS[f.feature] || f.feature}</span>
+              <div style={{ flex: 1, height: 4, background: 'var(--line)', borderRadius: 2, position: 'relative' }}>
+                <div style={{
+                  position: 'absolute', top: 0, bottom: 0,
+                  [leansHome ? 'left' : 'right']: '50%',
+                  width: `${magnitude * 50}%`,
+                  background: leansHome ? 'var(--edge-pos)' : 'var(--edge-neg)',
+                  borderRadius: 2,
+                }} />
+              </div>
+              <span style={{ width: 40, color: 'var(--text-tertiary)' }}>{leansHome ? homeAbbr : awayAbbr}</span>
+              <span className="mono" style={{ width: 55, textAlign: 'right', color: leansHome ? 'var(--edge-pos)' : 'var(--edge-neg)' }}>
+                {f.value > 0 ? '+' : ''}{f.value.toFixed(2)}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

@@ -263,6 +263,7 @@ def fetch_bullpen_appearances(season: int) -> pd.DataFrame:
                     "game_pk": pk, "game_date": game_date, "team_abbr": team_abbr,
                     "pitcher_id": pid, "ip": _parse_ip(stats.get("inningsPitched", 0)),
                     "pitches": stats.get("numberOfPitches", 0), "is_starter": idx == 0,
+                    "earned_runs": stats.get("earnedRuns", 0),
                 })
 
     new_df = pd.DataFrame(rows)
@@ -1173,6 +1174,7 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
     pitcher_last_date = {}  # pitcher_id -> date of their last start, for walk-forward rest days
     pitcher_vs_team_history = {}  # (pitcher_id, opp_team_abbr) -> list of (ip, er, bb, k, hr, hbp) — never reset, see build_full_training_set
     team_starter_ip_history = {}  # team_abbr -> list of (date, starter_ip) for THAT team's own starts, home or away — never reset (team-management style, not a season-level stat), feeds team_hook_tendency
+    team_bullpen_history = {}  # team_abbr -> list of (date, bullpen_ip) for THAT team's own games — feeds own_bullpen_fatigue below, same walk-forward pattern as build_full_training_set's identically-named tracker (kept separate since this function has its own loop/state)
     rows = []
 
     latest_team_batting = {s: get_team_batting_splits(s) for s in seasons}
@@ -1341,6 +1343,13 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
             bp_row = bp_df[bp_df["Team"] == own_team] if not bp_df.empty and "Team" in bp_df.columns else pd.DataFrame()
             feats["own_bullpen_fip"] = bp_row.iloc[0]["bullpen_fip"] if not bp_row.empty and "bullpen_fip" in bp_row.columns else np.nan
             feats["park_factor_home"] = get_park_factor(row["home_team"])
+            # Walk-forward live fatigue signal (last-3-days bullpen innings), same underlying
+            # concept/helper as build_full_training_set's bullpen_fatigue_diff — not a model input
+            # for K/IP/ER, kept for a from-scratch bullpen-earned-runs model (see simulation.py's
+            # bullpen phase, currently a cruder bullpen_fip/9 rate estimate).
+            feats["own_bullpen_fatigue"] = _bullpen_fatigue_from_history(
+                team_bullpen_history.get(own_team, []), row["game_date"]
+            )
             rows.append(feats)
 
         # Now update recent-form history AFTER using pre-game state for features
@@ -1360,8 +1369,34 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
              row.get("away_hbp", 0)))
         team_starter_ip_history.setdefault(row["home_team"], []).append((row["game_date"], _parse_ip(row["home_ip"])))
         team_starter_ip_history.setdefault(row["away_team"], []).append((row["game_date"], _parse_ip(row["away_ip"])))
+        team_bullpen_history.setdefault(row["home_team"], []).append((row["game_date"], row.get("home_bullpen_ip", 0.0)))
+        team_bullpen_history.setdefault(row["away_team"], []).append((row["game_date"], row.get("away_bullpen_ip", 0.0)))
 
     training_df = pd.DataFrame(rows)
+
+    # bullpen_earned_runs label: sum of every NON-starter pitcher's earned runs for own_team in
+    # that game, from the separate bullpen_appearances boxscore pull (see fetch_bullpen_appearances
+    # above) — a from-scratch bullpen-runs-allowed model target, distinct from the starter-only
+    # earned_runs label above. Left as NaN for games missing bullpen appearance data (should only
+    # be games outside fetch_bullpen_appearances' cached range).
+    bullpen_er_frames = []
+    for s in seasons:
+        bp_path = os.path.join(CACHE_DIR, f"bullpen_appearances_{s}.parquet")
+        if os.path.exists(bp_path):
+            bullpen_er_frames.append(pd.read_parquet(bp_path))
+    if bullpen_er_frames:
+        bp_all = pd.concat(bullpen_er_frames, ignore_index=True)
+        bullpen_only = bp_all[~bp_all["is_starter"]]
+        bullpen_agg = bullpen_only.groupby(["game_pk", "team_abbr"]).agg(
+            bullpen_earned_runs=("earned_runs", "sum"), bullpen_innings=("ip", "sum"),
+        ).reset_index()
+        training_df = training_df.merge(
+            bullpen_agg, left_on=["game_pk", "own_team"], right_on=["game_pk", "team_abbr"], how="left",
+        ).drop(columns=["team_abbr"])
+    else:
+        training_df["bullpen_earned_runs"] = np.nan
+        training_df["bullpen_innings"] = np.nan
+
     training_df.to_parquet(STRIKEOUT_TRAINING_CACHE)
     print(f"Pitcher-outing training set built (strikeouts + innings_pitched + earned_runs): "
           f"{len(training_df)} rows -> {STRIKEOUT_TRAINING_CACHE}")

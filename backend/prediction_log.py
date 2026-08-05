@@ -44,6 +44,7 @@ LOG_COLUMNS = [
     "model_home_win_prob", "raw_model_home_win_prob", "overridden", "reason",
     "recent_form_json", "season_stats_json", "team_stats_json", "lineup_breakdown_json",  # pre-game snapshot of the display breakdown, see get_logged_prediction
     "rating_breakdown_json",  # pre-game snapshot of the display-only composite rating system's category breakdown — see rating_system.py; NOT used as a model input, purely for the previous-day tab to show alongside the actual prediction
+    "feature_breakdown_json",  # pre-game snapshot of every individual raw diff feature behind rating_breakdown_json's category rollups — see rating_system.feature_level_breakdown; same non-model, display-only status
     "market_home_prob",       # de-vigged implied home win prob from live_odds at prediction time, if available
     "logged_at",
     "settled", "home_score", "away_score", "home_won", "correct",
@@ -164,6 +165,7 @@ def log_predictions(date: str, games: list[dict]):
             "team_stats_json": json.dumps(g.get("team_stats")) if g.get("team_stats") else None,
             "lineup_breakdown_json": json.dumps(g.get("lineup_breakdown")) if g.get("lineup_breakdown") else None,
             "rating_breakdown_json": json.dumps(g.get("rating_breakdown")) if g.get("rating_breakdown") else None,
+            "feature_breakdown_json": json.dumps(g.get("feature_breakdown")) if g.get("feature_breakdown") else None,
             "market_home_prob": market_home_prob,
             "logged_at": datetime.now().isoformat(),
         }
@@ -250,6 +252,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "team_stats": _load_json("team_stats_json"),
         "lineup_breakdown": _load_json("lineup_breakdown_json"),
         "rating_breakdown": _load_json("rating_breakdown_json"),
+        "feature_breakdown": _load_json("feature_breakdown_json"),
     }
 
 
@@ -391,6 +394,7 @@ def get_games_for_date(date: str) -> list[dict]:
             "team_stats": _load_json(r, "team_stats_json"),
             "lineup_breakdown": _load_json(r, "lineup_breakdown_json"),
             "rating_breakdown": _load_json(r, "rating_breakdown_json"),
+            "feature_breakdown": _load_json(r, "feature_breakdown_json"),
             "settled": bool(r["settled"]) if pd.notna(r["settled"]) else False,
             "home_score": int(r["home_score"]) if pd.notna(r["home_score"]) else None,
             "away_score": int(r["away_score"]) if pd.notna(r["away_score"]) else None,

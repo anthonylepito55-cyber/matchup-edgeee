@@ -173,6 +173,42 @@ def score_matchup(fitted: dict, feats: dict) -> dict:
     }
 
 
+# Every _diff feature across CATEGORY_MAP is documented in features.py's FEATURE_COLUMNS comments
+# as "positive favors home" (checked 2026-08-05 — every one of them says so explicitly). These few
+# don't have a home/away lean at all — they describe a scoring environment or market-disagreement
+# MAGNITUDE instead, so labeling them "favors home"/"favors away" off their raw sign would be
+# actively misleading rather than just imprecise.
+NON_DIRECTIONAL_FEATURES = {"book_disagreement", "book_prob_std", "market_total_runs", "park_factor_home"}
+
+
+def feature_level_breakdown(feats: dict) -> dict:
+    """{category: [{"feature": name, "value": v, "favors": "home"/"away"/"even"/"environment"}, ...]}
+    — the individual raw diff values behind each category's single summed number in
+    score_matchup's category_contributions, for full per-signal transparency ("every factor",
+    not just the 10 category rollups). Categories/features with no data for this game are simply
+    omitted, not zero-filled — same "missing isn't the same as neutral" reasoning as
+    _category_raw_score above."""
+    out = {}
+    for cat, (_rank, cols) in CATEGORY_MAP.items():
+        items = []
+        for c in cols:
+            v = feats.get(c)
+            if v is None or pd.isna(v):
+                continue
+            if c in NON_DIRECTIONAL_FEATURES:
+                favors = "environment"
+            elif v > 0:
+                favors = "home"
+            elif v < 0:
+                favors = "away"
+            else:
+                favors = "even"
+            items.append({"feature": c, "value": round(float(v), 4), "favors": favors})
+        if items:
+            out[cat] = items
+    return out
+
+
 def backtest_rating_system(historical_df: pd.DataFrame, label_col: str = "home_win", n_folds: int = 5) -> dict:
     """
     Same walk-forward fold structure as model.backtest() — trains (fits z-score params + scale)
