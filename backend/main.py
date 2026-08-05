@@ -42,7 +42,7 @@ from data_collection import (
     get_recent_il_activations, days_since_il_return,
     get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern,
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
-    get_team_roster, get_espn_probable_pitchers, get_team_recent_starter_ip,
+    get_team_roster, get_espn_probable_pitchers,
     CACHE_DIR,
 )
 from features import (
@@ -70,6 +70,7 @@ from strikeout_prediction_log import (
 import model as model_module
 import rating_system
 import props as props_module
+import simulation
 
 from tennis_data import (
     get_atp_match_history, get_wta_match_history, get_tennis_today_matches,
@@ -906,8 +907,10 @@ def _ip_predictions(home_pitcher_id: int, away_pitcher_id: int, home_team_abbr: 
     team_market_prob_away = (1 - market_home_prob) if market_home_prob is not None else None
     home_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(home_pitcher_name or ""))
     away_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(away_pitcher_name or ""))
-    home_hook_tendency = get_team_recent_starter_ip(home_team_abbr).get("avg_ip")
-    away_hook_tendency = get_team_recent_starter_ip(away_team_abbr).get("avg_ip")
+    # team_hook_tendency (get_team_recent_starter_ip) tested 2026-08-04 as noise-level on IP/ER
+    # MAE and reverted from IP_FEATURE_COLUMNS/ER_FEATURE_COLUMNS — no longer fetched here since
+    # build_ip_features/build_er_features would just discard it; the fetch itself was several
+    # uncached-on-cold-cache boxscore calls per team, a real cost for a value nothing reads.
     return {
         "home": _one_ip_prediction(
             home_pitcher_id, away_team_abbr, True, season_stats, team_batting, recent_stats, statcast,
@@ -915,7 +918,6 @@ def _ip_predictions(home_pitcher_id: int, away_pitcher_id: int, home_team_abbr: 
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_home,
             pitcher_market_lines=home_pitcher_market_lines, ip_market_model_trained=ip_market_model_trained,
-            team_hook_tendency=home_hook_tendency,
         ),
         "away": _one_ip_prediction(
             away_pitcher_id, home_team_abbr, False, season_stats, team_batting, recent_stats, statcast,
@@ -923,7 +925,6 @@ def _ip_predictions(home_pitcher_id: int, away_pitcher_id: int, home_team_abbr: 
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_away,
             pitcher_market_lines=away_pitcher_market_lines, ip_market_model_trained=ip_market_model_trained,
-            team_hook_tendency=away_hook_tendency,
         ),
     }
 
@@ -991,8 +992,7 @@ def _er_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitcher_nam
     team_market_prob_away = (1 - market_home_prob) if market_home_prob is not None else None
     home_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(home_pitcher_name))
     away_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(away_pitcher_name))
-    home_hook_tendency = get_team_recent_starter_ip(home_team_abbr).get("avg_ip")
-    away_hook_tendency = get_team_recent_starter_ip(away_team_abbr).get("avg_ip")
+    # team_hook_tendency no longer fetched here — see the identical comment in _ip_predictions.
     return {
         "home": _one_er_prediction(
             home_pitcher_id, away_team_abbr, True, season_stats, team_batting, recent_stats, statcast,
@@ -1000,7 +1000,6 @@ def _er_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitcher_nam
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_home,
             pitcher_market_lines=home_pitcher_market_lines, er_market_model_trained=er_market_model_trained,
-            team_hook_tendency=home_hook_tendency,
         ),
         "away": _one_er_prediction(
             away_pitcher_id, home_team_abbr, False, season_stats, team_batting, recent_stats, statcast,
@@ -1008,7 +1007,6 @@ def _er_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitcher_nam
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_away,
             pitcher_market_lines=away_pitcher_market_lines, er_market_model_trained=er_market_model_trained,
-            team_hook_tendency=away_hook_tendency,
         ),
     }
 
@@ -2038,6 +2036,48 @@ def today(date: str = None):
                 ),
                 pitcher_market_lines_by_name=pitcher_market_lines,
             )
+            # Monte Carlo blend (2026-08-05): backtested on the 3-season walk-forward dataset at
+            # 56.52% (classifier alone) vs 56.15% (simulation alone) vs 56.7-57.0% blended across
+            # every weight from 30-70% classifier — the two disagree on ~24% of games and are
+            # roughly a coin flip against each other on exactly those, so averaging cancels out
+            # some of each one's individual misses. 40% classifier / 60% simulation gave the best
+            # AUC/Brier in that backtest; used here. Falls back to classifier-only whenever the
+            # IP/ER models aren't trained yet or a team's bullpen_fip isn't available (early
+            # season, data gap) rather than blending in a low-confidence simulation.
+            _SIM_CLF_WEIGHT = 0.4
+            simulation_out = None
+            if ip_predictions and er_predictions and ip_predictions.get("home") and ip_predictions.get("away") \
+                    and er_predictions.get("home") and er_predictions.get("away"):
+                home_bp_fip = _team_stat_row(bullpen_stats, g["home_team_abbr"], "bullpen_fip")
+                away_bp_fip = _team_stat_row(bullpen_stats, g["away_team_abbr"], "bullpen_fip")
+                if home_bp_fip is not None and away_bp_fip is not None:
+                    sim_result = simulation.simulate_game(
+                        home_starter_ip=ip_predictions["home"]["predicted"],
+                        home_starter_er=er_predictions["home"]["predicted"],
+                        home_bullpen_fip=home_bp_fip,
+                        away_starter_ip=ip_predictions["away"]["predicted"],
+                        away_starter_er=er_predictions["away"]["predicted"],
+                        away_bullpen_fip=away_bp_fip,
+                        park_factor=get_park_factor(g["home_team_abbr"]),
+                        n_sims=20_000,
+                    )
+                    blended_prob = (
+                        _SIM_CLF_WEIGHT * raw_prediction["home_win_prob"]
+                        + (1 - _SIM_CLF_WEIGHT) * sim_result["win_prob_home"]
+                    )
+                    prediction = _apply_confidence_override(
+                        blended_prob, feats, recent_form_out, season_stats_out, any_long_layoff,
+                        any_recent_il_return, any_unresolved_opener,
+                    )
+                    reason = _generate_reason(
+                        prediction["home_win_prob"] >= 0.5, season_stats_out, recent_form_out, any_long_layoff,
+                        team_stats_out,
+                    )
+                    simulation_out = {
+                        "win_prob_home": round(sim_result["win_prob_home"], 4),
+                        "projected_total": round(sim_result["projected_total"], 1),
+                        "projected_spread": round(sim_result["projected_spread"], 1),
+                    }
             # Display-only (not a model feature — see the ablation note on h2h_fip_diff/h2h_k9 in
             # features.py): each pitcher's own head-to-head record against tonight's specific
             # opponent, real ids (not the opener-substituted ones), same reasoning as k_h2h_stats.
@@ -2084,6 +2124,10 @@ def today(date: str = None):
             # leakage exposure, same honest fix: don't show a live-recomputed value once the
             # game's own outing may already be baked into the inputs that produced it.
             market_model_prob = None
+            # simulation_out is a live re-simulation off the same IP/ER point projections used to
+            # build the (already-frozen-below) blended prediction — same leakage exposure and same
+            # honest fix as market_model_prob above.
+            simulation_out = None
             # recent_team_batting is a live "last 7 games" computation with no date cutoff, same
             # leakage exposure as h2h_out above — a decided game's own batting line would already
             # be baked into "recent form" by the time this request runs. team_stats_out is IS
@@ -2146,7 +2190,7 @@ def today(date: str = None):
             "data_quality": data_quality, "prediction_frozen": prediction_frozen,
             "opener_affected": any_opener, "h2h": h2h_out, "team_stats": team_stats_out,
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
-            "market_model_prob": market_model_prob, "injuries": injuries_out,
+            "market_model_prob": market_model_prob, "simulation": simulation_out, "injuries": injuries_out,
             "book_odds": book_odds_out,
             "note": None if prediction else "Model not trained yet — run train.py",
         })

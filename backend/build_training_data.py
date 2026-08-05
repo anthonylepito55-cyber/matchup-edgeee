@@ -1179,6 +1179,11 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
     latest_team_batting_vs_hand = {
         s: {"L": get_team_batting_vs_hand(s, "L"), "R": get_team_batting_vs_hand(s, "R")} for s in seasons
     }
+    # Raw (not diffed) bullpen quality + park factor, stamped onto each row below — not used as a
+    # model input for K/IP/ER (those already get bullpen indirectly via opp_woba etc.), but needed
+    # by simulation.py's Monte Carlo backtest to build a whole-team runs-allowed distribution
+    # (starter + bullpen) per historical game.
+    latest_bullpen = {s: get_team_bullpen_stats(s) for s in seasons}
     # Same prior-season blend as build_full_training_set — see that function's comment.
     prior_season_pitching_stats = {}
     for s in seasons:
@@ -1324,6 +1329,18 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
             feats["strikeouts"] = actual_k
             feats["innings_pitched"] = _parse_ip(actual_ip)
             feats["earned_runs"] = actual_er
+            # Not used as model inputs (see build_full_training_set's identical comment) — kept so
+            # other tooling (e.g. simulation.py's Monte Carlo backtest) can join a pitcher-outing
+            # row back to the game it came from and know which side won.
+            feats["game_pk"] = row["game_pk"]
+            feats["own_team"] = own_team
+            feats["opp_team"] = opp_team
+            feats["is_home"] = is_home
+            feats["home_win"] = row["home_win"]
+            bp_df = latest_bullpen.get(season, pd.DataFrame())
+            bp_row = bp_df[bp_df["Team"] == own_team] if not bp_df.empty and "Team" in bp_df.columns else pd.DataFrame()
+            feats["own_bullpen_fip"] = bp_row.iloc[0]["bullpen_fip"] if not bp_row.empty and "bullpen_fip" in bp_row.columns else np.nan
+            feats["park_factor_home"] = get_park_factor(row["home_team"])
             rows.append(feats)
 
         # Now update recent-form history AFTER using pre-game state for features
