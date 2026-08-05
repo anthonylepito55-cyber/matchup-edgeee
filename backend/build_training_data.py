@@ -60,7 +60,7 @@ from data_collection import (
 from features import (
     build_matchup_features, features_to_row, FEATURE_COLUMNS, build_strikeout_features,
     build_ip_features, build_er_features,
-    blend_with_prior_season,
+    blend_with_prior_season, blend_statcast_with_prior_season,
 )
 from weather import get_team_weather_range, TEAM_HOME_VENUE, venue_distance_miles
 
@@ -378,6 +378,19 @@ def _recent_stats_from_history(starts: list, n: int = 5) -> dict:
         "sample_size": len(last_n),
         "sample_type": "starts",
     }
+
+
+def _recent_er_volatility(starts: list, n: int = 8) -> float:
+    """Population std-dev of this pitcher's own raw earned-runs-allowed count over their last n
+    starts, walk-forward (same leakage-safe slicing as _recent_stats_from_history) — a direct
+    measure of how spiky a SPECIFIC pitcher's outcomes run, for sizing simulation.py's per-game
+    Negative-Binomial dispersion per-pitcher instead of one fixed league-wide ratio. Requires at
+    least 3 starts to return a real number (anything thinner is too noisy an estimate of a
+    pitcher's own spread to trust); NaN otherwise."""
+    last_n = starts[-n:]
+    if len(last_n) < 3:
+        return np.nan
+    return float(np.std([s[1] for s in last_n]))
 
 
 def _season_to_date_stats_from_history(starts: list, batted_ball_mix: dict = None) -> dict:
@@ -862,20 +875,36 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
 
     print(f"Fetching Statcast pitch-level data for {len(unique_pitchers)} pitchers "
           f"(one call per pitcher-season, this is the slow part)...")
+    # Also fetch each training season's own PRECEDING season ("shoulder" seasons, e.g. 2023 for a
+    # 2024 game even though 2023 isn't itself a training season) — needed to blend a thin-current-
+    # season pitcher's whiff%/hard-hit%/etc. toward their prior year, same reasoning/pattern as
+    # prior_season_pitching_stats below for FIP/ERA. Kept as a SEPARATE per-season dict
+    # (pitcher_statcast_by_season), not merged into the pooled pitcher_statcast_daily below — that
+    # pooled version deliberately stays as "every season concatenated, no reset" for the recent-N-
+    # starts window (statcast_recent_as_of), where blending across a season boundary unweighted is
+    # the wrong operation (see build_statcast_with_prior_season's docstring for why the CUMULATIVE
+    # season stat specifically needed this and the recent-window one didn't).
+    statcast_fetch_seasons = sorted(set(seasons) | {min(seasons) - 1})
     pitcher_statcast_daily = {}
+    pitcher_statcast_by_season = {}
     pitcher_velocity_daily = {}
     pitcher_pitch_types_daily = {}
     for i, pid in enumerate(unique_pitchers):
         if i % 25 == 0:
             print(f"  ...{i}/{len(unique_pitchers)}")
         combined, combined_velo, combined_pt = {}, {}, {}
-        for season in seasons:
+        by_season = {}
+        for season in statcast_fetch_seasons:
             # Same cached raw pitch-level pull backs all three of these (get_statcast_pitcher_logs) —
             # no extra network cost beyond the one already needed for whiff%/chase%/hard-hit%/CSW%.
-            combined.update(get_pitcher_statcast_daily(int(pid), season))
-            combined_velo.update(get_pitcher_velocity_daily(int(pid), season))
-            combined_pt.update(get_pitcher_pitch_types_daily(int(pid), season))
+            this_season_daily = get_pitcher_statcast_daily(int(pid), season)
+            by_season[season] = this_season_daily
+            combined.update(this_season_daily)
+            if season in seasons:
+                combined_velo.update(get_pitcher_velocity_daily(int(pid), season))
+                combined_pt.update(get_pitcher_pitch_types_daily(int(pid), season))
         pitcher_statcast_daily[pid] = combined
+        pitcher_statcast_by_season[pid] = by_season
         pitcher_velocity_daily[pid] = combined_velo
         pitcher_pitch_types_daily[pid] = combined_pt
 
@@ -895,11 +924,21 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
             row["away_pitcher_id"]: _recent_stats_from_history(pitcher_history.get(row["away_pitcher_id"], [])),
         }
         statcast = {
-            row["home_pitcher_id"]: statcast_cumulative_as_of(
-                pitcher_statcast_daily.get(row["home_pitcher_id"], {}), row["game_date"]
+            row["home_pitcher_id"]: blend_statcast_with_prior_season(
+                statcast_cumulative_as_of(
+                    pitcher_statcast_by_season.get(row["home_pitcher_id"], {}).get(season, {}), row["game_date"]
+                ),
+                statcast_cumulative_as_of(
+                    pitcher_statcast_by_season.get(row["home_pitcher_id"], {}).get(season - 1, {})
+                ),
             ),
-            row["away_pitcher_id"]: statcast_cumulative_as_of(
-                pitcher_statcast_daily.get(row["away_pitcher_id"], {}), row["game_date"]
+            row["away_pitcher_id"]: blend_statcast_with_prior_season(
+                statcast_cumulative_as_of(
+                    pitcher_statcast_by_season.get(row["away_pitcher_id"], {}).get(season, {}), row["game_date"]
+                ),
+                statcast_cumulative_as_of(
+                    pitcher_statcast_by_season.get(row["away_pitcher_id"], {}).get(season - 1, {})
+                ),
             ),
         }
         velocity_trend = {
@@ -1211,7 +1250,14 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
         pitcher_hands[pid] = get_pitcher_hand(int(pid))
 
     print(f"Fetching Statcast pitch-level data for {len(unique_pitchers)} pitchers (cached, fast if already pulled)...")
+    # See build_full_training_set's identical comment: pitcher_statcast_by_season keeps each
+    # season separate (plus each training season's own preceding "shoulder" season) so the
+    # season-cumulative stat can be blended toward the prior year for thin-sample pitchers,
+    # instead of pitcher_statcast_daily's pooled-forever-no-reset shape (kept as-is, unchanged,
+    # for the recent-N-starts window below, where that pooling is the correct behavior).
+    statcast_fetch_seasons = sorted(set(seasons) | {min(seasons) - 1})
     pitcher_statcast_daily = {}
+    pitcher_statcast_by_season = {}
     pitcher_velocity_daily = {}
     pitcher_movement_daily = {}
     pitcher_tto_daily = {}
@@ -1220,13 +1266,18 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
         if i % 25 == 0:
             print(f"  ...{i}/{len(unique_pitchers)}")
         combined, combined_velo, combined_move, combined_tto, combined_pt = {}, {}, {}, {}, {}
-        for season in seasons:
-            combined.update(get_pitcher_statcast_daily(int(pid), season))
-            combined_velo.update(get_pitcher_velocity_daily(int(pid), season))
-            combined_move.update(get_pitcher_movement_daily(int(pid), season))
-            combined_tto.update(get_pitcher_tto_daily(int(pid), season))
-            combined_pt.update(get_pitcher_pitch_types_daily(int(pid), season))
+        by_season = {}
+        for season in statcast_fetch_seasons:
+            this_season_daily = get_pitcher_statcast_daily(int(pid), season)
+            by_season[season] = this_season_daily
+            combined.update(this_season_daily)
+            if season in seasons:
+                combined_velo.update(get_pitcher_velocity_daily(int(pid), season))
+                combined_move.update(get_pitcher_movement_daily(int(pid), season))
+                combined_tto.update(get_pitcher_tto_daily(int(pid), season))
+                combined_pt.update(get_pitcher_pitch_types_daily(int(pid), season))
         pitcher_statcast_daily[pid] = combined
+        pitcher_statcast_by_season[pid] = by_season
         pitcher_velocity_daily[pid] = combined_velo
         pitcher_movement_daily[pid] = combined_move
         pitcher_tto_daily[pid] = combined_tto
@@ -1256,7 +1307,10 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
                 season_stat_row_lookup(prior_stats_df, pid),
             )
             season_k9 = blended_season.get("k9")
-            statcast = {pid: statcast_cumulative_as_of(pitcher_statcast_daily.get(pid, {}), row["game_date"])}
+            statcast = {pid: blend_statcast_with_prior_season(
+                statcast_cumulative_as_of(pitcher_statcast_by_season.get(pid, {}).get(season, {}), row["game_date"]),
+                statcast_cumulative_as_of(pitcher_statcast_by_season.get(pid, {}).get(season - 1, {})),
+            )}
             recent_statcast = {pid: statcast_recent_as_of(pitcher_statcast_daily.get(pid, {}), row["game_date"])}
             velocity_trend = {pid: statcast_velocity_trend(pitcher_velocity_daily.get(pid, {}), row["game_date"])}
             movement_trend = {pid: statcast_movement_trend(pitcher_movement_daily.get(pid, {}), row["game_date"])}
@@ -1350,6 +1404,13 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
             feats["own_bullpen_fatigue"] = _bullpen_fatigue_from_history(
                 team_bullpen_history.get(own_team, []), row["game_date"]
             )
+            # Not model inputs for K/IP/ER — kept for simulation.py's per-pitcher dispersion
+            # sizing (currently one fixed league-wide overdispersion ratio for every pitcher).
+            # recent_bb_pct/recent_hr9 were already being computed inside `recent` above for
+            # other purposes, just never surfaced as their own columns before now.
+            feats["recent_bb_pct"] = recent.get("bb_pct")
+            feats["recent_hr9"] = recent.get("hr9")
+            feats["own_er_volatility"] = _recent_er_volatility(pitcher_history.get(pid, []))
             rows.append(feats)
 
         # Now update recent-form history AFTER using pre-game state for features

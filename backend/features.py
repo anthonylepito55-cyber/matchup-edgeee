@@ -572,6 +572,65 @@ def blend_with_prior_season(current: dict, prior: dict) -> dict:
     return blended
 
 
+# Same thin-sample problem blend_with_prior_season exists to solve, but for the Statcast-derived
+# process stats (whiff%/chase%/hard-hit%/gb%/barrel%/zone%/contact%/first-pitch-strike%/CSW%) —
+# these previously got NO reliability discount at all: statcast_cumulative_as_of sums whatever
+# current-season pitches exist, unconditionally, however few. A pitcher with 2 starts' worth of
+# batted-ball events (~25-30) got exactly the same trust as one with 150. Caught investigating a
+# 2026-08-05 game where a pitcher with only 2 starts this season (mostly relief before that) had
+# his season hard-hit%/GB% cited as a real edge over a full-season opponent — those recent-form
+# features already had layoff/appearances-fallback discounting (see _recent_form_weight), but the
+# SEASON-level Statcast peripherals had no equivalent protection at all.
+MIN_RELIABLE_STATCAST_BF = 60   # balls-in-play sample below which current-season whiff%/hard-hit%/etc. are basically noise
+STATCAST_FADEOUT_BF = 180       # balls-in-play sample at which prior-season influence has fully faded out
+STATCAST_PRIOR_DISCOUNT = 0.5   # same "a year-old sample is real but less current" discount as PRIOR_SEASON_DISCOUNT
+
+
+def blend_statcast_with_prior_season(current: dict, prior: dict) -> dict:
+    """
+    Same shape/logic as blend_with_prior_season, but gated on `batters_faced_est` (balls-in-play
+    count) instead of innings pitched — it's the smallest/most conservative denominator among the
+    blended stats (hard_hit_pct/gb_pct/barrel_pct all divide by it directly; whiff_pct/chase_pct/
+    csw_pct have larger swing/pitch-count denominators but are gated by the same single threshold
+    as a consistent proxy, the same approximation blend_with_prior_season already makes across
+    ERA/FIP/K9/BB9/HR9 despite THEIR differing real denominators).
+
+    current/prior: dicts shaped like data_collection.statcast_cumulative_as_of's return value.
+    `batters_faced_est` in the output is always the CURRENT season's own count (for sanity-check
+    display, per that field's own purpose) — not blended, same as `ip` in blend_with_prior_season.
+    """
+    current = current or {}
+    prior = prior or {}
+    cur_bf = current.get("batters_faced_est") or 0
+    prior_bf_raw = prior.get("batters_faced_est") or 0
+    if cur_bf > MIN_RELIABLE_STATCAST_BF:
+        fade = max(0.0, 1.0 - (cur_bf - MIN_RELIABLE_STATCAST_BF) / (STATCAST_FADEOUT_BF - MIN_RELIABLE_STATCAST_BF))
+    else:
+        fade = 1.0
+    prior_bf = prior_bf_raw * STATCAST_PRIOR_DISCOUNT * fade
+
+    if prior_bf <= 0:
+        return current
+    if cur_bf <= 0:
+        return {**prior, "batters_faced_est": current.get("batters_faced_est", 0)}
+
+    total = cur_bf + prior_bf
+    w_cur = cur_bf / total
+    blended = {"batters_faced_est": current.get("batters_faced_est", 0)}
+    for key in (
+        "whiff_pct", "chase_pct", "hard_hit_pct", "csw_pct", "gb_pct", "barrel_pct",
+        "zone_pct", "contact_pct", "first_pitch_strike_pct", "pitches_per_start", "fb_pct", "pu_pct",
+    ):
+        cv, pv = current.get(key), prior.get(key)
+        if cv is None or pd.isna(cv):
+            blended[key] = pv
+        elif pv is None or pd.isna(pv):
+            blended[key] = cv
+        else:
+            blended[key] = cv * w_cur + pv * (1 - w_cur)
+    return blended
+
+
 def _rest_effect(days):
     """
     Transforms raw days-since-last-start into a rest signal that's
