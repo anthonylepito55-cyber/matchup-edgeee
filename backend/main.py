@@ -35,13 +35,14 @@ from data_collection import (
     predict_team_lineup,
     get_pitcher_statcast_daily, statcast_cumulative_as_of, statcast_recent_as_of,
     get_pitcher_velocity_daily, statcast_velocity_trend,
+    get_pitcher_movement_daily, statcast_movement_trend,
     get_pitcher_pitch_types_daily, statcast_pitch_diversity, statcast_pitch_mix_as_of, get_batter_pitch_arsenal,
     get_batter_expected_stats, get_batter_exitvelo_barrels, get_batter_percentile_ranks,
     get_batted_ball_profile, get_batter_team_map,
     get_recent_il_activations, days_since_il_return,
     get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern,
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
-    get_team_roster, get_espn_probable_pitchers,
+    get_team_roster, get_espn_probable_pitchers, get_team_recent_starter_ip,
     CACHE_DIR,
 )
 from features import (
@@ -162,6 +163,14 @@ def _velocity_trend_for_matchup(home_pitcher_id: int, away_pitcher_id: int, seas
     return {
         home_pitcher_id: statcast_velocity_trend(get_pitcher_velocity_daily(home_pitcher_id, season)),
         away_pitcher_id: statcast_velocity_trend(get_pitcher_velocity_daily(away_pitcher_id, season)),
+    }
+
+
+def _movement_trend_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season: int) -> dict:
+    """{pitcher_id: {"spin_trend":.., "movement_trend":..}}, as of now — see data_collection.statcast_movement_trend."""
+    return {
+        home_pitcher_id: statcast_movement_trend(get_pitcher_movement_daily(home_pitcher_id, season)),
+        away_pitcher_id: statcast_movement_trend(get_pitcher_movement_daily(away_pitcher_id, season)),
     }
 
 
@@ -846,7 +855,7 @@ def _one_ip_prediction(pitcher_id: int, opp_team_abbr: str, is_home: bool,
                         velocity_trend: dict = None, pitch_diversity: dict = None,
                         game_weather: dict = None, h2h_stats: dict = None,
                         team_market_prob: float = None, pitcher_market_lines: dict = None,
-                        ip_market_model_trained: bool = False) -> dict:
+                        ip_market_model_trained: bool = False, team_hook_tendency: float = None) -> dict:
     """Point projection only — no line/call, see strikeout_prediction_log.py's module docstring
     on why IP has no natural over-under framing (continuous target, not a count)."""
     blended = _season_stat_lookup_blended(season_stats, prior_season_stats, pitcher_id)
@@ -857,6 +866,7 @@ def _one_ip_prediction(pitcher_id: int, opp_team_abbr: str, is_home: bool,
         opp_lineup=opp_lineup, player_batting=player_batting, rest_days=(rest_days or {}).get(pitcher_id),
         velocity_trend=velocity_trend, pitch_diversity=pitch_diversity, game_weather=game_weather,
         h2h_stats=h2h_stats, team_market_prob=team_market_prob, pitcher_market_lines=pitcher_market_lines,
+        team_hook_tendency=team_hook_tendency,
     )
     row = ip_features_to_row(feats)
     # Model A (baseball-only) is the PRIMARY served prediction — same reasoning as win-prob/K.
@@ -896,6 +906,8 @@ def _ip_predictions(home_pitcher_id: int, away_pitcher_id: int, home_team_abbr: 
     team_market_prob_away = (1 - market_home_prob) if market_home_prob is not None else None
     home_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(home_pitcher_name or ""))
     away_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(away_pitcher_name or ""))
+    home_hook_tendency = get_team_recent_starter_ip(home_team_abbr).get("avg_ip")
+    away_hook_tendency = get_team_recent_starter_ip(away_team_abbr).get("avg_ip")
     return {
         "home": _one_ip_prediction(
             home_pitcher_id, away_team_abbr, True, season_stats, team_batting, recent_stats, statcast,
@@ -903,6 +915,7 @@ def _ip_predictions(home_pitcher_id: int, away_pitcher_id: int, home_team_abbr: 
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_home,
             pitcher_market_lines=home_pitcher_market_lines, ip_market_model_trained=ip_market_model_trained,
+            team_hook_tendency=home_hook_tendency,
         ),
         "away": _one_ip_prediction(
             away_pitcher_id, home_team_abbr, False, season_stats, team_batting, recent_stats, statcast,
@@ -910,6 +923,7 @@ def _ip_predictions(home_pitcher_id: int, away_pitcher_id: int, home_team_abbr: 
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_away,
             pitcher_market_lines=away_pitcher_market_lines, ip_market_model_trained=ip_market_model_trained,
+            team_hook_tendency=away_hook_tendency,
         ),
     }
 
@@ -921,7 +935,7 @@ def _one_er_prediction(pitcher_id: int, opp_team_abbr: str, is_home: bool,
                         velocity_trend: dict = None, pitch_diversity: dict = None,
                         game_weather: dict = None, h2h_stats: dict = None,
                         team_market_prob: float = None, pitcher_market_lines: dict = None,
-                        er_market_model_trained: bool = False) -> dict:
+                        er_market_model_trained: bool = False, team_hook_tendency: float = None) -> dict:
     blended = _season_stat_lookup_blended(season_stats, prior_season_stats, pitcher_id)
     feats = build_er_features(
         pitcher_id=pitcher_id, opp_team_abbr=opp_team_abbr, is_home=is_home,
@@ -930,6 +944,7 @@ def _one_er_prediction(pitcher_id: int, opp_team_abbr: str, is_home: bool,
         opp_lineup=opp_lineup, player_batting=player_batting, rest_days=(rest_days or {}).get(pitcher_id),
         velocity_trend=velocity_trend, pitch_diversity=pitch_diversity, game_weather=game_weather,
         h2h_stats=h2h_stats, team_market_prob=team_market_prob, pitcher_market_lines=pitcher_market_lines,
+        team_hook_tendency=team_hook_tendency,
     )
     row = er_features_to_row(feats)
     predicted = props_module.predict_strikeouts(
@@ -976,6 +991,8 @@ def _er_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitcher_nam
     team_market_prob_away = (1 - market_home_prob) if market_home_prob is not None else None
     home_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(home_pitcher_name))
     away_pitcher_market_lines = pitcher_market_lines_by_name.get(normalize_player_name(away_pitcher_name))
+    home_hook_tendency = get_team_recent_starter_ip(home_team_abbr).get("avg_ip")
+    away_hook_tendency = get_team_recent_starter_ip(away_team_abbr).get("avg_ip")
     return {
         "home": _one_er_prediction(
             home_pitcher_id, away_team_abbr, True, season_stats, team_batting, recent_stats, statcast,
@@ -983,6 +1000,7 @@ def _er_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitcher_nam
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_home,
             pitcher_market_lines=home_pitcher_market_lines, er_market_model_trained=er_market_model_trained,
+            team_hook_tendency=home_hook_tendency,
         ),
         "away": _one_er_prediction(
             away_pitcher_id, home_team_abbr, False, season_stats, team_batting, recent_stats, statcast,
@@ -990,6 +1008,7 @@ def _er_predictions(home_pitcher_id: int, away_pitcher_id: int, home_pitcher_nam
             prior_season_stats=prior_season_stats, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
             game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob_away,
             pitcher_market_lines=away_pitcher_market_lines, er_market_model_trained=er_market_model_trained,
+            team_hook_tendency=away_hook_tendency,
         ),
     }
 
@@ -1598,11 +1617,34 @@ def today(date: str = None):
             model_trained = False
             data_error = f"Season stats unavailable, predictions skipped this refresh: {e}"
 
+    # Per-team live fetches (bullpen fatigue/availability, recent batting form, travel) used to
+    # run ONE AT A TIME inside the per-game loop below, each a real network call on a cold cache
+    # — with ~15 games/night (~30 team slots) and 5 sequential per-team calls, that's the actual
+    # cause of /api/today taking minutes to load rather than seconds. Same fix as the season-stats
+    # block above: these are all independent per-team lookups, so fetch every unique team's data
+    # concurrently ONCE here, before the loop, and the loop below becomes pure dict reads.
+    team_venue_tonight = {}  # team_abbr -> venue name of TONIGHT's game (always the home team's park)
+    for g in games:
+        team_venue_tonight[g["home_team_abbr"]] = TEAM_HOME_VENUE.get(g["home_team_abbr"])
+        team_venue_tonight[g["away_team_abbr"]] = TEAM_HOME_VENUE.get(g["home_team_abbr"])
+    unique_teams_tonight = list(team_venue_tonight.keys())
+
     pitcher_hands = {}
     bullpen_fatigue = {}
     recent_team_batting = {}
     recent_team_batting_30d = {}
     team_travel = {}
+    if model_trained and unique_teams_tonight:
+        with ThreadPoolExecutor(max_workers=min(len(unique_teams_tonight) * 5, 30)) as _team_pool:
+            _bf_f = {t: _team_pool.submit(get_team_recent_bullpen_usage, t) for t in unique_teams_tonight}
+            _rb_f = {t: _team_pool.submit(get_team_recent_batting_form, t) for t in unique_teams_tonight}
+            _rb30_f = {t: _team_pool.submit(get_team_recent_batting_form, t, RECENT_TEAM_BATTING_GAMES_30D) for t in unique_teams_tonight}
+            _tt_f = {t: _team_pool.submit(team_travel_miles, t, team_venue_tonight[t]) for t in unique_teams_tonight}
+            for t in unique_teams_tonight:
+                bullpen_fatigue[t] = _bf_f[t].result()
+                recent_team_batting[t] = _rb_f[t].result()
+                recent_team_batting_30d[t] = _rb30_f[t].result()
+                team_travel[t] = _tt_f[t].result()
     batter_hands = {}
     results = []
     for g in games:
@@ -1798,17 +1840,9 @@ def today(date: str = None):
             for pid in (effective_home_id, effective_away_id, g["home_pitcher_id"], g["away_pitcher_id"]):
                 if pid not in pitcher_hands:
                     pitcher_hands[pid] = get_pitcher_hand(pid)
-            for team_abbr in (g["home_team_abbr"], g["away_team_abbr"]):
-                if team_abbr not in bullpen_fatigue:
-                    bullpen_fatigue[team_abbr] = get_team_recent_bullpen_usage(team_abbr)
-                if team_abbr not in recent_team_batting:
-                    recent_team_batting[team_abbr] = get_team_recent_batting_form(team_abbr)
-                if team_abbr not in recent_team_batting_30d:
-                    recent_team_batting_30d[team_abbr] = get_team_recent_batting_form(
-                        team_abbr, n_games=RECENT_TEAM_BATTING_GAMES_30D
-                    )
-                if team_abbr not in team_travel:
-                    team_travel[team_abbr] = team_travel_miles(team_abbr, TEAM_HOME_VENUE.get(g["home_team_abbr"]))
+            # bullpen_fatigue/recent_team_batting/recent_team_batting_30d/team_travel are all
+            # pre-fetched concurrently for every team playing tonight, above — see the
+            # ThreadPoolExecutor block before this loop starts.
             team_stats_out = _team_stats_for_matchup(
                 team_batting, bullpen_stats, high_leverage_bullpen_stats, recent_team_batting,
                 g["home_team_abbr"], g["away_team_abbr"],

@@ -36,6 +36,10 @@ from data_collection import (
     statcast_recent_as_of,
     get_pitcher_velocity_daily,
     statcast_velocity_trend,
+    get_pitcher_movement_daily,
+    statcast_movement_trend,
+    get_pitcher_tto_daily,
+    statcast_tto_penalty,
     get_pitcher_pitch_types_daily,
     statcast_pitch_diversity,
     statcast_pitch_mix_as_of,
@@ -192,6 +196,125 @@ def fetch_season_schedule_with_pitchers(season: int) -> pd.DataFrame:
     if len(df) > 0:
         df.to_parquet(cache_path)
     return df
+
+
+def fetch_bullpen_appearances(season: int) -> pd.DataFrame:
+    """
+    Every pitcher's individual appearance (pitcher_id, ip, pitches, is_starter) for every
+    completed game in a season, both teams — the raw material for real per-reliever
+    availability/fatigue tracking (see _team_bullpen_availability_from_history), which the
+    existing team-total bullpen IP signal (home_bullpen_ip/away_bullpen_ip in game_logs, and
+    data_collection.get_team_recent_bullpen_usage) can't provide: neither can tell a fresh long
+    man from an exhausted closer, since both just sum total innings across the whole pen.
+
+    A genuinely separate boxscore re-fetch from fetch_season_schedule_with_pitchers above (not
+    reusing/extending it) — deliberately, to avoid touching that already-relied-upon function's
+    cache/logic; the redundant boxscore pull is an acceptable cost for keeping the existing,
+    working pipeline untouched.
+
+    Incremental, same pattern as fetch_season_schedule_with_pitchers: only fetches games newer
+    than the latest cached game_date.
+    """
+    cache_path = os.path.join(CACHE_DIR, f"bullpen_appearances_{season}.parquet")
+    existing_df = None
+    existing_pks = set()
+    start = f"{season}-03-01"
+    if os.path.exists(cache_path):
+        existing_df = pd.read_parquet(cache_path)
+        if not existing_df.empty:
+            existing_pks = set(existing_df["game_pk"])
+            start = pd.to_datetime(existing_df["game_date"]).max().strftime("%Y-%m-%d")
+
+    end = f"{season}-11-15"
+    resp = requests.get(f"{MLB_STATS_API}/schedule", params={
+        "sportId": 1, "startDate": start, "endDate": end, "gameType": "R",
+    }, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+
+    game_pks = []
+    for d in data.get("dates", []):
+        for g in d.get("games", []):
+            if g.get("status", {}).get("detailedState") == "Final" and g["gamePk"] not in existing_pks:
+                game_pks.append((g["gamePk"], d["date"]))
+
+    if not game_pks:
+        return existing_df if existing_df is not None else pd.DataFrame()
+
+    print(f"[{season}] {len(game_pks)} new completed games found for bullpen appearances. Pulling boxscores...")
+
+    rows = []
+    for i, (pk, game_date) in enumerate(game_pks):
+        if i % 50 == 0:
+            print(f"  ...{i}/{len(game_pks)}")
+        try:
+            box = requests.get(f"{MLB_STATS_API}/game/{pk}/boxscore", timeout=15).json()
+        except Exception:
+            continue
+        for side in ("home", "away"):
+            team_info = box.get("teams", {}).get(side, {})
+            team_abbr = team_info.get("team", {}).get("abbreviation")
+            pitchers = team_info.get("pitchers", [])
+            if not pitchers or not team_abbr:
+                continue
+            for idx, pid in enumerate(pitchers):
+                stats = team_info.get("players", {}).get(f"ID{pid}", {}).get("stats", {}).get("pitching", {})
+                rows.append({
+                    "game_pk": pk, "game_date": game_date, "team_abbr": team_abbr,
+                    "pitcher_id": pid, "ip": _parse_ip(stats.get("inningsPitched", 0)),
+                    "pitches": stats.get("numberOfPitches", 0), "is_starter": idx == 0,
+                })
+
+    new_df = pd.DataFrame(rows)
+    if existing_df is not None and not existing_df.empty:
+        df = pd.concat([existing_df, new_df], ignore_index=True).drop_duplicates(
+            subset=["game_pk", "pitcher_id"], keep="last"
+        )
+    else:
+        df = new_df
+    if len(df) > 0:
+        df.to_parquet(cache_path)
+    return df
+
+
+BULLPEN_AVAILABILITY_KEY_ARMS = 4  # how many of a team's most-used relievers count as "key arms"
+BULLPEN_AVAILABILITY_RECENT_DAYS = 1  # pitched within this many days = not fresh tonight
+
+
+def _team_bullpen_availability_from_history(reliever_history: dict, as_of_date: str) -> float:
+    """
+    Fraction of a team's `BULLPEN_AVAILABILITY_KEY_ARMS` most-used relievers (by innings
+    accumulated so far this season, walk-forward — not full-season, which would be leakage) who
+    have NOT pitched within the last `BULLPEN_AVAILABILITY_RECENT_DAYS` calendar day(s) — i.e.
+    are actually fresh tonight, not just "the team as a whole didn't throw too many total
+    innings." A team whose 3 best relievers are all gassed reads very differently here than one
+    where the fatigue is spread across mop-up arms, even if the TOTAL bullpen innings the last 3
+    days happen to be identical (the exact blind spot in the existing team-total signal this is
+    meant to fix — see data_collection.get_team_recent_bullpen_usage).
+
+    reliever_history: {pitcher_id: [(date, ip), ...]} for this team's relievers ONLY (starters
+    excluded), this season, oldest first, entries strictly before as_of_date by construction (the
+    caller only ever appends AFTER using this function for a given game — see build_full_training_set).
+
+    Returns NaN if fewer than BULLPEN_AVAILABILITY_KEY_ARMS relievers have any innings logged yet
+    (too early in the season / too sparse a sample to identify "key arms" meaningfully).
+    """
+    if not reliever_history:
+        return np.nan
+    as_of_dt = datetime.strptime(as_of_date, "%Y-%m-%d")
+    cutoff = as_of_dt - timedelta(days=BULLPEN_AVAILABILITY_RECENT_DAYS)
+
+    total_ip_by_pitcher = {pid: sum(ip for _, ip in apps) for pid, apps in reliever_history.items()}
+    if len(total_ip_by_pitcher) < BULLPEN_AVAILABILITY_KEY_ARMS:
+        return np.nan
+    key_arms = sorted(total_ip_by_pitcher, key=total_ip_by_pitcher.get, reverse=True)[:BULLPEN_AVAILABILITY_KEY_ARMS]
+
+    fresh_count = 0
+    for pid in key_arms:
+        pitched_recently = any(cutoff <= datetime.strptime(d, "%Y-%m-%d") < as_of_dt for d, _ in reliever_history[pid])
+        if not pitched_recently:
+            fresh_count += 1
+    return fresh_count / len(key_arms)
 
 
 def _parse_ip(ip_str):
@@ -374,6 +497,28 @@ RECENT_TEAM_BATTING_GAMES = 7  # matches data_collection.RECENT_TEAM_BATTING_GAM
 # separate since this module has no data_collection import cycle concern, same pattern as
 # IL_RETURN_WINDOW_DAYS elsewhere in this app
 RECENT_TEAM_BATTING_GAMES_30D = 26  # matches data_collection.RECENT_TEAM_BATTING_GAMES_30D
+
+
+TEAM_HOOK_TENDENCY_GAMES = 15  # matches data_collection.TEAM_HOOK_TENDENCY_GAMES
+
+
+def _team_avg_starter_ip_from_history(ip_history: list, n: int = TEAM_HOOK_TENDENCY_GAMES) -> dict:
+    """
+    A team's own average starter innings-per-start over its last `n` games strictly before the
+    game being featurized — walk-forward, same principle as _recent_team_avg_from_history but for
+    how deep the TEAM typically lets its starters go (a management/roster-construction signal),
+    not any one pitcher's own workload. Feeds IP_FEATURE_COLUMNS/ER_FEATURE_COLUMNS'
+    team_hook_tendency — see data_collection.get_team_recent_starter_ip for the live-serving
+    equivalent.
+
+    ip_history entries are (date, starter_ip) tuples, oldest first — populated for a team on
+    EVERY game it plays (whether home or away), independent of which of its own pitchers started.
+    """
+    last_n = ip_history[-n:]
+    if not last_n:
+        return {"avg_ip": np.nan, "games": 0}
+    total_ip = sum(ip for _, ip in last_n)
+    return {"avg_ip": total_ip / len(last_n), "games": len(last_n)}
 
 
 def _recent_team_avg_from_history(batting_history: list, n: int = RECENT_TEAM_BATTING_GAMES) -> dict:
@@ -580,6 +725,22 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
     all_games = pd.concat(all_games, ignore_index=True).dropna(subset=["home_pitcher_id", "away_pitcher_id", "game_date"])
     all_games = all_games.sort_values("game_date").reset_index(drop=True)
 
+    print("Fetching bullpen appearance data (per-reliever, for bullpen_availability_diff)...")
+    bullpen_appearances = []
+    for season in seasons:
+        bullpen_appearances.append(fetch_bullpen_appearances(season))
+    bullpen_appearances = pd.concat(bullpen_appearances, ignore_index=True) if bullpen_appearances else pd.DataFrame()
+    # {game_pk: {team_abbr: [(pitcher_id, ip), ...]}} for RELIEVERS only (is_starter == False) —
+    # grouped once up front so the main loop below is a cheap dict lookup per game, not a filter
+    # over the whole appearances table every iteration.
+    relievers_by_game = {}
+    if not bullpen_appearances.empty:
+        relief_only = bullpen_appearances[~bullpen_appearances["is_starter"]]
+        for pk, group in relief_only.groupby("game_pk"):
+            relievers_by_game[pk] = {}
+            for team_abbr, team_group in group.groupby("team_abbr"):
+                relievers_by_game[pk][team_abbr] = list(zip(team_group["pitcher_id"], team_group["ip"]))
+
     print("Fetching historical weather (one API call per team, covering the whole date range)...")
     team_weather = {}  # team_abbr -> {date_str: {"temp_max_f":.., "wind_mean_mph":..}}
     # Open-Meteo's archive API only has observed data up through today — cap the end date there
@@ -610,6 +771,7 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
     pitcher_current_season = {}  # pitcher_id -> which season pitcher_history currently holds (reset at the boundary)
     last_start_date = {}  # pitcher_id -> game_date of their most recent start so far
     team_bullpen_history = {}  # team_abbr -> list of (game_date, bullpen_ip) for every game they've played
+    team_reliever_history = {}  # team_abbr -> {pitcher_id: [(game_date, ip), ...]} for RELIEVER appearances only, feeds bullpen_availability_diff — never reset at a season boundary (a reliever's own recent workload doesn't care about the calendar), same reasoning as team_bullpen_history above
     # (pitcher_id, opp_team_abbr) -> list of (ip, er, bb, k, hr, hbp) — head-to-head history, deliberately
     # NEVER reset at a season boundary (unlike pitcher_history above), since spanning last season and this
     # one is exactly the signal this feature captures. Built from all_games' own box-score rows, already
@@ -787,6 +949,14 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
             row["home_team"]: _bullpen_fatigue_from_history(team_bullpen_history.get(row["home_team"], []), row["game_date"]),
             row["away_team"]: _bullpen_fatigue_from_history(team_bullpen_history.get(row["away_team"], []), row["game_date"]),
         }
+        bullpen_availability = {
+            row["home_team"]: _team_bullpen_availability_from_history(
+                team_reliever_history.get(row["home_team"], {}), row["game_date"]
+            ),
+            row["away_team"]: _team_bullpen_availability_from_history(
+                team_reliever_history.get(row["away_team"], {}), row["game_date"]
+            ),
+        }
         game_weather = team_weather.get(row["home_team"], {}).get(row["game_date"], {})
         day_il_activations = il_activations_by_date.get(row["game_date"], {})
         il_return_days = {
@@ -852,6 +1022,7 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
             pitcher_hands=pitcher_hands,
             team_batting_vs_hand=latest_team_batting_vs_hand.get(season, {}),
             bullpen_fatigue=bullpen_fatigue,
+            bullpen_availability=bullpen_availability,
             high_leverage_bullpen_stats=latest_high_leverage_bullpen.get(season, pd.DataFrame()),
             team_defense=latest_team_defense.get(season, pd.DataFrame()),
             statcast=statcast,
@@ -898,6 +1069,11 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
         team_bullpen_history.setdefault(row["away_team"], []).append((row["game_date"], row.get("away_bullpen_ip", 0.0)))
 
         # Now update recent-form/rest-days history AFTER using pre-game state for features
+        game_relievers = relievers_by_game.get(row["game_pk"], {})
+        for team_abbr in (row["home_team"], row["away_team"]):
+            team_reliever_history.setdefault(team_abbr, {})
+            for pid, ip in game_relievers.get(team_abbr, []):
+                team_reliever_history[team_abbr].setdefault(pid, []).append((row["game_date"], ip))
         pitcher_history.setdefault(row["home_pitcher_id"], []).append(
             (_parse_ip(row["home_ip"]), row["home_er"], row["home_bb"], row["home_k"], row["home_hr"],
              row.get("home_hbp", 0), row.get("home_bf", 0), row.get("home_h", 0)))
@@ -996,6 +1172,7 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
     pitcher_current_season = {}  # pitcher_id -> which season pitcher_history currently holds (reset at the boundary)
     pitcher_last_date = {}  # pitcher_id -> date of their last start, for walk-forward rest days
     pitcher_vs_team_history = {}  # (pitcher_id, opp_team_abbr) -> list of (ip, er, bb, k, hr, hbp) — never reset, see build_full_training_set
+    team_starter_ip_history = {}  # team_abbr -> list of (date, starter_ip) for THAT team's own starts, home or away — never reset (team-management style, not a season-level stat), feeds team_hook_tendency
     rows = []
 
     latest_team_batting = {s: get_team_batting_splits(s) for s in seasons}
@@ -1029,17 +1206,23 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
     print(f"Fetching Statcast pitch-level data for {len(unique_pitchers)} pitchers (cached, fast if already pulled)...")
     pitcher_statcast_daily = {}
     pitcher_velocity_daily = {}
+    pitcher_movement_daily = {}
+    pitcher_tto_daily = {}
     pitcher_pitch_types_daily = {}
     for i, pid in enumerate(unique_pitchers):
         if i % 25 == 0:
             print(f"  ...{i}/{len(unique_pitchers)}")
-        combined, combined_velo, combined_pt = {}, {}, {}
+        combined, combined_velo, combined_move, combined_tto, combined_pt = {}, {}, {}, {}, {}
         for season in seasons:
             combined.update(get_pitcher_statcast_daily(int(pid), season))
             combined_velo.update(get_pitcher_velocity_daily(int(pid), season))
+            combined_move.update(get_pitcher_movement_daily(int(pid), season))
+            combined_tto.update(get_pitcher_tto_daily(int(pid), season))
             combined_pt.update(get_pitcher_pitch_types_daily(int(pid), season))
         pitcher_statcast_daily[pid] = combined
         pitcher_velocity_daily[pid] = combined_velo
+        pitcher_movement_daily[pid] = combined_move
+        pitcher_tto_daily[pid] = combined_tto
         pitcher_pitch_types_daily[pid] = combined_pt
 
     for _, row in all_games.iterrows():
@@ -1055,10 +1238,11 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
 
         game_weather = team_weather.get(row["home_team"], {}).get(row["game_date"], {})
 
-        for pid, opp_team, is_home, actual_k, actual_ip, actual_er in [
-            (row["home_pitcher_id"], row["away_team"], True, row["home_k"], row["home_ip"], row["home_er"]),
-            (row["away_pitcher_id"], row["home_team"], False, row["away_k"], row["away_ip"], row["away_er"]),
+        for pid, own_team, opp_team, is_home, actual_k, actual_ip, actual_er in [
+            (row["home_pitcher_id"], row["home_team"], row["away_team"], True, row["home_k"], row["home_ip"], row["home_er"]),
+            (row["away_pitcher_id"], row["away_team"], row["home_team"], False, row["away_k"], row["away_ip"], row["away_er"]),
         ]:
+            team_hook_tendency = _team_avg_starter_ip_from_history(team_starter_ip_history.get(own_team, [])).get("avg_ip")
             recent = _recent_stats_from_history(pitcher_history.get(pid, []))
             blended_season = blend_with_prior_season(
                 _season_to_date_stats_from_history(pitcher_history.get(pid, [])),
@@ -1068,6 +1252,8 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
             statcast = {pid: statcast_cumulative_as_of(pitcher_statcast_daily.get(pid, {}), row["game_date"])}
             recent_statcast = {pid: statcast_recent_as_of(pitcher_statcast_daily.get(pid, {}), row["game_date"])}
             velocity_trend = {pid: statcast_velocity_trend(pitcher_velocity_daily.get(pid, {}), row["game_date"])}
+            movement_trend = {pid: statcast_movement_trend(pitcher_movement_daily.get(pid, {}), row["game_date"])}
+            tto_penalty = statcast_tto_penalty(pitcher_tto_daily.get(pid, {}), row["game_date"]).get("tto_penalty")
             pitch_diversity = {pid: statcast_pitch_diversity(pitcher_pitch_types_daily.get(pid, {}), row["game_date"])}
             pitch_mix = {pid: statcast_pitch_mix_as_of(pitcher_pitch_types_daily.get(pid, {}), row["game_date"])}
             last_date = pitcher_last_date.get(pid)
@@ -1095,6 +1281,7 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
                 recent_statcast=recent_statcast,
                 rest_days=rest_days,
                 velocity_trend=velocity_trend,
+                movement_trend=movement_trend,
                 pitch_diversity=pitch_diversity,
                 game_weather=game_weather,
                 pitcher_hand=pitcher_hands.get(pid),
@@ -1115,17 +1302,21 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
                 pitcher_id=pid, opp_team_abbr=opp_team, is_home=is_home,
                 season_fip=blended_season.get("fip"), season_ip_per_start=blended_season.get("ip_per_start"),
                 team_batting=team_batting, recent_stats={pid: recent}, statcast=statcast,
-                rest_days=rest_days, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+                rest_days=rest_days, velocity_trend=velocity_trend, movement_trend=movement_trend,
+                pitch_diversity=pitch_diversity,
                 game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob,
-                pitcher_market_lines=pitcher_market_lines,
+                pitcher_market_lines=pitcher_market_lines, team_hook_tendency=team_hook_tendency,
+                tto_penalty=tto_penalty,
             )
             er_feats = build_er_features(
                 pitcher_id=pid, opp_team_abbr=opp_team, is_home=is_home,
                 season_fip=blended_season.get("fip"), season_ip_per_start=blended_season.get("ip_per_start"),
                 team_batting=team_batting, recent_stats={pid: recent}, statcast=statcast,
-                rest_days=rest_days, velocity_trend=velocity_trend, pitch_diversity=pitch_diversity,
+                rest_days=rest_days, velocity_trend=velocity_trend, movement_trend=movement_trend,
+                pitch_diversity=pitch_diversity,
                 game_weather=game_weather, h2h_stats=h2h_stats, team_market_prob=team_market_prob,
-                pitcher_market_lines=pitcher_market_lines,
+                pitcher_market_lines=pitcher_market_lines, team_hook_tendency=team_hook_tendency,
+                tto_penalty=tto_penalty,
             )
             feats.update(ip_feats)
             feats.update(er_feats)
@@ -1150,6 +1341,8 @@ def build_strikeout_training_set(seasons: list[int]) -> pd.DataFrame:
         pitcher_vs_team_history.setdefault((row["away_pitcher_id"], row["home_team"]), []).append(
             (_parse_ip(row["away_ip"]), row["away_er"], row["away_bb"], row["away_k"], row["away_hr"],
              row.get("away_hbp", 0)))
+        team_starter_ip_history.setdefault(row["home_team"], []).append((row["game_date"], _parse_ip(row["home_ip"])))
+        team_starter_ip_history.setdefault(row["away_team"], []).append((row["game_date"], _parse_ip(row["away_ip"])))
 
     training_df = pd.DataFrame(rows)
     training_df.to_parquet(STRIKEOUT_TRAINING_CACHE)

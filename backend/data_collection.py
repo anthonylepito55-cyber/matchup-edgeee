@@ -380,7 +380,9 @@ def get_statcast_pitcher_logs(pitcher_id: int, start_date: str, end_date: str,
             return pd.DataFrame()
         if df is None or df.empty:
             return pd.DataFrame()
-        keep = df[["game_date", "description", "zone", "launch_speed", "launch_angle", "release_speed", "pitch_type", "pitch_number"]].copy()
+        keep = df[["game_date", "description", "zone", "launch_speed", "launch_angle", "release_speed",
+                   "pitch_type", "pitch_number", "release_spin_rate", "pfx_x", "pfx_z",
+                   "game_pk", "at_bat_number", "batter"]].copy()
         keep["game_date"] = keep["game_date"].astype(str)
         return keep
     name = f"statcast_pitcher_{pitcher_id}_{start_date}_{end_date}"
@@ -528,6 +530,138 @@ def statcast_velocity_trend(daily: dict, before_date: str = None, recent_n: int 
 
     trend = (recent_avg - season_avg) if pd.notna(recent_avg) and pd.notna(season_avg) else np.nan
     return {"season_avg_velo": season_avg, "recent_avg_velo": recent_avg, "velo_trend": trend}
+
+
+def _pitches_to_daily_movement(pitches: pd.DataFrame) -> dict:
+    """{game_date: (sum_spin_rate, sum_movement_magnitude, pitch_count)} for fastball-family
+    pitches only — same scope/reasoning as _pitches_to_daily_velocity (comparable across starts
+    for one pitcher, not diluted by mixing pitch types). movement_magnitude is
+    sqrt(pfx_x^2 + pfx_z^2) per pitch — a DECLINE in either spin or movement over recent starts
+    vs season, same direction as a velocity decline, is a plausible "stuff" fade signal that
+    results-level stats (K9/FIP) haven't caught up to yet."""
+    required = {"release_spin_rate", "pfx_x", "pfx_z", "pitch_type"}
+    if pitches is None or pitches.empty or not required.issubset(pitches.columns):
+        return {}
+    fb = pitches[pitches["pitch_type"].isin(_FASTBALL_TYPES) & pitches["release_spin_rate"].notna()
+                 & pitches["pfx_x"].notna() & pitches["pfx_z"].notna()]
+    if fb.empty:
+        return {}
+    daily = {}
+    for date, group in fb.groupby("game_date"):
+        magnitude = np.sqrt(group["pfx_x"] ** 2 + group["pfx_z"] ** 2)
+        daily[str(date)] = (float(group["release_spin_rate"].sum()), float(magnitude.sum()), int(len(group)))
+    return daily
+
+
+def get_pitcher_movement_daily(pitcher_id: int, season: int, force_refresh: bool = False) -> dict:
+    """Per-start fastball spin/movement sums for a pitcher's whole season — see
+    _pitches_to_daily_movement. Reuses the same cached raw pitch-level pull as
+    get_pitcher_statcast_daily/get_pitcher_velocity_daily, no extra fetch."""
+    pitches = get_statcast_pitcher_logs(pitcher_id, f"{season}-01-01", f"{season}-12-31", force_refresh)
+    return _pitches_to_daily_movement(pitches)
+
+
+def statcast_movement_trend(daily: dict, before_date: str = None, recent_n: int = 3) -> dict:
+    """Season-to-date avg spin rate/movement vs the last `recent_n` starts, walk-forward — same
+    shape as statcast_velocity_trend. spin_trend/movement_trend = recent - season; negative means
+    declining spin/break from where it's been all year."""
+    eligible = {d: v for d, v in daily.items() if before_date is None or d < before_date}
+    if not eligible:
+        return {"spin_trend": np.nan, "movement_trend": np.nan}
+
+    total_spin = sum(v[0] for v in eligible.values())
+    total_mag = sum(v[1] for v in eligible.values())
+    total_count = sum(v[2] for v in eligible.values())
+    season_spin = (total_spin / total_count) if total_count > 0 else np.nan
+    season_mag = (total_mag / total_count) if total_count > 0 else np.nan
+
+    recent_dates = sorted(eligible.keys())[-recent_n:]
+    recent_spin_sum = sum(eligible[d][0] for d in recent_dates)
+    recent_mag_sum = sum(eligible[d][1] for d in recent_dates)
+    recent_count = sum(eligible[d][2] for d in recent_dates)
+    recent_spin = (recent_spin_sum / recent_count) if recent_count > 0 else np.nan
+    recent_mag = (recent_mag_sum / recent_count) if recent_count > 0 else np.nan
+
+    spin_trend = (recent_spin - season_spin) if pd.notna(recent_spin) and pd.notna(season_spin) else np.nan
+    movement_trend = (recent_mag - season_mag) if pd.notna(recent_mag) and pd.notna(season_mag) else np.nan
+    return {"spin_trend": spin_trend, "movement_trend": movement_trend}
+
+
+def _pitches_to_daily_tto(pitches: pd.DataFrame) -> dict:
+    """
+    {game_date: (first_time_swings, first_time_whiffs, third_plus_swings, third_plus_whiffs)} —
+    per-start building block for the times-through-the-order (TTO) penalty: a pitcher facing the
+    same batter for the 3rd+ time in one game typically performs worse (a real, well-documented
+    effect) than the 1st time through. Requires game_pk/at_bat_number/batter (added to the keep-
+    list above specifically for this) to rank each batter's at-bats within a single start — this
+    IS walk-forward safe as a per-start count (each start's TTO split is a fact about that one
+    game, no future information), and statcast_tto_penalty below aggregates these walk-forward the
+    same way every other trend function here does (only starts strictly before as_of_date).
+
+    Uses the same _SWING_DESCRIPTIONS/_WHIFF_DESCRIPTIONS sets already defined above for
+    whiff%-style counts — no new outcome classification needed.
+    """
+    required = {"game_pk", "at_bat_number", "batter"}
+    if pitches is None or pitches.empty or not required.issubset(pitches.columns):
+        return {}
+    valid = pitches[pitches["at_bat_number"].notna() & pitches["batter"].notna()]
+    if valid.empty:
+        return {}
+    daily = {}
+    for date, group in valid.groupby("game_date"):
+        # Rank each batter's at-bats within this start by at_bat_number to get "nth time facing
+        # this batter tonight" — dense rank per (game_pk, batter) pair, not per pitch.
+        ab_pairs = group.drop_duplicates(subset=["game_pk", "at_bat_number", "batter"])
+        ab_pairs = ab_pairs.sort_values(["game_pk", "batter", "at_bat_number"])
+        ab_pairs = ab_pairs.assign(
+            tto=ab_pairs.groupby(["game_pk", "batter"]).cumcount() + 1
+        )
+        tto_lookup = dict(zip(
+            zip(ab_pairs["game_pk"], ab_pairs["at_bat_number"], ab_pairs["batter"]), ab_pairs["tto"]
+        ))
+        tto = [
+            tto_lookup.get((gp, ab, b), 1)
+            for gp, ab, b in zip(group["game_pk"], group["at_bat_number"], group["batter"])
+        ]
+        group = group.assign(tto=tto)
+        is_swing = group["description"].isin(_SWING_DESCRIPTIONS)
+        is_whiff = group["description"].isin(_WHIFF_DESCRIPTIONS)
+        first_mask = group["tto"] == 1
+        third_mask = group["tto"] >= 3
+        daily[str(date)] = (
+            int((is_swing & first_mask).sum()), int((is_whiff & first_mask).sum()),
+            int((is_swing & third_mask).sum()), int((is_whiff & third_mask).sum()),
+        )
+    return daily
+
+
+def get_pitcher_tto_daily(pitcher_id: int, season: int, force_refresh: bool = False) -> dict:
+    """Per-start 1st-time/3rd+-time-through swing/whiff counts for a pitcher's whole season — see
+    _pitches_to_daily_tto. Reuses the same cached raw pitch-level pull, no extra fetch."""
+    pitches = get_statcast_pitcher_logs(pitcher_id, f"{season}-01-01", f"{season}-12-31", force_refresh)
+    return _pitches_to_daily_tto(pitches)
+
+
+def statcast_tto_penalty(daily: dict, before_date: str = None) -> dict:
+    """
+    Season-to-date 1st-time-through whiff% minus 3rd+-time-through whiff%, walk-forward.
+    Positive tto_penalty = this pitcher's stuff plays meaningfully worse the 3rd time through the
+    order (the well-documented effect); near-zero or negative = doesn't show it much, OR too small
+    a sample to tell — no minimum-sample-size gating is applied here (unlike some other reliability-
+    weighted features in this app), so treat a large early-season swing in this number with caution;
+    the model itself, fed median-imputed values, is the backstop for genuinely sparse rows.
+    """
+    eligible = {d: v for d, v in daily.items() if before_date is None or d < before_date}
+    if not eligible:
+        return {"first_time_whiff_pct": np.nan, "third_plus_whiff_pct": np.nan, "tto_penalty": np.nan}
+    total_first_swings = sum(v[0] for v in eligible.values())
+    total_first_whiffs = sum(v[1] for v in eligible.values())
+    total_third_swings = sum(v[2] for v in eligible.values())
+    total_third_whiffs = sum(v[3] for v in eligible.values())
+    first_pct = (total_first_whiffs / total_first_swings * 100) if total_first_swings > 0 else np.nan
+    third_pct = (total_third_whiffs / total_third_swings * 100) if total_third_swings > 0 else np.nan
+    penalty = (first_pct - third_pct) if pd.notna(first_pct) and pd.notna(third_pct) else np.nan
+    return {"first_time_whiff_pct": first_pct, "third_plus_whiff_pct": third_pct, "tto_penalty": penalty}
 
 
 def _pitches_to_daily_pitch_types(pitches: pd.DataFrame) -> dict:
@@ -1800,6 +1934,78 @@ def get_team_recent_bullpen_usage(team_abbr: str, lookback_days: int = 3, force_
     return float(df.iloc[0]["bullpen_ip"])
 
 
+BULLPEN_AVAILABILITY_KEY_ARMS = 4  # matches build_training_data.BULLPEN_AVAILABILITY_KEY_ARMS
+BULLPEN_AVAILABILITY_RECENT_DAYS = 1  # matches build_training_data.BULLPEN_AVAILABILITY_RECENT_DAYS
+BULLPEN_AVAILABILITY_LOOKBACK_GAMES = 15  # how many of a team's recent games to sample relievers from
+
+
+def get_team_bullpen_availability(team_abbr: str, force_refresh: bool = False) -> float:
+    """
+    Live-serving equivalent of build_training_data._team_bullpen_availability_from_history:
+    fraction of a team's BULLPEN_AVAILABILITY_KEY_ARMS most-used relievers (by innings over their
+    last BULLPEN_AVAILABILITY_LOOKBACK_GAMES games) who have NOT pitched in the last
+    BULLPEN_AVAILABILITY_RECENT_DAYS calendar day(s) — i.e. are actually fresh tonight. See
+    get_team_recent_bullpen_usage's docstring for why the existing team-total-innings signal
+    can't tell a rested closer from a gassed one; this is the per-reliever fix for that gap.
+    Returns NaN if fewer than BULLPEN_AVAILABILITY_KEY_ARMS relievers logged any innings in the
+    lookback window (small-sample / early-season edge case).
+    """
+    def fetch():
+        team_ids = _get_mlb_team_ids()
+        team_id = team_ids.get(team_abbr)
+        if not team_id:
+            return pd.DataFrame()
+        end = datetime.now()
+        start = end - timedelta(days=BULLPEN_AVAILABILITY_LOOKBACK_GAMES * 3 + 5)
+        resp = requests.get(f"{MLB_STATS_API}/schedule", params={
+            "sportId": 1, "teamId": team_id,
+            "startDate": start.strftime("%Y-%m-%d"), "endDate": (end - timedelta(days=1)).strftime("%Y-%m-%d"),
+        }, timeout=15)
+        resp.raise_for_status()
+        game_pks = [
+            (g["gamePk"], d["date"]) for d in resp.json().get("dates", []) for g in d.get("games", [])
+            if g.get("status", {}).get("detailedState") == "Final"
+        ][-BULLPEN_AVAILABILITY_LOOKBACK_GAMES:]
+
+        rows = []
+        for pk, game_date in game_pks:
+            try:
+                box = requests.get(f"{MLB_STATS_API}/game/{pk}/boxscore", timeout=15).json()
+            except requests.exceptions.RequestException:
+                continue
+            team_info = box.get("teams", {}).get("home", {})
+            if team_info.get("team", {}).get("abbreviation") != team_abbr:
+                team_info = box.get("teams", {}).get("away", {})
+            if team_info.get("team", {}).get("abbreviation") != team_abbr:
+                continue
+            pitchers = team_info.get("pitchers", [])
+            for idx, pid in enumerate(pitchers):
+                if idx == 0:
+                    continue  # skip the starter — relievers only, same as training
+                stats = team_info.get("players", {}).get(f"ID{pid}", {}).get("stats", {}).get("pitching", {})
+                rows.append({"pitcher_id": pid, "game_date": game_date, "ip": _parse_ip(stats.get("inningsPitched", 0))})
+        return pd.DataFrame(rows)
+
+    df = _load_or_fetch(f"bullpen_availability_{team_abbr}", fetch, force_refresh, max_age_hours=6)
+    if df is None or df.empty:
+        return np.nan
+
+    total_ip_by_pitcher = df.groupby("pitcher_id")["ip"].sum()
+    if len(total_ip_by_pitcher) < BULLPEN_AVAILABILITY_KEY_ARMS:
+        return np.nan
+    key_arms = total_ip_by_pitcher.sort_values(ascending=False).head(BULLPEN_AVAILABILITY_KEY_ARMS).index
+
+    today = datetime.now()
+    cutoff = today - timedelta(days=BULLPEN_AVAILABILITY_RECENT_DAYS)
+    fresh_count = 0
+    for pid in key_arms:
+        dates = pd.to_datetime(df[df["pitcher_id"] == pid]["game_date"])
+        pitched_recently = ((dates >= cutoff) & (dates < today)).any()
+        if not pitched_recently:
+            fresh_count += 1
+    return fresh_count / len(key_arms)
+
+
 RECENT_TEAM_BATTING_GAMES = 7  # within the user-requested 5-10 game window
 RECENT_TEAM_BATTING_GAMES_30D = 26  # ~30 calendar days at MLB's typical near-daily game pace —
 # a genuinely different window than the 7-game one: catches a month-long slump/hot streak a
@@ -1864,6 +2070,68 @@ def get_team_recent_batting_form(team_abbr: str, n_games: int = RECENT_TEAM_BATT
     row = df.iloc[0]
     ab = row["ab"]
     return {"avg": (row["h"] / ab) if ab > 0 else np.nan, "games": int(row["games"])}
+
+
+TEAM_HOOK_TENDENCY_GAMES = 15  # wider window than the 7-game recent-batting one — this is about a
+# team's management/roster-construction style (how deep they typically let a starter go), not
+# day-to-day form, so it needs more starts to be a stable read.
+
+
+def get_team_recent_starter_ip(team_abbr: str, n_games: int = TEAM_HOOK_TENDENCY_GAMES,
+                                before_date: str = None, force_refresh: bool = False) -> dict:
+    """
+    A team's own average innings-per-start over its last `n_games` completed games — how deep
+    THIS team typically lets its starters go, independent of which pitcher is on the mound
+    tonight. Feeds IP_FEATURE_COLUMNS/ER_FEATURE_COLUMNS' team_hook_tendency (see features.py):
+    a team that consistently pulls starters early caps both the innings-pitched AND the earned-
+    runs-allowed ceiling for whoever's starting, regardless of that pitcher's own quality.
+    before_date makes this walk-forward-safe for training/backfill, same pattern as
+    get_team_recent_batting_form; live serving passes None ("as of right now").
+    """
+    def fetch():
+        team_ids = _get_mlb_team_ids()
+        team_id = team_ids.get(team_abbr)
+        if not team_id:
+            return pd.DataFrame([{"total_ip": 0.0, "games": 0}])
+
+        end = datetime.strptime(before_date, "%Y-%m-%d") if before_date else datetime.now()
+        start = end - timedelta(days=n_games * 3 + 5)
+        resp = requests.get(f"{MLB_STATS_API}/schedule", params={
+            "sportId": 1, "teamId": team_id,
+            "startDate": start.strftime("%Y-%m-%d"), "endDate": (end - timedelta(days=1)).strftime("%Y-%m-%d"),
+        }, timeout=15)
+        resp.raise_for_status()
+        game_pks = [
+            g["gamePk"] for d in resp.json().get("dates", []) for g in d.get("games", [])
+            if g.get("status", {}).get("detailedState") == "Final"
+        ][-n_games:]
+
+        total_ip = 0.0
+        games_counted = 0
+        for pk in game_pks:
+            try:
+                box = requests.get(f"{MLB_STATS_API}/game/{pk}/boxscore", timeout=15).json()
+            except requests.exceptions.RequestException:
+                continue
+            for side in ("home", "away"):
+                team_info = box.get("teams", {}).get(side, {})
+                if team_info.get("team", {}).get("abbreviation") != team_abbr:
+                    continue
+                pitchers = team_info.get("pitchers", [])
+                if not pitchers:
+                    continue
+                starter_stats = team_info.get("players", {}).get(f"ID{pitchers[0]}", {}).get("stats", {}).get("pitching", {})
+                total_ip += _parse_ip(starter_stats.get("inningsPitched", 0))
+                games_counted += 1
+        return pd.DataFrame([{"total_ip": total_ip, "games": games_counted}])
+
+    cache_key = f"team_hook_tendency_{team_abbr}_{n_games}g" + (f"_{before_date}" if before_date else "")
+    df = _load_or_fetch(cache_key, fetch, force_refresh, max_age_hours=6)
+    if df is None or df.empty:
+        return {"avg_ip": np.nan, "games": 0}
+    row = df.iloc[0]
+    games = int(row["games"])
+    return {"avg_ip": (row["total_ip"] / games) if games > 0 else np.nan, "games": games}
 
 
 PREDICTED_LINEUP_GAMES = 5  # how many recent games to sample when guessing tonight's lineup

@@ -159,6 +159,10 @@ FEATURE_COLUMNS = [
     "market_total_runs",      # game Total Runs line, averaged across CONSENSUS_BOOKS — the market's expected scoring environment tonight, NOT sign-based (no home/away meaning on its own) — see odds_fetcher.get_market_snapshot
     "opp_platoon_woba_diff",  # opponent lineups' wOBA specifically vs each starter's own throwing hand (positive favors home pitcher)
     "bullpen_fatigue_diff",   # away bullpen's innings thrown in the last 3 days minus home's (positive = away more tired, favors home)
+    # bullpen_availability_diff (per-reliever freshness) was tested 2026-08-04: zero picks flipped across
+    # 128 logged predictions, AUC +0.00016 / Brier -0.000005 — noise. Reverted; see
+    # build_matchup_features' bullpen_availability param and data_collection.get_team_bullpen_availability
+    # for the infra if this is worth revisiting with a different framing.
     "high_leverage_bullpen_fip_diff",  # away closer/setup FIP - home closer/setup FIP (positive favors home)
     "defense_oaa_diff",       # home team OAA - away team OAA (positive favors home's defense; higher OAA = better D)
     "whiff_pct_diff",         # home whiff% - away whiff% (higher is better stuff, positive favors home)
@@ -616,6 +620,7 @@ def build_matchup_features(
     pitcher_hands: dict = None,         # {pitcher_id: "L"/"R"}
     team_batting_vs_hand: dict = None,  # {"L": df vs LHP, "R": df vs RHP}, each with Team/wOBA_vs_hand
     bullpen_fatigue: dict = None,       # {team_abbr: bullpen IP thrown in the last 3 days}
+    bullpen_availability: dict = None,  # {team_abbr: fraction of top-4-inning relievers fresh tonight} — see data_collection.get_team_bullpen_availability
     high_leverage_bullpen_stats: pd.DataFrame = None,  # Team/high_leverage_fip — closer + top setup arms only
     team_defense: pd.DataFrame = None,  # Team/team_oaa — Statcast Outs Above Average, whole roster
     lineups: dict = None,               # {"home": [batter_id,...], "away": [batter_id,...]} — confirmed, may be empty
@@ -669,6 +674,7 @@ def build_matchup_features(
     pitcher_hands = pitcher_hands or {}
     team_batting_vs_hand = team_batting_vs_hand or {}
     bullpen_fatigue = bullpen_fatigue or {}
+    bullpen_availability = bullpen_availability or {}
     high_leverage_bullpen_stats = high_leverage_bullpen_stats if high_leverage_bullpen_stats is not None else pd.DataFrame()
     team_defense = team_defense if team_defense is not None else pd.DataFrame()
     lineups = lineups or {}
@@ -1205,6 +1211,13 @@ def build_matchup_features(
         # more recent bullpen innings = more fatigued = worse tonight; positive favors home
         # when the AWAY pen has thrown more in the last 3 days than the home pen has
         "bullpen_fatigue_diff": bullpen_fatigue.get(away_team_abbr, 0.0) - bullpen_fatigue.get(home_team_abbr, 0.0),
+        # higher fraction fresh = better tonight; positive favors home when MORE of home's key
+        # relievers are rested than away's — see _team_bullpen_availability_from_history
+        "bullpen_availability_diff": (
+            (bullpen_availability.get(home_team_abbr) - bullpen_availability.get(away_team_abbr))
+            if pd.notna(bullpen_availability.get(home_team_abbr)) and pd.notna(bullpen_availability.get(away_team_abbr))
+            else np.nan
+        ),
         "rest_days_diff": (rest_home - rest_away) if pd.notna(rest_home) and pd.notna(rest_away) else 0,
     }
 
@@ -1242,6 +1255,8 @@ STRIKEOUT_FEATURE_COLUMNS = [
     "recent_pitches_per_start",  # same, but only the pitcher's last few starts
     "season_csw_pct",        # this pitcher's own season-to-date CSW% (called strikes + whiffs per pitch) — a blended command/stuff signal distinct from whiff%/chase% alone
     "velo_trend",             # this pitcher's own recent-minus-season fastball velocity — a declining trend caps K upside even before results-level stats catch up
+    # spin_trend/movement_trend tested 2026-08-04 on the 3-season dataset: -0.0004 K MAE, noise. Reverted
+    # (never retrained into the live model). See data_collection.statcast_movement_trend for the infra.
     "pitch_diversity",        # this pitcher's own arsenal balance (1 - max pitch-type share) — harder to sit on one pitch
     "game_temp_f",            # game-day high temp, raw (not sign-based) — see weather.py
     "game_wind_mph",          # game-day mean wind speed, raw (not sign-based) — see weather.py
@@ -1294,6 +1309,10 @@ IP_FEATURE_COLUMNS = [
     "recent_ip_per_start",    # same, last-5-starts — catches a workload trend the season average smooths over
     "h2h_ip_per_start",       # this pitcher's own innings-per-start specifically against tonight's opponent, when faced before
     "opp_woba",                # opposing lineup's own wOBA (real confirmed lineup if posted, else season team average) — a tougher lineup means more stress per inning, a quicker hook
+    # team_hook_tendency/tto_penalty/spin_trend/movement_trend tested 2026-08-04 on the 3-season
+    # dataset: all noise-level or slightly worse IP MAE. Reverted (never retrained into the live
+    # model). See get_team_recent_starter_ip/statcast_tto_penalty/statcast_movement_trend in
+    # data_collection.py for the infra if this is worth revisiting.
     "season_pitches_per_start",
     "recent_pitches_per_start",
     "season_whiff_pct",       # more empty swings = fewer pitches per out = deeper outings, all else equal
@@ -1321,6 +1340,8 @@ ER_FEATURE_COLUMNS = [
     "recent_ip_per_start",
     "h2h_era",                  # this pitcher's own ERA specifically against tonight's opponent, when faced before
     "opp_woba",                 # opposing lineup's own wOBA — the direct run-scoring-threat signal
+    # team_hook_tendency/tto_penalty/spin_trend/movement_trend tested 2026-08-04: noise-level or
+    # slightly worse ER MAE on the 3-season dataset. Reverted — see IP_FEATURE_COLUMNS above.
     "season_hard_hit_pct",      # this pitcher's own season-to-date hard-hit% allowed (95+ mph batted balls) — contact quality allowed, not just contact rate
     "season_whiff_pct",
     "season_csw_pct",
@@ -1350,6 +1371,7 @@ def build_strikeout_features(
     recent_statcast: dict = None,    # {pitcher_id: {"whiff_pct":.., "chase_pct":..}} — last-few-starts window, see data_collection.statcast_recent_as_of
     rest_days: float = None,         # this pitcher's own days since last start
     velocity_trend: dict = None,     # {pitcher_id: {"velo_trend":..}}
+    movement_trend: dict = None,     # {pitcher_id: {"spin_trend":.., "movement_trend":..}} — see data_collection.statcast_movement_trend
     pitch_diversity: dict = None,    # {pitcher_id: {"pitch_diversity":..}}
     game_weather: dict = None,       # {"temp_max_f":.., "wind_mean_mph":..} — game-day, see weather.py
     pitcher_hand: str = None,        # "L"/"R" — this pitcher's own throwing hand, to pick the right platoon split
@@ -1367,6 +1389,7 @@ def build_strikeout_features(
     statcast = statcast or {}
     recent_statcast = recent_statcast or {}
     velocity_trend = velocity_trend or {}
+    movement_trend = movement_trend or {}
     pitch_diversity = pitch_diversity or {}
     game_weather = game_weather or {}
     team_batting_vs_hand = team_batting_vs_hand or {}
@@ -1412,6 +1435,8 @@ def build_strikeout_features(
         "recent_pitches_per_start": pitcher_recent_statcast.get("pitches_per_start", np.nan),
         "season_csw_pct": pitcher_statcast.get("csw_pct", np.nan),
         "velo_trend": velocity_trend.get(pitcher_id, {}).get("velo_trend", np.nan),
+        "spin_trend": movement_trend.get(pitcher_id, {}).get("spin_trend", np.nan),
+        "movement_trend": movement_trend.get(pitcher_id, {}).get("movement_trend", np.nan),
         "pitch_diversity": pitch_diversity.get(pitcher_id, {}).get("pitch_diversity", np.nan),
         "game_temp_f": game_weather.get("temp_max_f", np.nan),
         "game_wind_mph": game_weather.get("wind_mean_mph", np.nan),
@@ -1443,11 +1468,14 @@ def build_ip_features(
     player_batting: pd.DataFrame = None,
     rest_days: float = None,
     velocity_trend: dict = None,
+    movement_trend: dict = None,     # {pitcher_id: {"spin_trend":.., "movement_trend":..}} — see data_collection.statcast_movement_trend
     pitch_diversity: dict = None,
     game_weather: dict = None,
     h2h_stats: dict = None,          # {pitcher_id: {"era":.., "fip":.., "ip":.., "starts":..}}
     team_market_prob: float = None,
     pitcher_market_lines: dict = None,  # {"outs_line":.., ...} — see odds_fetcher.get_pitcher_market_lines
+    team_hook_tendency: float = None,   # this pitcher's OWN team's avg starter IP/start over its last 15 games — see data_collection.get_team_recent_starter_ip
+    tto_penalty: float = None,          # this pitcher's own 1st-time minus 3rd+-time-through-the-order whiff% — see data_collection.statcast_tto_penalty
 ) -> dict:
     """Feature row for predicting one pitcher's innings pitched in one start. Same per-outing
     shape as build_strikeout_features (one row per starter, not a home/away comparison)."""
@@ -1455,6 +1483,7 @@ def build_ip_features(
     recent_stats = recent_stats or {}
     statcast = statcast or {}
     velocity_trend = velocity_trend or {}
+    movement_trend = movement_trend or {}
     pitch_diversity = pitch_diversity or {}
     game_weather = game_weather or {}
     h2h_stats = h2h_stats or {}
@@ -1476,11 +1505,15 @@ def build_ip_features(
         "recent_ip_per_start": recent.get("ip_per_start", np.nan),
         "h2h_ip_per_start": h2h_ip_per_start,
         "opp_woba": opp_woba,
+        "team_hook_tendency": team_hook_tendency if team_hook_tendency is not None else np.nan,
+        "tto_penalty": tto_penalty if tto_penalty is not None else np.nan,
         "season_pitches_per_start": pitcher_statcast.get("pitches_per_start", np.nan),
         "recent_pitches_per_start": pitcher_statcast.get("pitches_per_start", np.nan),
         "season_whiff_pct": pitcher_statcast.get("whiff_pct", np.nan),
         "season_csw_pct": pitcher_statcast.get("csw_pct", np.nan),
         "velo_trend": velocity_trend.get(pitcher_id, {}).get("velo_trend", np.nan),
+        "spin_trend": movement_trend.get(pitcher_id, {}).get("spin_trend", np.nan),
+        "movement_trend": movement_trend.get(pitcher_id, {}).get("movement_trend", np.nan),
         "pitch_diversity": pitch_diversity.get(pitcher_id, {}).get("pitch_diversity", np.nan),
         "game_temp_f": game_weather.get("temp_max_f", np.nan),
         "game_wind_mph": game_weather.get("wind_mean_mph", np.nan),
@@ -1508,11 +1541,14 @@ def build_er_features(
     player_batting: pd.DataFrame = None,
     rest_days: float = None,
     velocity_trend: dict = None,
+    movement_trend: dict = None,     # {pitcher_id: {"spin_trend":.., "movement_trend":..}} — see data_collection.statcast_movement_trend
     pitch_diversity: dict = None,
     game_weather: dict = None,
     h2h_stats: dict = None,          # {pitcher_id: {"era":.., "fip":.., "ip":.., "starts":..}}
     team_market_prob: float = None,
     pitcher_market_lines: dict = None,  # {"er_line":.., ...} — see odds_fetcher.get_pitcher_market_lines
+    team_hook_tendency: float = None,   # this pitcher's OWN team's avg starter IP/start over its last 15 games — see data_collection.get_team_recent_starter_ip
+    tto_penalty: float = None,          # this pitcher's own 1st-time minus 3rd+-time-through-the-order whiff% — see data_collection.statcast_tto_penalty
 ) -> dict:
     """Feature row for predicting one pitcher's earned runs allowed in one start. Same per-outing
     shape as build_strikeout_features/build_ip_features."""
@@ -1520,6 +1556,7 @@ def build_er_features(
     recent_stats = recent_stats or {}
     statcast = statcast or {}
     velocity_trend = velocity_trend or {}
+    movement_trend = movement_trend or {}
     pitch_diversity = pitch_diversity or {}
     game_weather = game_weather or {}
     h2h_stats = h2h_stats or {}
@@ -1540,10 +1577,14 @@ def build_er_features(
         "recent_ip_per_start": recent.get("ip_per_start", np.nan),
         "h2h_era": h2h_era,
         "opp_woba": opp_woba,
+        "team_hook_tendency": team_hook_tendency if team_hook_tendency is not None else np.nan,
+        "tto_penalty": tto_penalty if tto_penalty is not None else np.nan,
         "season_hard_hit_pct": pitcher_statcast.get("hard_hit_pct", np.nan),
         "season_whiff_pct": pitcher_statcast.get("whiff_pct", np.nan),
         "season_csw_pct": pitcher_statcast.get("csw_pct", np.nan),
         "velo_trend": velocity_trend.get(pitcher_id, {}).get("velo_trend", np.nan),
+        "spin_trend": movement_trend.get(pitcher_id, {}).get("spin_trend", np.nan),
+        "movement_trend": movement_trend.get(pitcher_id, {}).get("movement_trend", np.nan),
         "pitch_diversity": pitch_diversity.get(pitcher_id, {}).get("pitch_diversity", np.nan),
         "game_temp_f": game_weather.get("temp_max_f", np.nan),
         "game_wind_mph": game_weather.get("wind_mean_mph", np.nan),
