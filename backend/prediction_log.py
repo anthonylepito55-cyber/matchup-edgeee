@@ -42,7 +42,7 @@ LOG_COLUMNS = [
     # the actual pre-override value, added after discovering it was being silently dropped —
     # every overridden row logged before this fix has no recoverable raw counterfactual.
     "model_home_win_prob", "raw_model_home_win_prob", "overridden", "reason",
-    "recent_form_json", "season_stats_json", "team_stats_json", "lineup_breakdown_json",  # pre-game snapshot of the display breakdown, see get_logged_prediction
+    "recent_form_json", "last3_form_json", "season_stats_json", "team_stats_json", "lineup_breakdown_json",  # pre-game snapshot of the display breakdown, see get_logged_prediction
     "rating_breakdown_json",  # pre-game snapshot of the display-only composite rating system's category breakdown — see rating_system.py; NOT used as a model input, purely for the previous-day tab to show alongside the actual prediction
     "feature_breakdown_json",  # pre-game snapshot of every individual raw diff feature behind rating_breakdown_json's category rollups — see rating_system.feature_level_breakdown; same non-model, display-only status
     "market_home_prob",       # de-vigged implied home win prob from live_odds at prediction time, if available
@@ -161,6 +161,7 @@ def log_predictions(date: str, games: list[dict]):
             "overridden": pred.get("overridden", False),
             "reason": g.get("reason"),
             "recent_form_json": json.dumps(g.get("recent_form")) if g.get("recent_form") else None,
+            "last3_form_json": json.dumps(g.get("last3_form")) if g.get("last3_form") else None,
             "season_stats_json": json.dumps(g.get("season_stats")) if g.get("season_stats") else None,
             "team_stats_json": json.dumps(g.get("team_stats")) if g.get("team_stats") else None,
             "lineup_breakdown_json": json.dumps(g.get("lineup_breakdown")) if g.get("lineup_breakdown") else None,
@@ -248,6 +249,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "overridden": bool(r["overridden"]) if pd.notna(r["overridden"]) else False,
         "reason": r["reason"] if pd.notna(r["reason"]) else None,
         "recent_form": _load_json("recent_form_json"),
+        "last3_form": _load_json("last3_form_json"),
         "season_stats": _load_json("season_stats_json"),
         "team_stats": _load_json("team_stats_json"),
         "lineup_breakdown": _load_json("lineup_breakdown_json"),
@@ -390,6 +392,7 @@ def get_games_for_date(date: str) -> list[dict]:
             # the exact leakage get_logged_prediction's docstring warns about: a decided
             # game's own outcome bleeding into its own "recent form").
             "recent_form": _load_json(r, "recent_form_json"),
+            "last3_form": _load_json(r, "last3_form_json"),
             "season_stats": _load_json(r, "season_stats_json"),
             "team_stats": _load_json(r, "team_stats_json"),
             "lineup_breakdown": _load_json(r, "lineup_breakdown_json"),

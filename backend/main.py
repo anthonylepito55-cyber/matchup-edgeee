@@ -140,6 +140,19 @@ def _recent_stats_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season
     }
 
 
+def _recent_stats_last3_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season: int) -> dict:
+    """Same shape as _recent_stats_for_matchup, but each starter's last 3 starts instead of 5 —
+    display-only (not fed into any model, purely so a user can see whether a pitcher's very latest
+    starts look different from their broader last-5 read). Concurrent fetch, same reasoning as
+    _statcast_for_matchup: this runs once per game inside the per-game loop, not pre-fetched the
+    way team-level data is, and get_pitcher_recent_starts caches per-n (see its cache_key), so a
+    3-start window is a genuinely separate fetch from the existing 5-start one, not reused from it."""
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        home_f = pool.submit(get_pitcher_recent_starts, home_pitcher_id, season, 3)
+        away_f = pool.submit(get_pitcher_recent_starts, away_pitcher_id, season, 3)
+        return {home_pitcher_id: home_f.result(), away_pitcher_id: away_f.result()}
+
+
 def _statcast_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season: int) -> dict:
     """{pitcher_id: {"whiff_pct":.., "chase_pct":.., "hard_hit_pct":..}}, season-to-date (as of now,
     which is naturally the full season pulled so far — no walk-forward filtering needed live).
@@ -1758,6 +1771,13 @@ def today(date: str = None):
             "home": _json_safe(recent_stats[g["home_pitcher_id"]]),
             "away": _json_safe(recent_stats[g["away_pitcher_id"]]),
         }
+        # Display-only last-3-starts window alongside the last-5 one above — not fed into any
+        # model, purely so a user can see a pitcher's very latest trend vs their broader recent form.
+        recent_stats_last3 = _recent_stats_last3_for_matchup(g["home_pitcher_id"], g["away_pitcher_id"], season)
+        last3_form_out = {
+            "home": _json_safe(recent_stats_last3[g["home_pitcher_id"]]),
+            "away": _json_safe(recent_stats_last3[g["away_pitcher_id"]]),
+        }
         rest_days = _rest_days_for_matchup(recent_stats, g["game_date"])
         days_since_il_home = days_since_il_return(g["home_pitcher_id"], g["game_date"], il_activations)
         days_since_il_away = days_since_il_return(g["away_pitcher_id"], g["game_date"], il_activations)
@@ -2170,6 +2190,8 @@ def today(date: str = None):
                 reason = frozen.get("reason") or "Original reasoning wasn't captured for this game."
                 if frozen.get("recent_form"):
                     recent_form_out = frozen["recent_form"]
+                if frozen.get("last3_form"):
+                    last3_form_out = frozen["last3_form"]
                 if frozen.get("season_stats"):
                     season_stats_out = frozen["season_stats"]
                 if frozen.get("team_stats"):
@@ -2214,7 +2236,7 @@ def today(date: str = None):
         # rather than the kind of leakage this freeze system exists to prevent.
         results.append({
             **g, "prediction": prediction, "live_odds": live_odds_out,
-            "recent_form": recent_form_out, "season_stats": season_stats_out, "reason": reason,
+            "recent_form": recent_form_out, "last3_form": last3_form_out, "season_stats": season_stats_out, "reason": reason,
             "strikeout_predictions": strikeout_predictions, "ip_predictions": ip_predictions,
             "er_predictions": er_predictions, "pitcher_warnings": pitcher_warnings,
             "data_quality": data_quality, "prediction_frozen": prediction_frozen,
@@ -2284,6 +2306,11 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
     result["recent_form"] = {
         "home": _json_safe(recent_stats[home_pitcher_id]),
         "away": _json_safe(recent_stats[away_pitcher_id]),
+    }
+    recent_stats_last3 = _recent_stats_last3_for_matchup(home_pitcher_id, away_pitcher_id, season)
+    result["last3_form"] = {
+        "home": _json_safe(recent_stats_last3[home_pitcher_id]),
+        "away": _json_safe(recent_stats_last3[away_pitcher_id]),
     }
     today_str = datetime.now().strftime("%Y-%m-%d")
     rest_days = _rest_days_for_matchup(recent_stats, today_str)

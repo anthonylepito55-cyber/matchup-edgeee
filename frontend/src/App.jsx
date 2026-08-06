@@ -477,6 +477,12 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
                       <RecentFormLine stats={game.recent_form.home} />
                     </div>
                   )}
+                  {game.last3_form && (
+                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 3 }}>
+                      <RecentFormLine stats={game.last3_form.away} />
+                      <RecentFormLine stats={game.last3_form.home} />
+                    </div>
+                  )}
                   {game.season_stats && (
                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 3 }}>
                       <SeasonStatsLine stats={game.season_stats.away} />
