@@ -2496,24 +2496,24 @@ def backfill_last3_form():
             "sample_type": "starts", "last_start_date": last_start_date,
         }
 
-    game_logs_cache = {}
-    filled = 0
+    from data_collection import MLB_STATS_API
+    import requests as _requests
+
+    filled, errors = 0, 0
     for idx, row in candidates.iterrows():
         date, game_pk = row["date"], row["game_pk"]
         season = int(date[:4])
-        if season not in game_logs_cache:
-            gl_path = os.path.join(CACHE_DIR, f"game_logs_{season}.parquet")
-            if not os.path.exists(gl_path):
-                game_logs_cache[season] = None
-            else:
-                game_logs_cache[season] = pd.read_parquet(gl_path).drop_duplicates(subset="game_pk").set_index("game_pk")
-        gl = game_logs_cache[season]
-        if gl is None or game_pk not in gl.index:
+        try:
+            box = _requests.get(f"{MLB_STATS_API}/game/{int(game_pk)}/boxscore", timeout=15).json()
+            away_pitchers = box["teams"]["away"].get("pitchers", [])
+            home_pitchers = box["teams"]["home"].get("pitchers", [])
+            if not away_pitchers or not home_pitchers:
+                continue
+            away_pid, home_pid = away_pitchers[0], home_pitchers[0]
+        except Exception:
+            errors += 1
             continue
-        g = gl.loc[game_pk]
-        home_pid, away_pid = g.get("home_pitcher_id"), g.get("away_pitcher_id")
-        if pd.isna(home_pid) or pd.isna(away_pid):
-            continue
+
         last3 = {
             "home": recent_from_season_log(home_pid, season, date),
             "away": recent_from_season_log(away_pid, season, date),
@@ -2522,7 +2522,7 @@ def backfill_last3_form():
         filled += 1
 
     pred_log.to_parquet(pred_log_path, index=False)
-    return {"status": "done", "candidates": len(candidates), "filled": filled}
+    return {"status": "done", "candidates": len(candidates), "filled": filled, "errors": errors}
 
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
