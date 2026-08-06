@@ -14,6 +14,7 @@ Run manually:
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -25,7 +26,7 @@ import train as train_module
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METRICS_PATH = train_module.METRICS_PATH
 LOG_PATH = os.path.join(CACHE_DIR, "daily_retrain_log.jsonl")
-SEASONS = [2025, 2026]
+SEASONS = [2024, 2025, 2026]
 
 # How much a fresh candidate is allowed to be worse than the currently-deployed model before
 # daily_retrain.py refuses to deploy it. Not zero: adding one day's handful of new games to a
@@ -96,6 +97,20 @@ def main():
     run_started = datetime.now(timezone.utc).isoformat()
     old_metrics = _load_old_metrics()
 
+    # data_cache/*.parquet isn't git-tracked, so a rejected candidate below can't be rolled back
+    # the way model_artifacts/ is (git checkout). Without this, a regressed rebuild (e.g. a
+    # season's data source going temporarily thin) leaves the WORSE dataset sitting on disk even
+    # though the gate correctly refused to deploy the model trained on it — silently degrading the
+    # next day's starting point. Snapshot both caches first and restore them on rejection.
+    win_prob_cache = os.path.join(CACHE_DIR, "training_dataset.parquet")
+    strikeout_cache = os.path.join(CACHE_DIR, "strikeout_training_dataset.parquet")
+    win_prob_backup = win_prob_cache + ".pre_retrain_backup"
+    strikeout_backup = strikeout_cache + ".pre_retrain_backup"
+    if os.path.exists(win_prob_cache):
+        shutil.copy2(win_prob_cache, win_prob_backup)
+    if os.path.exists(strikeout_cache):
+        shutil.copy2(strikeout_cache, strikeout_backup)
+
     print("=== Step 1: incremental game-log refresh + rebuild training data ===")
     build_training_data.build_full_training_set(SEASONS)
     build_training_data.build_strikeout_training_set(SEASONS)
@@ -150,6 +165,18 @@ def main():
         # not the (unused) candidate this run just trained.
         _git("checkout", "--", "backend/model_artifacts/")
         print("Reverted local model_artifacts/ to the last-deployed state.")
+        # data_cache/*.parquet isn't git-tracked, so it doesn't get restored by the checkout above
+        # — put back the pre-rebuild snapshot so a rejected run doesn't leave a worse dataset sitting
+        # on disk than what actually produced the currently-deployed model (see snapshot comment above).
+        if os.path.exists(win_prob_backup):
+            shutil.move(win_prob_backup, win_prob_cache)
+        if os.path.exists(strikeout_backup):
+            shutil.move(strikeout_backup, strikeout_cache)
+        print("Restored data_cache/ training sets to their pre-rebuild state.")
+
+    for backup in (win_prob_backup, strikeout_backup):
+        if os.path.exists(backup):
+            os.remove(backup)
 
     with open(LOG_PATH, "a") as f:
         f.write(json.dumps(log_entry) + "\n")
