@@ -1,2 +1,15 @@
 [phases.install]
-cmds = ["pip install --no-cache-dir -r requirements.txt"]
+# Installed in stages, not one `pip install -r requirements.txt` call. A single invocation makes
+# pip's resolver hold every package's metadata/wheel in memory at once while it works out the full
+# dependency graph -- with numpy/scipy/pandas/scikit-learn/xgboost all in the same pass, that peak
+# was enough to OOM the build container even with --no-cache-dir (which only trims wheel-cache
+# disk usage, not resolver memory). Splitting into small sequential installs keeps each pass'
+# resolver working set small; numpy first since scipy/pandas/scikit-learn build against it.
+cmds = [
+    "pip install --no-cache-dir numpy==1.26.4",
+    "pip install --no-cache-dir scipy==1.13.1",
+    "pip install --no-cache-dir pandas==2.2.2",
+    "pip install --no-cache-dir scikit-learn==1.5.1",
+    "pip install --no-cache-dir xgboost==2.1.1",
+    "pip install --no-cache-dir -r requirements.txt",
+]
