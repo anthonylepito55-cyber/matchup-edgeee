@@ -16,6 +16,7 @@ Run with:
 
 import os
 import asyncio
+import json
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -2449,6 +2450,79 @@ def retrain(seasons: str = "2025,2026"):
         "status": "trained", "metrics": metrics, "rows": len(training_df),
         "strikeout_metrics": k_metrics, "strikeout_rows": len(k_training_df),
     }
+
+
+@app.post("/api/admin/backfill-last3-form")
+def backfill_last3_form():
+    """
+    One-time admin action: populate last3_form_json on prediction_log rows logged before the
+    last-3-starts feature existed. Gated by the same DASHBOARD_PASSWORD middleware as every other
+    /api/* route -- no separate auth needed. Safe to call repeatedly (only fills rows that are
+    still missing it); intended to be removed once run against production, not a permanent route.
+
+    Deliberately does NOT use get_pitcher_recent_starts (no date cutoff -- would pull in starts
+    that happened AFTER the historical game being backfilled). Uses get_pitcher_season_log instead
+    and filters to starts strictly before that game's date, replicating get_pitcher_recent_starts'
+    own math so the output shape matches what the frontend already expects.
+    """
+    pred_log_path = os.path.join(CACHE_DIR, "prediction_log.parquet")
+    if not os.path.exists(pred_log_path):
+        return {"status": "no prediction log found"}
+
+    pred_log = pd.read_parquet(pred_log_path)
+    candidates = pred_log[pred_log["last3_form_json"].isna() & pred_log["recent_form_json"].notna()]
+
+    def recent_from_season_log(pitcher_id, season, as_of_date, n=3):
+        log = get_pitcher_season_log(int(pitcher_id), season)
+        if log is None or log.empty:
+            return {"era": None, "fip": None, "k9": None, "bb9": None, "ip_per_start": None,
+                    "starts": 0, "sample_size": 0, "sample_type": "starts", "last_start_date": None}
+        prior = log[log["game_date"] < as_of_date].sort_values("game_date")
+        last_start_date = prior["game_date"].iloc[-1] if len(prior) else None
+        sample = prior.tail(n)
+        if sample.empty or sample["ip"].sum() <= 0:
+            return {"era": None, "fip": None, "k9": None, "bb9": None, "ip_per_start": None,
+                    "starts": len(sample), "sample_size": 0, "sample_type": "starts", "last_start_date": last_start_date}
+        total_ip, total_er = sample["ip"].sum(), sample["er"].sum()
+        total_k, total_bb = sample["k"].sum(), sample["bb"].sum()
+        total_hr, total_hbp = sample["hr"].sum(), sample["hbp"].sum()
+        return {
+            "era": float(total_er / total_ip * 9),
+            "fip": float((13 * total_hr + 3 * (total_bb + total_hbp) - 2 * total_k) / total_ip + 3.10),
+            "k9": float(total_k / total_ip * 9),
+            "bb9": float(total_bb / total_ip * 9),
+            "ip_per_start": float(total_ip / len(sample)),
+            "starts": int(len(sample)), "sample_size": int(len(sample)),
+            "sample_type": "starts", "last_start_date": last_start_date,
+        }
+
+    game_logs_cache = {}
+    filled = 0
+    for idx, row in candidates.iterrows():
+        date, game_pk = row["date"], row["game_pk"]
+        season = int(date[:4])
+        if season not in game_logs_cache:
+            gl_path = os.path.join(CACHE_DIR, f"game_logs_{season}.parquet")
+            if not os.path.exists(gl_path):
+                game_logs_cache[season] = None
+            else:
+                game_logs_cache[season] = pd.read_parquet(gl_path).drop_duplicates(subset="game_pk").set_index("game_pk")
+        gl = game_logs_cache[season]
+        if gl is None or game_pk not in gl.index:
+            continue
+        g = gl.loc[game_pk]
+        home_pid, away_pid = g.get("home_pitcher_id"), g.get("away_pitcher_id")
+        if pd.isna(home_pid) or pd.isna(away_pid):
+            continue
+        last3 = {
+            "home": recent_from_season_log(home_pid, season, date),
+            "away": recent_from_season_log(away_pid, season, date),
+        }
+        pred_log.at[idx, "last3_form_json"] = json.dumps(last3)
+        filled += 1
+
+    pred_log.to_parquet(pred_log_path, index=False)
+    return {"status": "done", "candidates": len(candidates), "filled": filled}
 
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
