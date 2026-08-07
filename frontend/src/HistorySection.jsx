@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { RecentFormLine, SeasonStatsLine, TeamStatsLine, LineupBreakdown } from './App.jsx'
+import {
+  RecentFormLine, SeasonStatsLine, TeamStatsLine, LineupBreakdown, InjuryReport,
+  H2HLine, BookByBookOdds, ToggleLink, PitcherProjectionHeadline,
+} from './App.jsx'
 
 export default function HistorySection() {
   const [dates, setDates] = useState([])
@@ -143,6 +146,9 @@ function RecordChip({ label, correct, total }) {
 }
 
 function HistoryGameCard({ game: g }) {
+  const [showInjuries, setShowInjuries] = useState(false)
+  const [showBookOdds, setShowBookOdds] = useState(false)
+
   const home = g.home_team_abbr
   const away = g.away_team_abbr
   const settled = g.settled
@@ -152,6 +158,7 @@ function HistoryGameCard({ game: g }) {
   const favoredIsHome = homeProb != null ? homeProb >= 0.5 : null
   const favoredTeam = favoredIsHome == null ? null : (favoredIsHome ? home : away)
   const favoredProb = favoredIsHome == null ? null : (favoredIsHome ? homeProb : 1 - homeProb)
+  const hasInjuries = g.injuries && ((g.injuries.home?.length > 0) || (g.injuries.away?.length > 0))
 
   const cardColor = !settled ? 'var(--line)' : correct ? 'var(--edge-pos)' : 'var(--edge-neg)'
 
@@ -186,6 +193,17 @@ function HistoryGameCard({ game: g }) {
         )}
       </div>
 
+      {g.market_model_prob != null && (
+        <div
+          className="mono"
+          style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 }}
+          title="A second model, trained on the same baseball features PLUS line movement and other market-derived signals — shown for comparison only, never the number driving the prediction above."
+        >
+          market-aware model: {g.market_model_prob >= 0.5 ? home : away}{' '}
+          {((g.market_model_prob >= 0.5 ? g.market_model_prob : 1 - g.market_model_prob) * 100).toFixed(0)}%
+        </div>
+      )}
+
       {g.reason && (
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>
           {g.reason}
@@ -196,6 +214,18 @@ function HistoryGameCard({ game: g }) {
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 8 }}>
           <RecentFormLine stats={g.recent_form.away} />
           <RecentFormLine stats={g.recent_form.home} />
+        </div>
+      )}
+      {g.last3_form && (
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 3 }}>
+          <RecentFormLine stats={g.last3_form.away} />
+          <RecentFormLine stats={g.last3_form.home} />
+        </div>
+      )}
+      {g.h2h && (
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 3 }}>
+          <H2HLine stats={g.h2h.away} oppAbbr={home} />
+          <H2HLine stats={g.h2h.home} oppAbbr={away} />
         </div>
       )}
       {g.season_stats && (
@@ -214,6 +244,37 @@ function HistoryGameCard({ game: g }) {
       {g.lineup_breakdown && (g.lineup_breakdown.home?.batters?.length > 0 || g.lineup_breakdown.away?.batters?.length > 0) && (
         <div style={{ marginTop: 8 }}>
           <LineupToggle lineupBreakdown={g.lineup_breakdown} homeAbbr={home} awayAbbr={away} />
+        </div>
+      )}
+
+      {(g.ip_predictions || g.er_predictions) && (
+        <PitcherProjectionHeadline
+          awayName={g.away_pitcher_name} homeName={g.home_pitcher_name}
+          awayIp={g.ip_predictions?.away} homeIp={g.ip_predictions?.home}
+          awayEr={g.er_predictions?.away} homeEr={g.er_predictions?.home}
+        />
+      )}
+
+      {hasInjuries && (
+        <div style={{ marginTop: 8 }}>
+          <ToggleLink onClick={() => setShowInjuries(s => !s)} open={showInjuries} label="injury report" />
+          {showInjuries && (
+            <div style={{ marginTop: 8 }}>
+              <InjuryReport label={away} injuries={g.injuries.away} />
+              <InjuryReport label={home} injuries={g.injuries.home} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {g.book_odds && Object.keys(g.book_odds).length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <ToggleLink onClick={() => setShowBookOdds(s => !s)} open={showBookOdds} label="book-by-book odds" />
+          {showBookOdds && (
+            <div style={{ marginTop: 8 }}>
+              <BookByBookOdds bookOdds={g.book_odds} awayAbbr={away} homeAbbr={home} />
+            </div>
+          )}
         </div>
       )}
 

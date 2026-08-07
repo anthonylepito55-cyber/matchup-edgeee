@@ -616,7 +616,7 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
   )
 }
 
-function ToggleLink({ onClick, open, label }) {
+export function ToggleLink({ onClick, open, label }) {
   return (
     <button onClick={onClick} style={{
       background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: 10,
@@ -629,7 +629,7 @@ function ToggleLink({ onClick, open, label }) {
   )
 }
 
-function PitcherProjectionHeadline({ awayName, homeName, awayIp, homeIp, awayEr, homeEr }) {
+export function PitcherProjectionHeadline({ awayName, homeName, awayIp, homeIp, awayEr, homeEr }) {
   if (!awayIp && !homeIp && !awayEr && !homeEr) return null
   return (
     <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
@@ -896,7 +896,7 @@ export function LineupBreakdown({ label, batters, predicted }) {
   )
 }
 
-function H2HLine({ stats, oppAbbr }) {
+export function H2HLine({ stats, oppAbbr }) {
   if (!stats || !stats.starts) {
     return <span className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>vs {oppAbbr}: no starts on record (2025-2026)</span>
   }
@@ -913,7 +913,7 @@ function H2HLine({ stats, oppAbbr }) {
 // CONSENSUS_BOOKS member's own current devigged home win probability, for line-shopping
 // transparency. The model's consensus_prob_diff/book_disagreement features are derived from
 // this same data, but this table itself isn't a model input.
-function BookByBookOdds({ bookOdds, awayAbbr, homeAbbr }) {
+export function BookByBookOdds({ bookOdds, awayAbbr, homeAbbr }) {
   const entries = Object.entries(bookOdds).sort((a, b) => b[1] - a[1])
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
