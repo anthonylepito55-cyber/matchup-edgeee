@@ -849,9 +849,13 @@ export function TeamStatsLine({ label, stats }) {
   const bullpenEra = stats.bullpen_era != null ? stats.bullpen_era.toFixed(2) : '—'
   const hlBullpenFip = stats.high_leverage_bullpen_fip != null ? stats.high_leverage_bullpen_fip.toFixed(2) : '—'
   const recentAvg = stats.recent_batting_avg != null ? stats.recent_batting_avg.toFixed(3) : '—'
+  const recentAvg3 = stats.recent_batting_avg_3 != null ? stats.recent_batting_avg_3.toFixed(3) : null
+  const bullpenEra3 = stats.recent_bullpen_era_3 != null ? stats.recent_bullpen_era_3.toFixed(2) : null
   return (
     <span className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-      {label} team: {avg} AVG · {woba} wOBA · {kPct} K · {recentAvg} AVG last 7 · pen {bullpenFip} FIP / {bullpenEra} ERA ({hlBullpenFip} high-lev)
+      {label} team: {avg} AVG · {woba} wOBA · {kPct} K · {recentAvg} AVG last 7
+      {recentAvg3 && <> · {recentAvg3} AVG last 3</>} · pen {bullpenFip} FIP / {bullpenEra} ERA ({hlBullpenFip} high-lev)
+      {bullpenEra3 && <> · {bullpenEra3} pen ERA last 3</>}
     </span>
   )
 }

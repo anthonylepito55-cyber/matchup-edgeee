@@ -43,6 +43,7 @@ from data_collection import (
     get_recent_il_activations, days_since_il_return,
     get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern,
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
+    get_team_recent_batting_and_bullpen,
     get_team_roster, get_espn_probable_pitchers,
     CACHE_DIR,
 )
@@ -607,13 +608,19 @@ def _team_stat_row(df: pd.DataFrame, team_abbr: str, col: str, decimals: int = 3
 
 def _team_stats_for_matchup(team_batting: pd.DataFrame, bullpen_stats: pd.DataFrame,
                              high_leverage_bullpen_stats: pd.DataFrame, recent_team_batting: dict,
-                             home_team_abbr: str, away_team_abbr: str) -> dict:
+                             home_team_abbr: str, away_team_abbr: str,
+                             recent_batting_bullpen_3: dict = None) -> dict:
     """Display-friendly (JSON-safe) team-level context for both sides — the same offense/
     bullpen signals the model's opp_lineup_woba_diff/bullpen_fip_diff/recent_team_batting_diff
     features use, logged alongside each prediction so a later look-back (e.g. the previous-
     day tab) can see the full picture, not just the pitcher-vs-pitcher numbers."""
+    recent_batting_bullpen_3 = recent_batting_bullpen_3 or {}
+
     def side(team_abbr):
         recent_avg = (recent_team_batting or {}).get(team_abbr, {}).get("avg")
+        last3 = recent_batting_bullpen_3.get(team_abbr, {})
+        recent_avg_3 = last3.get("batting_avg")
+        bullpen_era_3 = last3.get("bullpen_era")
         return {
             "season_avg": _team_stat_row(team_batting, team_abbr, "AVG"),
             "season_woba": _team_stat_row(team_batting, team_abbr, "wOBA"),
@@ -622,6 +629,8 @@ def _team_stats_for_matchup(team_batting: pd.DataFrame, bullpen_stats: pd.DataFr
             "bullpen_era": _team_stat_row(bullpen_stats, team_abbr, "bullpen_era", 2),
             "high_leverage_bullpen_fip": _team_stat_row(high_leverage_bullpen_stats, team_abbr, "high_leverage_fip", 2),
             "recent_batting_avg": None if pd.isna(recent_avg) else recent_avg,
+            "recent_batting_avg_3": None if recent_avg_3 is None or pd.isna(recent_avg_3) else recent_avg_3,
+            "recent_bullpen_era_3": None if bullpen_era_3 is None or pd.isna(bullpen_era_3) else bullpen_era_3,
         }
     return {"home": side(home_team_abbr), "away": side(away_team_abbr)}
 
@@ -1683,17 +1692,20 @@ def today(date: str = None):
     bullpen_fatigue = {}
     recent_team_batting = {}
     recent_team_batting_30d = {}
+    recent_batting_bullpen_3 = {}
     team_travel = {}
     if model_trained and unique_teams_tonight:
         with ThreadPoolExecutor(max_workers=min(len(unique_teams_tonight) * 5, 30)) as _team_pool:
             _bf_f = {t: _team_pool.submit(get_team_recent_bullpen_usage, t) for t in unique_teams_tonight}
             _rb_f = {t: _team_pool.submit(get_team_recent_batting_form, t) for t in unique_teams_tonight}
             _rb30_f = {t: _team_pool.submit(get_team_recent_batting_form, t, RECENT_TEAM_BATTING_GAMES_30D) for t in unique_teams_tonight}
+            _rbb3_f = {t: _team_pool.submit(get_team_recent_batting_and_bullpen, t, 3) for t in unique_teams_tonight}
             _tt_f = {t: _team_pool.submit(team_travel_miles, t, team_venue_tonight[t]) for t in unique_teams_tonight}
             for t in unique_teams_tonight:
                 bullpen_fatigue[t] = _bf_f[t].result()
                 recent_team_batting[t] = _rb_f[t].result()
                 recent_team_batting_30d[t] = _rb30_f[t].result()
+                recent_batting_bullpen_3[t] = _rbb3_f[t].result()
                 team_travel[t] = _tt_f[t].result()
     batter_hands = {}
     results = []
@@ -1903,6 +1915,7 @@ def today(date: str = None):
             team_stats_out = _team_stats_for_matchup(
                 team_batting, bullpen_stats, high_leverage_bullpen_stats, recent_team_batting,
                 g["home_team_abbr"], g["away_team_abbr"],
+                recent_batting_bullpen_3=recent_batting_bullpen_3,
             )
             lineups_raw = get_confirmed_lineup(g["game_pk"]) if g.get("game_pk") else {"home": [], "away": []}
             # Falls back to a predicted lineup (from the team's actual last-5-games batting
@@ -2355,13 +2368,18 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
             home_team: get_team_recent_batting_form(home_team, n_games=RECENT_TEAM_BATTING_GAMES_30D),
             away_team: get_team_recent_batting_form(away_team, n_games=RECENT_TEAM_BATTING_GAMES_30D),
         }
+        recent_batting_bullpen_3 = {
+            home_team: get_team_recent_batting_and_bullpen(home_team, n_games=3),
+            away_team: get_team_recent_batting_and_bullpen(away_team, n_games=3),
+        }
         team_travel = {
             home_team: team_travel_miles(home_team, TEAM_HOME_VENUE.get(home_team)),
             away_team: team_travel_miles(away_team, TEAM_HOME_VENUE.get(home_team)),
         }
         high_leverage_bullpen_stats = get_team_high_leverage_bullpen_stats(season)
         team_stats_out = _team_stats_for_matchup(
-            team_batting, bullpen_stats, high_leverage_bullpen_stats, recent_team_batting, home_team, away_team
+            team_batting, bullpen_stats, high_leverage_bullpen_stats, recent_team_batting, home_team, away_team,
+            recent_batting_bullpen_3=recent_batting_bullpen_3,
         )
         team_defense = get_team_defense_oaa(season)
         statcast = _statcast_for_matchup(home_pitcher_id, away_pitcher_id, season)

@@ -2072,6 +2072,86 @@ def get_team_recent_batting_form(team_abbr: str, n_games: int = RECENT_TEAM_BATT
     return {"avg": (row["h"] / ab) if ab > 0 else np.nan, "games": int(row["games"])}
 
 
+def get_team_recent_batting_and_bullpen(team_abbr: str, n_games: int = 3,
+                                         before_date: str = None, force_refresh: bool = False) -> dict:
+    """
+    A team's own batting average AND bullpen ERA over its last `n_games` completed games, from
+    ONE pass over the boxscores -- get_team_recent_batting_form and a separate bullpen-ERA
+    function each fetching their own n_games of boxscores independently doubled live serving's
+    network round-trips for no reason (same boxscore has both team-batting and team-pitching
+    lines already). Confirmed as a real /api/today timeout when first tried as two separate
+    live per-team fetches -- see git history. Bullpen-only pitching = team's total pitching line
+    minus the starter's own individual line (team pitching totals include the starter), same
+    subtraction build_training_data.py already does for bullpen_earned_runs/bullpen_innings.
+    before_date lets this run walk-forward for training; live serving passes None.
+
+    Returns {"batting_avg":.., "bullpen_era":.., "games":..}.
+    """
+    def fetch():
+        team_ids = _get_mlb_team_ids()
+        team_id = team_ids.get(team_abbr)
+        if not team_id:
+            return pd.DataFrame([{"h": 0, "ab": 0, "er": 0, "ip": 0.0, "games": 0}])
+
+        end = datetime.strptime(before_date, "%Y-%m-%d") if before_date else datetime.now()
+        start = end - timedelta(days=n_games * 3 + 5)
+        resp = requests.get(f"{MLB_STATS_API}/schedule", params={
+            "sportId": 1, "teamId": team_id,
+            "startDate": start.strftime("%Y-%m-%d"), "endDate": (end - timedelta(days=1)).strftime("%Y-%m-%d"),
+        }, timeout=15)
+        resp.raise_for_status()
+        game_pks = [
+            g["gamePk"] for d in resp.json().get("dates", []) for g in d.get("games", [])
+            if g.get("status", {}).get("detailedState") == "Final"
+        ][-n_games:]
+
+        total_h = total_ab = total_er = 0
+        total_ip = 0.0
+        games_counted = 0
+        for pk in game_pks:
+            try:
+                box = requests.get(f"{MLB_STATS_API}/game/{pk}/boxscore", timeout=15).json()
+            except requests.exceptions.RequestException:
+                continue
+            for side in ("home", "away"):
+                team_info = box.get("teams", {}).get(side, {})
+                if team_info.get("team", {}).get("abbreviation") != team_abbr:
+                    continue
+                batting = team_info.get("teamStats", {}).get("batting", {})
+                total_h += batting.get("hits", 0)
+                total_ab += batting.get("atBats", 0)
+                games_counted += 1
+
+                pitchers = team_info.get("pitchers", [])
+                if not pitchers:
+                    continue
+                starter_id = pitchers[0]
+                starter_stats = team_info.get("players", {}).get(f"ID{starter_id}", {}).get("stats", {}).get("pitching", {})
+                team_pitching = team_info.get("teamStats", {}).get("pitching", {})
+                team_er = team_pitching.get("earnedRuns", 0)
+                team_ip = _parse_ip(team_pitching.get("inningsPitched", 0))
+                starter_er = starter_stats.get("earnedRuns", 0)
+                starter_ip = _parse_ip(starter_stats.get("inningsPitched", 0))
+                bp_er = max(team_er - starter_er, 0)
+                bp_ip = max(team_ip - starter_ip, 0.0)
+                if bp_ip > 0:
+                    total_er += bp_er
+                    total_ip += bp_ip
+        return pd.DataFrame([{"h": total_h, "ab": total_ab, "er": total_er, "ip": total_ip, "games": games_counted}])
+
+    cache_key = f"recent_batting_bullpen_{team_abbr}_{n_games}g" + (f"_{before_date}" if before_date else "")
+    df = _load_or_fetch(cache_key, fetch, force_refresh, max_age_hours=6)
+    if df is None or df.empty:
+        return {"batting_avg": np.nan, "bullpen_era": np.nan, "games": 0}
+    row = df.iloc[0]
+    ab, ip = row["ab"], row["ip"]
+    return {
+        "batting_avg": (row["h"] / ab) if ab > 0 else np.nan,
+        "bullpen_era": (row["er"] / ip * 9) if ip > 0 else np.nan,
+        "games": int(row["games"]),
+    }
+
+
 TEAM_HOOK_TENDENCY_GAMES = 15  # wider window than the 7-game recent-batting one — this is about a
 # team's management/roster-construction style (how deep they typically let a starter go), not
 # day-to-day form, so it needs more starts to be a stable read.
