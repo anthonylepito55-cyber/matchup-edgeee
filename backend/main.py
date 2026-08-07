@@ -1512,6 +1512,24 @@ def history_for_date(date: str):
     for g in win_rows:
         g = dict(g)
         g["strikeouts"] = k_by_game.get(g["game_pk"], [])
+        # Same home/away shape the live view uses (strikeout_predictions/ip_predictions/
+        # er_predictions), not just the flat "strikeouts" list above — these prop predictions were
+        # already being frozen in their own log (strikeout_prediction_log.py), just never joined
+        # back in here for the previous-day tab.
+        strikeout_predictions, ip_predictions, er_predictions = None, None, None
+        if g.get("game_pk"):
+            strikeout_predictions, ip_predictions, er_predictions = {}, {}, {}
+            for side, pid_key in (("home", "home_pitcher_id"), ("away", "away_pitcher_id")):
+                pid = g.get(pid_key)
+                strikeout_predictions[side] = get_logged_strikeout_prediction(date, g["game_pk"], pid) if pid else None
+                frozen_ip = get_logged_ip_prediction(date, g["game_pk"], pid) if pid else None
+                if frozen_ip:
+                    frozen_ip["display"] = decimal_to_ip_thirds(frozen_ip["predicted"])
+                ip_predictions[side] = frozen_ip
+                er_predictions[side] = get_logged_er_prediction(date, g["game_pk"], pid) if pid else None
+        g["strikeout_predictions"] = strikeout_predictions
+        g["ip_predictions"] = ip_predictions
+        g["er_predictions"] = er_predictions
         games.append(g)
 
     settled = [g for g in games if g["settled"]]
@@ -2152,38 +2170,21 @@ def today(date: str = None):
         # pre-game snapshot should render as "not captured," not as leakage.
         prediction_frozen = False
         if g["status"] not in PRE_GAME_STATUSES:
-            # h2h_out isn't logged to the prediction log the way recent_form/season_stats are, so
-            # there's no frozen snapshot to fall back to here — same leakage risk as those two
-            # (get_pitcher_season_log has no date cutoff, so a started/finished game's own outing
-            # would already be baked into "head-to-head vs this opponent" by the time this request
-            # runs), but with no logged history to restore, the honest move is just not to show a
-            # live-recomputed value at all rather than silently include this game's own result.
+            # h2h_out/market_model_prob/simulation_out/rating_out/feature_breakdown_out/
+            # team_stats_out/lineup_breakdown_out are all now captured in prediction_log.py
+            # (h2h_json/market_model_prob/simulation_json/rating_breakdown_json/
+            # feature_breakdown_json/team_stats_json/lineup_breakdown_json) — restored below from
+            # the frozen snapshot if one exists. Nulled here first so a row logged before these
+            # columns existed (or any other missing snapshot) still renders as "not captured"
+            # rather than falling through to a live, leakage-exposed recompute (get_pitcher_season_log/
+            # recent_team_batting/etc. have no date cutoff, so a started/finished game's own outing
+            # would already be baked into a fresh "head-to-head"/"recent form" read by request time).
             h2h_out = None
-            # rating_out/feature_breakdown_out ARE logged (rating_breakdown_json) — restored below
-            # from the frozen snapshot if one exists, same as recent_form/season_stats/team_stats.
-            # Nulled here first so an ungraded/pre-dashboard-fix older log row (no rating_breakdown_json
-            # captured) still renders as "not captured" rather than falling through to a live,
-            # potentially leakage-exposed recompute.
             rating_out = None
             feature_breakdown_out = None
-            # market_model_prob (Model B's comparison probability) is a live re-inference off the
-            # same feats dict as h2h_out/rating_out above and isn't logged anywhere either — same
-            # leakage exposure, same honest fix: don't show a live-recomputed value once the
-            # game's own outing may already be baked into the inputs that produced it.
             market_model_prob = None
-            # simulation_out is a live re-simulation off the same IP/ER point projections used to
-            # build the (already-frozen-below) blended prediction — same leakage exposure and same
-            # honest fix as market_model_prob above.
             simulation_out = None
-            # recent_team_batting is a live "last 7 games" computation with no date cutoff, same
-            # leakage exposure as h2h_out above — a decided game's own batting line would already
-            # be baked into "recent form" by the time this request runs. team_stats_out is IS
-            # logged (see log_predictions' team_stats_json), so it gets restored from the frozen
-            # snapshot below when one exists, same as recent_form/season_stats.
             team_stats_out = None
-            # Same reasoning again: a batter's vs-hand split and season AVG are season snapshots
-            # (low leakage risk on their own), but this is still keyed to the confirmed lineup at
-            # prediction time — restored from the frozen log below when logged, null otherwise.
             lineup_breakdown_out = None
             frozen = get_logged_prediction(resolved_date, g.get("game_pk")) if g.get("game_pk") else None
             if frozen:
@@ -2203,6 +2204,12 @@ def today(date: str = None):
                     rating_out = frozen["rating_breakdown"]
                 if frozen.get("feature_breakdown"):
                     feature_breakdown_out = frozen["feature_breakdown"]
+                if frozen.get("h2h"):
+                    h2h_out = frozen["h2h"]
+                if frozen.get("market_model_prob") is not None:
+                    market_model_prob = frozen["market_model_prob"]
+                if frozen.get("simulation"):
+                    simulation_out = frozen["simulation"]
                 prediction_frozen = True
 
             # Same freeze, same reason, for the K-prop card — it was still being

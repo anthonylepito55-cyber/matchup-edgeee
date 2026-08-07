@@ -33,6 +33,11 @@ PRE_GAME_STATUSES = {"Scheduled", "Pre-Game", "Warmup"}
 LOG_COLUMNS = [
     "date", "game_pk", "home_team_abbr", "away_team_abbr",
     "home_pitcher_name", "away_pitcher_name",
+    "home_pitcher_id", "away_pitcher_id",  # needed to look up this game's frozen strikeout/IP/ER
+    # prop predictions (see strikeout_prediction_log.get_logged_*, keyed by (date, game_pk, pitcher_id))
+    # from get_games_for_date -- those props were already being frozen in their own log, just never
+    # joined back in for the previous-day tab.
+    "venue", "game_time_utc",  # display-only metadata, cheap to keep
     # NOTE the naming trap here: despite its name, "model_home_win_prob" has always held the
     # FINAL/displayed probability (after _apply_confidence_override), not the raw pre-override
     # model output — log_predictions below reads pred.get("home_win_prob"), not
@@ -46,6 +51,12 @@ LOG_COLUMNS = [
     "rating_breakdown_json",  # pre-game snapshot of the display-only composite rating system's category breakdown — see rating_system.py; NOT used as a model input, purely for the previous-day tab to show alongside the actual prediction
     "feature_breakdown_json",  # pre-game snapshot of every individual raw diff feature behind rating_breakdown_json's category rollups — see rating_system.feature_level_breakdown; same non-model, display-only status
     "market_home_prob",       # de-vigged implied home win prob from live_odds at prediction time, if available
+    "market_model_prob",      # Model B's own (market-inclusive) probability, distinct from market_home_prob above (which is the raw devigged odds line, not a model output)
+    "live_odds_json", "book_odds_json",  # the moneyline pair and the full multi-book consensus panel, frozen at prediction time -- these are point-in-time market snapshots, showing "current" odds for a past game would be actively misleading
+    "h2h_json",                # this pitcher-vs-opponent head-to-head history -- previously nulled for decided games (see main.py's old h2h_out leakage comment) since there was nowhere to freeze it; now captured like everything else here
+    "simulation_json",         # the Monte Carlo run-distribution output (win_prob_home/projected_total/projected_spread/etc.) -- same previously-nulled-for-decided-games gap as h2h above
+    "injuries_json", "pitcher_warnings_json", "data_quality_json",
+    "opener_affected", "note",
     "logged_at",
     "settled", "home_score", "away_score", "home_won", "correct",
 ]
@@ -152,22 +163,38 @@ def log_predictions(date: str, games: list[dict]):
             _devig_home_prob(live_odds["home"], live_odds["away"]) if live_odds else None
         )
 
+        def _j(key):
+            val = g.get(key)
+            return json.dumps(val) if val else None
+
         row = {
             "date": date, "game_pk": game_pk,
             "home_team_abbr": g.get("home_team_abbr"), "away_team_abbr": g.get("away_team_abbr"),
             "home_pitcher_name": g.get("home_pitcher_name"), "away_pitcher_name": g.get("away_pitcher_name"),
+            "home_pitcher_id": g.get("home_pitcher_id"), "away_pitcher_id": g.get("away_pitcher_id"),
+            "venue": g.get("venue"), "game_time_utc": g.get("game_time_utc"),
             "model_home_win_prob": pred.get("home_win_prob"),
             "raw_model_home_win_prob": pred.get("model_home_win_prob"),
             "overridden": pred.get("overridden", False),
             "reason": g.get("reason"),
-            "recent_form_json": json.dumps(g.get("recent_form")) if g.get("recent_form") else None,
-            "last3_form_json": json.dumps(g.get("last3_form")) if g.get("last3_form") else None,
-            "season_stats_json": json.dumps(g.get("season_stats")) if g.get("season_stats") else None,
-            "team_stats_json": json.dumps(g.get("team_stats")) if g.get("team_stats") else None,
-            "lineup_breakdown_json": json.dumps(g.get("lineup_breakdown")) if g.get("lineup_breakdown") else None,
-            "rating_breakdown_json": json.dumps(g.get("rating_breakdown")) if g.get("rating_breakdown") else None,
-            "feature_breakdown_json": json.dumps(g.get("feature_breakdown")) if g.get("feature_breakdown") else None,
+            "recent_form_json": _j("recent_form"),
+            "last3_form_json": _j("last3_form"),
+            "season_stats_json": _j("season_stats"),
+            "team_stats_json": _j("team_stats"),
+            "lineup_breakdown_json": _j("lineup_breakdown"),
+            "rating_breakdown_json": _j("rating_breakdown"),
+            "feature_breakdown_json": _j("feature_breakdown"),
             "market_home_prob": market_home_prob,
+            "market_model_prob": g.get("market_model_prob"),
+            "live_odds_json": _j("live_odds"),
+            "book_odds_json": _j("book_odds"),
+            "h2h_json": _j("h2h"),
+            "simulation_json": _j("simulation"),
+            "injuries_json": _j("injuries"),
+            "pitcher_warnings_json": _j("pitcher_warnings"),
+            "data_quality_json": _j("data_quality"),
+            "opener_affected": g.get("opener_affected", False),
+            "note": g.get("note"),
             "logged_at": datetime.now().isoformat(),
         }
 
@@ -255,6 +282,14 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "lineup_breakdown": _load_json("lineup_breakdown_json"),
         "rating_breakdown": _load_json("rating_breakdown_json"),
         "feature_breakdown": _load_json("feature_breakdown_json"),
+        "market_model_prob": r.get("market_model_prob") if pd.notna(r.get("market_model_prob")) else None,
+        "live_odds": _load_json("live_odds_json"),
+        "book_odds": _load_json("book_odds_json"),
+        "h2h": _load_json("h2h_json"),
+        "simulation": _load_json("simulation_json"),
+        "injuries": _load_json("injuries_json"),
+        "pitcher_warnings": _load_json("pitcher_warnings_json"),
+        "data_quality": _load_json("data_quality_json"),
     }
 
 
@@ -373,18 +408,26 @@ def get_games_for_date(date: str) -> list[dict]:
         except (TypeError, ValueError):
             return None
 
+    def _int_or_none(val):
+        return int(val) if pd.notna(val) else None
+
     out = []
     for _, r in day.sort_values("game_pk").iterrows():
         out.append({
             "game_pk": int(r["game_pk"]) if pd.notna(r["game_pk"]) else None,
             "home_team_abbr": r["home_team_abbr"], "away_team_abbr": r["away_team_abbr"],
             "home_pitcher_name": r["home_pitcher_name"], "away_pitcher_name": r["away_pitcher_name"],
+            "home_pitcher_id": _int_or_none(r.get("home_pitcher_id")),
+            "away_pitcher_id": _int_or_none(r.get("away_pitcher_id")),
+            "venue": r.get("venue") if pd.notna(r.get("venue")) else None,
+            "game_time_utc": r.get("game_time_utc") if pd.notna(r.get("game_time_utc")) else None,
             "model_home_win_prob": float(r["model_home_win_prob"]) if pd.notna(r["model_home_win_prob"]) else None,
             "raw_model_home_win_prob": (
                 float(r["raw_model_home_win_prob"]) if pd.notna(r["raw_model_home_win_prob"]) else None
             ),
             "overridden": bool(r["overridden"]) if pd.notna(r["overridden"]) else False,
             "market_home_prob": float(r["market_home_prob"]) if pd.notna(r["market_home_prob"]) else None,
+            "market_model_prob": float(r["market_model_prob"]) if pd.notna(r.get("market_model_prob")) else None,
             "reason": r.get("reason"),
             # Pre-game snapshot of each pitcher's recent-form/season stat line, frozen at
             # prediction time — same fields the live "pitcher stats" toggle shows, just
@@ -398,6 +441,15 @@ def get_games_for_date(date: str) -> list[dict]:
             "lineup_breakdown": _load_json(r, "lineup_breakdown_json"),
             "rating_breakdown": _load_json(r, "rating_breakdown_json"),
             "feature_breakdown": _load_json(r, "feature_breakdown_json"),
+            "live_odds": _load_json(r, "live_odds_json"),
+            "book_odds": _load_json(r, "book_odds_json"),
+            "h2h": _load_json(r, "h2h_json"),
+            "simulation": _load_json(r, "simulation_json"),
+            "injuries": _load_json(r, "injuries_json"),
+            "pitcher_warnings": _load_json(r, "pitcher_warnings_json"),
+            "data_quality": _load_json(r, "data_quality_json"),
+            "opener_affected": bool(r.get("opener_affected")) if pd.notna(r.get("opener_affected")) else False,
+            "note": r.get("note") if pd.notna(r.get("note")) else None,
             "settled": bool(r["settled"]) if pd.notna(r["settled"]) else False,
             "home_score": int(r["home_score"]) if pd.notna(r["home_score"]) else None,
             "away_score": int(r["away_score"]) if pd.notna(r["away_score"]) else None,
