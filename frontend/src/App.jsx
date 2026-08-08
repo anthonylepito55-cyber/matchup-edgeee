@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import ProbabilityBar from './ProbabilityBar.jsx'
 import ModelStatus from './ModelStatus.jsx'
 import TrackRecord from './TrackRecord.jsx'
+import UserTrackRecord from './UserTrackRecord.jsx'
 import StrikeoutTrackRecord from './StrikeoutTrackRecord.jsx'
 import PitcherDetail from './PitcherDetail.jsx'
 import TeamDetail from './TeamDetail.jsx'
@@ -12,8 +13,13 @@ import { getTeamColor } from './teamColors.js'
 
 const API_BASE = ''  // proxied to localhost:8000 via vite.config.js
 
-const HIGH_CONVICTION_THRESHOLD = 0.20 // |home_win_prob - 0.5| at or above this gets a "top pick" badge
-const SURE_CONVICTION_THRESHOLD = 0.08 // |home_win_prob - 0.5| at or above this, with no active caveats, counts as "sure"
+// Both thresholds below are walk-forward calibrated (5-fold, 5,475 pooled out-of-fold games,
+// not a single eyeballed split) -- see backend/_conviction_threshold_calibration.py.
+// Accuracy climbs steadily with conviction up to ~0.12, then flattens/gets noisy past that on a
+// shrinking sample (174 games at 0.15, 43 at 0.18) -- so 0.12 is the highest threshold this data
+// actually supports trusting, not just the highest number that looked good once.
+const HIGH_CONVICTION_THRESHOLD = 0.12 // |home_win_prob - 0.5| at or above this gets a "top pick" badge -- 67.0% accuracy, 524 games (9.6% of slate)
+const SURE_CONVICTION_THRESHOLD = 0.10 // |home_win_prob - 0.5| at or above this, with no active caveats, counts as "sure" -- 63.8% accuracy, 932 games (17.0% of slate)
 
 export default function App() {
   const [data, setData] = useState(null)
@@ -100,6 +106,7 @@ export default function App() {
           <>
             <ModelStatus />
             <TrackRecord />
+            <UserTrackRecord />
             <StrikeoutTrackRecord />
             <ViewToggle view={view} onChange={setView} />
 
@@ -360,6 +367,91 @@ function PitcherLink({ id, name, onSelect }) {
   )
 }
 
+const PRE_GAME_STATUSES = new Set(['Scheduled', 'Pre-Game', 'Warmup'])
+
+export function UserPickPicker({ game }) {
+  const [pick, setPick] = useState(game.user_pick?.picked_team ?? null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    setPick(game.user_pick?.picked_team ?? null)
+  }, [game.user_pick?.picked_team])
+
+  const isPreGame = PRE_GAME_STATUSES.has(game.status)
+  const settled = game.settled ?? (game.home_score != null && game.away_score != null)
+  const actualWinner = settled
+    ? (game.home_won != null ? (game.home_won ? game.home_team_abbr : game.away_team_abbr) : null)
+    : null
+
+  async function choose(team) {
+    if (!isPreGame || saving) return
+    setSaving(true)
+    setError(null)
+    const prevPick = pick
+    setPick(team) // optimistic
+    try {
+      const res = await fetch('/api/user-pick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: game.game_date, game_pk: game.game_pk,
+          home_team_abbr: game.home_team_abbr, away_team_abbr: game.away_team_abbr,
+          picked_team: team, game_status: game.status,
+        }),
+      })
+      const body = await res.json()
+      if (body.status !== 'ok') {
+        setPick(prevPick)
+        setError(body.reason || 'could not save pick')
+      }
+    } catch {
+      setPick(prevPick)
+      setError('could not reach server')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!isPreGame && !pick) return null // never picked, game already started -- nothing to show
+
+  return (
+    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <span className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        your pick:
+      </span>
+      {isPreGame ? (
+        <>
+          <PickButton label={game.away_team_abbr} active={pick === game.away_team_abbr} onClick={() => choose(game.away_team_abbr)} />
+          <PickButton label={game.home_team_abbr} active={pick === game.home_team_abbr} onClick={() => choose(game.home_team_abbr)} />
+          {pick && <span className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>locks when the game starts</span>}
+        </>
+      ) : (
+        <span className="mono" style={{
+          fontSize: 11, fontWeight: 700,
+          color: !settled ? 'var(--text-tertiary)' : (pick === actualWinner ? 'var(--edge-pos)' : 'var(--edge-neg)'),
+        }}>
+          {pick} {settled ? (pick === actualWinner ? '— correct' : '— wrong') : '(locked, not yet settled)'}
+        </span>
+      )}
+      {error && <span className="mono" style={{ fontSize: 10, color: 'var(--edge-neg)' }}>{error}</span>}
+    </div>
+  )
+}
+
+function PickButton({ label, active, onClick }) {
+  return (
+    <button onClick={onClick} className="mono" style={{
+      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 5, cursor: 'pointer',
+      background: active ? 'var(--amber)' : 'transparent',
+      color: active ? 'var(--panel)' : 'var(--text-secondary)',
+      border: `1px solid ${active ? 'var(--amber)' : 'var(--line)'}`,
+    }}>
+      {label}
+    </button>
+  )
+}
+
 function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, onSelectTeam, animDelay = 0 }) {
   const [showMarket, setShowMarket] = useState(false)
   const [showStats, setShowStats] = useState(false)
@@ -433,6 +525,8 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
       {game.data_quality && !game.data_quality.complete && (
         <DataQualityWarning dataQuality={game.data_quality} />
       )}
+
+      <UserPickPicker game={game} />
 
       {pred ? (
         <>

@@ -69,6 +69,7 @@ from strikeout_prediction_log import (
     get_logged_strikeout_prediction, get_strikeouts_for_date,
     get_logged_ip_prediction, get_logged_er_prediction, get_ip_track_record, get_er_track_record,
 )
+from user_picks import set_user_pick, get_user_pick, get_user_picks_for_date, get_user_track_record
 import model as model_module
 import rating_system
 import props as props_module
@@ -1539,6 +1540,7 @@ def history_for_date(date: str):
         g["strikeout_predictions"] = strikeout_predictions
         g["ip_predictions"] = ip_predictions
         g["er_predictions"] = er_predictions
+        g["user_pick"] = get_user_pick(date, g["game_pk"]) if g.get("game_pk") else None
         games.append(g)
 
     settled = [g for g in games if g["settled"]]
@@ -2255,6 +2257,7 @@ def today(date: str = None):
         # request, before the freeze block) — for an already-decided game this is a display-only field
         # that doesn't feed back into the frozen prediction number, so it's a minor, bounded imprecision
         # rather than the kind of leakage this freeze system exists to prevent.
+        user_pick_out = get_user_pick(resolved_date, g["game_pk"]) if g.get("game_pk") else None
         results.append({
             **g, "prediction": prediction, "live_odds": live_odds_out,
             "recent_form": recent_form_out, "last3_form": last3_form_out, "season_stats": season_stats_out, "reason": reason,
@@ -2265,7 +2268,7 @@ def today(date: str = None):
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "simulation": simulation_out, "injuries": injuries_out,
-            "book_odds": book_odds_out,
+            "book_odds": book_odds_out, "user_pick": user_pick_out,
             "note": None if prediction else "Model not trained yet — run train.py",
         })
 
@@ -2287,6 +2290,29 @@ def today(date: str = None):
 @app.get("/api/track-record")
 def track_record():
     return get_track_record()
+
+
+@app.post("/api/user-pick")
+def user_pick(payload: dict):
+    """
+    Locks in the user's own pick for one game -- payload: {date, game_pk, home_team_abbr,
+    away_team_abbr, picked_team, game_status}. Only settable while game_status is a pre-game
+    state (same freeze point as the model's own predictions) -- see user_picks.set_user_pick's
+    docstring for why a post-start change isn't allowed.
+    """
+    required = ("date", "game_pk", "home_team_abbr", "away_team_abbr", "picked_team", "game_status")
+    missing = [k for k in required if k not in payload]
+    if missing:
+        return JSONResponse({"status": "error", "reason": f"missing fields: {missing}"}, status_code=400)
+    return set_user_pick(
+        payload["date"], int(payload["game_pk"]), payload["home_team_abbr"], payload["away_team_abbr"],
+        payload["picked_team"], payload["game_status"],
+    )
+
+
+@app.get("/api/user-track-record")
+def user_track_record():
+    return get_user_track_record()
 
 
 @app.get("/api/strikeout-track-record")

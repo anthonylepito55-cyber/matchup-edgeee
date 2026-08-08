@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   RecentFormLine, SeasonStatsLine, TeamStatsLine, LineupBreakdown, InjuryReport,
-  H2HLine, BookByBookOdds, ToggleLink, PitcherProjectionHeadline,
+  H2HLine, BookByBookOdds, ToggleLink, PitcherProjectionHeadline, UserPickPicker,
 } from './App.jsx'
 
 export default function HistorySection() {
@@ -182,6 +182,8 @@ function HistoryGameCard({ game: g }) {
           <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>not yet settled</span>
         )}
       </div>
+
+      <UserPickPicker game={g} />
 
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
         Favored: <span style={{ fontWeight: 700 }}>{favoredTeam}</span> {favoredProb != null && `${(favoredProb * 100).toFixed(0)}%`}
