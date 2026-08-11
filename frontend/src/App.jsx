@@ -3,6 +3,7 @@ import ProbabilityBar from './ProbabilityBar.jsx'
 import ModelStatus from './ModelStatus.jsx'
 import TrackRecord from './TrackRecord.jsx'
 import UserTrackRecord from './UserTrackRecord.jsx'
+import CLVTrackRecord from './CLVTrackRecord.jsx'
 import StrikeoutTrackRecord from './StrikeoutTrackRecord.jsx'
 import PitcherDetail from './PitcherDetail.jsx'
 import TeamDetail from './TeamDetail.jsx'
@@ -107,6 +108,7 @@ export default function App() {
             <ModelStatus />
             <TrackRecord />
             <UserTrackRecord />
+            <CLVTrackRecord />
             <StrikeoutTrackRecord />
             <ViewToggle view={view} onChange={setView} />
 

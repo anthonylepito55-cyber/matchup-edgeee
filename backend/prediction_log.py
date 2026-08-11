@@ -377,6 +377,69 @@ def get_track_record() -> dict:
     return {"total": total, "correct": correct, "accuracy": round(correct / total, 4), "brier": round(brier, 4), "recent": recent_out}
 
 
+# Same bucket boundaries used in the backtest analysis (analyze_model_a_clv.py) this is the real
+# forward-test counterpart to -- kept identical so the two numbers are directly comparable as the
+# live sample grows.
+CLV_EDGE_BUCKETS = (0.0, 0.05, 0.10, 0.15)
+
+
+def get_clv_track_record() -> dict:
+    """
+    Real forward test of "does betting the model against the market actually work" -- not a
+    backtest. Every settled row already has model_home_win_prob (the served prediction) and
+    market_home_prob (de-vigged live odds, frozen at prediction time, same field the previous-day
+    tab already shows) -- both captured before the outcome was known, so this is a genuine blind
+    record, same discipline as get_track_record/get_user_track_record.
+
+    Buckets by |model - market| edge (see CLV_EDGE_BUCKETS): for each threshold, "does the
+    model's pick actually land more often than a coin flip when it disagrees with the market by
+    at least this much." This directly mirrors analyze_model_a_clv.py's backtest methodology, so
+    the two can be compared honestly over time -- the backtest says what the edge USED to look
+    like across historical data; this says what it's actually doing since it started being
+    tracked. Grows slowly (one slate a day), so early reads are mostly noise -- same caveat as
+    every other track record in this app.
+    """
+    log = _read_log()
+    settled = log[log["settled"] == True]  # noqa: E712
+    matched = settled[settled["market_home_prob"].notna() & settled["model_home_win_prob"].notna()].copy()
+    if matched.empty:
+        return {"total": 0, "buckets": [], "recent": []}
+
+    matched["model_home_win_prob"] = matched["model_home_win_prob"].astype(float)
+    matched["market_home_prob"] = matched["market_home_prob"].astype(float)
+    matched["home_won"] = matched["home_won"].astype(bool)
+    matched["edge"] = matched["model_home_win_prob"] - matched["market_home_prob"]
+
+    buckets = []
+    for threshold in CLV_EDGE_BUCKETS:
+        sub = matched[matched["edge"].abs() >= threshold]
+        n = len(sub)
+        if n == 0:
+            buckets.append({"threshold": threshold, "games": 0, "correct": 0, "accuracy": None})
+            continue
+        model_pick_home = sub["model_home_win_prob"] >= 0.5
+        correct = int((model_pick_home == sub["home_won"]).sum())
+        buckets.append({
+            "threshold": threshold, "games": n, "correct": correct,
+            "accuracy": round(correct / n, 4),
+        })
+
+    recent = matched.sort_values("date", ascending=False).head(30)
+    recent_out = [
+        {
+            "date": r["date"], "matchup": f"{r['away_team_abbr']}@{r['home_team_abbr']}",
+            "model_home_win_prob": round(float(r["model_home_win_prob"]), 4),
+            "market_home_prob": round(float(r["market_home_prob"]), 4),
+            "edge": round(float(r["edge"]), 4),
+            "home_won": bool(r["home_won"]),
+            "correct": bool((r["model_home_win_prob"] >= 0.5) == r["home_won"]),
+        }
+        for _, r in recent.iterrows()
+    ]
+
+    return {"total": len(matched), "buckets": buckets, "recent": recent_out}
+
+
 def get_available_dates() -> list[str]:
     """Every date with at least one logged prediction, most recent first — powers the
     frontend's previous-day tab so it only offers dates that actually have data."""

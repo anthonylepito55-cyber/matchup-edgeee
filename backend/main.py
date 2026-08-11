@@ -62,7 +62,7 @@ from odds_fetcher import (
 from weather import get_rain_risk, get_game_weather_live, team_travel_miles, TEAM_HOME_VENUE
 from prediction_log import (
     log_predictions, settle_predictions, get_track_record, get_logged_prediction, PRE_GAME_STATUSES,
-    get_available_dates, get_games_for_date,
+    get_available_dates, get_games_for_date, get_clv_track_record,
 )
 from strikeout_prediction_log import (
     log_strikeout_predictions, settle_strikeout_predictions, get_strikeout_track_record,
@@ -2290,6 +2290,11 @@ def today(date: str = None):
 @app.get("/api/track-record")
 def track_record():
     return get_track_record()
+
+
+@app.get("/api/clv-track-record")
+def clv_track_record():
+    return get_clv_track_record()
 
 
 @app.post("/api/user-pick")
