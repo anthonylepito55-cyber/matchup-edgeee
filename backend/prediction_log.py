@@ -24,6 +24,12 @@ from data_collection import CACHE_DIR, MLB_STATS_API
 from odds_fetcher import devig_home_prob as _devig_home_prob
 
 LOG_PATH = os.path.join(CACHE_DIR, "prediction_log.parquet")
+# Precomputed by compute_clv_backtest_cache.py — a full walk-forward retrain is far too slow to
+# run inside a request, so this is a static snapshot, occasionally refreshed manually, not a
+# per-request computation like the rest of this file. Lives in model_artifacts/, NOT data_cache/
+# (data_cache/ is gitignored -- Railway never sees it -- while model_artifacts/ is deliberately
+# committed, same reason the trained model files themselves are: no retrain-on-deploy step).
+CLV_BACKTEST_CACHE_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "clv_backtest_summary.json")
 
 # Shared with main.py: a game only gets a fresh live-computed prediction while
 # it's in one of these states — once it's started, main.py serves the frozen
@@ -398,12 +404,27 @@ def get_clv_track_record() -> dict:
     like across historical data; this says what it's actually doing since it started being
     tracked. Grows slowly (one slate a day), so early reads are mostly noise -- same caveat as
     every other track record in this app.
+
+    Also returns "historical_backtest" (from compute_clv_backtest_cache.py's static JSON cache,
+    None if that hasn't been run) -- the two are DIFFERENT methodologies (fold-retrained model on
+    old data vs. the literal model that was live that day) and are kept as separate labeled
+    fields rather than merged into one number, specifically so a real divergence between them
+    (which is exactly what showed up the first time this was built -- 62% backtest vs 50% live on
+    a small early sample) stays visible instead of getting averaged away.
     """
+    historical_backtest = None
+    if os.path.exists(CLV_BACKTEST_CACHE_PATH):
+        try:
+            with open(CLV_BACKTEST_CACHE_PATH) as f:
+                historical_backtest = json.load(f)
+        except (OSError, ValueError):
+            historical_backtest = None
+
     log = _read_log()
     settled = log[log["settled"] == True]  # noqa: E712
     matched = settled[settled["market_home_prob"].notna() & settled["model_home_win_prob"].notna()].copy()
     if matched.empty:
-        return {"total": 0, "buckets": [], "recent": []}
+        return {"total": 0, "buckets": [], "recent": [], "since": None, "historical_backtest": historical_backtest}
 
     matched["model_home_win_prob"] = matched["model_home_win_prob"].astype(float)
     matched["market_home_prob"] = matched["market_home_prob"].astype(float)
@@ -437,7 +458,11 @@ def get_clv_track_record() -> dict:
         for _, r in recent.iterrows()
     ]
 
-    return {"total": len(matched), "buckets": buckets, "recent": recent_out}
+    return {
+        "total": len(matched), "buckets": buckets, "recent": recent_out,
+        "since": str(matched["date"].min()),
+        "historical_backtest": historical_backtest,
+    }
 
 
 def get_available_dates() -> list[str]:

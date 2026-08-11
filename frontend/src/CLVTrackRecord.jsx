@@ -29,7 +29,10 @@ export default function CLVTrackRecord() {
           {expanded ? 'hide' : 'show'} recent
         </button>
       </div>
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 8 }}>
+      <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 10 }}>
+        real forward record — since {record.since}
+      </div>
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 6 }}>
         {record.buckets.map(b => (
           <Metric
             key={b.threshold}
@@ -39,10 +42,35 @@ export default function CLVTrackRecord() {
           />
         ))}
       </div>
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>
-        Real forward record of the model's pick vs the market's own price at prediction time, graded
-        against actual outcomes once each game is final — not a backtest. Small buckets (especially the
-        higher edge thresholds) grow slowly; treat early reads as noise, not a verdict.
+
+      {record.historical_backtest && (
+        <>
+          <div className="mono" style={{
+            fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em',
+            marginTop: 14, borderTop: '1px dashed var(--line)', paddingTop: 10,
+          }}>
+            historical backtest — {record.historical_backtest.date_range[0]} to {record.historical_backtest.date_range[1]} (fold-retrained model, not the literal live model)
+          </div>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 6 }}>
+            {record.historical_backtest.buckets.map(b => (
+              <Metric
+                key={b.threshold}
+                label={bucketLabel(b.threshold)}
+                value={b.accuracy != null ? `${(b.accuracy * 100).toFixed(1)}% (${b.correct}/${b.games})` : '—'}
+                highlight={false}
+                dim
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 10 }}>
+        The top row is a genuine forward test — the model's pick vs the market's own price at prediction
+        time, graded once each game is final. The bottom row is a historical backtest on older games using
+        a model retrained fold-by-fold, not literally the model that was live that day — kept separate on
+        purpose, since the two can (and here, do) disagree. Small buckets, especially the higher edge
+        thresholds, grow slowly; treat early reads as noise, not a verdict.
       </div>
 
       {expanded && (
@@ -71,13 +99,16 @@ export default function CLVTrackRecord() {
   )
 }
 
-function Metric({ label, value, highlight }) {
+function Metric({ label, value, highlight, dim }) {
   return (
     <div>
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         {label}
       </div>
-      <div className="mono" style={{ fontSize: 14, color: highlight ? 'var(--edge-pos)' : 'var(--text-primary)', fontWeight: 600 }}>
+      <div className="mono" style={{
+        fontSize: dim ? 12 : 14, fontWeight: dim ? 500 : 600,
+        color: highlight ? 'var(--edge-pos)' : (dim ? 'var(--text-secondary)' : 'var(--text-primary)'),
+      }}>
         {value}
       </div>
     </div>
