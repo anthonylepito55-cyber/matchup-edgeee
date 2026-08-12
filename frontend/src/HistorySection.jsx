@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   RecentFormLine, SeasonStatsLine, TeamStatsLine, LineupBreakdown, InjuryReport,
-  H2HLine, BookByBookOdds, ToggleLink, PitcherProjectionHeadline, UserPickPicker,
+  H2HLine, BookByBookOdds, PredictionMarketOdds, ToggleLink, PitcherProjectionHeadline, UserPickPicker,
 } from './App.jsx'
 
 export default function HistorySection() {
@@ -275,6 +275,9 @@ function HistoryGameCard({ game: g }) {
           {showBookOdds && (
             <div style={{ marginTop: 8 }}>
               <BookByBookOdds bookOdds={g.book_odds} awayAbbr={away} homeAbbr={home} />
+              {g.prediction_market_odds && Object.keys(g.prediction_market_odds).length > 0 && (
+                <PredictionMarketOdds odds={g.prediction_market_odds} awayAbbr={away} homeAbbr={home} />
+              )}
             </div>
           )}
         </div>

@@ -700,6 +700,9 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
               {game.book_odds && Object.keys(game.book_odds).length > 0 && (
                 <BookByBookOdds bookOdds={game.book_odds} awayAbbr={game.away_team_abbr} homeAbbr={game.home_team_abbr} />
               )}
+              {game.prediction_market_odds && Object.keys(game.prediction_market_odds).length > 0 && (
+                <PredictionMarketOdds odds={game.prediction_market_odds} awayAbbr={game.away_team_abbr} homeAbbr={game.home_team_abbr} />
+              )}
             </div>
           )}
         </>
@@ -1019,6 +1022,30 @@ export function BookByBookOdds({ bookOdds, awayAbbr, homeAbbr }) {
     <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 4 }}>
         book-by-book ({homeAbbr} win prob)
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {entries.map(([book, prob]) => (
+          <div key={book} className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', display: 'flex', gap: 6 }}>
+            <span style={{ flex: 1, color: 'var(--text-secondary)' }}>{book}</span>
+            <span>{awayAbbr} {((1 - prob) * 100).toFixed(0)}%</span>
+            <span style={{ width: 8 }} />
+            <span>{homeAbbr} {(prob * 100).toFixed(0)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Prediction-market exchanges (Kalshi, Polymarket) shown as their own small panel, distinct from
+// BookByBookOdds' sportsbooks above — real-money event contracts, not bookmaker-set lines. Same
+// shape/rendering as BookByBookOdds by design (odds: {book: devigged_home_prob}).
+export function PredictionMarketOdds({ odds, awayAbbr, homeAbbr }) {
+  const entries = Object.entries(odds).sort((a, b) => b[1] - a[1])
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 4 }}>
+        prediction markets ({homeAbbr} win prob)
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {entries.map(([book, prob]) => (

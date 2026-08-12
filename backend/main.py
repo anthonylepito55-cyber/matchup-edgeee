@@ -1734,6 +1734,11 @@ def today(date: str = None):
         # for line-shopping transparency in the "market odds" panel, not a model feature itself
         # (consensus_prob_diff/book_disagreement above ARE features, derived from the same data).
         book_odds_out = game_snapshot.get("book_probs") or None
+        # Same idea as book_odds_out, but for prediction-market exchanges (Kalshi, Polymarket)
+        # instead of sportsbooks — shown as their own small panel since they're a structurally
+        # different kind of market (real-money event contracts, not bookmaker-set lines), not
+        # folded into book_odds_out's sportsbook list.
+        prediction_market_odds_out = game_snapshot.get("prediction_market_probs") or None
         # Live-only, display-only injury report — see odds_fetcher.get_active_injuries. Shown even
         # before a game has started or a probable pitcher is announced, unlike the model-feature
         # fields below, since it's just today's real-time roster context, not a leakage risk.
@@ -1774,7 +1779,8 @@ def today(date: str = None):
         if not g["home_pitcher_id"] or not g["away_pitcher_id"]:
             results.append({
                 **g, "prediction": None, "live_odds": live_odds_out, "injuries": injuries_out,
-                "book_odds": book_odds_out, "note": "Probable pitcher not yet announced",
+                "book_odds": book_odds_out, "prediction_market_odds": prediction_market_odds_out,
+                "note": "Probable pitcher not yet announced",
             })
             continue
 
@@ -2268,7 +2274,8 @@ def today(date: str = None):
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "simulation": simulation_out, "injuries": injuries_out,
-            "book_odds": book_odds_out, "user_pick": user_pick_out,
+            "book_odds": book_odds_out, "prediction_market_odds": prediction_market_odds_out,
+            "user_pick": user_pick_out,
             "note": None if prediction else "Model not trained yet — run train.py",
         })
 

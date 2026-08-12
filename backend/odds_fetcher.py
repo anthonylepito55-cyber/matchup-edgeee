@@ -302,7 +302,7 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     {(away_team_full_name, home_team_full_name): {
         "line_movement": .., "market_divergence": .., "consensus_prob": ..,
         "book_disagreement": .., "book_probs": {book: devigged_home_prob},
-        "prediction_market_diff": ..,
+        "prediction_market_diff": .., "prediction_market_probs": {book: devigged_home_prob},
     }} — the single shared fetch behind get_line_movement/get_market_divergence/
     get_consensus_odds/get_prediction_market_signal below (all thin wrappers over this), so a
     request needing several of these fields doesn't pay for the same panel twice. Two API calls
@@ -410,12 +410,17 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 book_movement_agreement = (toward_home - toward_away) / len(book_movements)
 
             # Prediction markets: current (clv) price only, never opening — see
-            # PREDICTION_MARKET_BOOKS' docstring on the confirmed opening-price artifact.
+            # PREDICTION_MARKET_BOOKS' docstring on the confirmed opening-price artifact. Keeps
+            # the per-book breakdown (prediction_market_probs), not just the averaged diff used
+            # as a model feature — the previous-day/live display wants to show "Kalshi: 55%"
+            # directly, not just its distance from Pinnacle.
             pred_probs = []
+            prediction_market_probs = {}
             for book, o in pred_panel.items():
                 p = devig_home_prob(o.get("home"), o.get("away"))
                 if p is not None:
                     pred_probs.append(p)
+                    prediction_market_probs[book] = p
             prediction_market_diff = None
             if pred_probs and CLOSING_BOOK in probs_now:
                 prediction_market_diff = (sum(pred_probs) / len(pred_probs)) - probs_now[CLOSING_BOOK]
@@ -446,6 +451,7 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 "book_favor_diff": book_favor_diff,
                 "book_probs": probs_now,
                 "prediction_market_diff": prediction_market_diff,
+                "prediction_market_probs": prediction_market_probs,
                 "team_total_diff": team_total_diff,
                 "market_total_runs": market_total_runs,
             }

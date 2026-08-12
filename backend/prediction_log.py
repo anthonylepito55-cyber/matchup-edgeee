@@ -59,6 +59,7 @@ LOG_COLUMNS = [
     "market_home_prob",       # de-vigged implied home win prob from live_odds at prediction time, if available
     "market_model_prob",      # Model B's own (market-inclusive) probability, distinct from market_home_prob above (which is the raw devigged odds line, not a model output)
     "live_odds_json", "book_odds_json",  # the moneyline pair and the full multi-book consensus panel, frozen at prediction time -- these are point-in-time market snapshots, showing "current" odds for a past game would be actively misleading
+    "prediction_market_odds_json",  # {book: devigged_home_prob} for Kalshi/Polymarket -- same point-in-time-snapshot reasoning as book_odds_json above, just for prediction-market exchanges instead of sportsbooks
     "h2h_json",                # this pitcher-vs-opponent head-to-head history -- previously nulled for decided games (see main.py's old h2h_out leakage comment) since there was nowhere to freeze it; now captured like everything else here
     "simulation_json",         # the Monte Carlo run-distribution output (win_prob_home/projected_total/projected_spread/etc.) -- same previously-nulled-for-decided-games gap as h2h above
     "injuries_json", "pitcher_warnings_json", "data_quality_json",
@@ -194,6 +195,7 @@ def log_predictions(date: str, games: list[dict]):
             "market_model_prob": g.get("market_model_prob"),
             "live_odds_json": _j("live_odds"),
             "book_odds_json": _j("book_odds"),
+            "prediction_market_odds_json": _j("prediction_market_odds"),
             "h2h_json": _j("h2h"),
             "simulation_json": _j("simulation"),
             "injuries_json": _j("injuries"),
@@ -291,6 +293,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "market_model_prob": r.get("market_model_prob") if pd.notna(r.get("market_model_prob")) else None,
         "live_odds": _load_json("live_odds_json"),
         "book_odds": _load_json("book_odds_json"),
+        "prediction_market_odds": _load_json("prediction_market_odds_json"),
         "h2h": _load_json("h2h_json"),
         "simulation": _load_json("simulation_json"),
         "injuries": _load_json("injuries_json"),
@@ -531,6 +534,7 @@ def get_games_for_date(date: str) -> list[dict]:
             "feature_breakdown": _load_json(r, "feature_breakdown_json"),
             "live_odds": _load_json(r, "live_odds_json"),
             "book_odds": _load_json(r, "book_odds_json"),
+            "prediction_market_odds": _load_json(r, "prediction_market_odds_json"),
             "h2h": _load_json(r, "h2h_json"),
             "simulation": _load_json(r, "simulation_json"),
             "injuries": _load_json(r, "injuries_json"),
