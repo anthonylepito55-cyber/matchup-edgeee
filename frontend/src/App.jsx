@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import ProbabilityBar from './ProbabilityBar.jsx'
 import ModelStatus from './ModelStatus.jsx'
 import TrackRecord from './TrackRecord.jsx'
@@ -34,10 +34,16 @@ export default function App() {
   const [sport, setSport] = useState('mlb') // 'mlb' | 'tennis'
   const [view, setView] = useState('today') // 'today' | 'history' (MLB only)
 
-  const AUTO_REFRESH_MS = 120000 // 2 minutes — probable pitchers get announced/confirmed
-  // throughout the day, and the previous behavior (fetch once on page load, never again) meant
-  // a tab left open all afternoon kept showing "TBD" long after MLB/ESPN/sportsbooks had real
-  // starters up, with no way to see the update short of a manual reload.
+  const AUTO_REFRESH_MS = 60000 // 1 minute — lines/odds and value-bet flags can move quickly, and
+  // the previous behavior (fetch once on page load, never again) meant a tab left open all
+  // afternoon kept showing stale data with no way to see updates short of a manual reload.
+
+  // Ref, not state -- state updates are async and wouldn't reliably block a tight setInterval
+  // from firing a second fetch while the first is still in flight. /api/today can take 80-150s+
+  // on a cold cache (the market-odds cache expires every 15 minutes), and overlapping requests
+  // stacking up on each other has caused real, observed slowdowns during this project's own
+  // development — this guard is what actually prevents that at a 1-minute interval.
+  const fetchInFlight = useRef(false)
 
   useEffect(() => {
     fetchToday()
@@ -47,6 +53,8 @@ export default function App() {
   }, [sport, view])
 
   async function fetchToday() {
+    if (fetchInFlight.current) return
+    fetchInFlight.current = true
     setError(null)
     try {
       const res = await fetch(`${API_BASE}/api/today`)
@@ -57,6 +65,7 @@ export default function App() {
       setError(e.message)
     } finally {
       setLoading(false)
+      fetchInFlight.current = false
     }
   }
 
