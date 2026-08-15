@@ -1179,8 +1179,12 @@ def _apply_confidence_override(home_win_prob: float, feats: dict, recent_form_ou
             "model_home_win_prob": round(home_win_prob, 4), "overridden": False}
 
 
-UNDERDOG_VALUE_THRESHOLD = 0.03   # Model B must give the market's favorite less than (50% - this) for the underdog flag to fire
-FAVORITE_VALUE_THRESHOLD = 0.03   # Model B must be at least this much MORE bullish on the market's favorite than the market itself
+UNDERDOG_VALUE_THRESHOLD = 0.02   # Model B must give the market's favorite less than (50% - this) for the underdog flag to fire
+FAVORITE_VALUE_THRESHOLD = 0.02   # Model B must be at least this much MORE bullish on the market's favorite than the market itself
+# Both thresholds re-validated at 0.02 on 2026-08-15 (see feedback_validate_before_claiming_improvement.md):
+# underdog-flip edge holds (actually slightly stronger at this buffer: 57.1% actual vs 47.1% market-implied,
+# ROI +21.3%, n=254) and favorite-reinforce edge holds (59.6% vs 57.6%, ROI +3.8%, n=1076) -- lowering from
+# 0.03 was a deliberate, tested choice, not just loosening the filter to get more picks.
 
 
 def _compute_value_bet(market_model_prob: float, market_home_prob: float,
