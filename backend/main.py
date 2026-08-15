@@ -2051,6 +2051,13 @@ def today(date: str = None):
                 effective_away_id: days_since_il_return(effective_away_id, g["game_date"], il_activations),
             }
             game_weather = get_game_weather_live(g["venue"], g["game_date"]) or {}
+            # Keyed to the effective (possibly opener-substituted) pitcher, matching every other
+            # per-pitcher lookup feeding this feats dict (statcast/velocity/recent_form above) —
+            # was previously omitted here entirely, silently defaulting to h2h_stats=None and
+            # forcing h2h_fip_diff to NaN for every game regardless of real H2H data existing.
+            h2h_stats_matchup = _h2h_stats_dict_for_matchup(
+                effective_home_id, effective_away_id, g["home_team_abbr"], g["away_team_abbr"], season
+            )
             feats = build_matchup_features(
                 home_pitcher_id=effective_home_id,
                 away_pitcher_id=effective_away_id,
@@ -2078,6 +2085,7 @@ def today(date: str = None):
                 prior_season_stats=_raw_prior_season_stats_dict_for_matchup(
                     prior_season_stats, effective_home_id, effective_away_id
                 ),
+                h2h_stats=h2h_stats_matchup,
                 recent_team_batting=recent_team_batting,
                 recent_team_batting_30d=recent_team_batting_30d,
                 team_travel=team_travel,

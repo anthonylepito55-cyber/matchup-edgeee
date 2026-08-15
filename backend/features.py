@@ -370,6 +370,22 @@ def _arsenal_matchup_score(pitcher_mix: dict, opp_arsenal: dict) -> float:
 NORMAL_IP_PER_START = 5.0  # a normal, healthy MLB start goes at least this deep
 
 
+def _shrink_recent_to_season(recent_val, season_val, weight: float):
+    """Blends a recent-form rate stat back toward the more reliable season number by `weight`
+    (1.0 = trust recent fully, 0.0 = season only) — the same shrinkage principle every *_diff
+    feature already applies via _recent_form_weight, but for build_ip_features/build_er_features,
+    which take season_fip/recent_fip as separate raw values rather than a diff. Without this,
+    a thin relief-appearance sample (see _recent_form_weight — these run better than the same
+    pitcher's real start numbers) fed straight into the IP/ER models at face value, with no
+    signal in IP_FEATURE_COLUMNS/ER_FEATURE_COLUMNS telling the model to distrust it. Falls back
+    gracefully same as blend_with_prior_season: missing recent -> season, missing season -> recent."""
+    if recent_val is None or pd.isna(recent_val):
+        return season_val
+    if season_val is None or pd.isna(season_val):
+        return recent_val
+    return season_val + (recent_val - season_val) * weight
+
+
 def _recent_form_weight(recent: dict) -> float:
     """
     0..1 confidence weight for how much to trust a pitcher's last-N-starts
@@ -1032,9 +1048,19 @@ def build_matchup_features(
         # exposure to bullpen variance, home - away so positive favors home. Independent of
         # FIP/quality: a great pitcher who's usually pulled after 4 still hands the game to
         # the bullpen for 5 innings.
+        # Season-level ip-per-start is null for a pitcher who's genuinely never settled into a
+        # starter's workload this year OR last (get_season_pitching_stats leaves it null below
+        # GS/G<0.5 or <3 starts, and blend_with_prior_season's fallback to last year comes up
+        # empty too for a career swingman) — rather than lose this signal to NaN entirely, fall
+        # back to the recent-appearance version, discounted further (NOT_MOSTLY_STARTER_DISCOUNT,
+        # same constant _season_ip_weight already uses for this exact situation) since it's a
+        # thinner, possibly relief-inclusive proxy for the same "how deep do they go" question.
         "season_ip_per_start_diff": (
             ((season_ip_per_start_home - season_ip_per_start_away) * season_weight)
-            if pd.notna(season_ip_per_start_home) and pd.notna(season_ip_per_start_away) else np.nan
+            if pd.notna(season_ip_per_start_home) and pd.notna(season_ip_per_start_away) else (
+                ((recent_ip_per_start_home - recent_ip_per_start_away) * recent_weight * NOT_MOSTLY_STARTER_DISCOUNT)
+                if pd.notna(recent_ip_per_start_home) and pd.notna(recent_ip_per_start_away) else np.nan
+            )
         ),
         # pitches thrown per start, season-to-date — a workload/efficiency signal (going deeper on
         # the same pitch budget), home - away so positive favors home
@@ -1574,7 +1600,7 @@ def build_ip_features(
     return {
         "home_field": 1 if is_home else 0,
         "season_fip": season_fip,
-        "recent_fip": recent.get("fip", np.nan),
+        "recent_fip": _shrink_recent_to_season(recent.get("fip", np.nan), season_fip, _recent_form_weight(recent)),
         "season_ip_per_start": season_ip_per_start,
         "recent_ip_per_start": recent.get("ip_per_start", np.nan),
         "h2h_ip_per_start": h2h_ip_per_start,
@@ -1646,7 +1672,7 @@ def build_er_features(
     return {
         "home_field": 1 if is_home else 0,
         "season_fip": season_fip,
-        "recent_fip": recent.get("fip", np.nan),
+        "recent_fip": _shrink_recent_to_season(recent.get("fip", np.nan), season_fip, _recent_form_weight(recent)),
         "season_ip_per_start": season_ip_per_start,
         "recent_ip_per_start": recent.get("ip_per_start", np.nan),
         "h2h_era": h2h_era,
