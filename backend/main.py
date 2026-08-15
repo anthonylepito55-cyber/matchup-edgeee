@@ -1179,6 +1179,52 @@ def _apply_confidence_override(home_win_prob: float, feats: dict, recent_form_ou
             "model_home_win_prob": round(home_win_prob, 4), "overridden": False}
 
 
+UNDERDOG_VALUE_THRESHOLD = 0.03   # Model B must give the market's favorite less than (50% - this) for the underdog flag to fire
+FAVORITE_VALUE_THRESHOLD = 0.03   # Model B must be at least this much MORE bullish on the market's favorite than the market itself
+
+
+def _compute_value_bet(market_model_prob: float, market_home_prob: float,
+                        home_abbr: str, away_abbr: str) -> dict | None:
+    """
+    Flags a game as a "value bet" using the two patterns actually validated by backtest (see
+    feedback_validate_before_claiming_improvement.md, 2026-08-15) -- both measured against
+    Model B (market-aware) vs the real market price, NOT against Model A, since the user's
+    request specifically referenced "the market aware version":
+
+    1. UNDERDOG: Model B flips to favor the team the market has as the underdog. This is the
+       "model and market disagree on who wins" pattern -- real, walk-forward-validated edge
+       (~62-88% hit rate depending on gap size across multiple independent tests).
+    2. FAVORITE: Model B agrees with the market's favorite, but is meaningfully MORE bullish on
+       them than the market's own price implies. Also validated: favorite win rate 59.6-67.9%
+       against a market-implied 57-58%, positive ROI growing with the gap.
+
+    The OPPOSITE case -- Model B agrees with the favorite but is LESS bullish than the market
+    (i.e. "the market seems overconfident, take the value dog") -- was tested and explicitly
+    rejected (underdog won LESS than the market's own implied price in exactly those games).
+    That case intentionally returns None here, not a value bet.
+    """
+    if market_model_prob is None or market_home_prob is None:
+        return None
+    market_favors_home = market_home_prob >= 0.5
+    model_prob_on_market_fav = market_model_prob if market_favors_home else (1 - market_model_prob)
+    market_prob_on_market_fav = market_home_prob if market_favors_home else (1 - market_home_prob)
+    gap = model_prob_on_market_fav - market_prob_on_market_fav
+
+    if model_prob_on_market_fav < (0.5 - UNDERDOG_VALUE_THRESHOLD):
+        underdog_abbr = away_abbr if market_favors_home else home_abbr
+        return {
+            "side": underdog_abbr, "type": "underdog",
+            "model_prob": round(1 - model_prob_on_market_fav, 4), "market_prob": round(1 - market_prob_on_market_fav, 4),
+        }
+    if gap >= FAVORITE_VALUE_THRESHOLD:
+        favorite_abbr = home_abbr if market_favors_home else away_abbr
+        return {
+            "side": favorite_abbr, "type": "favorite",
+            "model_prob": round(model_prob_on_market_fav, 4), "market_prob": round(market_prob_on_market_fav, 4),
+        }
+    return None
+
+
 def _generate_reason(favored_is_home: bool, season_stats_out: dict, recent_form_out: dict,
                       any_long_layoff: bool = False, team_stats_out: dict = None) -> str:
     """
@@ -1913,6 +1959,7 @@ def today(date: str = None):
         lineup_breakdown_out = None
         rating_out = None
         market_model_prob = None
+        value_bet_out = None
         if model_trained:
             for pid in (effective_home_id, effective_away_id, g["home_pitcher_id"], g["away_pitcher_id"]):
                 if pid not in pitcher_hands:
@@ -2040,6 +2087,11 @@ def today(date: str = None):
                     )["home_win_prob"]
                 except Exception:
                     market_model_prob = None
+            value_bet_out = _compute_value_bet(
+                market_model_prob,
+                devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
+                g["home_team_abbr"], g["away_team_abbr"],
+            )
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])
@@ -2204,6 +2256,7 @@ def today(date: str = None):
             rating_out = None
             feature_breakdown_out = None
             market_model_prob = None
+            value_bet_out = None
             simulation_out = None
             team_stats_out = None
             lineup_breakdown_out = None
@@ -2229,6 +2282,8 @@ def today(date: str = None):
                     h2h_out = frozen["h2h"]
                 if frozen.get("market_model_prob") is not None:
                     market_model_prob = frozen["market_model_prob"]
+                if frozen.get("value_bet"):
+                    value_bet_out = frozen["value_bet"]
                 if frozen.get("simulation"):
                     simulation_out = frozen["simulation"]
                 prediction_frozen = True
@@ -2273,7 +2328,8 @@ def today(date: str = None):
             "opener_affected": any_opener, "h2h": h2h_out, "team_stats": team_stats_out,
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,
-            "market_model_prob": market_model_prob, "simulation": simulation_out, "injuries": injuries_out,
+            "market_model_prob": market_model_prob, "value_bet": value_bet_out,
+            "simulation": simulation_out, "injuries": injuries_out,
             "book_odds": book_odds_out, "prediction_market_odds": prediction_market_odds_out,
             "user_pick": user_pick_out,
             "note": None if prediction else "Model not trained yet — run train.py",

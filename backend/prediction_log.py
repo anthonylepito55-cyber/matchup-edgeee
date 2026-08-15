@@ -58,6 +58,7 @@ LOG_COLUMNS = [
     "feature_breakdown_json",  # pre-game snapshot of every individual raw diff feature behind rating_breakdown_json's category rollups — see rating_system.feature_level_breakdown; same non-model, display-only status
     "market_home_prob",       # de-vigged implied home win prob from live_odds at prediction time, if available
     "market_model_prob",      # Model B's own (market-inclusive) probability, distinct from market_home_prob above (which is the raw devigged odds line, not a model output)
+    "value_bet_json",         # {side, type, model_prob, market_prob} from main._compute_value_bet, or None -- frozen for the same reason market_model_prob is (recomputing live for a decided game would use the live_odds line at request time, not the price actually offered pre-game)
     "live_odds_json", "book_odds_json",  # the moneyline pair and the full multi-book consensus panel, frozen at prediction time -- these are point-in-time market snapshots, showing "current" odds for a past game would be actively misleading
     "prediction_market_odds_json",  # {book: devigged_home_prob} for Kalshi/Polymarket -- same point-in-time-snapshot reasoning as book_odds_json above, just for prediction-market exchanges instead of sportsbooks
     "h2h_json",                # this pitcher-vs-opponent head-to-head history -- previously nulled for decided games (see main.py's old h2h_out leakage comment) since there was nowhere to freeze it; now captured like everything else here
@@ -193,6 +194,7 @@ def log_predictions(date: str, games: list[dict]):
             "feature_breakdown_json": _j("feature_breakdown"),
             "market_home_prob": market_home_prob,
             "market_model_prob": g.get("market_model_prob"),
+            "value_bet_json": _j("value_bet"),
             "live_odds_json": _j("live_odds"),
             "book_odds_json": _j("book_odds"),
             "prediction_market_odds_json": _j("prediction_market_odds"),
@@ -291,6 +293,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "rating_breakdown": _load_json("rating_breakdown_json"),
         "feature_breakdown": _load_json("feature_breakdown_json"),
         "market_model_prob": r.get("market_model_prob") if pd.notna(r.get("market_model_prob")) else None,
+        "value_bet": _load_json("value_bet_json"),
         "live_odds": _load_json("live_odds_json"),
         "book_odds": _load_json("book_odds_json"),
         "prediction_market_odds": _load_json("prediction_market_odds_json"),
@@ -519,6 +522,7 @@ def get_games_for_date(date: str) -> list[dict]:
             "overridden": bool(r["overridden"]) if pd.notna(r["overridden"]) else False,
             "market_home_prob": float(r["market_home_prob"]) if pd.notna(r["market_home_prob"]) else None,
             "market_model_prob": float(r["market_model_prob"]) if pd.notna(r.get("market_model_prob")) else None,
+            "value_bet": _load_json(r, "value_bet_json"),
             "reason": r.get("reason"),
             # Pre-game snapshot of each pitcher's recent-form/season stat line, frozen at
             # prediction time — same fields the live "pitcher stats" toggle shows, just

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import {
   RecentFormLine, SeasonStatsLine, TeamStatsLine, LineupBreakdown, InjuryReport,
   H2HLine, BookByBookOdds, PredictionMarketOdds, ToggleLink, PitcherProjectionHeadline, UserPickPicker,
+  ValueBetBadge,
 } from './App.jsx'
 
 export default function HistorySection() {
@@ -193,6 +194,7 @@ function HistoryGameCard({ game: g }) {
             market: {home} {(g.market_home_prob * 100).toFixed(0)}%
           </span>
         )}
+        {g.value_bet && <span style={{ marginLeft: 8 }}><ValueBetBadge valueBet={g.value_bet} /></span>}
       </div>
 
       {g.market_model_prob != null && (

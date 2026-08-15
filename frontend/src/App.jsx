@@ -516,6 +516,7 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
             TOP PICK
           </span>
         )}
+        <ValueBetBadge valueBet={game.value_bet} />
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
         <PitcherLink id={game.away_pitcher_id} name={game.away_pitcher_name} onSelect={onSelectPitcher} />
@@ -1034,6 +1035,25 @@ export function BookByBookOdds({ bookOdds, awayAbbr, homeAbbr }) {
         ))}
       </div>
     </div>
+  )
+}
+
+// Badge for main._compute_value_bet's two validated patterns (see that function's docstring):
+// "underdog" = Model B flips to favor whoever the market has as the underdog; "favorite" = Model B
+// agrees with the market's favorite but is meaningfully more bullish on them than the market's own
+// price implies. Both backed by real walk-forward backtests, unlike the (tested and rejected)
+// "market seems overconfident, take the value dog" pattern, which never earns this badge.
+export function ValueBetBadge({ valueBet }) {
+  if (!valueBet) return null
+  const isUnderdog = valueBet.type === 'underdog'
+  const color = isUnderdog ? 'var(--edge-pos)' : 'var(--amber)'
+  return (
+    <span className="mono" title={`model ${(valueBet.model_prob * 100).toFixed(0)}% vs market ${(valueBet.market_prob * 100).toFixed(0)}%`} style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color,
+      border: `1px solid ${color}`, borderRadius: 4, padding: '2px 6px',
+    }}>
+      VALUE: {valueBet.side} {isUnderdog ? '(dog)' : '(fav)'}
+    </span>
   )
 }
 
