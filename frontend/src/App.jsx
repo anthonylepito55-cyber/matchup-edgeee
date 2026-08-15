@@ -1047,8 +1047,13 @@ export function ValueBetBadge({ valueBet }) {
   if (!valueBet) return null
   const isUnderdog = valueBet.type === 'underdog'
   const color = isUnderdog ? 'var(--edge-pos)' : 'var(--amber)'
+  // Kalshi isn't part of the flagging logic (the validated backtest used sportsbook lines) --
+  // it's shown only as an extra reference point when OpticOdds has a current Kalshi price,
+  // which as of this build is intermittent (see project_value_bet_feature.md).
+  const tooltip = `model ${(valueBet.model_prob * 100).toFixed(0)}% vs market ${(valueBet.market_prob * 100).toFixed(0)}%`
+    + (valueBet.kalshi_prob != null ? ` (Kalshi: ${(valueBet.kalshi_prob * 100).toFixed(0)}%)` : '')
   return (
-    <span className="mono" title={`model ${(valueBet.model_prob * 100).toFixed(0)}% vs market ${(valueBet.market_prob * 100).toFixed(0)}%`} style={{
+    <span className="mono" title={tooltip} style={{
       fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color,
       border: `1px solid ${color}`, borderRadius: 4, padding: '2px 6px',
     }}>

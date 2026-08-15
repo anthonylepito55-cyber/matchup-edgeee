@@ -1188,7 +1188,7 @@ FAVORITE_VALUE_THRESHOLD = 0.02   # Model B must be at least this much MORE bull
 
 
 def _compute_value_bet(market_model_prob: float, market_home_prob: float,
-                        home_abbr: str, away_abbr: str) -> dict | None:
+                        home_abbr: str, away_abbr: str, kalshi_home_prob: float = None) -> dict | None:
     """
     Flags a game as a "value bet" using the two patterns actually validated by backtest (see
     feedback_validate_before_claiming_improvement.md, 2026-08-15) -- both measured against
@@ -1206,12 +1206,24 @@ def _compute_value_bet(market_model_prob: float, market_home_prob: float,
     (i.e. "the market seems overconfident, take the value dog") -- was tested and explicitly
     rejected (underdog won LESS than the market's own implied price in exactly those games).
     That case intentionally returns None here, not a value bet.
+
+    kalshi_home_prob (Kalshi's own devigged home-win price, if OpticOdds has a current one -- see
+    prediction_market_odds/PREDICTION_MARKET_BOOKS) is NOT part of the flagging logic (the
+    backtest that validated the thresholds above used Pinnacle/sportsbook lines, not Kalshi) --
+    it's included in the output purely as an extra reference point for whoever's looking at the
+    badge, added on request. Kalshi tracked Pinnacle even tighter than DraftKings did in testing
+    (see [[project-value-bet-feature]]), so agreement/disagreement with it is informative context,
+    not a second vote in the decision.
     """
     if market_model_prob is None or market_home_prob is None:
         return None
     market_favors_home = market_home_prob >= 0.5
     model_prob_on_market_fav = market_model_prob if market_favors_home else (1 - market_model_prob)
     market_prob_on_market_fav = market_home_prob if market_favors_home else (1 - market_home_prob)
+    kalshi_prob_on_market_fav = (
+        (kalshi_home_prob if market_favors_home else (1 - kalshi_home_prob))
+        if kalshi_home_prob is not None else None
+    )
     gap = model_prob_on_market_fav - market_prob_on_market_fav
 
     if model_prob_on_market_fav < (0.5 - UNDERDOG_VALUE_THRESHOLD):
@@ -1219,12 +1231,14 @@ def _compute_value_bet(market_model_prob: float, market_home_prob: float,
         return {
             "side": underdog_abbr, "type": "underdog",
             "model_prob": round(1 - model_prob_on_market_fav, 4), "market_prob": round(1 - market_prob_on_market_fav, 4),
+            "kalshi_prob": round(1 - kalshi_prob_on_market_fav, 4) if kalshi_prob_on_market_fav is not None else None,
         }
     if gap >= FAVORITE_VALUE_THRESHOLD:
         favorite_abbr = home_abbr if market_favors_home else away_abbr
         return {
             "side": favorite_abbr, "type": "favorite",
             "model_prob": round(model_prob_on_market_fav, 4), "market_prob": round(market_prob_on_market_fav, 4),
+            "kalshi_prob": round(kalshi_prob_on_market_fav, 4) if kalshi_prob_on_market_fav is not None else None,
         }
     return None
 
@@ -2095,6 +2109,7 @@ def today(date: str = None):
                 market_model_prob,
                 devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
                 g["home_team_abbr"], g["away_team_abbr"],
+                kalshi_home_prob=(prediction_market_odds_out or {}).get("Kalshi"),
             )
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
