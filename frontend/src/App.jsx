@@ -1047,26 +1047,38 @@ export function BookByBookOdds({ bookOdds, awayAbbr, homeAbbr }) {
   )
 }
 
-// Badge for main._compute_value_bet's two validated patterns (see that function's docstring):
-// "underdog" = Model B flips to favor whoever the market has as the underdog; "favorite" = Model B
-// agrees with the market's favorite but is meaningfully more bullish on them than the market's own
-// price implies. Both backed by real walk-forward backtests, unlike the (tested and rejected)
-// "market seems overconfident, take the value dog" pattern, which never earns this badge.
+// Badge for main._compute_value_bet's three validated patterns (see that function's docstring):
+// "underdog" = Model B flips to favor whoever the market has as the underdog (strongest signal);
+// "favorite" = Model B agrees with the market's favorite but is meaningfully more bullish on them
+// than the market's own price implies (strong, stable across every fold tested); "dog_value" =
+// Model B still agrees with the market's favorite (hasn't flipped) but gives the underdog a
+// meaningfully better chance than the market's price implies -- value doesn't require winning
+// outright, just beating the price. Weaker/noisier evidence than the other two (real but thinner
+// data, confirmed against both Pinnacle and Kalshi independently) -- styled dashed to reflect that.
+const VALUE_BET_STYLES = {
+  underdog: { color: 'var(--edge-pos)', label: '(dog)', dashed: false },
+  favorite: { color: 'var(--amber)', label: '(fav)', dashed: false },
+  dog_value: { color: 'var(--edge-pos)', label: '(dog value)', dashed: true },
+}
+
 export function ValueBetBadge({ valueBet }) {
   if (!valueBet) return null
-  const isUnderdog = valueBet.type === 'underdog'
-  const color = isUnderdog ? 'var(--edge-pos)' : 'var(--amber)'
-  // Kalshi isn't part of the flagging logic (the validated backtest used sportsbook lines) --
-  // it's shown only as an extra reference point when OpticOdds has a current Kalshi price,
-  // which as of this build is intermittent (see project_value_bet_feature.md).
+  const style = VALUE_BET_STYLES[valueBet.type]
+  if (!style) return null
+  // Kalshi isn't part of the flagging logic for "underdog"/"favorite" (that backtest used
+  // sportsbook lines) -- shown only as an extra reference point when OpticOdds has a current
+  // Kalshi price, which as of this build is intermittent (see project_value_bet_feature.md).
+  // For "dog_value" specifically, Kalshi WAS part of what validated the pattern in the first
+  // place, so it's more than just a reference point there.
   const tooltip = `model ${(valueBet.model_prob * 100).toFixed(0)}% vs market ${(valueBet.market_prob * 100).toFixed(0)}%`
     + (valueBet.kalshi_prob != null ? ` (Kalshi: ${(valueBet.kalshi_prob * 100).toFixed(0)}%)` : '')
+    + (valueBet.type === 'dog_value' ? ' — weaker/noisier signal than the other two, real but thinner data' : '')
   return (
     <span className="mono" title={tooltip} style={{
-      fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color,
-      border: `1px solid ${color}`, borderRadius: 4, padding: '2px 6px',
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: style.color,
+      border: `1px ${style.dashed ? 'dashed' : 'solid'} ${style.color}`, borderRadius: 4, padding: '2px 6px',
     }}>
-      VALUE: {valueBet.side} {isUnderdog ? '(dog)' : '(fav)'}
+      VALUE: {valueBet.side} {style.label}
     </span>
   )
 }

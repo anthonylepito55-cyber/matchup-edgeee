@@ -1181,39 +1181,43 @@ def _apply_confidence_override(home_win_prob: float, feats: dict, recent_form_ou
 
 UNDERDOG_VALUE_THRESHOLD = 0.02   # Model B must give the market's favorite less than (50% - this) for the underdog flag to fire
 FAVORITE_VALUE_THRESHOLD = 0.02   # Model B must be at least this much MORE bullish on the market's favorite than the market itself
-# Both thresholds re-validated at 0.02 on 2026-08-15 (see feedback_validate_before_claiming_improvement.md):
-# underdog-flip edge holds (actually slightly stronger at this buffer: 57.1% actual vs 47.1% market-implied,
-# ROI +21.3%, n=254) and favorite-reinforce edge holds (59.6% vs 57.6%, ROI +3.8%, n=1076) -- lowering from
-# 0.03 was a deliberate, tested choice, not just loosening the filter to get more picks.
+DOG_VALUE_THRESHOLD = 0.02        # Model B must be at least this much MORE bullish on the underdog than the market, without fully flipping (see type 3 below)
+# All three thresholds validated at 0.02 (see feedback_validate_before_claiming_improvement.md,
+# 2026-08-15 entries): underdog-flip 57.1% actual vs 47.1% market-implied (n=254); favorite-reinforce
+# 59.6% vs 57.6% (n=1076), stable 58-60% across every fold when re-checked; dog-value (type 3) 43-45%
+# actual vs ~40% implied across Pinnacle AND Kalshi independently (n=290-381, ROI +4% to +14%), weaker/
+# noisier than the other two (its worst period coincides with the least-trained early-2025 model fold)
+# but real across two independent markets once that period is accounted for.
 
 
 def _compute_value_bet(market_model_prob: float, market_home_prob: float,
                         home_abbr: str, away_abbr: str, kalshi_home_prob: float = None) -> dict | None:
     """
-    Flags a game as a "value bet" using the two patterns actually validated by backtest (see
-    feedback_validate_before_claiming_improvement.md, 2026-08-15) -- both measured against
-    Model B (market-aware) vs the real market price, NOT against Model A, since the user's
-    request specifically referenced "the market aware version":
+    Flags a game as a "value bet" using the three patterns validated by backtest (see
+    feedback_validate_before_claiming_improvement.md, 2026-08-15 entries) -- all three measured
+    against Model B (market-aware) vs the real market price, NOT against Model A, since the
+    user's request specifically referenced "the market aware version":
 
-    1. UNDERDOG: Model B flips to favor the team the market has as the underdog. This is the
-       "model and market disagree on who wins" pattern -- real, walk-forward-validated edge
-       (~62-88% hit rate depending on gap size across multiple independent tests).
+    1. UNDERDOG: Model B flips to favor the team the market has as the underdog. The "model and
+       market disagree on who wins" pattern -- real, walk-forward-validated edge (~62-88% hit
+       rate depending on gap size across multiple independent tests).
     2. FAVORITE: Model B agrees with the market's favorite, but is meaningfully MORE bullish on
-       them than the market's own price implies. Also validated: favorite win rate 59.6-67.9%
-       against a market-implied 57-58%, positive ROI growing with the gap.
-
-    The OPPOSITE case -- Model B agrees with the favorite but is LESS bullish than the market
-    (i.e. "the market seems overconfident, take the value dog") -- was tested and explicitly
-    rejected (underdog won LESS than the market's own implied price in exactly those games).
-    That case intentionally returns None here, not a value bet.
+       them than the market's own price implies. Favorite win rate 59.6-67.9% against a
+       market-implied 57-58%, positive ROI growing with the gap, stable across every fold tested.
+    3. DOG VALUE: Model B agrees with the market's favorite (hasn't flipped, unlike type 1), but
+       gives the UNDERDOG a meaningfully better chance than the market's own price implies -- the
+       "value doesn't require winning outright, just beating the price" case (e.g. market dog
+       48%, Model B dog 50%: still not favored, but priced better than the market thinks). This
+       was originally tested using the WRONG model (Model A) and reported as rejected -- corrected
+       2026-08-15 after re-testing with Model B specifically: real but weaker/noisier than 1 and 2
+       (43-45% actual dog win rate vs ~40% market-implied, confirmed independently against both
+       Pinnacle and Kalshi closing lines), not the clean rejection first claimed.
 
     kalshi_home_prob (Kalshi's own devigged home-win price, if OpticOdds has a current one -- see
-    prediction_market_odds/PREDICTION_MARKET_BOOKS) is NOT part of the flagging logic (the
-    backtest that validated the thresholds above used Pinnacle/sportsbook lines, not Kalshi) --
-    it's included in the output purely as an extra reference point for whoever's looking at the
-    badge, added on request. Kalshi tracked Pinnacle even tighter than DraftKings did in testing
-    (see [[project-value-bet-feature]]), so agreement/disagreement with it is informative context,
-    not a second vote in the decision.
+    prediction_market_odds/PREDICTION_MARKET_BOOKS) is NOT part of the flagging logic for types 1
+    and 2 (that backtest used Pinnacle/sportsbook lines) -- it's included in the output purely as
+    an extra reference point. Type 3 specifically WAS re-validated against Kalshi directly (see
+    above), so for that type the market comparison is doubly-grounded, not just Pinnacle.
     """
     if market_model_prob is None or market_home_prob is None:
         return None
@@ -1239,6 +1243,13 @@ def _compute_value_bet(market_model_prob: float, market_home_prob: float,
             "side": favorite_abbr, "type": "favorite",
             "model_prob": round(model_prob_on_market_fav, 4), "market_prob": round(market_prob_on_market_fav, 4),
             "kalshi_prob": round(kalshi_prob_on_market_fav, 4) if kalshi_prob_on_market_fav is not None else None,
+        }
+    if gap <= -DOG_VALUE_THRESHOLD:
+        underdog_abbr = away_abbr if market_favors_home else home_abbr
+        return {
+            "side": underdog_abbr, "type": "dog_value",
+            "model_prob": round(1 - model_prob_on_market_fav, 4), "market_prob": round(1 - market_prob_on_market_fav, 4),
+            "kalshi_prob": round(1 - kalshi_prob_on_market_fav, 4) if kalshi_prob_on_market_fav is not None else None,
         }
     return None
 
