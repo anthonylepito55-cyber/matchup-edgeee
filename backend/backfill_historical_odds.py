@@ -108,27 +108,42 @@ def _fetch_game_fields(fixture_id: str) -> dict:
             if p_open is not None:
                 probs_open[book] = p_open
 
+    if "home_open" in panel.get(CLOSING_BOOK, {}) and "away_open" in panel[CLOSING_BOOK]:
+        fields["market_home_prob_open"] = devig_home_prob(
+            panel[CLOSING_BOOK]["home_open"], panel[CLOSING_BOOK]["away_open"]
+        )
+    if PUBLIC_BOOK in panel and "home_open" in panel[PUBLIC_BOOK] and "away_open" in panel[PUBLIC_BOOK]:
+        fields["market_home_prob_dk_open"] = devig_home_prob(
+            panel[PUBLIC_BOOK]["home_open"], panel[PUBLIC_BOOK]["away_open"]
+        )
+    # market_home_prob/market_home_prob_dk deliberately stay clv-only (probs_now, not the
+    # fallback below) -- _load_line_movement_by_game/_load_market_divergence_by_game compute
+    # line_movement_diff/market_divergence_diff as market_home_prob MINUS market_home_prob_open,
+    # so falling back to the opening price here would silently produce a fake zero movement
+    # instead of correctly leaving it NaN, exactly the failure mode the fallback below is written
+    # to avoid for the aggregate fields.
     if CLOSING_BOOK in panel:
         fields["market_home_prob"] = devig_home_prob(panel[CLOSING_BOOK].get("home"), panel[CLOSING_BOOK].get("away"))
-        if "home_open" in panel[CLOSING_BOOK] and "away_open" in panel[CLOSING_BOOK]:
-            fields["market_home_prob_open"] = devig_home_prob(
-                panel[CLOSING_BOOK]["home_open"], panel[CLOSING_BOOK]["away_open"]
-            )
     if PUBLIC_BOOK in panel:
         fields["market_home_prob_dk"] = devig_home_prob(panel[PUBLIC_BOOK].get("home"), panel[PUBLIC_BOOK].get("away"))
-        if "home_open" in panel[PUBLIC_BOOK] and "away_open" in panel[PUBLIC_BOOK]:
-            fields["market_home_prob_dk_open"] = devig_home_prob(
-                panel[PUBLIC_BOOK]["home_open"], panel[PUBLIC_BOOK]["away_open"]
-            )
-    if probs_now:
-        fields["market_home_prob_consensus"] = sum(probs_now.values()) / len(probs_now)
-        fields["market_home_prob_median"] = statistics.median(probs_now.values())
-        favor_home = sum(1 for p in probs_now.values() if p > 0.5)
-        favor_away = sum(1 for p in probs_now.values() if p < 0.5)
-        fields["market_home_prob_favor_diff"] = (favor_home - favor_away) / len(probs_now)
-    if len(probs_now) >= 2:
-        fields["market_home_prob_book_disagreement"] = max(probs_now.values()) - min(probs_now.values())
-        fields["market_home_prob_std"] = statistics.pstdev(probs_now.values())
+
+    # The remaining level fields (_consensus/_median/_favor_diff/_book_disagreement/_std) have no
+    # movement counterpart depending on them, so they can safely fall back to a book's opening
+    # price when OpticOdds hasn't synced a current one yet for this game — same olv fallback
+    # odds_fetcher.get_market_snapshot's live-serving path uses, applied here so a game backfilled
+    # shortly after being logged (before OpticOdds catches up) doesn't end up with permanently-NaN
+    # training columns for what was really just a same-day sync lag. book_movements below stays on
+    # probs_now/probs_open only, same reasoning as market_home_prob above.
+    probs_effective = {**probs_open, **probs_now}
+    if probs_effective:
+        fields["market_home_prob_consensus"] = sum(probs_effective.values()) / len(probs_effective)
+        fields["market_home_prob_median"] = statistics.median(probs_effective.values())
+        favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
+        favor_away = sum(1 for p in probs_effective.values() if p < 0.5)
+        fields["market_home_prob_favor_diff"] = (favor_home - favor_away) / len(probs_effective)
+    if len(probs_effective) >= 2:
+        fields["market_home_prob_book_disagreement"] = max(probs_effective.values()) - min(probs_effective.values())
+        fields["market_home_prob_std"] = statistics.pstdev(probs_effective.values())
 
     # Signed fraction of CONSENSUS_BOOKS that moved the same direction since open — see
     # odds_fetcher.get_market_snapshot's identical computation for the live-serving path.

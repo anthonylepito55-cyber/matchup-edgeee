@@ -15,7 +15,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr
+from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr, _ESPN_TEAM_ABBR_FIX
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -101,14 +101,20 @@ def _fetch_fixture_map(start_date: str, end_date: str, statuses: tuple = ("compl
             if f.get("status") not in statuses:
                 continue
             game_date = f["start_date"][:10]
-            fixture_map[(game_date, f["home_competitors"][0]["abbreviation"], f["away_competitors"][0]["abbreviation"])] = f["id"]
+            # OpticOdds uses ESPN-style abbreviations (ARI/WSN/CHW/OAK) for the same 4 teams this
+            # app already normalizes elsewhere (see data_collection._ESPN_TEAM_ABBR_FIX) — every
+            # caller here keys lookups by OUR abbreviations (AZ/WSH/CWS/ATH), so any fixture
+            # involving one of these 4 teams as home or away silently never matched, on either
+            # side of the lookup. Confirmed directly: CHC @ ARI (2025-03-28) has real odds data
+            # that a raw "AZ" key lookup never found. Normalizing here, once, at the source.
+            home_abbr = _ESPN_TEAM_ABBR_FIX.get(f["home_competitors"][0]["abbreviation"], f["home_competitors"][0]["abbreviation"])
+            away_abbr = _ESPN_TEAM_ABBR_FIX.get(f["away_competitors"][0]["abbreviation"], f["away_competitors"][0]["abbreviation"])
+            fixture_map[(game_date, home_abbr, away_abbr)] = f["id"]
             # games starting late evening local time land on the next UTC date —
             # also index under the day before, so our MLB-Stats-API game_date
             # (which uses the local game date) still matches
             prev_date = (pd.Timestamp(game_date) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-            fixture_map.setdefault(
-                (prev_date, f["home_competitors"][0]["abbreviation"], f["away_competitors"][0]["abbreviation"]), f["id"]
-            )
+            fixture_map.setdefault((prev_date, home_abbr, away_abbr), f["id"])
         if not payload.get("has_more"):
             break
         page += 1
@@ -184,7 +190,16 @@ def _fetch_panel_odds(fixture_id: str, sportsbooks: list) -> dict:
                 entry[side] = clv["price"]
             if olv.get("price") is not None:
                 entry[f"{side}_open"] = olv["price"]
-        return {book: v for book, v in by_book.items() if "home" in v and "away" in v}
+        # Keep a book if it has a usable price pair from EITHER source — current (home/away) or,
+        # when OpticOdds hasn't synced a current price yet, opening (home_open/away_open). Used to
+        # require "home"+"away" specifically, which silently dropped a book's opening price too
+        # whenever only its current price was missing — get_market_snapshot's olv fallback for
+        # level features (consensus_prob/book_disagreement/etc.) never saw the opening data as a
+        # result, even though this same odds entry carried it.
+        return {
+            book: v for book, v in by_book.items()
+            if ("home" in v and "away" in v) or ("home_open" in v and "away_open" in v)
+        }
     except requests.exceptions.RequestException:
         return {}
 
@@ -212,7 +227,12 @@ def _fetch_totals_panel(fixture_id: str, sportsbooks: list = None) -> dict:
         by_book = {}
         for o in fixture.get("odds", []):
             book = o.get("sportsbook")
-            points = (o.get("clv") or {}).get("points")
+            clv, olv = o.get("clv") or {}, o.get("olv") or {}
+            # Falls back to the opening line when OpticOdds hasn't synced a current price yet —
+            # same pattern _fetch_player_prop_lines already uses. team_total_diff/market_total_runs
+            # are pure level features (no movement variant depends on totals), so this fallback is
+            # safe here unconditionally, unlike the moneyline panel's now-vs-open split below.
+            points = clv.get("points") if clv.get("points") is not None else olv.get("points")
             if points is None:
                 continue
             entry = by_book.setdefault(book, {})
@@ -373,14 +393,26 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                     - (probs_now[PUBLIC_BOOK] - probs_open[PUBLIC_BOOK])
                 )
 
-            consensus_prob = (sum(probs_now.values()) / len(probs_now)) if probs_now else None
-            book_disagreement = (max(probs_now.values()) - min(probs_now.values())) if len(probs_now) >= 2 else None
+            # Level features (a snapshot of where the market sits right now) can fall back to a
+            # book's opening price when OpticOdds hasn't synced a current one yet — same olv
+            # fallback _fetch_player_prop_lines/_fetch_totals_panel already use, just applied here
+            # per-book instead of per-field, since a game can have some books synced and others
+            # not. probs_now wins where both exist (dict merge order). Movement features below
+            # (line_movement/market_divergence/book_movement_agreement) deliberately do NOT use
+            # this — they need a genuinely distinct now-vs-open pair, and silently treating a
+            # fallback price as "now" would compute a fake zero movement instead of leaving it NaN.
+            probs_effective = {**probs_open, **probs_now}
+
+            consensus_prob = (sum(probs_effective.values()) / len(probs_effective)) if probs_effective else None
+            book_disagreement = (
+                (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
+            )
 
             # Median (robust to one outlier book skewing the mean) and population std (a more
             # holistic disagreement measure than book_disagreement's max-min range, which is
             # driven entirely by the two most extreme books and ignores everything in between).
-            book_median_prob = statistics.median(probs_now.values()) if probs_now else None
-            book_prob_std = statistics.pstdev(probs_now.values()) if len(probs_now) >= 2 else None
+            book_median_prob = statistics.median(probs_effective.values()) if probs_effective else None
+            book_prob_std = statistics.pstdev(probs_effective.values()) if len(probs_effective) >= 2 else None
 
             # Signed fraction of CONSENSUS_BOOKS currently favoring home vs. away (>50%/<50%) —
             # distinct from consensus_prob_diff (the average PROBABILITY LEVEL, which one extreme
@@ -388,10 +420,10 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             # current-price side). +1.0 = every book favors home right now, -1.0 = every book
             # favors away.
             book_favor_diff = None
-            if probs_now:
-                favor_home = sum(1 for p in probs_now.values() if p > 0.5)
-                favor_away = sum(1 for p in probs_now.values() if p < 0.5)
-                book_favor_diff = (favor_home - favor_away) / len(probs_now)
+            if probs_effective:
+                favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
+                favor_away = sum(1 for p in probs_effective.values() if p < 0.5)
+                book_favor_diff = (favor_home - favor_away) / len(probs_effective)
 
             # Signed fraction of CONSENSUS_BOOKS that moved the same direction since open —
             # +1.0 means every book with both open+current data moved toward home, -1.0 means
@@ -422,8 +454,8 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                     pred_probs.append(p)
                     prediction_market_probs[book] = p
             prediction_market_diff = None
-            if pred_probs and CLOSING_BOOK in probs_now:
-                prediction_market_diff = (sum(pred_probs) / len(pred_probs)) - probs_now[CLOSING_BOOK]
+            if pred_probs and CLOSING_BOOK in probs_effective:
+                prediction_market_diff = (sum(pred_probs) / len(pred_probs)) - probs_effective[CLOSING_BOOK]
 
             # Market-implied score differential (who does the market expect to outscore whom
             # tonight) and scoring environment (combined expected runs) — averaged across
