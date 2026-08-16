@@ -39,7 +39,9 @@ PRIZEPICKS_SPORTSBOOK = ["PrizePicks"]
 # need a few batched calls.
 FIXTURE_BATCH_SIZE = 5
 
-_CACHE_MAX_AGE_MIN = 15  # odds move fast, but this keeps us well under the free quota
+_CACHE_MAX_AGE_MIN = 5  # odds move fast; tightened from 15 -- still clear of the historical-panel
+# pacing floor (~72s/full refresh at 45 requests * HISTORICAL_RATE_LIMIT_SLEEP) and of the free
+# quota, just fresher than a cold-start gap can look stale for
 
 # --- Historical/movement odds (opening vs current-or-closing) ---------------
 #
