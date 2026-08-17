@@ -1642,11 +1642,15 @@ def get_probable_pitchers(date: str = None) -> list[dict]:
 
 
 # MLB Stats API is the canonical abbreviation this whole app keys off (team_abbr everywhere,
-# get_team_roster, _get_mlb_team_ids). ESPN's own scoreboard API uses a few different
-# abbreviations for the same teams — same class of mismatch already fixed for Baseball-Reference
-# (see the WSN/OAK/CHW/ARI -> WSH/ATH/CWS/AZ fix) — confirmed directly: ESPN returned "ARI" for
-# Arizona today while MLB Stats API's own probablePitcher feed for the same game used "AZ".
-_ESPN_TEAM_ABBR_FIX = {"ARI": "AZ", "WSN": "WSH", "CHW": "CWS", "OAK": "ATH"}
+# get_team_roster, _get_mlb_team_ids). ESPN's own scoreboard API and OpticOdds both use a few
+# different abbreviations for the same teams — same class of mismatch already fixed for
+# Baseball-Reference (see the WSN/OAK/CHW/ARI -> WSH/ATH/CWS/AZ fix) — confirmed directly: ESPN
+# returned "ARI" for Arizona today while MLB Stats API's own probablePitcher feed for the same
+# game used "AZ". KAN/WAS added 2026-08-17 after a live case (ATH@KC showing corrupted odds)
+# traced back to OpticOdds using "KAN" for Kansas City (not "KC") and "WAS" for Washington (not
+# "WSN" as originally assumed here) -- both silently never matched, on either side of every
+# odds_fetcher.py lookup that reuses this dict.
+_ESPN_TEAM_ABBR_FIX = {"ARI": "AZ", "WSN": "WSH", "WAS": "WSH", "CHW": "CWS", "OAK": "ATH", "KAN": "KC"}
 
 
 def get_espn_probable_pitchers(date: str = None, force_refresh: bool = False) -> dict:
