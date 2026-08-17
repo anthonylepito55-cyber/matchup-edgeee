@@ -354,7 +354,7 @@ def _fetch_player_prop_lines(fixture_id: str, markets: list = None, sportsbooks:
 
 def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     """
-    {(away_team_full_name, home_team_full_name): {
+    {(start_date_utc, away_team_full_name, home_team_full_name): {
         "line_movement": .., "market_divergence": .., "consensus_prob": ..,
         "book_disagreement": .., "book_probs": {book: devigged_home_prob},
         "prediction_market_diff": .., "prediction_market_probs": {book: devigged_home_prob},
@@ -365,6 +365,15 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     book-by-book — CLOSING_BOOK/PUBLIC_BOOK are both members), one 2-book PREDICTION_MARKET_BOOKS
     panel. Any field can be missing/absent per game — same "NaN means no signal" convention as
     everywhere else in this app, not an error.
+
+    Key includes start_date_utc (matches get_probable_pitchers' game_time_utc string exactly,
+    confirmed live) because the fetch window spans date..date+2 -- any 2+ game series has the
+    SAME (away_team, home_team) pair appear on multiple days within that window, and a
+    team-name-only key let a later, not-yet-lined fixture (no book panels posted yet, all fields
+    None) silently overwrite an earlier day's real data in this dict. Confirmed live: this
+    dropped every market feature for a same-day game to None while a later date's game in the
+    window occupied the key instead. Also disambiguates genuine same-day doubleheaders, which
+    have distinct start times.
     """
     if not OPTICODDS_API_KEY:
         return {}
@@ -375,7 +384,7 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
         if age_min < _CACHE_MAX_AGE_MIN:
             with open(cache_path) as f:
                 raw = json.load(f)
-            return {tuple(k.split("|||")): v for k, v in raw.items()}
+            return {tuple(k.split("|||")): v for k, v in raw.items()}  # (start_date, away, home)
 
     # +2 calendar days, not +1 day 12h — see _get_active_fixture_ids' comment on why a date-only
     # bound can't represent a same-day hour offset (it gets silently truncated away).
@@ -513,7 +522,7 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
 
             home_team = f.get("home_team_display")
             away_team = f.get("away_team_display")
-            snapshot[(away_team, home_team)] = {
+            snapshot[(f.get("start_date"), away_team, home_team)] = {
                 "line_movement": line_movement,
                 "market_divergence": market_divergence,
                 "consensus_prob": consensus_prob,
@@ -531,14 +540,14 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     except requests.exceptions.RequestException:
         pass
 
-    raw = {f"{away}|||{home}": v for (away, home), v in snapshot.items()}
+    raw = {f"{start_date}|||{away}|||{home}": v for (start_date, away, home), v in snapshot.items()}
     with open(cache_path, "w") as f:
         json.dump(raw, f)
     return snapshot
 
 
 def get_line_movement(date: str = None, force_refresh: bool = False) -> dict:
-    """{(away_team_full_name, home_team_full_name): movement} — devigged current-minus-opening
+    """{(start_date_utc, away_team_full_name, home_team_full_name): movement} — devigged current-minus-opening
     home win prob from CLOSING_BOOK (Pinnacle). Thin wrapper over get_market_snapshot; positive
     means the market has moved toward home since the line opened. Missing entries follow the
     same "no signal" convention as the rest of this app."""
@@ -547,7 +556,7 @@ def get_line_movement(date: str = None, force_refresh: bool = False) -> dict:
 
 
 def get_market_divergence(date: str = None, force_refresh: bool = False) -> dict:
-    """{(away_team_full_name, home_team_full_name): divergence} — SHARP_BOOKS' average movement
+    """{(start_date_utc, away_team_full_name, home_team_full_name): divergence} — SHARP_BOOKS' average movement
     since open minus PUBLIC_BOOKS' average movement since open. Thin wrapper over
     get_market_snapshot; positive means the sharp books have moved toward home MORE than the
     public books have — a rough proxy for "sharp money is on home, public hasn't followed," since
@@ -557,7 +566,7 @@ def get_market_divergence(date: str = None, force_refresh: bool = False) -> dict
 
 
 def get_consensus_odds(date: str = None, force_refresh: bool = False) -> dict:
-    """{(away_team_full_name, home_team_full_name): {"consensus_prob": .., "book_median_prob": ..,
+    """{(start_date_utc, away_team_full_name, home_team_full_name): {"consensus_prob": .., "book_median_prob": ..,
     "book_prob_std": .., "book_disagreement": .., "book_movement_agreement": ..,
     "book_favor_diff": .., "book_probs": {book: devigged_home_prob}}} — consensus_prob is the
     mean devigged home win probability across CONSENSUS_BOOKS right now (not a movement/diff —
@@ -584,7 +593,7 @@ def get_consensus_odds(date: str = None, force_refresh: bool = False) -> dict:
 
 
 def get_prediction_market_signal(date: str = None, force_refresh: bool = False) -> dict:
-    """{(away_team_full_name, home_team_full_name): diff} — average devigged home prob across
+    """{(start_date_utc, away_team_full_name, home_team_full_name): diff} — average devigged home prob across
     whichever of PREDICTION_MARKET_BOOKS has data for that game, minus Pinnacle's current
     devigged home prob. Thin wrapper over get_market_snapshot. Positive means the prediction
     markets are pricing home HIGHER than the sharp sportsbook right now."""

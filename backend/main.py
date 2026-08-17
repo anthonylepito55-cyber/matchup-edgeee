@@ -1832,7 +1832,11 @@ def _compute_today_response(date: str = None):
             "away": odds_entry["away"],
             "bookmaker": odds_entry["bookmaker"],
         } if odds_entry else None
-        game_snapshot = market_snapshot.get((g["away_team"], g["home_team"])) or {}
+        # Keyed by exact start-time too, not just team names -- get_market_snapshot's fetch window
+        # spans multiple days, so a team-name-only key let a later date's not-yet-lined fixture in
+        # the same series silently overwrite today's real market data (confirmed live on a
+        # MIA@PHI game: every market feature came back None despite real book prices existing).
+        game_snapshot = market_snapshot.get((g.get("game_time_utc"), g["away_team"], g["home_team"])) or {}
         game_line_movement = game_snapshot.get("line_movement")
         game_market_divergence = game_snapshot.get("market_divergence")
         game_prediction_market_signal = game_snapshot.get("prediction_market_diff")
