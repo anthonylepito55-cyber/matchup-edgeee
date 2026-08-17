@@ -522,7 +522,17 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
 
             home_team = f.get("home_team_display")
             away_team = f.get("away_team_display")
-            snapshot[(f.get("start_date"), away_team, home_team)] = {
+            snapshot_key = (f.get("start_date"), away_team, home_team)
+            if snapshot_key in snapshot:
+                # Should be impossible post-fix (start_date makes the key unique per fixture) --
+                # if this ever fires, OpticOdds is returning a genuine duplicate fixture, or the
+                # key stopped being unique again. Either way, silently overwriting real data with
+                # whatever came second is exactly the bug that produced 57% instead of ~69% for a
+                # PHI game with zero actual market signal behind it (see git blame on this line).
+                # Loud and skipped beats silent and wrong.
+                print(f"[get_market_snapshot] WARNING: duplicate snapshot key {snapshot_key!r} -- keeping first, dropping this one")
+                continue
+            snapshot[snapshot_key] = {
                 "line_movement": line_movement,
                 "market_divergence": market_divergence,
                 "consensus_prob": consensus_prob,
