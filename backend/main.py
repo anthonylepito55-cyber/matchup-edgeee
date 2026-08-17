@@ -53,7 +53,7 @@ from features import (
     build_matchup_features, features_to_row, build_strikeout_features, strikeout_features_to_row,
     build_ip_features, ip_features_to_row, build_er_features, er_features_to_row,
     MIN_RELIABLE_STARTS, MIN_RELIABLE_SEASON_IP, LONG_LAYOFF_DAYS, MIN_RELIABLE_IP_PER_START, FEATURE_COLUMNS,
-    BASEBALL_ONLY_FEATURE_COLUMNS, STRIKEOUT_FEATURE_COLUMNS, STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS,
+    MARKET_FEATURE_COLUMNS, BASEBALL_ONLY_FEATURE_COLUMNS, STRIKEOUT_FEATURE_COLUMNS, STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS,
     IP_FEATURE_COLUMNS, IP_BASEBALL_ONLY_FEATURE_COLUMNS, ER_FEATURE_COLUMNS, ER_BASEBALL_ONLY_FEATURE_COLUMNS,
     blend_with_prior_season, blend_statcast_with_prior_season,
 )
@@ -511,7 +511,7 @@ _FEATURE_LABELS = {
 }
 
 
-def _data_completeness(feats: dict) -> dict:
+def _data_completeness(feats: dict, game_label: str = None) -> dict:
     """Which model features came back NaN for this matchup, surfaced explicitly rather than
     silently letting XGBoost's native missing-value handling absorb them. A team-abbreviation
     mismatch once nulled bullpen/defense/lineup/park-factor features for ~25% of games with no
@@ -519,6 +519,21 @@ def _data_completeness(feats: dict) -> dict:
     would have caught it without a manual spot-check."""
     missing = [col for col in FEATURE_COLUMNS if pd.isna(feats.get(col, np.nan))]
     total = len(FEATURE_COLUMNS)
+
+    # A completeness_pct in the 80s-90s reads as "mostly fine" but can hide the ENTIRE market
+    # feature block being absent (14 of ~100+ features) -- exactly how Model B silently served a
+    # game with zero real market signal for months (see the 2026-08-17 get_market_snapshot
+    # key-collision bug: completeness_pct read 84.1%, which looked unremarkable, while Model B's
+    # output was actually completely disconnected from the live market). A missing single market
+    # feature is normal (movement features need a genuine now-vs-open pair, not always available)
+    # -- ALL of them missing at once for a game with real live odds is not, and is worth a loud,
+    # grep-able log line rather than waiting for a human to notice the prediction looks off.
+    if game_label and all(col in missing for col in MARKET_FEATURE_COLUMNS):
+        print(f"[data_quality] ALERT: {game_label} is missing the ENTIRE market feature block "
+              f"({len(MARKET_FEATURE_COLUMNS)} features) -- Model B has zero real market signal "
+              f"for this game despite completeness_pct looking survivable. Check get_market_snapshot "
+              f"fixture resolution for this matchup.")
+
     return {
         "complete": len(missing) == 0,
         "completeness_pct": round((total - len(missing)) / total * 100, 1),
@@ -2301,7 +2316,7 @@ def _compute_today_response(date: str = None):
                 "home": _json_safe(k_h2h_stats.get(g["home_pitcher_id"], {})),
                 "away": _json_safe(k_h2h_stats.get(g["away_pitcher_id"], {})),
             }
-            data_quality = _data_completeness(feats)
+            data_quality = _data_completeness(feats, game_label=f"{g['away_team_abbr']}@{g['home_team_abbr']} ({resolved_date}, game_pk {g.get('game_pk')})")
         else:
             data_quality = None
 
