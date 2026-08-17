@@ -52,11 +52,20 @@ _CACHE_MAX_AGE_MIN = 5  # odds move fast; tightened from 15 -- still clear of th
 CLOSING_BOOK = "Pinnacle"  # the standard "sharp" reference book for closing-line value
 HISTORICAL_RATE_LIMIT_SLEEP = 1.6  # stays under OpticOdds' 10 req/15s cap on /fixtures/odds/historical
 
-# Retail counterpart to CLOSING_BOOK for get_market_divergence — when Pinnacle (sharp) and
-# DraftKings (heavy public volume) move differently since open, that's a rough proxy for
-# "sharp money vs. public money disagree," since OpticOdds has no actual bet-count/handle
-# endpoint (confirmed: /betting-splits, /public-betting, /consensus, /handle all 404).
+# Retail counterpart to CLOSING_BOOK for line_movement/CLOSING_BOOK-specific uses — heavy public
+# volume, since OpticOdds has no actual bet-count/handle endpoint (confirmed: /betting-splits,
+# /public-betting, /consensus, /handle all 404).
 PUBLIC_BOOK = "DraftKings"
+
+# market_divergence's actual sharp-vs-public split, one full CONSENSUS_BOOKS partition — when the
+# SHARP_BOOKS' average movement since open differs from PUBLIC_BOOKS' average, that's a reverse-
+# line-movement proxy for "sharp money vs. public money disagree." Originally just CLOSING_BOOK
+# (Pinnacle) vs PUBLIC_BOOK (DraftKings) — a single book on each side is noisy (either book's own
+# idiosyncratic pricing quirks read as "divergence" with nothing to average them out); using both
+# sharp books and all three public books the same way get_consensus_odds already averages across
+# CONSENSUS_BOOKS gives a more robust read of the same signal.
+SHARP_BOOKS = ["Pinnacle", "Circa Sports"]
+PUBLIC_BOOKS = ["DraftKings", "FanDuel", "BetMGM"]
 
 # Prediction-market event contracts, queryable via the same /fixtures/odds/historical
 # endpoint as regular sportsbooks. Their *opening* (olv) price is a degenerate artifact for
@@ -81,9 +90,19 @@ CONSENSUS_BOOKS = ["Pinnacle", "DraftKings", "FanDuel", "BetMGM", "Circa Sports"
 # and hits allowed (~run-prevention/contact-quality expectation), alongside the strikeout line
 # already used elsewhere. Verified live: full historical coverage back through the 2025 season,
 # same /fixtures/odds/historical endpoint. _fetch_player_prop_lines averages (consensus) across
-# whichever of CONSENSUS_BOOKS has data for each pitcher/market — not every book prices every
-# reliever, but the two starters are reliably covered across most/all 5 books.
+# whichever of PROP_CONSENSUS_BOOKS has data for each pitcher/market — not every book prices
+# every reliever, but the two starters are reliably covered across most/all 5 books.
 PLAYER_PROP_MARKETS = ["Player Strikeouts", "Player Outs", "Player Earned Runs", "Player Hits Allowed"]
+
+# Separate 5-book panel just for PLAYER_PROP_MARKETS -- swaps Circa Sports (a CONSENSUS_BOOKS
+# member) for Caesars. Confirmed live across 6 fixtures: Circa Sports had 0/6 coverage on
+# Player Outs/Earned Runs/Hits Allowed while Pinnacle/DraftKings/FanDuel/BetMGM/Caesars/ESPN
+# Bet/Bally Bet all had 6/6 -- Circa is a real sharp book for moneyline (kept in CONSENSUS_BOOKS
+# for that), just doesn't post these specific props. This is a separate API call from the
+# moneyline/totals panels (_fetch_player_prop_lines, its own request), so swapping the book list
+# here doesn't touch CONSENSUS_BOOKS' moneyline-consensus sharp/retail balance or add any extra
+# requests.
+PROP_CONSENSUS_BOOKS = ["Pinnacle", "DraftKings", "FanDuel", "BetMGM", "Caesars"]
 
 
 def _fetch_fixture_map(start_date: str, end_date: str, statuses: tuple = ("completed",)) -> dict:
@@ -150,7 +169,11 @@ def _fetch_closing_line(fixture_id: str, sportsbook: str = CLOSING_BOOK) -> dict
                 prices[o.get("name")] = clv["price"]
             if olv.get("price") is not None:
                 open_prices[o.get("name")] = olv["price"]
-        if home_team in prices and away_team in prices:
+        # Identical home/away prices are essentially never a genuine two-sided line -- see
+        # get_moneyline_odds' equivalent guard for the confirmed real case (logged -108/-108 that
+        # turned out to bear no resemblance to the book's actual closing line). Treated as no
+        # signal here too, same as a missing price.
+        if home_team in prices and away_team in prices and prices[home_team] != prices[away_team]:
             result = {"home": prices[home_team], "away": prices[away_team]}
             if home_team in open_prices and away_team in open_prices:
                 result["home_open"] = open_prices[home_team]
@@ -192,6 +215,16 @@ def _fetch_panel_odds(fixture_id: str, sportsbooks: list) -> dict:
                 entry[side] = clv["price"]
             if olv.get("price") is not None:
                 entry[f"{side}_open"] = olv["price"]
+        # Identical home/away prices from the same book are essentially never a genuine two-sided
+        # line -- see get_moneyline_odds' equivalent guard for the confirmed real case. Drop just
+        # the corrupted pair (current or opening, whichever matched) rather than the whole book, so
+        # a good current price alongside a bad opening one (or vice versa) doesn't get thrown out
+        # unnecessarily.
+        for entry in by_book.values():
+            if "home" in entry and "away" in entry and entry["home"] == entry["away"]:
+                del entry["home"], entry["away"]
+            if "home_open" in entry and "away_open" in entry and entry["home_open"] == entry["away_open"]:
+                del entry["home_open"], entry["away_open"]
         # Keep a book if it has a usable price pair from EITHER source — current (home/away) or,
         # when OpticOdds hasn't synced a current price yet, opening (home_open/away_open). Used to
         # require "home"+"away" specifically, which silently dropped a book's opening price too
@@ -275,7 +308,7 @@ def normalize_player_name(name: str) -> str:
 def _fetch_player_prop_lines(fixture_id: str, markets: list = None, sportsbooks: list = None) -> dict:
     """{market_name: {normalized_pitcher_name: points}} for all of `markets` (defaults to
     PLAYER_PROP_MARKETS), averaged (consensus) across all of `sportsbooks` (defaults to
-    CONSENSUS_BOOKS) that have data for that pitcher/market — one combined request for the whole
+    PROP_CONSENSUS_BOOKS) that have data for that pitcher/market — one combined request for the whole
     5-book x 4-market panel (verified live: sportsbook list + market list together in one call
     works the same way the totals panel does, 60 entries back for 5 books x 4 markets x 2
     pitchers). `points` is the posted LINE (e.g. 18.5 outs, 1.5 earned runs), not the over/under
@@ -285,7 +318,7 @@ def _fetch_player_prop_lines(fixture_id: str, markets: list = None, sportsbooks:
     same "no signal" convention as everywhere else in this app. Keys are run through
     normalize_player_name — see its docstring for why."""
     markets = markets or PLAYER_PROP_MARKETS
-    sportsbooks = sportsbooks or CONSENSUS_BOOKS
+    sportsbooks = sportsbooks or PROP_CONSENSUS_BOOKS
 
     try:
         resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds/historical", params={
@@ -387,13 +420,19 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             if CLOSING_BOOK in probs_now and CLOSING_BOOK in probs_open:
                 line_movement = probs_now[CLOSING_BOOK] - probs_open[CLOSING_BOOK]
 
-            market_divergence = None
-            if CLOSING_BOOK in probs_now and CLOSING_BOOK in probs_open and \
-                    PUBLIC_BOOK in probs_now and PUBLIC_BOOK in probs_open:
-                market_divergence = (
-                    (probs_now[CLOSING_BOOK] - probs_open[CLOSING_BOOK])
-                    - (probs_now[PUBLIC_BOOK] - probs_open[PUBLIC_BOOK])
-                )
+            # Reverse-line-movement proxy: SHARP_BOOKS' average movement since open minus
+            # PUBLIC_BOOKS' average movement — see SHARP_BOOKS' docstring on why this averages
+            # across both sides instead of comparing a single book pair.
+            sharp_movements = [
+                probs_now[b] - probs_open[b] for b in SHARP_BOOKS if b in probs_now and b in probs_open
+            ]
+            public_movements = [
+                probs_now[b] - probs_open[b] for b in PUBLIC_BOOKS if b in probs_now and b in probs_open
+            ]
+            market_divergence = (
+                (sum(sharp_movements) / len(sharp_movements)) - (sum(public_movements) / len(public_movements))
+                if sharp_movements and public_movements else None
+            )
 
             # Level features (a snapshot of where the market sits right now) can fall back to a
             # book's opening price when OpticOdds hasn't synced a current one yet — same olv
@@ -508,11 +547,11 @@ def get_line_movement(date: str = None, force_refresh: bool = False) -> dict:
 
 
 def get_market_divergence(date: str = None, force_refresh: bool = False) -> dict:
-    """{(away_team_full_name, home_team_full_name): divergence} — Pinnacle's movement since open
-    minus DraftKings' movement since open. Thin wrapper over get_market_snapshot; positive means
-    the sharp book has moved toward home MORE than the retail book has — a rough proxy for
-    "sharp money is on home, public hasn't followed," since OpticOdds has no actual bet-count/
-    handle data (see PUBLIC_BOOK's docstring)."""
+    """{(away_team_full_name, home_team_full_name): divergence} — SHARP_BOOKS' average movement
+    since open minus PUBLIC_BOOKS' average movement since open. Thin wrapper over
+    get_market_snapshot; positive means the sharp books have moved toward home MORE than the
+    public books have — a rough proxy for "sharp money is on home, public hasn't followed," since
+    OpticOdds has no actual bet-count/handle data (see PUBLIC_BOOK's docstring)."""
     snapshot = get_market_snapshot(date, force_refresh)
     return {k: v["market_divergence"] for k, v in snapshot.items() if v.get("market_divergence") is not None}
 
@@ -736,9 +775,20 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
         for book in PREFERRED_SPORTSBOOKS:
             prices = by_book.get(book, {})
             if home_team in prices and away_team in prices:
+                home_price, away_price = prices[home_team], prices[away_team]
+                # A genuine two-sided moneyline essentially never prices both teams identically --
+                # confirmed corrupted live: a logged -108/-108 (and, on other dates, -104/-104) for
+                # the same matchup turned out to bear no resemblance to the book's real closing
+                # line (+116/-126) once checked against the historical endpoint. Root cause not
+                # fully traced (a live-API timing/staleness quirk on one side is the leading
+                # suspect), but the fix that matters is not serving it: try the next preferred book
+                # instead of returning obviously-bad data, same "no signal" fallback as a missing
+                # price entirely.
+                if home_price == away_price:
+                    continue
                 odds_by_matchup[(away_team, home_team)] = {
-                    "home": prices[home_team],
-                    "away": prices[away_team],
+                    "home": home_price,
+                    "away": away_price,
                     "bookmaker": book,
                 }
                 break
@@ -760,7 +810,7 @@ def get_pitcher_market_lines(date: str = None, force_refresh: bool = False) -> d
     {normalized_pitcher_name: {"strikeout_line":.., "outs_line":.., "er_line":..,
     "hits_allowed_line":..}} for every starter with posted PLAYER_PROP_MARKETS lines on the given
     date — the market's own per-pitcher-per-night point estimate for each stat, averaged
-    (consensus) across CONSENSUS_BOOKS (see PLAYER_PROP_MARKETS' docstring on why the line
+    (consensus) across PROP_CONSENSUS_BOOKS (see PLAYER_PROP_MARKETS' docstring on why the line
     itself, not the over/under price, is the signal). Keyed by normalize_player_name(pitcher full
     name) — callers must normalize their own lookup key the same way (see normalize_player_name's
     docstring on why: OpticOdds uses unaccented ASCII names, MLB Stats API doesn't).
