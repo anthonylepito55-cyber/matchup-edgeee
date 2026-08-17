@@ -1652,6 +1652,15 @@ def get_probable_pitchers(date: str = None) -> list[dict]:
 # odds_fetcher.py lookup that reuses this dict.
 _ESPN_TEAM_ABBR_FIX = {"ARI": "AZ", "WSN": "WSH", "WAS": "WSH", "CHW": "CWS", "OAK": "ATH", "KAN": "KC"}
 
+# Same category of mismatch, at the full-team-name level rather than abbreviation: OpticOdds
+# still displays "Oakland Athletics" while MLB Stats API (get_probable_pitchers, the source of
+# every g["home_team"]/g["away_team"] value main.py looks odds/market data up by) calls them just
+# "Athletics" post-relocation. Confirmed live: this silently broke get_moneyline_odds and
+# get_market_snapshot's dict-key lookups for every Athletics game specifically, same failure
+# shape as the abbreviation mismatches above just one field over. Checked all 22 teams playing
+# 2026-08-17 against OpticOdds' own team_display strings -- Athletics was the only mismatch.
+_OPTICODDS_TEAM_NAME_FIX = {"Oakland Athletics": "Athletics"}
+
 
 def get_espn_probable_pitchers(date: str = None, force_refresh: bool = False) -> dict:
     """

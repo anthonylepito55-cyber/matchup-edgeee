@@ -15,7 +15,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr, _ESPN_TEAM_ABBR_FIX
+from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr, _ESPN_TEAM_ABBR_FIX, _OPTICODDS_TEAM_NAME_FIX
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -528,8 +528,11 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             )
             market_total_runs = (sum(game_totals) / len(game_totals)) if game_totals else None
 
-            home_team = f.get("home_team_display")
-            away_team = f.get("away_team_display")
+            # Normalized to MLB Stats API's own team-name convention (e.g. "Athletics", not
+            # OpticOdds' "Oakland Athletics") -- this dict is looked up by main.py using
+            # get_probable_pitchers' names directly, same reasoning as _ESPN_TEAM_ABBR_FIX above.
+            home_team = _OPTICODDS_TEAM_NAME_FIX.get(f.get("home_team_display"), f.get("home_team_display"))
+            away_team = _OPTICODDS_TEAM_NAME_FIX.get(f.get("away_team_display"), f.get("away_team_display"))
             snapshot_key = (f.get("start_date"), away_team, home_team)
             if snapshot_key in snapshot:
                 # Should be impossible post-fix (start_date makes the key unique per fixture) --
@@ -813,7 +816,14 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
                 # price entirely.
                 if home_price == away_price:
                     continue
-                odds_by_matchup[(away_team, home_team)] = {
+                # Normalized to MLB Stats API's own team-name convention for the OUTPUT key only
+                # -- home_team/away_team above must stay as OpticOdds' raw names since they're
+                # used to match against odds_list's own o["name"] entries (also OpticOdds' raw
+                # naming); normalizing those too would break that internal match instead of fixing
+                # anything. Only the dict key main.py looks this up by needs to match MLB's names.
+                norm_home = _OPTICODDS_TEAM_NAME_FIX.get(home_team, home_team)
+                norm_away = _OPTICODDS_TEAM_NAME_FIX.get(away_team, away_team)
+                odds_by_matchup[(norm_away, norm_home)] = {
                     "home": home_price,
                     "away": away_price,
                     "bookmaker": book,
