@@ -46,7 +46,7 @@ from data_collection import CACHE_DIR
 from build_training_data import TRAINING_CACHE
 from odds_fetcher import (
     devig_home_prob, _fetch_fixture_map, _fetch_panel_odds, _fetch_totals_panel, HISTORICAL_RATE_LIMIT_SLEEP,
-    CLOSING_BOOK, PUBLIC_BOOK, CONSENSUS_BOOKS, PREDICTION_MARKET_BOOKS,
+    CLOSING_BOOK, PUBLIC_BOOK, CONSENSUS_BOOKS, PREDICTION_MARKET_BOOKS, _resolve_doubleheader_overrides,
 )
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -81,6 +81,13 @@ def _empty_fields() -> dict:
     return {
         "market_home_prob": None, "market_home_prob_open": None,
         "market_home_prob_dk": None, "market_home_prob_dk_open": None,
+        # Circa/FanDuel/BetMGM's own current+opening prices -- needed alongside Pinnacle/DraftKings
+        # above for the sharp-books-avg-vs-public-books-avg market_divergence_diff (see
+        # odds_fetcher.SHARP_BOOKS/PUBLIC_BOOKS); Pinnacle+DraftKings alone only covered a
+        # single-book-pair version of that signal.
+        "market_home_prob_circa": None, "market_home_prob_circa_open": None,
+        "market_home_prob_fanduel": None, "market_home_prob_fanduel_open": None,
+        "market_home_prob_betmgm": None, "market_home_prob_betmgm_open": None,
         "market_home_prob_kalshi": None, "market_home_prob_polymarket": None,
         "market_home_prob_consensus": None, "market_home_prob_book_disagreement": None,
         "market_home_prob_movement_agreement": None,
@@ -126,6 +133,17 @@ def _fetch_game_fields(fixture_id: str) -> dict:
         fields["market_home_prob"] = devig_home_prob(panel[CLOSING_BOOK].get("home"), panel[CLOSING_BOOK].get("away"))
     if PUBLIC_BOOK in panel:
         fields["market_home_prob_dk"] = devig_home_prob(panel[PUBLIC_BOOK].get("home"), panel[PUBLIC_BOOK].get("away"))
+
+    # Same current+opening capture for the other 3 CONSENSUS_BOOKS members (Circa/FanDuel/BetMGM)
+    # -- needed for the sharp-avg-vs-public-avg market_divergence_diff, same reasoning as
+    # market_home_prob/market_home_prob_dk above.
+    for book, key in (("Circa Sports", "circa"), ("FanDuel", "fanduel"), ("BetMGM", "betmgm")):
+        if book in panel:
+            fields[f"market_home_prob_{key}"] = devig_home_prob(panel[book].get("home"), panel[book].get("away"))
+        if book in panel and "home_open" in panel[book] and "away_open" in panel[book]:
+            fields[f"market_home_prob_{key}_open"] = devig_home_prob(
+                panel[book]["home_open"], panel[book]["away_open"]
+            )
 
     # The remaining level fields (_consensus/_median/_favor_diff/_book_disagreement/_std) have no
     # movement counterpart depending on them, so they can safely fall back to a book's opening
@@ -205,6 +223,13 @@ def main():
     fixture_map = _fetch_fixture_map(start_date, end_date)
     print(f"Found {len(fixture_map)} indexed fixtures.\n")
 
+    # Doubleheaders collide on fixture_map's (date, home, away) key -- resolve those specific
+    # games' real fixture ids up front so the main loop below can prefer them. No-op (empty dict,
+    # one cheap duplicated() check) when remaining has no doubleheaders in it.
+    doubleheader_overrides = _resolve_doubleheader_overrides(remaining)
+    if doubleheader_overrides:
+        print(f"Resolved {len(doubleheader_overrides)} doubleheader game(s) to their correct fixture id.\n")
+
     print(f"Pulling odds across {len(CONSENSUS_BOOKS) + len(PREDICTION_MARKET_BOOKS)} books/game "
           f"in 3 panel requests (rate-limited, ~{HISTORICAL_RATE_LIMIT_SLEEP}s/request)...")
     matched = 0
@@ -212,7 +237,7 @@ def main():
         if i % CHECKPOINT_EVERY == 0:
             print(f"  ...{i}/{len(remaining)} ({matched} matched so far)")
             _save(results)
-        fixture_id = fixture_map.get((row["game_date"], row["home_team"], row["away_team"]))
+        fixture_id = doubleheader_overrides.get(row["game_pk"]) or fixture_map.get((row["game_date"], row["home_team"], row["away_team"]))
         if fixture_id is None:
             results[row["game_pk"]] = _empty_fields()
             continue

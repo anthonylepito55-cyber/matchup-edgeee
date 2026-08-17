@@ -16,7 +16,7 @@ heavily cached already from this session's many pitcher-hand/name lookups — no
 rate limit).
 
 Only 1 request/game — odds_fetcher._fetch_player_prop_lines fetches all 4 markets across all 5
-CONSENSUS_BOOKS in a single combined call (OpticOdds accepts a list for both `market` and
+PROP_CONSENSUS_BOOKS in a single combined call (OpticOdds accepts a list for both `market` and
 `sportsbook` in the same request) and averages whichever books have data per pitcher/market,
 a true multi-book consensus rather than a single-book-with-fallback value. Rate-limited like
 backfill_historical_odds.py (~10 req/15s). Resumable: checkpoints every 25 games, skips game_pks
@@ -32,7 +32,10 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from data_collection import CACHE_DIR, get_pitcher_info
-from odds_fetcher import _fetch_fixture_map, _fetch_player_prop_lines, normalize_player_name, HISTORICAL_RATE_LIMIT_SLEEP
+from odds_fetcher import (
+    _fetch_fixture_map, _fetch_player_prop_lines, normalize_player_name, HISTORICAL_RATE_LIMIT_SLEEP,
+    _resolve_doubleheader_overrides,
+)
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 OPTICODDS_API_KEY = os.environ.get("OPTICODDS_API_KEY")
@@ -148,13 +151,17 @@ def main():
     fixture_map = _fetch_fixture_map(start_date, end_date)
     print(f"Found {len(fixture_map)} indexed fixtures.\n")
 
+    doubleheader_overrides = _resolve_doubleheader_overrides(remaining)
+    if doubleheader_overrides:
+        print(f"Resolved {len(doubleheader_overrides)} doubleheader game(s) to their correct fixture id.\n")
+
     print(f"Pulling player-prop lines (1 request/game, rate-limited, ~{HISTORICAL_RATE_LIMIT_SLEEP}s/request)...")
     matched = 0
     for i, (_, row) in enumerate(remaining.iterrows()):
         if i % CHECKPOINT_EVERY == 0:
             print(f"  ...{i}/{len(remaining)} ({matched} matched so far)")
             _save(results)
-        fixture_id = fixture_map.get((row["game_date"], row["home_team"], row["away_team"]))
+        fixture_id = doubleheader_overrides.get(row["game_pk"]) or fixture_map.get((row["game_date"], row["home_team"], row["away_team"]))
         if fixture_id is None:
             results[row["game_pk"]] = _empty_fields()
             continue

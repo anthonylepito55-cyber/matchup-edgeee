@@ -15,7 +15,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr, _ESPN_TEAM_ABBR_FIX, _OPTICODDS_TEAM_NAME_FIX
+from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr, _ESPN_TEAM_ABBR_FIX, _OPTICODDS_TEAM_NAME_FIX, MLB_STATS_API
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -140,6 +140,74 @@ def _fetch_fixture_map(start_date: str, end_date: str, statuses: tuple = ("compl
             break
         page += 1
     return fixture_map
+
+
+def _resolve_doubleheader_overrides(games_df: pd.DataFrame) -> dict:
+    """
+    {game_pk: fixture_id} for games that share a (game_date, home_team, away_team) key with
+    another row in games_df -- i.e. doubleheaders. _fetch_fixture_map's dict is keyed by
+    (date, home_abbr, away_abbr) with no time component, so both games of a doubleheader collide
+    on the same key and fixture_map.get(...) silently returns one game's fixture id for both.
+    Confirmed live 2026-08-17 (see the get_market_snapshot fix earlier the same day) and confirmed
+    here in training data: 162/6724 rows (81 doubleheader date/matchup pairs) share a collided key.
+
+    games_df needs game_date/home_team/away_team/game_pk columns (same shape every caller already
+    has). Rows with no duplicate key are a no-op -- this only does work when doubleheaders are
+    actually present in the input, so it's cheap to call unconditionally.
+
+    Resolution: MLB's own gameNumber (1 or 2) per game_pk, matched against OpticOdds' fixtures for
+    that exact (date, home, away) sorted chronologically -- game 1 is always first pitch of the
+    day, so gameNumber order and chronological order always agree. Skips (falls back to the
+    caller's normal fixture_map lookup, same as before this existed) any group it can't fully
+    resolve, rather than guessing.
+    """
+    dupe_mask = games_df.duplicated(subset=["game_date", "home_team", "away_team"], keep=False)
+    dupes = games_df[dupe_mask]
+    if dupes.empty:
+        return {}
+
+    overrides = {}
+    for (game_date, home_abbr, away_abbr), group in dupes.groupby(["game_date", "home_team", "away_team"]):
+        game_pks = group["game_pk"].tolist()
+
+        pk_to_game_number = {}
+        for pk in game_pks:
+            try:
+                resp = requests.get(f"{MLB_STATS_API}/schedule", params={"gamePk": int(pk)}, timeout=15)
+                resp.raise_for_status()
+                for d in resp.json().get("dates", []):
+                    for g in d.get("games", []):
+                        if g.get("gamePk") == int(pk):
+                            pk_to_game_number[pk] = g.get("gameNumber", 1)
+            except requests.exceptions.RequestException:
+                continue
+        if len(pk_to_game_number) != len(game_pks):
+            continue
+
+        end = (pd.Timestamp(game_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        try:
+            resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures", params={
+                "league": "mlb", "start_date_after": game_date, "start_date_before": end,
+            }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=20)
+            resp.raise_for_status()
+            optic_fixtures = []
+            for f in resp.json().get("data", []):
+                f_home = _ESPN_TEAM_ABBR_FIX.get(f["home_competitors"][0]["abbreviation"], f["home_competitors"][0]["abbreviation"])
+                f_away = _ESPN_TEAM_ABBR_FIX.get(f["away_competitors"][0]["abbreviation"], f["away_competitors"][0]["abbreviation"])
+                if f_home == home_abbr and f_away == away_abbr:
+                    optic_fixtures.append(f)
+        except requests.exceptions.RequestException:
+            continue
+        optic_fixtures.sort(key=lambda f: f["start_date"])
+        if len(optic_fixtures) < len(game_pks):
+            continue
+
+        for pk, gnum in pk_to_game_number.items():
+            idx = gnum - 1
+            if 0 <= idx < len(optic_fixtures):
+                overrides[pk] = optic_fixtures[idx]["id"]
+
+    return overrides
 
 
 def _fetch_closing_line(fixture_id: str, sportsbook: str = CLOSING_BOOK) -> dict:

@@ -35,6 +35,7 @@ from features import FEATURE_COLUMNS
 from build_training_data import TRAINING_CACHE
 from odds_fetcher import (
     _fetch_fixture_map, _fetch_closing_line, CLOSING_BOOK, HISTORICAL_RATE_LIMIT_SLEEP, OPTICODDS_API_KEY,
+    _resolve_doubleheader_overrides,
 )
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -97,12 +98,16 @@ def main(limit: int):
     fixture_map = _fetch_fixture_map(start_date, end_date)
     print(f"Found {len(fixture_map)} indexed fixtures.\n")
 
+    doubleheader_overrides = _resolve_doubleheader_overrides(preds)
+    if doubleheader_overrides:
+        print(f"Resolved {len(doubleheader_overrides)} doubleheader game(s) to their correct fixture id.\n")
+
     print(f"Pulling {CLOSING_BOOK} closing lines (rate-limited, ~{HISTORICAL_RATE_LIMIT_SLEEP}s/game)...")
     rows = []
     for i, row in preds.iterrows():
         if i % 25 == 0:
             print(f"  ...{i}/{len(preds)}")
-        fixture_id = fixture_map.get((row["game_date"], row["home_team"], row["away_team"]))
+        fixture_id = doubleheader_overrides.get(row["game_pk"]) or fixture_map.get((row["game_date"], row["home_team"], row["away_team"]))
         if fixture_id is None:
             continue
         closing = _fetch_closing_line(fixture_id)
