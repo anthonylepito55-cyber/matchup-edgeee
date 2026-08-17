@@ -1,0 +1,42 @@
+{
+  "n_games": 3080,
+  "results_by_threshold": {
+    "0.02": {
+      "model_b": {
+        "n": 2277,
+        "hit_rate": 0.4668
+      },
+      "meta_model": {
+        "n": 2135,
+        "hit_rate": 0.5354
+      }
+    },
+    "0.03": {
+      "model_b": {
+        "n": 1879,
+        "hit_rate": 0.4561
+      },
+      "meta_model": {
+        "n": 1613,
+        "hit_rate": 0.5412
+      }
+    },
+    "0.05": {
+      "model_b": {
+        "n": 1236,
+        "hit_rate": 0.4442
+      },
+      "meta_model": {
+        "n": 666,
+        "hit_rate": 0.5495
+      }
+    }
+  },
+  "overall": {
+    "model_b_auc": 0.57226031691167,
+    "meta_auc": 0.5974998136212377,
+    "model_b_brier": 0.24511801609406825,
+    "meta_brier": 0.24236765831916482
+  },
+  "computed_at": "2026-08-17T02:18:59.528795"
+}
