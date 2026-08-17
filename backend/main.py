@@ -18,6 +18,8 @@ import os
 import asyncio
 import json
 import secrets
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
@@ -1652,8 +1654,34 @@ def history_for_date(date: str):
     }
 
 
+_TODAY_RESPONSE_CACHE = {}  # resolved_date -> (computed_at_monotonic, response_dict)
+_TODAY_CACHE_TTL_SECONDS = 90
+_today_compute_lock = threading.Lock()
+
+
 @app.get("/api/today")
 def today(date: str = None):
+    # Full computation below (season stats, weather, odds, market data, both models) has run
+    # 100-200+ seconds cold; the frontend auto-refreshes every 60s, so uncached requests were
+    # stacking up and exhausting Railway resources -- the direct cause of repeated 502s. Cache
+    # the whole response by resolved date and serialize recompute behind a lock so at most one
+    # real computation runs per TTL window, regardless of how many requests arrive concurrently.
+    cache_key = date or datetime.now().strftime("%Y-%m-%d")
+    cached = _TODAY_RESPONSE_CACHE.get(cache_key)
+    if cached and (time.monotonic() - cached[0]) < _TODAY_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    with _today_compute_lock:
+        # Re-check: another thread may have just finished computing this while we waited.
+        cached = _TODAY_RESPONSE_CACHE.get(cache_key)
+        if cached and (time.monotonic() - cached[0]) < _TODAY_CACHE_TTL_SECONDS:
+            return cached[1]
+        result = _compute_today_response(date)
+        _TODAY_RESPONSE_CACHE[cache_key] = (time.monotonic(), result)
+        return result
+
+
+def _compute_today_response(date: str = None):
     games = get_probable_pitchers(date)
     season = datetime.now().year
     resolved_date = date or datetime.now().strftime("%Y-%m-%d")
