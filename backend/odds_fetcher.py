@@ -404,7 +404,15 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             game_date = f["start_date"][:10]
             home_abbr = f.get("home_competitors", [{}])[0].get("abbreviation")
             away_abbr = f.get("away_competitors", [{}])[0].get("abbreviation")
-            fixture_id = fixture_map.get((game_date, home_abbr, away_abbr)) or f.get("id")
+            # f["id"] (this fixture's own id, straight from /fixtures/active) wins over
+            # fixture_map's cross-reference -- fixture_map is keyed by (date, home_abbr,
+            # away_abbr) with no time component, so a doubleheader's two fixtures collide there
+            # too and it silently returns one game's id for both. Confirmed live on a real
+            # STL@CIN doubleheader: fixture_map resolved BOTH the 17:40Z and 22:40Z games to the
+            # same (second) fixture id. f["id"] is always fixture-specific and never ambiguous,
+            # so it's the right default; fixture_map is now just a defensive fallback for the
+            # (should be impossible) case where a fixture is missing its own id.
+            fixture_id = f.get("id") or fixture_map.get((game_date, home_abbr, away_abbr))
             if fixture_id is None:
                 continue
 
@@ -865,7 +873,15 @@ def get_pitcher_market_lines(date: str = None, force_refresh: bool = False) -> d
             game_date = f["start_date"][:10]
             home_abbr = f.get("home_competitors", [{}])[0].get("abbreviation")
             away_abbr = f.get("away_competitors", [{}])[0].get("abbreviation")
-            fixture_id = fixture_map.get((game_date, home_abbr, away_abbr)) or f.get("id")
+            # f["id"] (this fixture's own id, straight from /fixtures/active) wins over
+            # fixture_map's cross-reference -- fixture_map is keyed by (date, home_abbr,
+            # away_abbr) with no time component, so a doubleheader's two fixtures collide there
+            # too and it silently returns one game's id for both. Confirmed live on a real
+            # STL@CIN doubleheader: fixture_map resolved BOTH the 17:40Z and 22:40Z games to the
+            # same (second) fixture id. f["id"] is always fixture-specific and never ambiguous,
+            # so it's the right default; fixture_map is now just a defensive fallback for the
+            # (should be impossible) case where a fixture is missing its own id.
+            fixture_id = f.get("id") or fixture_map.get((game_date, home_abbr, away_abbr))
             if fixture_id is None:
                 continue
             by_market = _fetch_player_prop_lines(fixture_id)
