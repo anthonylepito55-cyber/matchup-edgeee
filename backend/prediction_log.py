@@ -70,11 +70,11 @@ LOG_COLUMNS = [
 ]
 
 
-def _read_log() -> pd.DataFrame:
-    if not os.path.exists(LOG_PATH):
-        return pd.DataFrame(columns=LOG_COLUMNS)
+def _read_parquet_log(path: str, columns: list[str]) -> pd.DataFrame:
+    if not os.path.exists(path):
+        return pd.DataFrame(columns=columns)
     try:
-        df = pd.read_parquet(LOG_PATH)
+        df = pd.read_parquet(path)
     except Exception as e:
         # A genuinely corrupted log is a much bigger deal than a corrupted re-fetchable cache
         # (see data_collection._load_or_fetch's same fix) — this is irreplaceable forward-test
@@ -82,19 +82,19 @@ def _read_log() -> pd.DataFrame:
         # back to an empty log the way a cache miss would; it fails loudly so the corruption gets
         # noticed and investigated rather than quietly starting the track record over from zero.
         raise RuntimeError(
-            f"prediction_log.parquet exists but failed to read ({e!r}) — this is the real "
+            f"{path} exists but failed to read ({e!r}) — this is the real "
             "forward-test history, not a re-fetchable cache. Investigate before doing anything "
             "that might overwrite it; do not delete/recreate without recovering the data first."
         ) from e
-    for col in LOG_COLUMNS:  # backfill gracefully if reading a file written before a column existed
+    for col in columns:  # backfill gracefully if reading a file written before a column existed
         if col not in df.columns:
             df[col] = None
     return df
 
 
-def _write_log(df: pd.DataFrame):
+def _write_parquet_atomic(df: pd.DataFrame, path: str):
     # Atomic write (temp file + os.replace) — same fix and same reasoning as
-    # data_collection._load_or_fetch: a direct df.to_parquet(LOG_PATH) truncates the destination
+    # data_collection._load_or_fetch: a direct df.to_parquet(path) truncates the destination
     # before writing, so two concurrent writers (this app logs/settles on every /api/today
     # request, and FastAPI runs requests in parallel threads) can interleave and corrupt the
     # file. Confirmed as the actual cause of a real corruption incident this session — see
@@ -107,11 +107,11 @@ def _write_log(df: pd.DataFrame):
     # irreplaceable one, so on repeated failure it falls back to a direct write rather than losing
     # today's predictions to a crash — accepting the original rare read-race back as a much
     # smaller risk than silently never logging a slate.
-    tmp_path = f"{LOG_PATH}.{os.getpid()}.{time.time_ns()}.tmp"
+    tmp_path = f"{path}.{os.getpid()}.{time.time_ns()}.tmp"
     for attempt in range(5):
         try:
             df.to_parquet(tmp_path)
-            os.replace(tmp_path, LOG_PATH)
+            os.replace(tmp_path, path)
             return
         except OSError:
             if attempt == 4:
@@ -119,9 +119,17 @@ def _write_log(df: pd.DataFrame):
                     os.remove(tmp_path)
                 except OSError:
                     pass
-                df.to_parquet(LOG_PATH)
+                df.to_parquet(path)
                 return
             time.sleep(0.2 * (attempt + 1))
+
+
+def _read_log() -> pd.DataFrame:
+    return _read_parquet_log(LOG_PATH, LOG_COLUMNS)
+
+
+def _write_log(df: pd.DataFrame):
+    _write_parquet_atomic(df, LOG_PATH)
 
 
 def log_predictions(date: str, games: list[dict]):
@@ -226,6 +234,126 @@ def log_predictions(date: str, games: list[dict]):
     if new_rows:
         log = pd.concat([log, pd.DataFrame(new_rows)], ignore_index=True)
     _write_log(log)
+
+
+HISTORY_PATH = os.path.join(CACHE_DIR, "prediction_history.parquet")
+
+HISTORY_COLUMNS = [
+    "logged_at", "date", "game_pk", "home_team_abbr", "away_team_abbr",
+    "status", "model_home_win_prob", "market_model_prob", "market_home_prob",
+    "live_odds_json", "completeness_pct", "missing_features_json",
+]
+
+# Fields compared to decide whether a new snapshot is actually worth appending — see
+# log_prediction_history's docstring on why this is diff-triggered rather than one row per call.
+_HISTORY_DIFF_FIELDS = ["model_home_win_prob", "market_model_prob", "market_home_prob", "completeness_pct"]
+
+
+def log_prediction_history(date: str, games: list[dict]):
+    """
+    Append-only companion to log_predictions above — exists specifically to answer "what was
+    this number an hour/a night ago, and what changed" after the fact, which the upserting main
+    log can't: it only ever keeps the single latest pre-game snapshot, so once a value is
+    overwritten there's no way to recover what it used to be. Real, repeated need this session
+    (a user-reported number from "last night" with no way to confirm what actually changed vs.
+    what I could only infer from timing).
+
+    Diff-triggered, not one row per call: this fires alongside log_predictions on every /api/today
+    request (which can be every ~1 minute via the frontend's auto-refresh, for hours pregame,
+    across ~15 games/day) — logging unconditionally would mean thousands of near-duplicate rows
+    per game for a value that usually hasn't actually moved. A new row is only appended when
+    model_home_win_prob, market_model_prob, market_home_prob, or data-completeness differs from
+    the last recorded snapshot for that (date, game_pk) — so the table stays proportional to how
+    often things actually changed, while still capturing every real movement with a timestamp.
+
+    Same pre-game-only scope as log_predictions (skips TBD games and anything already decided) —
+    this is a history of the forward-test log's own values, not a separate tracking mechanism.
+    """
+    hist = _read_parquet_log(HISTORY_PATH, HISTORY_COLUMNS)
+    last_by_key = {}
+    if not hist.empty:
+        for (d, pk), sub in hist.groupby(["date", "game_pk"]):
+            last_by_key[(d, pk)] = sub.iloc[sub["logged_at"].values.argmax()]
+
+    new_rows = []
+    for g in games:
+        pred = g.get("prediction")
+        game_pk = g.get("game_pk")
+        if pred is None or game_pk is None:
+            continue
+        if g.get("status") not in PRE_GAME_STATUSES:
+            continue
+
+        live_odds = g.get("live_odds")
+        market_home_prob = (
+            _devig_home_prob(live_odds["home"], live_odds["away"]) if live_odds else None
+        )
+        data_quality = g.get("data_quality") or {}
+
+        row = {
+            "logged_at": datetime.now().isoformat(),
+            "date": date, "game_pk": game_pk,
+            "home_team_abbr": g.get("home_team_abbr"), "away_team_abbr": g.get("away_team_abbr"),
+            "status": g.get("status"),
+            "model_home_win_prob": pred.get("home_win_prob"),
+            "market_model_prob": g.get("market_model_prob"),
+            "market_home_prob": market_home_prob,
+            "live_odds_json": json.dumps(live_odds) if live_odds else None,
+            "completeness_pct": data_quality.get("completeness_pct"),
+            "missing_features_json": json.dumps(data_quality.get("missing_features")) if data_quality.get("missing_features") else None,
+        }
+
+        key = (date, game_pk)
+        last = last_by_key.get(key)
+        changed = last is None or any(
+            not _values_equal(last.get(f), row.get(f)) for f in _HISTORY_DIFF_FIELDS
+        )
+        if changed:
+            new_rows.append(row)
+
+    if not new_rows:
+        return
+    hist = pd.concat([hist, pd.DataFrame(new_rows)], ignore_index=True)
+    _write_parquet_atomic(hist, HISTORY_PATH)
+
+
+def _values_equal(a, b) -> bool:
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    try:
+        if isinstance(a, float) or isinstance(b, float):
+            return abs(float(a) - float(b)) < 1e-9
+    except (TypeError, ValueError):
+        pass
+    return a == b
+
+
+def get_prediction_history(game_pk: int, date: str = None) -> list[dict]:
+    """Every recorded snapshot for one game, oldest first — the actual answer to "what was this
+    at some point in the past and when did it change," instead of reconstructing it after the
+    fact. Empty list if nothing was ever logged (e.g. the game was never in a pre-game state
+    while the app was polling, or logging only started after this feature shipped)."""
+    hist = _read_parquet_log(HISTORY_PATH, HISTORY_COLUMNS)
+    if hist.empty:
+        return []
+    sub = hist[hist["game_pk"] == game_pk]
+    if date:
+        sub = sub[sub["date"] == date]
+    sub = sub.sort_values("logged_at")
+    out = []
+    for _, r in sub.iterrows():
+        out.append({
+            "logged_at": r["logged_at"], "status": r["status"],
+            "model_home_win_prob": r["model_home_win_prob"],
+            "market_model_prob": r["market_model_prob"],
+            "market_home_prob": r["market_home_prob"],
+            "live_odds": json.loads(r["live_odds_json"]) if r.get("live_odds_json") else None,
+            "completeness_pct": r["completeness_pct"],
+            "missing_features": json.loads(r["missing_features_json"]) if r.get("missing_features_json") else None,
+        })
+    return out
 
 
 def get_logged_prediction(date: str, game_pk: int) -> dict | None:

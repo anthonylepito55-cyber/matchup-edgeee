@@ -63,6 +63,7 @@ from weather import get_rain_risk, get_game_weather_live, team_travel_miles, TEA
 from prediction_log import (
     log_predictions, settle_predictions, get_track_record, get_logged_prediction, PRE_GAME_STATUSES,
     get_available_dates, get_games_for_date, get_clv_track_record,
+    log_prediction_history, get_prediction_history,
 )
 from strikeout_prediction_log import (
     log_strikeout_predictions, settle_strikeout_predictions, get_strikeout_track_record,
@@ -1578,6 +1579,16 @@ def history_dates():
     return {"dates": get_available_dates()}
 
 
+@app.get("/api/prediction-history/{game_pk}")
+def prediction_history(game_pk: int, date: str = None):
+    """Every recorded pre-game snapshot for one game, oldest first — model_home_win_prob,
+    market_model_prob, market_home_prob, live odds, and data completeness at each point they
+    actually changed. Answers "what was this at some point in the past and what moved it,"
+    which the main prediction log can't (it only ever keeps the latest pre-game value). Empty
+    list if nothing was logged for this game_pk (e.g. it predates this feature)."""
+    return {"game_pk": game_pk, "history": get_prediction_history(game_pk, date)}
+
+
 @app.get("/api/history/{date}")
 def history_for_date(date: str):
     """
@@ -2375,6 +2386,7 @@ def today(date: str = None):
 
     try:
         log_predictions(resolved_date, results)
+        log_prediction_history(resolved_date, results)
         settle_predictions()
         log_strikeout_predictions(resolved_date, results)
         settle_strikeout_predictions()
