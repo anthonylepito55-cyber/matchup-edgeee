@@ -201,9 +201,9 @@ BASEBALL_ONLY_FEATURE_COLUMNS = [c for c in FEATURE_COLUMNS if c not in MARKET_F
 # Model C doesn't have its own version of; player props weren't part of what was asked for here).
 MODEL_C_MARKET_FEATURE_COLUMNS = [
     "model_c_line_movement_diff", "model_c_avg_movement_diff", "model_c_prediction_market_diff",
-    "model_c_consensus_prob_diff", "model_c_book_disagreement", "model_c_book_movement_agreement",
-    "model_c_consensus_median_diff", "model_c_book_prob_std", "model_c_book_favor_diff",
-    "model_c_team_total_diff", "model_c_market_total_runs",
+    "model_c_consensus_prob_diff", "model_c_sharp_weighted_diff", "model_c_book_disagreement",
+    "model_c_book_movement_agreement", "model_c_consensus_median_diff", "model_c_book_prob_std",
+    "model_c_book_favor_diff", "model_c_team_total_diff", "model_c_market_total_runs",
 ]
 
 MODEL_C_FEATURE_COLUMNS = BASEBALL_ONLY_FEATURE_COLUMNS + MODEL_C_MARKET_FEATURE_COLUMNS
@@ -752,6 +752,7 @@ def build_matchup_features(
     model_c_avg_movement: float = None,
     model_c_prediction_market_signal: float = None,
     model_c_consensus_prob: float = None,
+    model_c_sharp_weighted_prob: float = None,
     model_c_book_disagreement: float = None,
     model_c_book_movement_agreement: float = None,
     model_c_consensus_median_prob: float = None,
@@ -1334,6 +1335,10 @@ def build_matchup_features(
         ),
         "model_c_consensus_prob_diff": (
             (model_c_consensus_prob - 0.5) if model_c_consensus_prob is not None and pd.notna(model_c_consensus_prob) else np.nan
+        ),
+        "model_c_sharp_weighted_diff": (
+            (model_c_sharp_weighted_prob - 0.5) if model_c_sharp_weighted_prob is not None and pd.notna(model_c_sharp_weighted_prob)
+            else np.nan
         ),
         "model_c_book_disagreement": (
             model_c_book_disagreement if model_c_book_disagreement is not None and pd.notna(model_c_book_disagreement) else np.nan

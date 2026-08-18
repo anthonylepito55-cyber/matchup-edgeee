@@ -112,6 +112,16 @@ MODEL_C_BOOKS = MODEL_C_MONEYLINE_BOOKS + MODEL_C_PREDICTION_BOOKS
 # closes the single-book vulnerability completely instead of leaving one side of it exposed by
 # construction.
 
+# Sharp-weighted consensus PROBABILITY LEVEL (distinct from the movement-divergence issue above --
+# this still blends ALL >=2 available books, just unevenly, so it never degrades to one book's
+# raw value the way a sharp-vs-public CONTRAST would). Backtested as an add-on feature alongside
+# the existing flat consensus_prob (_backtest_model_c_accuracy_ideas.py): +0.0073 AUC / -0.0010
+# Brier pooled, held up in 4/5 walk-forward folds on both metrics. Weights are a simple 2x/1x
+# split, not fit -- Pinnacle/Circa Sports/LowVig/Betcris are all sharp/low-margin books, FanDuel
+# is the one retail/public book in the panel.
+MODEL_C_SHARP_BOOKS = {"Pinnacle", "Circa Sports", "LowVig", "Betcris"}
+MODEL_C_BOOK_WEIGHTS = {b: (2.0 if b in MODEL_C_SHARP_BOOKS else 1.0) for b in MODEL_C_MONEYLINE_BOOKS}
+
 # Model C is meant to be checked ~every 30s (a live tracker, not an opportunistic per-request
 # cache) -- much shorter than _CACHE_MAX_AGE_MIN's 5 minutes. The background poller (main.py)
 # always passes force_refresh=True on its own 30s cadence; this TTL is just the fallback for any
@@ -764,6 +774,10 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             consensus_prob = (
                 (sum(probs_effective.values()) / len(probs_effective)) if len(probs_effective) >= 2 else None
             )
+            sharp_weighted_prob = None
+            if len(probs_effective) >= 2:
+                total_w = sum(MODEL_C_BOOK_WEIGHTS[b] for b in probs_effective)
+                sharp_weighted_prob = sum(MODEL_C_BOOK_WEIGHTS[b] * p for b, p in probs_effective.items()) / total_w
             book_disagreement = (
                 (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
             )
@@ -818,6 +832,7 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 "line_movement": line_movement,
                 "avg_movement": avg_movement,
                 "consensus_prob": consensus_prob,
+                "sharp_weighted_prob": sharp_weighted_prob,
                 "book_median_prob": book_median_prob,
                 "book_prob_std": book_prob_std,
                 "book_disagreement": book_disagreement,

@@ -717,11 +717,18 @@ _MODEL_C_MONEYLINE_BOOK_COLUMNS = {
     "Betcris": ("market_home_prob_betcris", "market_home_prob_betcris_open"),
 }
 
+# Must stay in sync with odds_fetcher.MODEL_C_SHARP_BOOKS/MODEL_C_BOOK_WEIGHTS -- duplicated
+# rather than imported to match this file's existing pattern of mirroring get_model_c_snapshot's
+# formulas rather than importing them (see _load_model_c_features_by_game's docstring).
+_MODEL_C_SHARP_BOOKS = {"Pinnacle", "Circa Sports", "LowVig", "Betcris"}
+_MODEL_C_BOOK_WEIGHTS = {b: (2.0 if b in _MODEL_C_SHARP_BOOKS else 1.0) for b in _MODEL_C_MONEYLINE_BOOK_COLUMNS}
+
 
 def _load_model_c_features_by_game() -> dict:
-    """{game_pk: (line_movement, avg_movement, consensus_prob, book_disagreement,
-    book_movement_agreement, consensus_median_prob, book_prob_std, book_favor_diff,
-    prediction_market_diff, team_total_diff, market_total_runs)} -- Model C's own version of
+    """{game_pk: (line_movement, avg_movement, consensus_prob, sharp_weighted_prob,
+    book_disagreement, book_movement_agreement, consensus_median_prob, book_prob_std,
+    book_favor_diff, prediction_market_diff, team_total_diff, market_total_runs)} -- Model C's
+    own version of
     _load_consensus_by_game/_load_line_movement_by_game/etc., sourced from
     historical_market_probs.parquet's per-book columns for Model C's specific 6-book panel
     (FanDuel/Pinnacle/LowVig/Betcris/Circa Sports/Kalshi) instead of the 5-book CONSENSUS_BOOKS
@@ -770,6 +777,10 @@ def _load_model_c_features_by_game() -> dict:
 
         probs_effective = {**probs_open, **probs_now}
         consensus_prob = (sum(probs_effective.values()) / len(probs_effective)) if len(probs_effective) >= 2 else None
+        sharp_weighted_prob = None
+        if len(probs_effective) >= 2:
+            total_w = sum(_MODEL_C_BOOK_WEIGHTS[b] for b in probs_effective)
+            sharp_weighted_prob = sum(_MODEL_C_BOOK_WEIGHTS[b] * p for b, p in probs_effective.items()) / total_w
         book_disagreement = (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
         book_median_prob = float(np.median(list(probs_effective.values()))) if len(probs_effective) >= 2 else None
         book_prob_std = float(np.std(list(probs_effective.values()))) if len(probs_effective) >= 2 else None
@@ -796,9 +807,9 @@ def _load_model_c_features_by_game() -> dict:
         market_total_runs = r.get("market_total_runs") if pd.notna(r.get("market_total_runs")) else None
 
         out[r["game_pk"]] = (
-            line_movement, avg_movement, consensus_prob, book_disagreement, book_movement_agreement,
-            book_median_prob, book_prob_std, book_favor_diff, prediction_market_diff,
-            team_total_diff, market_total_runs,
+            line_movement, avg_movement, consensus_prob, sharp_weighted_prob, book_disagreement,
+            book_movement_agreement, book_median_prob, book_prob_std, book_favor_diff,
+            prediction_market_diff, team_total_diff, market_total_runs,
         )
     print(f"Loaded Model C (6-book) features for {len(out)} games.")
     return out
@@ -1157,11 +1168,11 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
         )
         team_total_diff, market_total_runs = totals_by_game.get(row["game_pk"], (None, None))
         (
-            model_c_line_movement, model_c_avg_movement, model_c_consensus_prob, model_c_book_disagreement,
-            model_c_book_movement_agreement, model_c_consensus_median_prob, model_c_book_prob_std,
-            model_c_book_favor_diff, model_c_prediction_market_signal, model_c_team_total_diff,
-            model_c_market_total_runs,
-        ) = model_c_by_game.get(row["game_pk"], (None,) * 11)
+            model_c_line_movement, model_c_avg_movement, model_c_consensus_prob, model_c_sharp_weighted_prob,
+            model_c_book_disagreement, model_c_book_movement_agreement, model_c_consensus_median_prob,
+            model_c_book_prob_std, model_c_book_favor_diff, model_c_prediction_market_signal,
+            model_c_team_total_diff, model_c_market_total_runs,
+        ) = model_c_by_game.get(row["game_pk"], (None,) * 12)
         game_player_prop_lines = player_prop_lines_by_game.get(row["game_pk"], {})
         feats = build_matchup_features(
             home_pitcher_id=row["home_pitcher_id"],
@@ -1205,6 +1216,7 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
             model_c_avg_movement=model_c_avg_movement,
             model_c_prediction_market_signal=model_c_prediction_market_signal,
             model_c_consensus_prob=model_c_consensus_prob,
+            model_c_sharp_weighted_prob=model_c_sharp_weighted_prob,
             model_c_book_disagreement=model_c_book_disagreement,
             model_c_book_movement_agreement=model_c_book_movement_agreement,
             model_c_consensus_median_prob=model_c_consensus_median_prob,
