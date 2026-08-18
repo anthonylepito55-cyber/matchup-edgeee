@@ -295,12 +295,59 @@ def _fetch_closing_line(fixture_id: str, sportsbook: str = CLOSING_BOOK) -> dict
     return {}
 
 
+def _fetch_current_panel_odds(fixture_id: str, sportsbooks: list, home_team: str, away_team: str) -> dict:
+    """{book: {"home": price, "away": price}} sourced from /fixtures/odds (the plain LIVE endpoint,
+    not /fixtures/odds/historical) — confirmed live 2026-08-18: /fixtures/odds/historical's "clv"
+    (current live value) field can sit empty for a fixture for hours even close to first pitch
+    (a real fixture showed home_open/away_open populated for all 5 books but zero clv data at all),
+    while /fixtures/odds/is_main=true always has the live price -- it's the same endpoint
+    get_moneyline_odds already relies on for the card's displayed live_odds, which never showed
+    this gap. Used by _fetch_panel_odds below as the CURRENT-price source; /fixtures/odds/historical
+    is kept only for the opening (olv) side, which it does have reliably.
+
+    Same identical-price corruption guard as get_moneyline_odds (a genuine two-sided line is never
+    priced identically on both sides)."""
+    try:
+        resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
+            "league": "mlb", "market": "moneyline", "sportsbook": sportsbooks,
+            "is_main": "true", "fixture_id": [fixture_id],
+        }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=20)
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        if not data:
+            return {}
+        odds_list = data[0].get("odds") or []
+        by_book = {}
+        for o in odds_list:
+            if o.get("market_id") != "moneyline":
+                continue
+            book = o.get("sportsbook")
+            name = o.get("name")
+            side = "home" if name == home_team else "away" if name == away_team else None
+            if side is None:
+                continue
+            by_book.setdefault(book, {})[side] = o.get("price")
+        return {
+            book: v for book, v in by_book.items()
+            if "home" in v and "away" in v and v["home"] != v["away"]
+        }
+    except requests.exceptions.RequestException:
+        return {}
+
+
 def _fetch_panel_odds(fixture_id: str, sportsbooks: list) -> dict:
     """{book: {"home":.., "away":.., "home_open":.., "away_open":..}} for up to 5 sportsbooks
     in ONE request — OpticOdds allows a list for the `sportsbook` param on
     /fixtures/odds/historical, capped at 5/call (see CONSENSUS_BOOKS). Far cheaper than one
     _fetch_closing_line call per book — get_market_snapshot below uses this instead of N
-    separate requests. {} if the fixture has no data for any of the requested books."""
+    separate requests. {} if the fixture has no data for any of the requested books.
+
+    "home"/"away" (the CURRENT price) come from _fetch_current_panel_odds (the live /fixtures/odds
+    endpoint) instead of this endpoint's own "clv" field -- see that function's docstring for why:
+    clv can be empty for hours even on fixtures close to first pitch, silently forcing every
+    consensus-style feature (consensus_prob, book_disagreement, etc.) to fall back to OPENING
+    lines and serve a stale read as if it were current. "home_open"/"away_open" still come from
+    this endpoint's "olv" field, which doesn't have that gap."""
     try:
         resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds/historical", params={
             "fixture_id": fixture_id, "sportsbook": sportsbooks, "market": "Moneyline", "odds_format": "american",
@@ -320,12 +367,15 @@ def _fetch_panel_odds(fixture_id: str, sportsbooks: list) -> dict:
             if side is None:
                 continue
             entry = by_book.setdefault(book, {})
-            clv = o.get("clv") or {}
             olv = o.get("olv") or {}
-            if clv.get("price") is not None:
-                entry[side] = clv["price"]
             if olv.get("price") is not None:
                 entry[f"{side}_open"] = olv["price"]
+
+        time.sleep(HISTORICAL_RATE_LIMIT_SLEEP)
+        current_by_book = _fetch_current_panel_odds(fixture_id, sportsbooks, home_team, away_team)
+        for book, prices in current_by_book.items():
+            by_book.setdefault(book, {}).update(prices)
+
         # Identical home/away prices from the same book are essentially never a genuine two-sided
         # line -- see get_moneyline_odds' equivalent guard for the confirmed real case. Drop just
         # the corrupted pair (current or opening, whichever matched) rather than the whole book, so
