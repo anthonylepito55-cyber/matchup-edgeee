@@ -576,26 +576,40 @@ def _load_line_movement_by_game() -> dict:
 
 
 def _load_market_divergence_by_game() -> dict:
-    """{game_pk: pinnacle_movement_minus_draftkings_movement} from backfill_historical_odds.py's
-    cache — feeds market_divergence_diff (see features.py). Same "missing means no signal"
-    handling as _load_line_movement_by_game; also NaN for any cache written before the
-    DK columns existed (pre market-expansion schema)."""
+    """{game_pk: sharp_books_avg_movement_minus_public_books_avg_movement} from
+    backfill_historical_odds.py's cache — feeds market_divergence_diff (see features.py).
+    SHARP_BOOKS = Pinnacle + Circa Sports, PUBLIC_BOOKS = DraftKings + FanDuel + BetMGM (see
+    odds_fetcher.py), averaged across whichever of each side has both a current and opening
+    price for this game — same live-serving computation as odds_fetcher.get_market_snapshot's
+    market_divergence, just from the historical cache instead of a live API call. Uses whichever
+    of each side's books actually have data for a given row — a fully re-backfilled game averages
+    across all of SHARP_BOOKS/PUBLIC_BOOKS, but a game whose cache predates the Circa/FanDuel/
+    BetMGM columns (a full re-backfill takes many hours, not done as of this schema change)
+    gracefully falls back to just Pinnacle-vs-DraftKings for that row rather than going straight
+    to NaN — same graceful-missing-column pattern prediction_log._read_parquet_log already uses.
+    Same "missing means no signal" handling as _load_line_movement_by_game otherwise."""
     path = os.path.join(CACHE_DIR, "historical_market_probs.parquet")
     if not os.path.exists(path):
         print("No historical_market_probs.parquet found — market_divergence_diff will be NaN for all rows.")
         return {}
     odds_df = pd.read_parquet(path)
-    required = {"market_home_prob", "market_home_prob_open", "market_home_prob_dk", "market_home_prob_dk_open"}
-    if not required.issubset(odds_df.columns):
-        print("historical_market_probs.parquet predates the DraftKings columns — "
-              "market_divergence_diff will be NaN for all rows until backfill_historical_odds.py is re-run.")
-        return {}
+    sharp_pairs = [("market_home_prob", "market_home_prob_open"), ("market_home_prob_circa", "market_home_prob_circa_open")]
+    public_pairs = [
+        ("market_home_prob_dk", "market_home_prob_dk_open"),
+        ("market_home_prob_fanduel", "market_home_prob_fanduel_open"),
+        ("market_home_prob_betmgm", "market_home_prob_betmgm_open"),
+    ]
+    for c, o in sharp_pairs + public_pairs:  # backfill gracefully if reading a pre-sharpening cache
+        if c not in odds_df.columns:
+            odds_df[c] = np.nan
+        if o not in odds_df.columns:
+            odds_df[o] = np.nan
     divergence = {}
     for _, r in odds_df.iterrows():
-        sharp_close, sharp_open = r.get("market_home_prob"), r.get("market_home_prob_open")
-        retail_close, retail_open = r.get("market_home_prob_dk"), r.get("market_home_prob_dk_open")
-        if pd.notna(sharp_close) and pd.notna(sharp_open) and pd.notna(retail_close) and pd.notna(retail_open):
-            divergence[r["game_pk"]] = (sharp_close - sharp_open) - (retail_close - retail_open)
+        sharp_moves = [r[c] - r[o] for c, o in sharp_pairs if pd.notna(r[c]) and pd.notna(r[o])]
+        public_moves = [r[c] - r[o] for c, o in public_pairs if pd.notna(r[c]) and pd.notna(r[o])]
+        if sharp_moves and public_moves:
+            divergence[r["game_pk"]] = (sum(sharp_moves) / len(sharp_moves)) - (sum(public_moves) / len(public_moves))
     print(f"Loaded market divergence for {len(divergence)} games.")
     return divergence
 
@@ -693,6 +707,101 @@ def _load_totals_by_game() -> dict:
             totals[r["game_pk"]] = (team_total_diff, market_total_runs if pd.notna(market_total_runs) else None)
     print(f"Loaded totals odds for {len(totals)} games.")
     return totals
+
+
+_MODEL_C_MONEYLINE_BOOK_COLUMNS = {
+    "Pinnacle": ("market_home_prob", "market_home_prob_open"),
+    "FanDuel": ("market_home_prob_fanduel", "market_home_prob_fanduel_open"),
+    "Circa Sports": ("market_home_prob_circa", "market_home_prob_circa_open"),
+    "LowVig": ("market_home_prob_lowvig", "market_home_prob_lowvig_open"),
+    "Betcris": ("market_home_prob_betcris", "market_home_prob_betcris_open"),
+}
+
+
+def _load_model_c_features_by_game() -> dict:
+    """{game_pk: (line_movement, avg_movement, consensus_prob, book_disagreement,
+    book_movement_agreement, consensus_median_prob, book_prob_std, book_favor_diff,
+    prediction_market_diff, team_total_diff, market_total_runs)} -- Model C's own version of
+    _load_consensus_by_game/_load_line_movement_by_game/etc., sourced from
+    historical_market_probs.parquet's per-book columns for Model C's specific 6-book panel
+    (FanDuel/Pinnacle/LowVig/Betcris/Circa Sports/Kalshi) instead of the 5-book CONSENSUS_BOOKS
+    those loaders use. Mirrors odds_fetcher.get_model_c_snapshot's exact live-serving formulas,
+    including its >=2-book minimum on consensus_prob/book_median_prob/book_favor_diff (see that
+    function's docstring for why -- the same single-book-leak bug found in Model B) and
+    avg_movement replacing a sharp-vs-public divergence (Model C's book list only has one
+    public/retail book, which would leave that side of a divergence contrast unprotected).
+
+    Returns RAW values (not pre-offset by -0.5 etc.) -- same contract as _load_consensus_by_game,
+    build_matchup_features' own model_c_* transformation applies that offset.
+
+    team_total_diff/market_total_runs reuse the existing CONSENSUS_BOOKS-averaged totals columns
+    as an approximation -- a separate Model-C-specific totals backfill wasn't built given time
+    cost vs. likely benefit; totals coverage doesn't vary much by book set. Disclosed here, not
+    silently assumed."""
+    path = os.path.join(CACHE_DIR, "historical_market_probs.parquet")
+    if not os.path.exists(path):
+        print("No historical_market_probs.parquet found — Model C features will be NaN for all rows.")
+        return {}
+    odds_df = pd.read_parquet(path)
+    required_cols = {c for pair in _MODEL_C_MONEYLINE_BOOK_COLUMNS.values() for c in pair} | {"market_home_prob_kalshi"}
+    if not required_cols.issubset(odds_df.columns):
+        print("historical_market_probs.parquet predates the LowVig/Betcris columns — "
+              "Model C features will be NaN for all rows until backfill_model_c_books.py is re-run.")
+        return {}
+
+    out = {}
+    for _, r in odds_df.iterrows():
+        probs_now, probs_open = {}, {}
+        for book, (now_col, open_col) in _MODEL_C_MONEYLINE_BOOK_COLUMNS.items():
+            now_val, open_val = r.get(now_col), r.get(open_col)
+            if pd.notna(now_val):
+                probs_now[book] = now_val
+            if pd.notna(open_val):
+                probs_open[book] = open_val
+
+        line_movement = None
+        if "Pinnacle" in probs_now and "Pinnacle" in probs_open:
+            line_movement = probs_now["Pinnacle"] - probs_open["Pinnacle"]
+
+        all_movements = [
+            probs_now[b] - probs_open[b] for b in _MODEL_C_MONEYLINE_BOOK_COLUMNS if b in probs_now and b in probs_open
+        ]
+        avg_movement = (sum(all_movements) / len(all_movements)) if len(all_movements) >= 2 else None
+
+        probs_effective = {**probs_open, **probs_now}
+        consensus_prob = (sum(probs_effective.values()) / len(probs_effective)) if len(probs_effective) >= 2 else None
+        book_disagreement = (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
+        book_median_prob = float(np.median(list(probs_effective.values()))) if len(probs_effective) >= 2 else None
+        book_prob_std = float(np.std(list(probs_effective.values()))) if len(probs_effective) >= 2 else None
+        book_favor_diff = None
+        if len(probs_effective) >= 2:
+            favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
+            favor_away = sum(1 for p in probs_effective.values() if p < 0.5)
+            book_favor_diff = (favor_home - favor_away) / len(probs_effective)
+
+        book_movements = {b: probs_now[b] - probs_open[b] for b in probs_now if b in probs_open}
+        book_movement_agreement = None
+        if book_movements:
+            toward_home = sum(1 for m in book_movements.values() if m > 0)
+            toward_away = sum(1 for m in book_movements.values() if m < 0)
+            book_movement_agreement = (toward_home - toward_away) / len(book_movements)
+
+        kalshi = r.get("market_home_prob_kalshi")
+        prediction_market_diff = None
+        if pd.notna(kalshi) and "Pinnacle" in probs_effective:
+            prediction_market_diff = kalshi - probs_effective["Pinnacle"]
+
+        home_total, away_total = r.get("market_team_total_home"), r.get("market_team_total_away")
+        team_total_diff = (home_total - away_total) if pd.notna(home_total) and pd.notna(away_total) else None
+        market_total_runs = r.get("market_total_runs") if pd.notna(r.get("market_total_runs")) else None
+
+        out[r["game_pk"]] = (
+            line_movement, avg_movement, consensus_prob, book_disagreement, book_movement_agreement,
+            book_median_prob, book_prob_std, book_favor_diff, prediction_market_diff,
+            team_total_diff, market_total_runs,
+        )
+    print(f"Loaded Model C (6-book) features for {len(out)} games.")
+    return out
 
 
 _PLAYER_PROP_LINE_KEYS = ("strikeout_line", "outs_line", "er_line", "hits_allowed_line")
@@ -864,6 +973,7 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
     consensus_by_game = _load_consensus_by_game()
     totals_by_game = _load_totals_by_game()
     player_prop_lines_by_game = _load_player_prop_lines_by_game()
+    model_c_by_game = _load_model_c_features_by_game()
 
     unique_pitchers = pd.unique(pd.concat([all_games["home_pitcher_id"], all_games["away_pitcher_id"]]))
     print(f"Fetching pitcher handedness for {len(unique_pitchers)} pitchers...")
@@ -1046,6 +1156,12 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
             consensus_by_game.get(row["game_pk"], (None, None, None, None, None, None))
         )
         team_total_diff, market_total_runs = totals_by_game.get(row["game_pk"], (None, None))
+        (
+            model_c_line_movement, model_c_avg_movement, model_c_consensus_prob, model_c_book_disagreement,
+            model_c_book_movement_agreement, model_c_consensus_median_prob, model_c_book_prob_std,
+            model_c_book_favor_diff, model_c_prediction_market_signal, model_c_team_total_diff,
+            model_c_market_total_runs,
+        ) = model_c_by_game.get(row["game_pk"], (None,) * 11)
         game_player_prop_lines = player_prop_lines_by_game.get(row["game_pk"], {})
         feats = build_matchup_features(
             home_pitcher_id=row["home_pitcher_id"],
@@ -1085,6 +1201,17 @@ def build_full_training_set(seasons: list[int]) -> pd.DataFrame:
             book_favor_diff=book_favor_diff,
             team_total_diff=team_total_diff,
             market_total_runs=market_total_runs,
+            model_c_line_movement=model_c_line_movement,
+            model_c_avg_movement=model_c_avg_movement,
+            model_c_prediction_market_signal=model_c_prediction_market_signal,
+            model_c_consensus_prob=model_c_consensus_prob,
+            model_c_book_disagreement=model_c_book_disagreement,
+            model_c_book_movement_agreement=model_c_book_movement_agreement,
+            model_c_consensus_median_prob=model_c_consensus_median_prob,
+            model_c_book_prob_std=model_c_book_prob_std,
+            model_c_book_favor_diff=model_c_book_favor_diff,
+            model_c_team_total_diff=model_c_team_total_diff,
+            model_c_market_total_runs=model_c_market_total_runs,
             home_pitcher_market_lines=game_player_prop_lines.get("home"),
             away_pitcher_market_lines=game_player_prop_lines.get("away"),
             pitch_mix=pitch_mix,

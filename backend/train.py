@@ -21,7 +21,7 @@ import model as model_module
 import props as props_module
 import rating_system
 from features import (
-    FEATURE_COLUMNS, BASEBALL_ONLY_FEATURE_COLUMNS,
+    FEATURE_COLUMNS, BASEBALL_ONLY_FEATURE_COLUMNS, MODEL_C_FEATURE_COLUMNS,
     STRIKEOUT_FEATURE_COLUMNS, STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS,
     IP_FEATURE_COLUMNS, IP_BASEBALL_ONLY_FEATURE_COLUMNS,
     ER_FEATURE_COLUMNS, ER_BASEBALL_ONLY_FEATURE_COLUMNS,
@@ -93,6 +93,37 @@ def main():
     print(f"Validation Brier: {baseline_metrics['brier_score']:.4f}")
     print(f"Validation AUC:   {baseline_metrics['auc']:.4f}")
     print(f"Model saved to model_artifacts/xgb_model_baseline.joblib")
+
+    # Model C: same architecture, market block sourced from a continuously-polled 6-book panel
+    # (FanDuel/Pinnacle/LowVig/Betcris/Circa Sports/Kalshi) instead of Model B's 5-book
+    # CONSENSUS_BOOKS -- see odds_fetcher.get_model_c_snapshot and MODEL_C_FEATURE_COLUMNS.
+    # Walk-forward validated (build_and_train_model_c.py) as statistically tied with Model B on
+    # AUC/Brier, not a proven accuracy edge -- served for its architecture (real-time tracking,
+    # the single-book-leak guards Model B doesn't have), not because it backtests better. Only
+    # trained/gated here if the merged model_c_* columns actually exist on this training set (a
+    # fresh build_training_data.py run always produces them now, but an older cached
+    # training_dataset.parquet predating this integration wouldn't have them yet).
+    if "model_c_consensus_prob_diff" in df.columns:
+        print("\n--- Walk-forward backtest: Model C (6-book real-time-tracked market features) ---")
+        model_c_backtest_results = model_module.backtest(df, feature_columns=MODEL_C_FEATURE_COLUMNS)
+        print(f"Avg Brier score: {model_c_backtest_results['avg_brier_score']:.4f}")
+        print(f"Avg log loss:    {model_c_backtest_results['avg_log_loss']:.4f}")
+        print(f"Avg AUC:         {model_c_backtest_results['avg_auc']:.4f}")
+        metrics_snapshot["win_prob_c"] = {
+            "auc": model_c_backtest_results["avg_auc"], "brier": model_c_backtest_results["avg_brier_score"],
+            "log_loss": model_c_backtest_results["avg_log_loss"],
+        }
+
+        print("\n--- Training final Model C (6-book real-time market features) ---")
+        _, _, model_c_metrics = model_module.train(
+            df, feature_columns=MODEL_C_FEATURE_COLUMNS, model_path=model_module.MODEL_C_PATH
+        )
+        print(f"Validation Brier: {model_c_metrics['brier_score']:.4f}")
+        print(f"Validation AUC:   {model_c_metrics['auc']:.4f}")
+        print(f"Model saved to model_artifacts/model_c.joblib")
+    else:
+        print("\nSkipping Model C -- training_dataset.parquet predates the model_c_* columns "
+              "(re-run build_training_data.py to pick them up).")
 
     print("\n--- Rating system: walk-forward backtest (display-only, see rating_system.py) ---")
     rating_backtest = rating_system.backtest_rating_system(df)

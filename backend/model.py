@@ -32,6 +32,14 @@ os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
 # ("Model B", full feature set) keeps its original name/behavior; this is purely additive.
 BASELINE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "xgb_model_baseline.joblib")
 
+# "Model C" — same architecture again, trained on features.MODEL_C_FEATURE_COLUMNS (baseball
+# features + the 6-book real-time-tracked market block instead of Model B's 5-book
+# CONSENSUS_BOOKS one). See build_and_train_model_c.py for the walk-forward backtest that
+# validated this before serving -- statistically tied with Model B on AUC/Brier, not a proven
+# accuracy edge; served for its architecture (continuous polling, single-book-leak guards Model B
+# doesn't have), not because it backtests better.
+MODEL_C_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "model_c.joblib")
+
 
 DEFAULT_XGB_PARAMS = {
     # Grid-searched (hyperparam_search.py) against the walk-forward backtest
