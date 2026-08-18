@@ -151,6 +151,148 @@ def predict_proba(feature_row: pd.DataFrame, model_path: str = None, feature_col
     }
 
 
+# Fixed seed set for ensemble training -- reproducible (not re-drawn per run), and the exact 5
+# seeds already used to diagnose Model C's opp_platoon_woba_diff threshold sensitivity
+# (2026-08-18: seed 42 alone gave that feature a 0.325 contribution on a real matchup where the
+# other 4 seeds ranged 0.111-0.252, avg ~0.204 -- a single fixed seed can land on an unusually
+# steep part of a decision-stump ensemble's learned step function for one feature, purely from
+# where that seed's row/column subsampling happened to place split thresholds. Averaging several
+# independently-trained seeds smooths this out without needing to identify every fragile feature
+# by hand.)
+ENSEMBLE_SEEDS = [1, 7, 42, 100, 777]
+
+
+def train_ensemble(training_df: pd.DataFrame, label_col: str = "home_win", save: bool = True, xgb_params: dict = None,
+                    feature_columns: list = None, model_path: str = None, seeds: list = None):
+    """
+    Trains len(seeds) independent models on the SAME data (only random_state differs -- both the
+    train/val split and XGBoost's own row/column subsampling, see train()'s docstring), then
+    predict_proba_ensemble averages their probabilities at inference time. See ENSEMBLE_SEEDS'
+    comment above for why this exists: a single fixed seed can give one feature's learned
+    threshold an outsized, non-representative weight for a specific real matchup, purely from
+    where that seed happened to place split points -- not distinguishable from a "real" signal
+    without comparing multiple independent fits.
+
+    Saved artifact shape is {"models": [...], "medians": ..., "metrics": ..., "seeds": [...]} --
+    deliberately different from train()'s {"model": ..., ...} single-model shape, so
+    load_model()/predict_proba() (used by every other model in this app) fail loudly rather than
+    silently mis-reading an ensemble file. Use load_model_ensemble()/predict_proba_ensemble() for
+    anything trained here.
+    """
+    seeds = seeds or ENSEMBLE_SEEDS
+    feature_columns = feature_columns or FEATURE_COLUMNS
+    model_path = model_path or MODEL_PATH
+
+    models = []
+    medians = None
+    val_metrics_list = []
+    for seed in seeds:
+        m, med, metrics = train(
+            training_df, label_col, save=False, xgb_params=xgb_params,
+            feature_columns=feature_columns, random_state=seed,
+        )
+        models.append(m)
+        medians = med  # medians are computed from training_df alone, identical across seeds
+        val_metrics_list.append(metrics)
+
+    ensemble_metrics = {
+        "brier_score": float(np.mean([mm["brier_score"] for mm in val_metrics_list])),
+        "log_loss": float(np.mean([mm["log_loss"] for mm in val_metrics_list])),
+        "auc": float(np.mean([mm["auc"] for mm in val_metrics_list])),
+        "n_train": val_metrics_list[0]["n_train"],
+        "n_val": val_metrics_list[0]["n_val"],
+        "n_seeds": len(seeds),
+    }
+
+    if save:
+        joblib.dump({"models": models, "medians": medians, "metrics": ensemble_metrics, "seeds": seeds}, model_path)
+
+    return models, medians, ensemble_metrics
+
+
+def load_model_ensemble(model_path: str = None):
+    model_path = model_path or MODEL_PATH
+    if not os.path.exists(model_path):
+        return None, None, None
+    obj = joblib.load(model_path)
+    return obj["models"], obj["medians"], obj["metrics"]
+
+
+def predict_proba_ensemble(feature_row: pd.DataFrame, model_path: str = None, feature_columns: list = None) -> dict:
+    """Same contract as predict_proba(), but averages every seed's own probability rather than
+    reading a single model -- see train_ensemble()'s docstring for why. seed_probs is included
+    for transparency/debugging (e.g. a wide spread across seeds for one game is itself a useful
+    "how much should I trust this number" signal), not used by any caller today."""
+    feature_columns = feature_columns or FEATURE_COLUMNS
+    models, medians, metrics = load_model_ensemble(model_path)
+    if models is None:
+        raise RuntimeError("No trained ensemble model found. Run train_ensemble() first.")
+
+    X = feature_row[feature_columns].fillna(medians)
+    seed_probs = [float(m.predict_proba(X)[:, 1][0]) for m in models]
+    avg_prob = float(np.mean(seed_probs))
+
+    return {
+        "home_win_prob": round(avg_prob, 4),
+        "away_win_prob": round(1 - avg_prob, 4),
+        "seed_probs": [round(p, 4) for p in seed_probs],
+    }
+
+
+def backtest_ensemble(historical_df: pd.DataFrame, label_col: str = "home_win", n_folds: int = 5,
+                       xgb_params: dict = None, feature_columns: list = None, seeds: list = None) -> dict:
+    """Same walk-forward methodology as backtest(), but each fold trains len(seeds) models and
+    averages their held-out predictions before scoring -- lets you validate the ensemble actually
+    improves (or at least doesn't hurt) AUC/Brier before trusting it in production, same
+    "validate before claiming improvement" standard as every other change to this pipeline."""
+    seeds = seeds or ENSEMBLE_SEEDS
+    feature_columns = feature_columns or FEATURE_COLUMNS
+    df = historical_df.sort_values("game_date").reset_index(drop=True)
+    fold_size = len(df) // (n_folds + 1)
+    results = []
+
+    for fold in range(1, n_folds + 1):
+        train_end = fold_size * fold
+        test_end = fold_size * (fold + 1)
+        train_df = df.iloc[:train_end]
+        test_df = df.iloc[train_end:test_end]
+        if len(train_df) < 50 or len(test_df) < 10:
+            continue
+
+        seed_probs = []
+        medians = None
+        for seed in seeds:
+            m, med, _ = train(
+                train_df, label_col, save=False, xgb_params=xgb_params,
+                feature_columns=feature_columns, random_state=seed,
+            )
+            medians = med
+            X_test = test_df[feature_columns].fillna(med)
+            seed_probs.append(m.predict_proba(X_test)[:, 1])
+        probs = np.mean(seed_probs, axis=0)
+
+        y_test = test_df[label_col].astype(int)
+        results.append({
+            "fold": fold,
+            "n_test": len(test_df),
+            "brier_score": brier_score_loss(y_test, probs),
+            "log_loss": log_loss(y_test, probs),
+            "auc": roc_auc_score(y_test, probs) if y_test.nunique() > 1 else np.nan,
+            "predicted_mean": probs.mean(),
+            "actual_mean": y_test.mean(),
+        })
+
+    results_df = pd.DataFrame(results)
+    summary = {
+        "avg_brier_score": results_df["brier_score"].mean(),
+        "avg_log_loss": results_df["log_loss"].mean(),
+        "avg_auc": results_df["auc"].mean(),
+        "folds": results_df.to_dict(orient="records"),
+        "n_seeds": len(seeds),
+    }
+    return summary
+
+
 def backtest(historical_df: pd.DataFrame, label_col: str = "home_win", n_folds: int = 5, xgb_params: dict = None,
              feature_columns: list = None) -> dict:
     """

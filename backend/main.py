@@ -1741,7 +1741,10 @@ def _compute_today_response(date: str = None):
     # loads too, purely for the secondary market_model_prob comparison field below.
     model_trained = model_module.load_model(model_module.BASELINE_MODEL_PATH)[0] is not None
     market_model_trained = model_module.load_model(model_module.MODEL_PATH)[0] is not None
-    model_c_trained = model_module.load_model(model_module.MODEL_C_PATH)[0] is not None
+    # Model C is a 5-seed ensemble (train_ensemble/predict_proba_ensemble in model.py), not a
+    # single model -- load_model() would raise trying to read obj["model"] on an ensemble's
+    # {"models": [...]} shape, so this needs load_model_ensemble()'s own presence check.
+    model_c_trained = model_module.load_model_ensemble(model_module.MODEL_C_PATH)[0] is not None
     rating_fitted = rating_system.load_rating_system()  # display-only "why" breakdown, see rating_system.py
 
     # All 8 of these are independent live/market fetches with no shared state — each already
@@ -2265,7 +2268,7 @@ def _compute_today_response(date: str = None):
                     # row above was built with the default FEATURE_COLUMNS (Model A/B's set),
                     # which doesn't carry the model_c_* columns -- needs its own row.
                     model_c_row = features_to_row(feats, feature_columns=MODEL_C_FEATURE_COLUMNS)
-                    model_c_prob = model_module.predict_proba(
+                    model_c_prob = model_module.predict_proba_ensemble(
                         model_c_row, model_path=model_module.MODEL_C_PATH, feature_columns=MODEL_C_FEATURE_COLUMNS
                     )["home_win_prob"]
                 except Exception:

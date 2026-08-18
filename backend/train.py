@@ -103,9 +103,19 @@ def main():
     # trained/gated here if the merged model_c_* columns actually exist on this training set (a
     # fresh build_training_data.py run always produces them now, but an older cached
     # training_dataset.parquet predating this integration wouldn't have them yet).
+    #
+    # Trained as a 5-seed ENSEMBLE (train_ensemble/predict_proba_ensemble), not a single train()
+    # call -- found live 2026-08-18 that a single fixed seed can give one feature's learned
+    # decision-stump threshold a wildly non-representative weight for a specific real matchup
+    # (opp_platoon_woba_diff contributed 0.325 under seed 42 vs an average of ~0.204 across 5
+    # seeds on the same real game -- nearly 3x the lowest of the 5). Validated via
+    # backtest_ensemble before switching: aggregate AUC/Brier are an effective wash vs the
+    # single-seed backtest (-0.0005 AUC, -0.0001 Brier -- both within noise), which is the
+    # expected result -- ensembling reduces PER-GAME variance/instability, not aggregate
+    # discrimination, so a wash here was the bar to clear, not an improvement.
     if "model_c_consensus_prob_diff" in df.columns:
-        print("\n--- Walk-forward backtest: Model C (6-book real-time-tracked market features) ---")
-        model_c_backtest_results = model_module.backtest(df, feature_columns=MODEL_C_FEATURE_COLUMNS)
+        print("\n--- Walk-forward backtest: Model C (6-book real-time-tracked market features, 5-seed ensemble) ---")
+        model_c_backtest_results = model_module.backtest_ensemble(df, feature_columns=MODEL_C_FEATURE_COLUMNS)
         print(f"Avg Brier score: {model_c_backtest_results['avg_brier_score']:.4f}")
         print(f"Avg log loss:    {model_c_backtest_results['avg_log_loss']:.4f}")
         print(f"Avg AUC:         {model_c_backtest_results['avg_auc']:.4f}")
@@ -114,13 +124,13 @@ def main():
             "log_loss": model_c_backtest_results["avg_log_loss"],
         }
 
-        print("\n--- Training final Model C (6-book real-time market features) ---")
-        _, _, model_c_metrics = model_module.train(
+        print("\n--- Training final Model C ensemble (6-book real-time market features, 5 seeds) ---")
+        _, _, model_c_metrics = model_module.train_ensemble(
             df, feature_columns=MODEL_C_FEATURE_COLUMNS, model_path=model_module.MODEL_C_PATH
         )
         print(f"Validation Brier: {model_c_metrics['brier_score']:.4f}")
         print(f"Validation AUC:   {model_c_metrics['auc']:.4f}")
-        print(f"Model saved to model_artifacts/model_c.joblib")
+        print(f"Model saved to model_artifacts/model_c.joblib ({model_c_metrics['n_seeds']}-seed ensemble)")
     else:
         print("\nSkipping Model C -- training_dataset.parquet predates the model_c_* columns "
               "(re-run build_training_data.py to pick them up).")
