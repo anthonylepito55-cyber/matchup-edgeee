@@ -1629,7 +1629,7 @@ def model_status():
     # "trained"/"metrics" describe Model A (baseball-only) — the model that actually drives
     # every served prediction, see the plan doc. market_model_* describes Model B (baseball +
     # market features), which only ever feeds the secondary market_model_prob comparison field.
-    m, medians, metrics = model_module.load_model(model_module.BASELINE_MODEL_PATH)
+    m, medians, metrics = model_module.load_model_ensemble(model_module.BASELINE_MODEL_PATH)
     market_m, market_medians, market_metrics = model_module.load_model(model_module.MODEL_PATH)
     # Same primary/secondary split for the strikeout model — see props.STRIKEOUT_BASELINE_MODEL_PATH.
     k_model, k_medians, k_metrics = props_module.load_strikeout_model(props_module.STRIKEOUT_BASELINE_MODEL_PATH)
@@ -1762,7 +1762,7 @@ def _compute_today_response(date: str = None):
     # the market can't credibly claim to find value against that same market, see the plan doc
     # ("Market-data expansion...") for the full reasoning. Model B (full, incl. market features)
     # loads too, purely for the secondary market_model_prob comparison field below.
-    model_trained = model_module.load_model(model_module.BASELINE_MODEL_PATH)[0] is not None
+    model_trained = model_module.load_model_ensemble(model_module.BASELINE_MODEL_PATH)[0] is not None
     market_model_trained = model_module.load_model(model_module.MODEL_PATH)[0] is not None
     # Model C is a 5-seed ensemble (train_ensemble/predict_proba_ensemble in model.py), not a
     # single model -- load_model() would raise trying to read obj["model"] on an ensemble's
@@ -2276,7 +2276,7 @@ def _compute_today_response(date: str = None):
                 batter_team_map=batter_team_map,
             )
             row = features_to_row(feats)
-            raw_prediction = model_module.predict_proba(
+            raw_prediction = model_module.predict_proba_ensemble(
                 row, model_path=model_module.BASELINE_MODEL_PATH, feature_columns=BASEBALL_ONLY_FEATURE_COLUMNS
             )
             # Model B (baseball + market features) run purely for comparison — see
@@ -2670,8 +2670,8 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
         _il_return_warning(f"Away starter ({away_team})", days_since_il_away)
     ) or None
 
-    # Same primary-model choice as /api/today — Model A (baseball-only), see the plan doc.
-    model_trained = model_module.load_model(model_module.BASELINE_MODEL_PATH)[0] is not None
+    # Same primary-model choice as /api/today — Model A (baseball-only, 5-seed ensemble), see the plan doc.
+    model_trained = model_module.load_model_ensemble(model_module.BASELINE_MODEL_PATH)[0] is not None
     if model_trained:
         result["season_stats"] = _season_stats_for_matchup(season_stats, prior_season_stats, home_pitcher_id, away_pitcher_id)
         h2h_stats_display = _h2h_stats_dict_for_matchup(home_pitcher_id, away_pitcher_id, home_team, away_team, season)
@@ -2739,7 +2739,7 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
             batter_team_map=batter_team_map,
         )
         row = features_to_row(feats)
-        raw_prediction = model_module.predict_proba(
+        raw_prediction = model_module.predict_proba_ensemble(
             row, model_path=model_module.BASELINE_MODEL_PATH, feature_columns=BASEBALL_ONLY_FEATURE_COLUMNS
         )
         any_long_layoff = any(

@@ -56,8 +56,17 @@ def main():
     print(f"Avg log loss:    {backtest_results['avg_log_loss']:.4f}")
     print(f"Avg AUC:         {backtest_results['avg_auc']:.4f}")
 
-    print("\n--- Walk-forward backtest: Model A (baseball-only, market features excluded) ---")
-    baseline_backtest_results = model_module.backtest(df, feature_columns=BASEBALL_ONLY_FEATURE_COLUMNS)
+    # Model A trained/backtested as a 5-seed ENSEMBLE (train_ensemble/predict_proba_ensemble),
+    # not a single train() call -- found live 2026-08-18 that Model A has the SAME single-seed
+    # decision-stump threshold fragility already fixed for Model C (confirmed via a 15-game SHAP
+    # scan hitting identical plateau contribution values for opp_platoon_woba_diff/bullpen_fip_diff/
+    # defense_oaa_diff across unrelated games). Model A is the PRIMARY served prediction, so this
+    # matters more here than it did for Model C. Validated via backtest_ensemble before switching:
+    # AUC -0.0021, Brier ~0.0000 vs single-seed -- within the same noise band as Model C's own
+    # wash validation, so ensembling was NOT expected (or required) to improve aggregate accuracy,
+    # only per-game stability.
+    print("\n--- Walk-forward backtest: Model A (baseball-only, market features excluded, 5-seed ensemble) ---")
+    baseline_backtest_results = model_module.backtest_ensemble(df, feature_columns=BASEBALL_ONLY_FEATURE_COLUMNS)
     print(f"Avg Brier score: {baseline_backtest_results['avg_brier_score']:.4f}")
     print(f"Avg log loss:    {baseline_backtest_results['avg_log_loss']:.4f}")
     print(f"Avg AUC:         {baseline_backtest_results['avg_auc']:.4f}")
@@ -86,13 +95,13 @@ def main():
     print(f"Validation AUC:   {metrics['auc']:.4f}")
     print(f"Model saved to model_artifacts/xgb_model.joblib")
 
-    print("\n--- Training final Model A (baseball-only) ---")
-    _, _, baseline_metrics = model_module.train(
+    print("\n--- Training final Model A ensemble (baseball-only, 5 seeds) ---")
+    _, _, baseline_metrics = model_module.train_ensemble(
         df, feature_columns=BASEBALL_ONLY_FEATURE_COLUMNS, model_path=model_module.BASELINE_MODEL_PATH
     )
     print(f"Validation Brier: {baseline_metrics['brier_score']:.4f}")
     print(f"Validation AUC:   {baseline_metrics['auc']:.4f}")
-    print(f"Model saved to model_artifacts/xgb_model_baseline.joblib")
+    print(f"Model saved to model_artifacts/xgb_model_baseline.joblib ({baseline_metrics['n_seeds']}-seed ensemble)")
 
     # Model C: same architecture, market block sourced from a continuously-polled 6-book panel
     # (FanDuel/Pinnacle/LowVig/Betcris/Circa Sports/Kalshi) instead of Model B's 5-book
