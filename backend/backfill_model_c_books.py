@@ -70,7 +70,13 @@ def main():
     for i, (_, row) in enumerate(remaining.iterrows()):
         if i % CHECKPOINT_EVERY == 0:
             print(f"  ...{i}/{len(remaining)} ({matched} matched so far)")
-            odds_df.to_parquet(ODDS_CACHE)
+            # reset_index before writing -- odds_df is indexed by game_pk (with drop=False, so
+            # game_pk is ALSO a column) for fast .loc[pk, col] updates in the loop below. Writing
+            # that index straight to parquet round-trips as game_pk being both an index level AND
+            # a column on the next read, which crashes main()'s own game_pk merge on restart --
+            # confirmed live when this exact checkpoint killed-and-resumed. .reset_index() returns
+            # a copy, so this doesn't disturb the loop's own odds_df reference.
+            odds_df.reset_index(drop=True).to_parquet(ODDS_CACHE)
         fixture_id = doubleheader_overrides.get(row["game_pk"]) or fixture_map.get(
             (row["game_date"], row["home_team"], row["away_team"])
         )
