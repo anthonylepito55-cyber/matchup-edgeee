@@ -200,7 +200,7 @@ BASEBALL_ONLY_FEATURE_COLUMNS = [c for c in FEATURE_COLUMNS if c not in MARKET_F
 # market_hits_allowed_line_diff equivalents -- those come from a separate player-prop-line fetch
 # Model C doesn't have its own version of; player props weren't part of what was asked for here).
 MODEL_C_MARKET_FEATURE_COLUMNS = [
-    "model_c_line_movement_diff", "model_c_market_divergence_diff", "model_c_prediction_market_diff",
+    "model_c_line_movement_diff", "model_c_avg_movement_diff", "model_c_prediction_market_diff",
     "model_c_consensus_prob_diff", "model_c_book_disagreement", "model_c_book_movement_agreement",
     "model_c_consensus_median_diff", "model_c_book_prob_std", "model_c_book_favor_diff",
     "model_c_team_total_diff", "model_c_market_total_runs",
@@ -741,12 +741,15 @@ def build_matchup_features(
     away_pitcher_market_lines: dict = None,  # same shape, AWAY starter
     team_total_diff: float = None,      # home Team Total runs line minus away's, averaged across CONSENSUS_BOOKS — see odds_fetcher.get_market_snapshot
     market_total_runs: float = None,    # game Total Runs line, averaged across CONSENSUS_BOOKS — see odds_fetcher.get_market_snapshot
-    # Model C's own market block — identical semantics to the 11 params above, sourced from
-    # odds_fetcher.get_model_c_snapshot's 6-book panel instead of get_market_snapshot's. Kept as
-    # separate params/output keys (model_c_ prefix) rather than overloading the existing ones so
-    # Model A/B's serving path can never accidentally pick up Model C's data or vice versa.
+    # Model C's own market block — mostly identical semantics to the 11 params above, sourced
+    # from odds_fetcher.get_model_c_snapshot's 6-book panel instead of get_market_snapshot's.
+    # Kept as separate params/output keys (model_c_ prefix) rather than overloading the existing
+    # ones so Model A/B's serving path can never accidentally pick up Model C's data or vice
+    # versa. model_c_avg_movement (not "divergence") is the one deliberate exception -- average
+    # movement across all 6 tracked books rather than a sharp-vs-public contrast, since Model C's
+    # book list only has one public/retail book (FanDuel); see get_model_c_snapshot's docstring.
     model_c_line_movement: float = None,
-    model_c_market_divergence: float = None,
+    model_c_avg_movement: float = None,
     model_c_prediction_market_signal: float = None,
     model_c_consensus_prob: float = None,
     model_c_book_disagreement: float = None,
@@ -1322,8 +1325,8 @@ def build_matchup_features(
         "model_c_line_movement_diff": (
             model_c_line_movement if model_c_line_movement is not None and pd.notna(model_c_line_movement) else np.nan
         ),
-        "model_c_market_divergence_diff": (
-            model_c_market_divergence if model_c_market_divergence is not None and pd.notna(model_c_market_divergence) else np.nan
+        "model_c_avg_movement_diff": (
+            model_c_avg_movement if model_c_avg_movement is not None and pd.notna(model_c_avg_movement) else np.nan
         ),
         "model_c_prediction_market_diff": (
             model_c_prediction_market_signal if model_c_prediction_market_signal is not None and pd.notna(model_c_prediction_market_signal)

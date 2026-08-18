@@ -53,6 +53,10 @@ def main():
     assert v.get("consensus_prob") is None, "FAIL: single book leaked into consensus_prob"
     assert v.get("book_median_prob") is None, "FAIL: single book leaked into book_median_prob"
     assert v.get("book_favor_diff") is None, "FAIL: single book leaked into book_favor_diff"
+    assert v.get("avg_movement") is None, (
+        "FAIL: single book's own movement leaked into avg_movement -- this is the exact "
+        "single-book vulnerability the sharp-vs-public split had before it was replaced"
+    )
     print("PASS: single-book data correctly produces no signal (None), not a false consensus.")
 
 

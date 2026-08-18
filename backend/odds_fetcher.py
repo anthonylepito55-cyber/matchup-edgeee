@@ -97,13 +97,16 @@ MODEL_C_MONEYLINE_BOOKS = ["FanDuel", "Pinnacle", "LowVig", "Betcris", "Circa Sp
 MODEL_C_PREDICTION_BOOKS = ["Kalshi"]
 MODEL_C_BOOKS = MODEL_C_MONEYLINE_BOOKS + MODEL_C_PREDICTION_BOOKS
 
-# Sharp/public split for Model C's own market_divergence -- Pinnacle/Circa Sports/LowVig/Betcris
-# are all traditionally sharp, reduced-vig or offshore-sharp books; FanDuel is the one public
-# retail book in the user's 6-book list. This 4-vs-1 split (not the balanced SHARP_BOOKS/
-# PUBLIC_BOOKS split above) is a judgment call reflecting the specific books requested --
-# reconsider if the book list changes.
-MODEL_C_SHARP_BOOKS = ["Pinnacle", "Circa Sports", "LowVig", "Betcris"]
-MODEL_C_PUBLIC_BOOKS = ["FanDuel"]
+# Model C deliberately has NO sharp/public split (unlike SHARP_BOOKS/PUBLIC_BOOKS above) --
+# an earlier version split MODEL_C_BOOKS into 4 sharp vs. 1 public (FanDuel alone), but a
+# single-book "public" side meant that HALF of market_divergence's contrast could be swung
+# entirely by FanDuel moving on its own, no matter how many books protected the other half or
+# consensus_prob/book_median_prob/book_favor_diff elsewhere. Averaging movement across all 6
+# tracked books instead (get_model_c_snapshot's avg_movement, >=2-book minimum, same threshold
+# as every other level feature) dilutes any single book's move the same way consensus_prob
+# already does -- trades the sharp-vs-public CONTRAST signal for a fully symmetric one, but
+# closes the single-book vulnerability completely instead of leaving one side of it exposed by
+# construction.
 
 # Model C is meant to be checked ~every 30s (a live tracker, not an opportunistic per-request
 # cache) -- much shorter than _CACHE_MAX_AGE_MIN's 5 minutes. The background poller (main.py)
@@ -663,13 +666,19 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
 
 def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     """
-    Model C's own version of get_market_snapshot -- identical shape and identical feature
+    Model C's own version of get_market_snapshot -- same shape and mostly the same feature
     computations, but sourced from MODEL_C_MONEYLINE_BOOKS + MODEL_C_PREDICTION_BOOKS (FanDuel,
     Pinnacle, LowVig, Betcris, Circa Sports, Kalshi) instead of CONSENSUS_BOOKS +
     PREDICTION_MARKET_BOOKS. Meant to be polled on a tight ~30s cadence by main.py's background
     loop (force_refresh=True each time) rather than the opportunistic per-request caching
     get_market_snapshot uses -- _MODEL_C_CACHE_MAX_AGE_MIN is 1 minute, just a fallback for any
     caller that doesn't force_refresh.
+
+    One deliberate difference from get_market_snapshot: "avg_movement" replaces
+    "market_divergence" -- average movement across all MODEL_C_MONEYLINE_BOOKS (>=2-book minimum)
+    instead of a sharp-vs-public contrast, since Model C's book list only has one public/retail
+    book (FanDuel), which would leave that half of a divergence contrast as a single point of
+    failure. See MODEL_C_BOOKS' comment above.
 
     Same "NaN means no signal" convention, same doubleheader-safe (start_date, away, home) key,
     same collision guard, same team-name normalization -- copied over deliberately rather than
@@ -728,16 +737,16 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             if CLOSING_BOOK in probs_now and CLOSING_BOOK in probs_open:
                 line_movement = probs_now[CLOSING_BOOK] - probs_open[CLOSING_BOOK]
 
-            sharp_movements = [
-                probs_now[b] - probs_open[b] for b in MODEL_C_SHARP_BOOKS if b in probs_now and b in probs_open
+            # Average movement across ALL of MODEL_C_MONEYLINE_BOOKS (no sharp-vs-public split --
+            # see the MODEL_C_BOOKS comment above on why: a single-book "public" side would let
+            # that one book's move show up undiluted, the exact single-book vulnerability found
+            # live in Model B). >=2-book minimum, same threshold as every other level feature
+            # below, so this can't degrade to a single book's movement passed off as a market
+            # read either.
+            all_movements = [
+                probs_now[b] - probs_open[b] for b in MODEL_C_MONEYLINE_BOOKS if b in probs_now and b in probs_open
             ]
-            public_movements = [
-                probs_now[b] - probs_open[b] for b in MODEL_C_PUBLIC_BOOKS if b in probs_now and b in probs_open
-            ]
-            market_divergence = (
-                (sum(sharp_movements) / len(sharp_movements)) - (sum(public_movements) / len(public_movements))
-                if sharp_movements and public_movements else None
-            )
+            avg_movement = (sum(all_movements) / len(all_movements)) if len(all_movements) >= 2 else None
 
             probs_effective = {**probs_open, **probs_now}
 
@@ -803,7 +812,7 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 continue
             snapshot[snapshot_key] = {
                 "line_movement": line_movement,
-                "market_divergence": market_divergence,
+                "avg_movement": avg_movement,
                 "consensus_prob": consensus_prob,
                 "book_median_prob": book_median_prob,
                 "book_prob_std": book_prob_std,
