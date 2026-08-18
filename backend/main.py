@@ -1921,6 +1921,10 @@ def _compute_today_response(date: str = None):
         # for line-shopping transparency in the "market odds" panel, not a model feature itself
         # (consensus_prob_diff/book_disagreement above ARE features, derived from the same data).
         book_odds_out = game_snapshot.get("book_probs") or None
+        # Same idea, sourced from Model C's own 6-book real-time panel instead of Model B's
+        # CONSENSUS_BOOKS -- lets a user directly audit every book feeding model_c_prob, the same
+        # transparency book_odds_out already gives for market_model_prob.
+        model_c_book_odds_out = model_c_game_snapshot.get("book_probs") or None
         # Same idea as book_odds_out, but for prediction-market exchanges (Kalshi, Polymarket)
         # instead of sportsbooks — shown as their own small panel since they're a structurally
         # different kind of market (real-money event contracts, not bookmaker-set lines), not
@@ -1966,7 +1970,8 @@ def _compute_today_response(date: str = None):
         if not g["home_pitcher_id"] or not g["away_pitcher_id"]:
             results.append({
                 **g, "prediction": None, "live_odds": live_odds_out, "injuries": injuries_out,
-                "book_odds": book_odds_out, "prediction_market_odds": prediction_market_odds_out,
+                "book_odds": book_odds_out, "model_c_book_odds": model_c_book_odds_out,
+                "prediction_market_odds": prediction_market_odds_out,
                 "note": "Probable pitcher not yet announced",
             })
             continue
@@ -2512,7 +2517,8 @@ def _compute_today_response(date: str = None):
             "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
             "simulation": simulation_out, "injuries": injuries_out,
-            "book_odds": book_odds_out, "prediction_market_odds": prediction_market_odds_out,
+            "book_odds": book_odds_out, "model_c_book_odds": model_c_book_odds_out,
+            "prediction_market_odds": prediction_market_odds_out,
             "user_pick": user_pick_out,
             "note": None if prediction else "Model not trained yet — run train.py",
         })

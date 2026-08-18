@@ -721,6 +721,12 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
               {game.book_odds && Object.keys(game.book_odds).length > 0 && (
                 <BookByBookOdds bookOdds={game.book_odds} awayAbbr={game.away_team_abbr} homeAbbr={game.home_team_abbr} />
               )}
+              {game.model_c_book_odds && Object.keys(game.model_c_book_odds).length > 0 && (
+                <BookByBookOdds
+                  bookOdds={game.model_c_book_odds} awayAbbr={game.away_team_abbr} homeAbbr={game.home_team_abbr}
+                  label="6-book model's books"
+                />
+              )}
               {game.prediction_market_odds && Object.keys(game.prediction_market_odds).length > 0 && (
                 <PredictionMarketOdds odds={game.prediction_market_odds} awayAbbr={game.away_team_abbr} homeAbbr={game.home_team_abbr} />
               )}
@@ -1037,12 +1043,12 @@ export function H2HLine({ stats, oppAbbr }) {
 // CONSENSUS_BOOKS member's own current devigged home win probability, for line-shopping
 // transparency. The model's consensus_prob_diff/book_disagreement features are derived from
 // this same data, but this table itself isn't a model input.
-export function BookByBookOdds({ bookOdds, awayAbbr, homeAbbr }) {
+export function BookByBookOdds({ bookOdds, awayAbbr, homeAbbr, label }) {
   const entries = Object.entries(bookOdds).sort((a, b) => b[1] - a[1])
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 4 }}>
-        book-by-book ({homeAbbr} win prob)
+        {label || 'book-by-book'} ({homeAbbr} win prob)
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {entries.map(([book, prob]) => (
