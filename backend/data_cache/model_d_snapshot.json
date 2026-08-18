@@ -1,0 +1,66 @@
+{
+  "date": "2026-08-18",
+  "refreshed_at": "2026-08-18T17:53:39.022886Z",
+  "games": {
+    "NYY|||BAL": {
+      "model_b_old": 0.4928,
+      "model_a_old": 0.4662
+    },
+    "DET|||PIT": {
+      "model_b_old": 0.5774,
+      "model_a_old": 0.5703
+    },
+    "SF|||CLE": {
+      "model_b_old": 0.6668,
+      "model_a_old": 0.6768
+    },
+    "STL|||CIN": {
+      "model_b_old": 0.4249,
+      "model_a_old": 0.4407
+    },
+    "TOR|||TB": {
+      "model_b_old": 0.6154,
+      "model_a_old": 0.5606
+    },
+    "MIA|||PHI": {
+      "model_b_old": 0.5176,
+      "model_a_old": 0.5819
+    },
+    "AZ|||BOS": {
+      "model_b_old": 0.5252,
+      "model_a_old": 0.5772
+    },
+    "SD|||NYM": {
+      "model_b_old": 0.4453,
+      "model_a_old": 0.4674
+    },
+    "ATH|||KC": {
+      "model_b_old": 0.5459,
+      "model_a_old": 0.4734
+    },
+    "ATL|||MIN": {
+      "model_b_old": 0.4358,
+      "model_a_old": 0.4517
+    },
+    "SEA|||MIL": {
+      "model_b_old": 0.581,
+      "model_a_old": 0.5801
+    },
+    "WSH|||TEX": {
+      "model_b_old": 0.551,
+      "model_a_old": 0.5191
+    },
+    "CWS|||CHC": {
+      "model_b_old": 0.4876,
+      "model_a_old": 0.5081
+    },
+    "LAA|||HOU": {
+      "model_b_old": 0.5642,
+      "model_a_old": 0.553
+    },
+    "LAD|||COL": {
+      "model_b_old": 0.4712,
+      "model_a_old": 0.4753
+    }
+  }
+}

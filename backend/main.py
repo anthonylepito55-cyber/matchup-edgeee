@@ -172,6 +172,29 @@ async def _start_model_c_poller():
     asyncio.create_task(_model_c_poller_loop())
 
 
+_MODEL_D_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "data_cache", "model_d_snapshot.json")
+
+
+def _load_model_d_snapshot(resolved_date: str) -> dict:
+    """"Model D" is the entire OLD app (commit 76330f5, 2026-08-16, "before all the changes")
+    actually executing against real games -- not a live poller like Model C, since running the
+    whole old pipeline's own API calls on every request would permanently double OpticOdds/MLB-API
+    traffic for a comparison feature. Instead this reads a snapshot file, refreshed periodically
+    by refresh_model_d_snapshot.py (see that file for how/why). {} if no snapshot exists yet or
+    it's stale for a different date -- callers treat that as "no signal", same convention as every
+    other optional field here, not an error."""
+    if not os.path.exists(_MODEL_D_SNAPSHOT_PATH):
+        return {}
+    try:
+        with open(_MODEL_D_SNAPSHOT_PATH) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if data.get("date") != resolved_date:
+        return {}
+    return data.get("games", {})
+
+
 def _recent_stats_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season: int) -> dict:
     """{pitcher_id: {"era":.., "k9":.., "bb9":..}} for both starters, last 5 starts each."""
     return {
@@ -1783,6 +1806,7 @@ def _compute_today_response(date: str = None):
         # of fetching fresh here -- a live request should never block on an OpticOdds round trip
         # for this, that's the whole point of polling it continuously in the background.
         model_c_snapshot = _model_c_snapshot_cache.get(resolved_date, {})
+        model_d_snapshot = _load_model_d_snapshot(resolved_date)
         injuries_by_team = _injuries_f.result()
         prop_lines = _prop_lines_f.result()
         prizepicks_lines = _prizepicks_f.result()
@@ -1920,6 +1944,13 @@ def _compute_today_response(date: str = None):
         model_c_game_book_favor_diff = model_c_game_snapshot.get("book_favor_diff")
         model_c_game_team_total_diff = model_c_game_snapshot.get("team_total_diff")
         model_c_game_market_total_runs = model_c_game_snapshot.get("market_total_runs")
+        # Model D: a snapshot lookup, not a live computation -- see _load_model_d_snapshot's
+        # docstring. Keyed by abbreviations (not the (game_time_utc, away, home) tuple Model
+        # B/C use) since the snapshot was written by a standalone script, not this request's own
+        # game loop -- team abbreviations are stable and simpler to match across processes.
+        model_d_game = model_d_snapshot.get(f"{g['away_team_abbr']}|||{g['home_team_abbr']}") or {}
+        model_d_prob_b = model_d_game.get("model_b_old")
+        model_d_prob_a = model_d_game.get("model_a_old")
         # Book-by-book display data (CONSENSUS_BOOKS' current devigged home prob) — display-only,
         # for line-shopping transparency in the "market odds" panel, not a model feature itself
         # (consensus_prob_diff/book_disagreement above ARE features, derived from the same data).
@@ -1974,6 +2005,7 @@ def _compute_today_response(date: str = None):
             results.append({
                 **g, "prediction": None, "live_odds": live_odds_out, "injuries": injuries_out,
                 "book_odds": book_odds_out, "model_c_book_odds": model_c_book_odds_out,
+                "model_d_prob": model_d_prob_b, "model_d_prob_a": model_d_prob_a,
                 "prediction_market_odds": prediction_market_odds_out,
                 "note": "Probable pitcher not yet announced",
             })
@@ -2519,6 +2551,7 @@ def _compute_today_response(date: str = None):
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
+            "model_d_prob": model_d_prob_b, "model_d_prob_a": model_d_prob_a,
             "simulation": simulation_out, "injuries": injuries_out,
             "book_odds": book_odds_out, "model_c_book_odds": model_c_book_odds_out,
             "prediction_market_odds": prediction_market_odds_out,

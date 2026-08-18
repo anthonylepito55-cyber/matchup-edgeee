@@ -583,6 +583,17 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
             </div>
           )}
 
+          {game.model_d_prob != null && (
+            <div
+              className="mono"
+              style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}
+              title="Debugging/comparison tool, not a model to trust for picks: the market-aware model exactly as it existed on 2026-08-16, before all the fixes and changes made since (data-fetch bugs and all) -- run against today's real games in an isolated checkout, not live. Refreshed periodically, not continuously, so this can go stale during the day. Shows how much of today's prediction is genuinely new signal vs. just retraining/bugfix drift."
+            >
+              model B (Aug 16, pre-changes): {game.model_d_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+              {((game.model_d_prob >= 0.5 ? game.model_d_prob : 1 - game.model_d_prob) * 100).toFixed(0)}%
+            </div>
+          )}
+
           {hasStats && (
             <div style={{ marginTop: 12 }}>
               <ToggleLink onClick={() => setShowStats(s => !s)} open={showStats} label="pitcher stats" />
