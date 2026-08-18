@@ -144,7 +144,7 @@ FEATURE_COLUMNS = [
     "lineup_gb_pct_diff",      # each lineup's own ground-ball rate, away - home (higher GB% is generally worse for offense)
     "travel_fatigue_diff",    # away team's travel distance since their last game minus home's, in thousands of miles (positive favors home, see weather.team_travel_miles)
     "line_movement_diff",     # how far the moneyline has moved toward home since opening (positive favors home) — see odds_fetcher.get_line_movement
-    "market_divergence_diff",  # Pinnacle's movement since open minus DraftKings' — sharp-vs-retail reverse-line-movement proxy, positive favors home — see odds_fetcher.get_market_divergence
+    "market_divergence_diff",  # SHARP_BOOKS' avg movement since open minus PUBLIC_BOOKS' avg movement — sharp-vs-retail reverse-line-movement proxy, positive favors home — see odds_fetcher.get_market_divergence
     "prediction_market_diff",  # Kalshi/Polymarket (USA) current price vs. Pinnacle's current price — positive favors home — see odds_fetcher.get_prediction_market_signal
     "consensus_prob_diff",    # average devigged home win prob across CONSENSUS_BOOKS minus 0.5 — the market's own current read on the game (a level, not a movement), positive favors home — see odds_fetcher.get_consensus_odds
     "book_disagreement",      # max-min spread of devigged home prob across CONSENSUS_BOOKS — a volatility/uncertainty proxy, not sign-based (always >= 0) — see odds_fetcher.get_consensus_odds
@@ -192,6 +192,21 @@ MARKET_FEATURE_COLUMNS = [
 ]
 
 BASEBALL_ONLY_FEATURE_COLUMNS = [c for c in FEATURE_COLUMNS if c not in MARKET_FEATURE_COLUMNS]
+
+# Model C: same baseball features as Model A/B, but its market block comes from
+# odds_fetcher.get_model_c_snapshot's own curated 6-book panel (FanDuel/Pinnacle/LowVig/Betcris/
+# Circa Sports/Kalshi, polled continuously) instead of get_market_snapshot's CONSENSUS_BOOKS.
+# Scoped to the win-prob market signals only (no market_outs_line_diff/market_er_line_diff/
+# market_hits_allowed_line_diff equivalents -- those come from a separate player-prop-line fetch
+# Model C doesn't have its own version of; player props weren't part of what was asked for here).
+MODEL_C_MARKET_FEATURE_COLUMNS = [
+    "model_c_line_movement_diff", "model_c_market_divergence_diff", "model_c_prediction_market_diff",
+    "model_c_consensus_prob_diff", "model_c_book_disagreement", "model_c_book_movement_agreement",
+    "model_c_consensus_median_diff", "model_c_book_prob_std", "model_c_book_favor_diff",
+    "model_c_team_total_diff", "model_c_market_total_runs",
+]
+
+MODEL_C_FEATURE_COLUMNS = BASEBALL_ONLY_FEATURE_COLUMNS + MODEL_C_MARKET_FEATURE_COLUMNS
 
 MAX_REST_DAYS = 10  # beyond this, extra rest stops being a freshness bonus — see _rest_effect
 
@@ -714,7 +729,7 @@ def build_matchup_features(
     recent_team_batting_30d: dict = None,  # same shape, over the last ~30 days (data_collection.RECENT_TEAM_BATTING_GAMES_30D)
     team_travel: dict = None,           # {team_abbr: miles_since_last_game} — see weather.team_travel_miles
     line_movement: float = None,        # devigged current-minus-opening home win prob, if available — see odds_fetcher.get_line_movement
-    market_divergence: float = None,    # Pinnacle movement minus DraftKings movement — see odds_fetcher.get_market_divergence
+    market_divergence: float = None,    # SHARP_BOOKS avg movement minus PUBLIC_BOOKS avg movement — see odds_fetcher.get_market_divergence
     prediction_market_signal: float = None,  # Kalshi/Polymarket (USA) current prob minus Pinnacle's — see odds_fetcher.get_prediction_market_signal
     consensus_prob: float = None,       # average devigged home win prob across CONSENSUS_BOOKS, raw 0-1 — see odds_fetcher.get_consensus_odds
     book_disagreement: float = None,    # max-min spread of devigged home prob across CONSENSUS_BOOKS — see odds_fetcher.get_consensus_odds
@@ -726,6 +741,21 @@ def build_matchup_features(
     away_pitcher_market_lines: dict = None,  # same shape, AWAY starter
     team_total_diff: float = None,      # home Team Total runs line minus away's, averaged across CONSENSUS_BOOKS — see odds_fetcher.get_market_snapshot
     market_total_runs: float = None,    # game Total Runs line, averaged across CONSENSUS_BOOKS — see odds_fetcher.get_market_snapshot
+    # Model C's own market block — identical semantics to the 11 params above, sourced from
+    # odds_fetcher.get_model_c_snapshot's 6-book panel instead of get_market_snapshot's. Kept as
+    # separate params/output keys (model_c_ prefix) rather than overloading the existing ones so
+    # Model A/B's serving path can never accidentally pick up Model C's data or vice versa.
+    model_c_line_movement: float = None,
+    model_c_market_divergence: float = None,
+    model_c_prediction_market_signal: float = None,
+    model_c_consensus_prob: float = None,
+    model_c_book_disagreement: float = None,
+    model_c_book_movement_agreement: float = None,
+    model_c_consensus_median_prob: float = None,
+    model_c_book_prob_std: float = None,
+    model_c_book_favor_diff: float = None,
+    model_c_team_total_diff: float = None,
+    model_c_market_total_runs: float = None,
     batter_expected: pd.DataFrame = None,  # mlbID/xba/xslg/xwoba — data_collection.get_batter_expected_stats
     batter_exitvelo: pd.DataFrame = None,  # mlbID/hard_hit_pct/barrel_pct/sweet_spot_pct — data_collection.get_batter_exitvelo_barrels
     batter_percentile: pd.DataFrame = None,  # mlbID/chase_percentile/contact_percentile — data_collection.get_batter_percentile_ranks
@@ -1287,6 +1317,44 @@ def build_matchup_features(
         "market_total_runs": (
             market_total_runs if market_total_runs is not None and pd.notna(market_total_runs) else np.nan
         ),
+        # Model C's own market block — same formulas as the 11 keys above, just reading the
+        # model_c_* params (sourced from get_model_c_snapshot's 6-book panel) instead.
+        "model_c_line_movement_diff": (
+            model_c_line_movement if model_c_line_movement is not None and pd.notna(model_c_line_movement) else np.nan
+        ),
+        "model_c_market_divergence_diff": (
+            model_c_market_divergence if model_c_market_divergence is not None and pd.notna(model_c_market_divergence) else np.nan
+        ),
+        "model_c_prediction_market_diff": (
+            model_c_prediction_market_signal if model_c_prediction_market_signal is not None and pd.notna(model_c_prediction_market_signal)
+            else np.nan
+        ),
+        "model_c_consensus_prob_diff": (
+            (model_c_consensus_prob - 0.5) if model_c_consensus_prob is not None and pd.notna(model_c_consensus_prob) else np.nan
+        ),
+        "model_c_book_disagreement": (
+            model_c_book_disagreement if model_c_book_disagreement is not None and pd.notna(model_c_book_disagreement) else np.nan
+        ),
+        "model_c_book_movement_agreement": (
+            model_c_book_movement_agreement if model_c_book_movement_agreement is not None and pd.notna(model_c_book_movement_agreement)
+            else np.nan
+        ),
+        "model_c_consensus_median_diff": (
+            (model_c_consensus_median_prob - 0.5) if model_c_consensus_median_prob is not None and pd.notna(model_c_consensus_median_prob)
+            else np.nan
+        ),
+        "model_c_book_prob_std": (
+            model_c_book_prob_std if model_c_book_prob_std is not None and pd.notna(model_c_book_prob_std) else np.nan
+        ),
+        "model_c_book_favor_diff": (
+            model_c_book_favor_diff if model_c_book_favor_diff is not None and pd.notna(model_c_book_favor_diff) else np.nan
+        ),
+        "model_c_team_total_diff": (
+            model_c_team_total_diff if model_c_team_total_diff is not None and pd.notna(model_c_team_total_diff) else np.nan
+        ),
+        "model_c_market_total_runs": (
+            model_c_market_total_runs if model_c_market_total_runs is not None and pd.notna(model_c_market_total_runs) else np.nan
+        ),
         # positive favors home: home's own lineup hits well against the away pitcher's hand,
         # and/or the away lineup does NOT hit well against the home pitcher's hand
         "opp_platoon_woba_diff": (
@@ -1309,10 +1377,16 @@ def build_matchup_features(
     return features
 
 
-def features_to_row(features: dict) -> pd.DataFrame:
+def features_to_row(features: dict, feature_columns: list = None) -> pd.DataFrame:
     """Turns a single feature dict into a 1-row DataFrame in the right column order,
-    filling missing values with 0 (neutral) after z-scoring is handled by the model pipeline."""
-    row = {col: features.get(col, np.nan) for col in FEATURE_COLUMNS}
+    filling missing values with 0 (neutral) after z-scoring is handled by the model pipeline.
+
+    feature_columns defaults to FEATURE_COLUMNS (Model A/B) — pass MODEL_C_FEATURE_COLUMNS to get
+    Model C's own market_c_* columns instead. build_matchup_features already writes every column
+    from every model's feature list into one combined feats dict regardless of which model asked,
+    so the same feats dict works for any of the three calls."""
+    feature_columns = feature_columns or FEATURE_COLUMNS
+    row = {col: features.get(col, np.nan) for col in feature_columns}
     return pd.DataFrame([row])
 
 

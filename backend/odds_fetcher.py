@@ -85,6 +85,32 @@ PREDICTION_MARKET_BOOKS = ["Kalshi", "Polymarket (USA)"]
 # display) gives a reasonably representative cross-section, not just retail books.
 CONSENSUS_BOOKS = ["Pinnacle", "DraftKings", "FanDuel", "BetMGM", "Circa Sports"]
 
+# Model C's own curated 6-book panel (user-specified, distinct from CONSENSUS_BOOKS above) --
+# FanDuel/Pinnacle/Circa Sports already confirmed real+active via a direct OpticOdds sportsbooks
+# lookup; LowVig and Betcris confirmed too (both real, active, and returned live MLB moneyline
+# data in a direct test). Kalshi is a prediction-market contract, not a bookmaker -- same
+# olv-artifact caveat as PREDICTION_MARKET_BOOKS above applies, so it's fetched in its own
+# 1-book panel (MODEL_C_PREDICTION_BOOKS) rather than folded into the 5-book moneyline batch,
+# keeping MODEL_C_MONEYLINE_BOOKS at exactly 5 -- the same per-request cap CONSENSUS_BOOKS is
+# already sized around (confirmed live: a 6th book 400s).
+MODEL_C_MONEYLINE_BOOKS = ["FanDuel", "Pinnacle", "LowVig", "Betcris", "Circa Sports"]
+MODEL_C_PREDICTION_BOOKS = ["Kalshi"]
+MODEL_C_BOOKS = MODEL_C_MONEYLINE_BOOKS + MODEL_C_PREDICTION_BOOKS
+
+# Sharp/public split for Model C's own market_divergence -- Pinnacle/Circa Sports/LowVig/Betcris
+# are all traditionally sharp, reduced-vig or offshore-sharp books; FanDuel is the one public
+# retail book in the user's 6-book list. This 4-vs-1 split (not the balanced SHARP_BOOKS/
+# PUBLIC_BOOKS split above) is a judgment call reflecting the specific books requested --
+# reconsider if the book list changes.
+MODEL_C_SHARP_BOOKS = ["Pinnacle", "Circa Sports", "LowVig", "Betcris"]
+MODEL_C_PUBLIC_BOOKS = ["FanDuel"]
+
+# Model C is meant to be checked ~every 30s (a live tracker, not an opportunistic per-request
+# cache) -- much shorter than _CACHE_MAX_AGE_MIN's 5 minutes. The background poller (main.py)
+# always passes force_refresh=True on its own 30s cadence; this TTL is just the fallback for any
+# other caller that doesn't.
+_MODEL_C_CACHE_MAX_AGE_MIN = 1
+
 # Player-prop markets whose posted LINE (not the over/under price around it) is itself a
 # specialized per-pitcher-per-night forecast — outs recorded (~depth expectation), earned runs
 # and hits allowed (~run-prevention/contact-quality expectation), alongside the strikeout line
@@ -625,6 +651,171 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 "prediction_market_probs": prediction_market_probs,
                 "team_total_diff": team_total_diff,
                 "market_total_runs": market_total_runs,
+            }
+    except requests.exceptions.RequestException:
+        pass
+
+    raw = {f"{start_date}|||{away}|||{home}": v for (start_date, away, home), v in snapshot.items()}
+    with open(cache_path, "w") as f:
+        json.dump(raw, f)
+    return snapshot
+
+
+def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
+    """
+    Model C's own version of get_market_snapshot -- identical shape and identical feature
+    computations, but sourced from MODEL_C_MONEYLINE_BOOKS + MODEL_C_PREDICTION_BOOKS (FanDuel,
+    Pinnacle, LowVig, Betcris, Circa Sports, Kalshi) instead of CONSENSUS_BOOKS +
+    PREDICTION_MARKET_BOOKS. Meant to be polled on a tight ~30s cadence by main.py's background
+    loop (force_refresh=True each time) rather than the opportunistic per-request caching
+    get_market_snapshot uses -- _MODEL_C_CACHE_MAX_AGE_MIN is 1 minute, just a fallback for any
+    caller that doesn't force_refresh.
+
+    Same "NaN means no signal" convention, same doubleheader-safe (start_date, away, home) key,
+    same collision guard, same team-name normalization -- copied over deliberately rather than
+    parameterizing get_market_snapshot itself, so a change to Model C's cadence/book list can
+    never accidentally affect Model A/B's serving path.
+    """
+    if not OPTICODDS_API_KEY:
+        return {}
+    date = date or datetime.now().strftime("%Y-%m-%d")
+    cache_path = os.path.join(CACHE_DIR, f"model_c_snapshot_{date}.json")
+    if not force_refresh and os.path.exists(cache_path):
+        age_min = (time.time() - os.path.getmtime(cache_path)) / 60
+        if age_min < _MODEL_C_CACHE_MAX_AGE_MIN:
+            with open(cache_path) as f:
+                raw = json.load(f)
+            return {tuple(k.split("|||")): v for k, v in raw.items()}
+
+    end_date = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
+    try:
+        fixture_map = _fetch_fixture_map(date, end_date, statuses=("unplayed", "live", "completed"))
+    except requests.exceptions.RequestException:
+        return {}
+
+    fixtures_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
+        "league": "mlb", "start_date_after": date, "start_date_before": end_date,
+    }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=15)
+    snapshot = {}
+    try:
+        fixtures_resp.raise_for_status()
+        for f in fixtures_resp.json().get("data", []):
+            game_date = f["start_date"][:10]
+            home_abbr = f.get("home_competitors", [{}])[0].get("abbreviation")
+            away_abbr = f.get("away_competitors", [{}])[0].get("abbreviation")
+            fixture_id = f.get("id") or fixture_map.get((game_date, home_abbr, away_abbr))
+            if fixture_id is None:
+                continue
+
+            panel = _fetch_panel_odds(fixture_id, MODEL_C_MONEYLINE_BOOKS)
+            time.sleep(HISTORICAL_RATE_LIMIT_SLEEP)
+            pred_panel = _fetch_panel_odds(fixture_id, MODEL_C_PREDICTION_BOOKS)
+            time.sleep(HISTORICAL_RATE_LIMIT_SLEEP)
+            totals_panel = _fetch_totals_panel(fixture_id, MODEL_C_MONEYLINE_BOOKS)
+            time.sleep(HISTORICAL_RATE_LIMIT_SLEEP)
+
+            probs_now, probs_open = {}, {}
+            for book, o in panel.items():
+                p_now = devig_home_prob(o.get("home"), o.get("away"))
+                if p_now is not None:
+                    probs_now[book] = p_now
+                if "home_open" in o and "away_open" in o:
+                    p_open = devig_home_prob(o["home_open"], o["away_open"])
+                    if p_open is not None:
+                        probs_open[book] = p_open
+
+            line_movement = None
+            if CLOSING_BOOK in probs_now and CLOSING_BOOK in probs_open:
+                line_movement = probs_now[CLOSING_BOOK] - probs_open[CLOSING_BOOK]
+
+            sharp_movements = [
+                probs_now[b] - probs_open[b] for b in MODEL_C_SHARP_BOOKS if b in probs_now and b in probs_open
+            ]
+            public_movements = [
+                probs_now[b] - probs_open[b] for b in MODEL_C_PUBLIC_BOOKS if b in probs_now and b in probs_open
+            ]
+            market_divergence = (
+                (sum(sharp_movements) / len(sharp_movements)) - (sum(public_movements) / len(public_movements))
+                if sharp_movements and public_movements else None
+            )
+
+            probs_effective = {**probs_open, **probs_now}
+
+            # Same single-book vulnerability as get_market_snapshot -- flagged live 2026-08-17:
+            # consensus_prob/book_median_prob/book_favor_diff only required 1 book, so a
+            # "consensus" could silently be just whichever single book happened to be synced.
+            # Model C requires at least 2 of its 6 tracked books before treating these as a real
+            # signal, same threshold book_disagreement/book_prob_std already used -- a live tracker
+            # polled every 30s is exactly the situation where partial coverage is common, so this
+            # matters more here than anywhere else in the app.
+            consensus_prob = (
+                (sum(probs_effective.values()) / len(probs_effective)) if len(probs_effective) >= 2 else None
+            )
+            book_disagreement = (
+                (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
+            )
+            book_median_prob = (
+                statistics.median(probs_effective.values()) if len(probs_effective) >= 2 else None
+            )
+            book_prob_std = statistics.pstdev(probs_effective.values()) if len(probs_effective) >= 2 else None
+
+            book_favor_diff = None
+            if len(probs_effective) >= 2:
+                favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
+                favor_away = sum(1 for p in probs_effective.values() if p < 0.5)
+                book_favor_diff = (favor_home - favor_away) / len(probs_effective)
+
+            book_movements = {
+                book: probs_now[book] - probs_open[book]
+                for book in probs_now if book in probs_open
+            }
+            book_movement_agreement = None
+            if book_movements:
+                toward_home = sum(1 for m in book_movements.values() if m > 0)
+                toward_away = sum(1 for m in book_movements.values() if m < 0)
+                book_movement_agreement = (toward_home - toward_away) / len(book_movements)
+
+            pred_probs = []
+            prediction_market_probs = {}
+            for book, o in pred_panel.items():
+                p = devig_home_prob(o.get("home"), o.get("away"))
+                if p is not None:
+                    pred_probs.append(p)
+                    prediction_market_probs[book] = p
+            prediction_market_diff = None
+            if pred_probs and CLOSING_BOOK in probs_effective:
+                prediction_market_diff = (sum(pred_probs) / len(pred_probs)) - probs_effective[CLOSING_BOOK]
+
+            home_totals = [o["home_team_total"] for o in totals_panel.values() if "home_team_total" in o]
+            away_totals = [o["away_team_total"] for o in totals_panel.values() if "away_team_total" in o]
+            game_totals = [o["total_runs"] for o in totals_panel.values() if "total_runs" in o]
+            team_total_diff = (
+                (sum(home_totals) / len(home_totals)) - (sum(away_totals) / len(away_totals))
+                if home_totals and away_totals else None
+            )
+            market_total_runs = (sum(game_totals) / len(game_totals)) if game_totals else None
+
+            home_team = _OPTICODDS_TEAM_NAME_FIX.get(f.get("home_team_display"), f.get("home_team_display"))
+            away_team = _OPTICODDS_TEAM_NAME_FIX.get(f.get("away_team_display"), f.get("away_team_display"))
+            snapshot_key = (f.get("start_date"), away_team, home_team)
+            if snapshot_key in snapshot:
+                print(f"[get_model_c_snapshot] WARNING: duplicate snapshot key {snapshot_key!r} -- keeping first, dropping this one")
+                continue
+            snapshot[snapshot_key] = {
+                "line_movement": line_movement,
+                "market_divergence": market_divergence,
+                "consensus_prob": consensus_prob,
+                "book_median_prob": book_median_prob,
+                "book_prob_std": book_prob_std,
+                "book_disagreement": book_disagreement,
+                "book_movement_agreement": book_movement_agreement,
+                "book_favor_diff": book_favor_diff,
+                "book_probs": probs_now,
+                "prediction_market_diff": prediction_market_diff,
+                "prediction_market_probs": prediction_market_probs,
+                "team_total_diff": team_total_diff,
+                "market_total_runs": market_total_runs,
+                "n_books": len(probs_effective),
             }
     except requests.exceptions.RequestException:
         pass

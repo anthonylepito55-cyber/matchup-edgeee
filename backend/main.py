@@ -60,6 +60,7 @@ from features import (
 from odds_fetcher import (
     get_moneyline_odds, get_strikeout_prop_lines, get_prizepicks_strikeout_lines, devig_home_prob,
     get_market_snapshot, get_active_injuries, get_pitcher_market_lines, normalize_player_name,
+    get_model_c_snapshot,
 )
 from weather import get_rain_risk, get_game_weather_live, team_travel_miles, TEAM_HOME_VENUE
 from prediction_log import (
@@ -136,6 +137,39 @@ async def _background_refresh_loop():
 @app.on_event("startup")
 async def _start_background_refresh():
     asyncio.create_task(_background_refresh_loop())
+
+
+# {resolved_date: snapshot_dict (see odds_fetcher.get_model_c_snapshot)} -- kept fresh by
+# _model_c_poller_loop below. Model C's serving code (once wired in) reads this directly instead
+# of calling get_model_c_snapshot itself, so a live request never blocks on an OpticOdds round
+# trip -- it just reads whatever the poller last wrote.
+_model_c_snapshot_cache = {}
+
+
+async def _model_c_poller_loop():
+    """Keeps Model C's market snapshot as fresh as OpticOdds' rate limit allows. One full pass
+    across a ~15-game slate costs ~45 requests (3/game: moneyline panel, Kalshi panel, totals
+    panel) at HISTORICAL_RATE_LIMIT_SLEEP's 1.6s/request -- ~70-90s minimum, not the 30s
+    originally asked for; a true 30s cadence isn't achievable without exceeding OpticOdds'
+    documented 10-req/15s cap. Loops back-to-back with no fixed sleep between passes instead --
+    each pass starts immediately after the previous one finishes, landing around ~75-90s/game in
+    practice, the fastest honestly achievable rate rather than a number that looks right but
+    silently violates the rate limit."""
+    while True:
+        try:
+            resolved_date = datetime.now().strftime("%Y-%m-%d")
+            snapshot = await asyncio.get_event_loop().run_in_executor(
+                None, get_model_c_snapshot, resolved_date, True
+            )
+            _model_c_snapshot_cache[resolved_date] = snapshot
+        except Exception as e:
+            print(f"[model C poller] failed: {e}")
+            await asyncio.sleep(5)  # brief backoff so a persistent failure doesn't spin-loop
+
+
+@app.on_event("startup")
+async def _start_model_c_poller():
+    asyncio.create_task(_model_c_poller_loop())
 
 
 def _recent_stats_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season: int) -> dict:
