@@ -572,6 +572,17 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
             </div>
           )}
 
+          {game.model_c_prob != null && (
+            <div
+              className="mono"
+              style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}
+              title="A third model, same baseball features as the market-aware model above but fed by its own real-time 6-book tracker (FanDuel, Pinnacle, LowVig, BetCRIS, Circa Sports, Kalshi) polled continuously rather than read at request time -- shown for comparison only, never the number driving the prediction above."
+            >
+              6-book model: {game.model_c_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+              {((game.model_c_prob >= 0.5 ? game.model_c_prob : 1 - game.model_c_prob) * 100).toFixed(0)}%
+            </div>
+          )}
+
           {hasStats && (
             <div style={{ marginTop: 12 }}>
               <ToggleLink onClick={() => setShowStats(s => !s)} open={showStats} label="pitcher stats" />
