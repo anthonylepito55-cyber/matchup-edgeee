@@ -50,7 +50,11 @@ _CACHE_MAX_AGE_MIN = 5  # odds move fast; tightened from 15 -- still clear of th
 # get_line_movement) doesn't have to import that whole backtest/training-analysis script just
 # to reuse two small HTTP helpers.
 CLOSING_BOOK = "Pinnacle"  # the standard "sharp" reference book for closing-line value
-HISTORICAL_RATE_LIMIT_SLEEP = 1.6  # stays under OpticOdds' 10 req/15s cap on /fixtures/odds/historical
+HISTORICAL_RATE_LIMIT_SLEEP = 0.5  # /fixtures/odds/historical's real cap (confirmed live via
+# x-ratelimit-* response headers, 2026-08-18) is 50 requests/~15s, not the 10/15s this constant
+# was originally calibrated for -- 0.5s leaves ~3x headroom under the real ceiling (safety margin
+# for concurrent production traffic sharing the same API key), down from the prior 1.6s that was
+# throttling every backfill in this project by roughly 5x more than actually necessary.
 
 # Retail counterpart to CLOSING_BOOK for line_movement/CLOSING_BOOK-specific uses — heavy public
 # volume, since OpticOdds has no actual bet-count/handle endpoint (confirmed: /betting-splits,
