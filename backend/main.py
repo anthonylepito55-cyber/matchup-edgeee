@@ -53,7 +53,7 @@ from features import (
     build_matchup_features, features_to_row, build_strikeout_features, strikeout_features_to_row,
     build_ip_features, ip_features_to_row, build_er_features, er_features_to_row,
     MIN_RELIABLE_STARTS, MIN_RELIABLE_SEASON_IP, LONG_LAYOFF_DAYS, MIN_RELIABLE_IP_PER_START, FEATURE_COLUMNS,
-    MARKET_FEATURE_COLUMNS, BASEBALL_ONLY_FEATURE_COLUMNS, STRIKEOUT_FEATURE_COLUMNS, STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS,
+    MARKET_FEATURE_COLUMNS, BASEBALL_ONLY_FEATURE_COLUMNS, MODEL_C_FEATURE_COLUMNS, STRIKEOUT_FEATURE_COLUMNS, STRIKEOUT_BASEBALL_ONLY_FEATURE_COLUMNS,
     IP_FEATURE_COLUMNS, IP_BASEBALL_ONLY_FEATURE_COLUMNS, ER_FEATURE_COLUMNS, ER_BASEBALL_ONLY_FEATURE_COLUMNS,
     blend_with_prior_season, blend_statcast_with_prior_season,
 )
@@ -1741,6 +1741,7 @@ def _compute_today_response(date: str = None):
     # loads too, purely for the secondary market_model_prob comparison field below.
     model_trained = model_module.load_model(model_module.BASELINE_MODEL_PATH)[0] is not None
     market_model_trained = model_module.load_model(model_module.MODEL_PATH)[0] is not None
+    model_c_trained = model_module.load_model(model_module.MODEL_C_PATH)[0] is not None
     rating_fitted = rating_system.load_rating_system()  # display-only "why" breakdown, see rating_system.py
 
     # All 8 of these are independent live/market fetches with no shared state — each already
@@ -1775,6 +1776,10 @@ def _compute_today_response(date: str = None):
 
         live_odds = _live_odds_f.result()
         market_snapshot = _market_snapshot_f.result()
+        # Model C reads whatever the background poller (_model_c_poller_loop) last wrote instead
+        # of fetching fresh here -- a live request should never block on an OpticOdds round trip
+        # for this, that's the whole point of polling it continuously in the background.
+        model_c_snapshot = _model_c_snapshot_cache.get(resolved_date, {})
         injuries_by_team = _injuries_f.result()
         prop_lines = _prop_lines_f.result()
         prizepicks_lines = _prizepicks_f.result()
@@ -1897,6 +1902,20 @@ def _compute_today_response(date: str = None):
         game_book_favor_diff = game_snapshot.get("book_favor_diff")
         game_team_total_diff = game_snapshot.get("team_total_diff")
         game_market_total_runs = game_snapshot.get("market_total_runs")
+        # Model C's own snapshot, same key shape, from the continuously-polled 6-book panel
+        # instead of Model B's 5-book CONSENSUS_BOOKS -- see odds_fetcher.get_model_c_snapshot.
+        model_c_game_snapshot = model_c_snapshot.get((g.get("game_time_utc"), g["away_team"], g["home_team"])) or {}
+        model_c_game_line_movement = model_c_game_snapshot.get("line_movement")
+        model_c_game_avg_movement = model_c_game_snapshot.get("avg_movement")
+        model_c_game_prediction_market_signal = model_c_game_snapshot.get("prediction_market_diff")
+        model_c_game_consensus_prob = model_c_game_snapshot.get("consensus_prob")
+        model_c_game_book_disagreement = model_c_game_snapshot.get("book_disagreement")
+        model_c_game_book_movement_agreement = model_c_game_snapshot.get("book_movement_agreement")
+        model_c_game_consensus_median_prob = model_c_game_snapshot.get("book_median_prob")
+        model_c_game_book_prob_std = model_c_game_snapshot.get("book_prob_std")
+        model_c_game_book_favor_diff = model_c_game_snapshot.get("book_favor_diff")
+        model_c_game_team_total_diff = model_c_game_snapshot.get("team_total_diff")
+        model_c_game_market_total_runs = model_c_game_snapshot.get("market_total_runs")
         # Book-by-book display data (CONSENSUS_BOOKS' current devigged home prob) — display-only,
         # for line-shopping transparency in the "market odds" panel, not a model feature itself
         # (consensus_prob_diff/book_disagreement above ARE features, derived from the same data).
@@ -2080,6 +2099,7 @@ def _compute_today_response(date: str = None):
         lineup_breakdown_out = None
         rating_out = None
         market_model_prob = None
+        model_c_prob = None
         value_bet_out = None
         if model_trained:
             for pid in (effective_home_id, effective_away_id, g["home_pitcher_id"], g["away_pitcher_id"]):
@@ -2192,6 +2212,17 @@ def _compute_today_response(date: str = None):
                 book_favor_diff=game_book_favor_diff,
                 team_total_diff=game_team_total_diff,
                 market_total_runs=game_market_total_runs,
+                model_c_line_movement=model_c_game_line_movement,
+                model_c_avg_movement=model_c_game_avg_movement,
+                model_c_prediction_market_signal=model_c_game_prediction_market_signal,
+                model_c_consensus_prob=model_c_game_consensus_prob,
+                model_c_book_disagreement=model_c_game_book_disagreement,
+                model_c_book_movement_agreement=model_c_game_book_movement_agreement,
+                model_c_consensus_median_prob=model_c_game_consensus_median_prob,
+                model_c_book_prob_std=model_c_game_book_prob_std,
+                model_c_book_favor_diff=model_c_game_book_favor_diff,
+                model_c_team_total_diff=model_c_game_team_total_diff,
+                model_c_market_total_runs=model_c_game_market_total_runs,
                 home_pitcher_market_lines=home_pitcher_market_lines,
                 away_pitcher_market_lines=away_pitcher_market_lines,
                 pitch_mix=pitch_mix,
@@ -2216,6 +2247,22 @@ def _compute_today_response(date: str = None):
                     )["home_win_prob"]
                 except Exception:
                     market_model_prob = None
+            # Model C (baseball + the 6-book real-time-tracked market block) — same "comparison
+            # only, never drives the primary prediction" status as Model B. Walk-forward validated
+            # as statistically tied with Model B on AUC/Brier (see build_and_train_model_c.py),
+            # served for its architecture (continuous polling, the single-book-leak guards Model B
+            # doesn't have), not a proven accuracy edge.
+            model_c_prob = None
+            if model_c_trained:
+                try:
+                    # row above was built with the default FEATURE_COLUMNS (Model A/B's set),
+                    # which doesn't carry the model_c_* columns -- needs its own row.
+                    model_c_row = features_to_row(feats, feature_columns=MODEL_C_FEATURE_COLUMNS)
+                    model_c_prob = model_module.predict_proba(
+                        model_c_row, model_path=model_module.MODEL_C_PATH, feature_columns=MODEL_C_FEATURE_COLUMNS
+                    )["home_win_prob"]
+                except Exception:
+                    model_c_prob = None
             value_bet_out = _compute_value_bet(
                 market_model_prob,
                 devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
@@ -2386,6 +2433,7 @@ def _compute_today_response(date: str = None):
             rating_out = None
             feature_breakdown_out = None
             market_model_prob = None
+            model_c_prob = None
             value_bet_out = None
             simulation_out = None
             team_stats_out = None
@@ -2412,6 +2460,8 @@ def _compute_today_response(date: str = None):
                     h2h_out = frozen["h2h"]
                 if frozen.get("market_model_prob") is not None:
                     market_model_prob = frozen["market_model_prob"]
+                if frozen.get("model_c_prob") is not None:
+                    model_c_prob = frozen["model_c_prob"]
                 if frozen.get("value_bet"):
                     value_bet_out = frozen["value_bet"]
                 if frozen.get("simulation"):
@@ -2458,7 +2508,7 @@ def _compute_today_response(date: str = None):
             "opener_affected": any_opener, "h2h": h2h_out, "team_stats": team_stats_out,
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,
-            "market_model_prob": market_model_prob, "value_bet": value_bet_out,
+            "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
             "simulation": simulation_out, "injuries": injuries_out,
             "book_odds": book_odds_out, "prediction_market_odds": prediction_market_odds_out,
             "user_pick": user_pick_out,
