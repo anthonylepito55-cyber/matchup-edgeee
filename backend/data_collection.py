@@ -402,18 +402,9 @@ def get_statcast_pitcher_logs(pitcher_id: int, start_date: str, end_date: str,
             return pd.DataFrame()
         if df is None or df.empty:
             return pd.DataFrame()
-        required = ["game_date", "description", "zone", "launch_speed", "launch_angle", "release_speed",
-                    "pitch_type", "pitch_number", "release_spin_rate", "pfx_x", "pfx_z",
-                    "game_pk", "at_bat_number", "batter"]
-        # Confirmed live (2026-08-19, full training-data rebuild across 3 seasons): Baseball
-        # Savant can return a non-empty dataframe that's still missing every one of these
-        # columns for a specific pitcher-range (a different/malformed response schema, not
-        # covered by the None/empty checks above) -- same "one flaky pitcher shouldn't crash a
-        # run pulling hundreds of others" reasoning as the try/except above, just for a response
-        # shape that slips past that guard too.
-        if not set(required).issubset(df.columns):
-            return pd.DataFrame()
-        keep = df[required].copy()
+        keep = df[["game_date", "description", "zone", "launch_speed", "launch_angle", "release_speed",
+                   "pitch_type", "pitch_number", "release_spin_rate", "pfx_x", "pfx_z",
+                   "game_pk", "at_bat_number", "batter"]].copy()
         keep["game_date"] = keep["game_date"].astype(str)
         return keep
     name = f"statcast_pitcher_{pitcher_id}_{start_date}_{end_date}"
