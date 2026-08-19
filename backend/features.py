@@ -217,6 +217,30 @@ LONG_LAYOFF_DAYS = 12          # normal rotations skip a turn at most ~10-11 day
 MIN_RELIABLE_IP_PER_START = 3.0  # short-leash/bulk-relief stints below this depth aren't a real "start" sample, whatever the count says
 CLOSE_MATCHUP_FIP_SCALE = 0.75  # combined season+recent starter FIP gap beyond which bullpen_edge_when_close_diff fades to 0 — see build_matchup_features
 
+# League-average season pitching lines, computed directly from get_season_pitching_stats across
+# 2024-2026 (qualified starters, IP>=30) rather than guessed from sabermetric folklore -- see
+# _analyze_league_averages.py (or just re-run the same query) to reproduce. Used as a fallback for
+# whichever side of a season-level "_diff" feature (fip_diff, k_bb_pct_diff, etc.) is missing
+# ONLY when the OTHER side has real data -- found live 2026-08-19 (LAA@HOU: Ethan Pecko, a true
+# MLB debut with zero recorded innings, vs Walbert Urena, a real 2.67-ERA starter over 20 starts)
+# that season_weight = min(_season_ip_weight(home), _season_ip_weight(away)) means ONE pitcher
+# having genuinely zero data doesn't just discount the comparison -- via pd.notna(x) and
+# pd.notna(y) gating, it makes the ENTIRE starter-quality feature family NaN, discarding real,
+# reliable information about the pitcher who DOES have a season (Urena's real 2.67 ERA/3.74 FIP
+# was completely invisible to the model, which was deciding the game off team-level features and
+# home field alone). Substituting league-average for the missing side instead of nulling the
+# whole comparison lets the model still see "Urena is a clearly above-average starter" even
+# against a total unknown, while a THIN (not zero) sample on both sides still gets the existing
+# min()-based shrinkage exactly as before -- this only changes behavior when one side is fully
+# absent, not when both sides simply have a smaller-than-ideal sample.
+LEAGUE_AVG_FIP = 4.06
+LEAGUE_AVG_K_BB_PCT = 14.22
+LEAGUE_AVG_HR9 = 1.14
+LEAGUE_AVG_H9 = 8.18
+LEAGUE_AVG_XERA = 4.10
+LEAGUE_AVG_XFIP = 3.51
+LEAGUE_AVG_SIERA = 3.84
+
 
 def _safe_get(df: pd.DataFrame, team: str, col: str, default=np.nan):
     row = df[df["Team"] == team]
@@ -815,9 +839,55 @@ def build_matchup_features(
     # rather than let a noisy small-sample season line drive the model as
     # hard as an established one would. Statcast pitch-quality stats are
     # season-to-date too, so the same shrinkage applies to them.
-    season_weight = min(
-        _season_ip_weight(ip_home, season_ip_per_start_home), _season_ip_weight(ip_away, season_ip_per_start_away)
-    )
+    #
+    # home_has_season/away_has_season track whether EITHER side has any real season sample at
+    # all (fip is the tell — see the fip-vs-ip comment below for why). When only one side is
+    # missing, the OTHER side's real stats are substituted against LEAGUE_AVG_* below rather than the
+    # whole comparison going NaN -- see LEAGUE_AVG_FIP's comment for why (a true debut pitcher
+    # was making a proven starter's real 2.67 ERA invisible to the model). season_weight in that
+    # case is just the real side's own weight, not min()'d against the missing side's implicit
+    # zero -- a genuinely absent sample isn't "low confidence data," it's "no data," and
+    # shouldn't drag down a real, reliable read on the side that HAS one. Both-real and
+    # both-missing behave exactly as before (min() shrinkage / NaN respectively).
+    #
+    # Keyed on fip (not ip): the live-serving season_stats dict is genuinely {} for an untracked
+    # pitcher (ip defaults to real NaN via .get()), but build_training_data's own walk-forward
+    # _season_to_date_stats_from_history([]) explicitly returns ip=0.0 (a real, valid float) even
+    # though every stat including fip is np.nan -- an ip-based check silently never fires for a
+    # zero-start historical pitcher (0.0 passes pd.notna), which is exactly what happened the
+    # first time this shipped: the rebuilt training data showed the identical NaN count as before
+    # the fix. fip is np.nan in the true-missing case under BOTH conventions, so it's the signal
+    # that actually works everywhere this function is called from.
+    home_has_season, away_has_season = pd.notna(fip_home), pd.notna(fip_away)
+    if home_has_season and away_has_season:
+        season_weight = min(
+            _season_ip_weight(ip_home, season_ip_per_start_home), _season_ip_weight(ip_away, season_ip_per_start_away)
+        )
+    elif home_has_season:
+        season_weight = _season_ip_weight(ip_home, season_ip_per_start_home)
+    elif away_has_season:
+        season_weight = _season_ip_weight(ip_away, season_ip_per_start_away)
+    else:
+        season_weight = 0.0
+
+    def _with_league_avg(home_val, away_val, league_avg):
+        """(effective_home, effective_away) -- substitutes league_avg for whichever side is
+        missing, but only when the OTHER side has a real value (both-missing stays NaN/NaN, so
+        downstream pd.notna(...) checks that require just one real side still correctly see
+        nothing to compare)."""
+        if home_has_season and not away_has_season:
+            return home_val, league_avg
+        if away_has_season and not home_has_season:
+            return league_avg, away_val
+        return home_val, away_val
+
+    fip_home, fip_away = _with_league_avg(fip_home, fip_away, LEAGUE_AVG_FIP)
+    kbb_home, kbb_away = _with_league_avg(kbb_home, kbb_away, LEAGUE_AVG_K_BB_PCT)
+    hr9_home, hr9_away = _with_league_avg(hr9_home, hr9_away, LEAGUE_AVG_HR9)
+    h9_home, h9_away = _with_league_avg(h9_home, h9_away, LEAGUE_AVG_H9)
+    xera_home, xera_away = _with_league_avg(xera_home, xera_away, LEAGUE_AVG_XERA)
+    xfip_home, xfip_away = _with_league_avg(xfip_home, xfip_away, LEAGUE_AVG_XFIP)
+    siera_home, siera_away = _with_league_avg(siera_home, siera_away, LEAGUE_AVG_SIERA)
 
     # Prior-season (e.g. 2025) form as its OWN signal — distinct from season_stats above, which
     # already blends in prior-season data but only to fill in a thin current-season sample, and
