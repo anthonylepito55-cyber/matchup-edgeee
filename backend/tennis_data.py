@@ -37,7 +37,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-from data_collection import CACHE_DIR, _load_or_fetch
+from data_collection import CACHE_DIR, _load_or_fetch, todays_date_et
 from odds_fetcher import OPTICODDS_API_KEY, OPTICODDS_BASE_URL
 
 KAGGLE_ATP_DATASET = "dissfya/atp-tennis-2000-2023daily-pull"
@@ -275,7 +275,7 @@ def get_tennis_today_matches(date: str = None) -> list[dict]:
     for that). {"fixture_id", "league", "tournament", "player_1", "player_2",
     "start_time_utc", "status"}.
     """
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
     if not OPTICODDS_API_KEY:
         return []
     headers = {"X-Api-Key": OPTICODDS_API_KEY}
@@ -318,7 +318,7 @@ def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False) -> 
 
     if not OPTICODDS_API_KEY:
         return {}
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
     cache_path = os.path.join(CACHE_DIR, f"tennis_odds_{date}.json")
     if not force_refresh and os.path.exists(cache_path):
         import time as _time

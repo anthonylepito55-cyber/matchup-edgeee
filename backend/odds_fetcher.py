@@ -15,7 +15,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr, _ESPN_TEAM_ABBR_FIX, _OPTICODDS_TEAM_NAME_FIX, MLB_STATS_API
+from data_collection import CACHE_DIR, _get_mlb_team_name_to_abbr, _ESPN_TEAM_ABBR_FIX, _OPTICODDS_TEAM_NAME_FIX, MLB_STATS_API, todays_date_et
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -538,7 +538,7 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     """
     if not OPTICODDS_API_KEY:
         return {}
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
     cache_path = os.path.join(CACHE_DIR, f"market_snapshot_{date}.json")
     if not force_refresh and os.path.exists(cache_path):
         age_min = (time.time() - os.path.getmtime(cache_path)) / 60
@@ -751,7 +751,7 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     """
     if not OPTICODDS_API_KEY:
         return {}
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
     cache_path = os.path.join(CACHE_DIR, f"model_c_snapshot_{date}.json")
     if not force_refresh and os.path.exists(cache_path):
         age_min = (time.time() - os.path.getmtime(cache_path)) / 60
@@ -1121,7 +1121,7 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
     if not OPTICODDS_API_KEY:
         return {}
 
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
 
     if not force_refresh:
         cached = _read_cache(date)
@@ -1220,7 +1220,7 @@ def get_pitcher_market_lines(date: str = None, force_refresh: bool = False) -> d
     """
     if not OPTICODDS_API_KEY:
         return {}
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
     cache_path = os.path.join(CACHE_DIR, f"pitcher_market_lines_{date}.json")
     if not force_refresh and os.path.exists(cache_path):
         age_min = (time.time() - os.path.getmtime(cache_path)) / 60
@@ -1289,7 +1289,7 @@ def get_strikeout_prop_lines(date: str = None, force_refresh: bool = False, spor
         return {}
 
     sportsbooks = sportsbooks or PREFERRED_SPORTSBOOKS
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
     cache_key = "_".join(sportsbooks).lower().replace(" ", "-")
     cache_path = os.path.join(CACHE_DIR, f"strikeout_props_{date}_{cache_key}.json")
 

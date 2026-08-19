@@ -11,3 +11,4 @@ python-dotenv==1.0.1
 sqlalchemy==2.0.32
 apscheduler==3.10.4
 joblib==1.4.2
+tzdata==2024.1

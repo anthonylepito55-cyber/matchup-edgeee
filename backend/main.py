@@ -47,7 +47,7 @@ from data_collection import (
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
     get_team_recent_batting_and_bullpen,
     get_team_roster, get_espn_probable_pitchers,
-    CACHE_DIR,
+    CACHE_DIR, todays_date_et,
 )
 from features import (
     build_matchup_features, features_to_row, build_strikeout_features, strikeout_features_to_row,
@@ -157,7 +157,7 @@ async def _model_c_poller_loop():
     silently violates the rate limit."""
     while True:
         try:
-            resolved_date = datetime.now().strftime("%Y-%m-%d")
+            resolved_date = todays_date_et()
             snapshot = await asyncio.get_event_loop().run_in_executor(
                 None, get_model_c_snapshot, resolved_date, True
             )
@@ -1454,7 +1454,7 @@ def tennis_today(date: str = None):
     live odds/schedule via OpticOdds. Each league gets its own model
     (see tennis_model.py).
     """
-    date = date or datetime.now().strftime("%Y-%m-%d")
+    date = date or todays_date_et()
     live_odds = get_tennis_moneyline_odds(date)
     all_matches = get_tennis_today_matches(date)
 
@@ -1738,7 +1738,7 @@ def today(date: str = None):
     # stacking up and exhausting Railway resources -- the direct cause of repeated 502s. Cache
     # the whole response by resolved date and serialize recompute behind a lock so at most one
     # real computation runs per TTL window, regardless of how many requests arrive concurrently.
-    cache_key = date or datetime.now().strftime("%Y-%m-%d")
+    cache_key = date or todays_date_et()
     cached = _TODAY_RESPONSE_CACHE.get(cache_key)
     if cached and (time.monotonic() - cached[0]) < _TODAY_CACHE_TTL_SECONDS:
         return cached[1]
@@ -1754,9 +1754,9 @@ def today(date: str = None):
 
 
 def _compute_today_response(date: str = None):
-    games = get_probable_pitchers(date)
+    resolved_date = date or todays_date_et()
+    games = get_probable_pitchers(resolved_date)
     season = datetime.now().year
-    resolved_date = date or datetime.now().strftime("%Y-%m-%d")
 
     # Model A (baseball-only) is the PRIMARY served prediction — a model that's partly learned
     # the market can't credibly claim to find value against that same market, see the plan doc
@@ -2652,7 +2652,7 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
         "home": _json_safe(recent_stats_last3[home_pitcher_id]),
         "away": _json_safe(recent_stats_last3[away_pitcher_id]),
     }
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = todays_date_et()
     rest_days = _rest_days_for_matchup(recent_stats, today_str)
     try:
         il_activations = get_recent_il_activations(as_of_date=today_str)

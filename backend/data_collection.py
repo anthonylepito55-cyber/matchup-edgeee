@@ -25,6 +25,28 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+_ET = ZoneInfo("America/New_York")
+
+
+def todays_date_et() -> str:
+    """'YYYY-MM-DD' for "today" in US Eastern time -- the calendar day MLB's own schedule (and
+    every sportsbook) is anchored to, NOT the server's OS timezone. A naive datetime.now() reads
+    the container's local clock, which on Railway is UTC -- UTC crosses midnight at 8pm Eastern /
+    5pm Pacific, squarely in the middle of MLB primetime. Every "today"-defaulting function in
+    this app (get_probable_pitchers, get_market_snapshot, get_model_c_snapshot, /api/today's own
+    resolved_date, etc.) used a bare datetime.now().strftime("%Y-%m-%d") before this existed --
+    for the ~4 hours nightly between 8pm and midnight Eastern, that silently rolled "today" over
+    to TOMORROW while tonight's real games were still being played, live-serving fresh/thin
+    just-opened lines for a slate that hadn't started yet instead of the real, closing-line market
+    for the games actually in progress. Confirmed live 2026-08-18/19: every game misreported as
+    "Scheduled" (freezing/anti-leakage logic never engaged since g["status"] read as a pre-game
+    status) despite being Final, with Model B computing off zero real market signal (imputed
+    medians) as a result -- e.g. an 87.5% output on a game whose own 2 tracked books both read
+    ~62%. Use this (or the equivalent explicit Eastern-anchored resolution) everywhere "today"
+    means "today's MLB slate," not raw datetime.now()."""
+    return datetime.now(_ET).strftime("%Y-%m-%d")
 
 from pybaseball import (
     statcast,
@@ -1601,10 +1623,10 @@ def get_probable_pitchers(date: str = None) -> list[dict]:
     Today's (or a given date's) probable starting pitchers + games,
     straight from the free MLB Stats API. No key required.
 
-    date format: 'YYYY-MM-DD'. Defaults to today.
+    date format: 'YYYY-MM-DD'. Defaults to today (US Eastern, see todays_date_et).
     """
     if date is None:
-        date = datetime.now().strftime("%Y-%m-%d")
+        date = todays_date_et()
 
     url = f"{MLB_STATS_API}/schedule"
     params = {
@@ -1681,7 +1703,7 @@ def get_espn_probable_pitchers(date: str = None, force_refresh: bool = False) ->
     throughout the day as teams announce starters.
     """
     if date is None:
-        date = datetime.now().strftime("%Y-%m-%d")
+        date = todays_date_et()
     espn_date = date.replace("-", "")
 
     def fetch():
