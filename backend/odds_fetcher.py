@@ -1095,7 +1095,7 @@ def _read_cache(date: str):
 
 
 def _write_cache(date: str, odds_by_matchup: dict):
-    raw = {f"{away}|||{home}": v for (away, home), v in odds_by_matchup.items()}
+    raw = {f"{start}|||{away}|||{home}": v for (start, away, home), v in odds_by_matchup.items()}
     with open(_cache_path(date), "w") as f:
         json.dump(raw, f)
 
@@ -1133,11 +1133,12 @@ def _get_active_fixture_ids(date: str) -> list:
 
 def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
     """
-    Returns { (away_team_full_name, home_team_full_name): {"home": american_odds,
+    Returns { (start_date_utc, away_team_full_name, home_team_full_name): {"home": american_odds,
     "away": american_odds, "bookmaker": title} } for the given date (defaults
     to today, 'YYYY-MM-DD'). Empty dict if no key is configured or the
     request fails — callers should treat that as "no live odds available"
-    rather than an error.
+    rather than an error. Key includes start_date_utc, not just team names, for the same
+    same-day-doubleheader/multi-game-series reason as get_market_snapshot's key.
     """
     if not OPTICODDS_API_KEY:
         return {}
@@ -1174,6 +1175,7 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
     for fixture in fixtures_with_odds:
         home_team = fixture.get("home_team_display")
         away_team = fixture.get("away_team_display")
+        start_date = fixture.get("start_date")
         odds_list = fixture.get("odds") or []
         if not home_team or not away_team or not odds_list:
             continue
@@ -1205,9 +1207,19 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
                 # used to match against odds_list's own o["name"] entries (also OpticOdds' raw
                 # naming); normalizing those too would break that internal match instead of fixing
                 # anything. Only the dict key main.py looks this up by needs to match MLB's names.
+                #
+                # Keyed by start_date too, not just team names -- same fix already applied to
+                # get_market_snapshot/get_model_c_snapshot for the identical bug: the fetch window
+                # spans multiple days, so any 2+ game series has the SAME (away, home) pair appear
+                # more than once, and a team-name-only key let whichever fixture got processed
+                # last silently overwrite the other -- confirmed live (STL@CIN, 2026-08-19):
+                # tonight's real game showed a "live odds" badge that was actually tomorrow's
+                # continuation game's price (-106/-110, devigging to ~49.6%) instead of tonight's
+                # real ~56.7% line. Display-only (see get_market_snapshot's book_probs for what
+                # actually feeds predictions), but still a real, misleading bug on its own.
                 norm_home = _OPTICODDS_TEAM_NAME_FIX.get(home_team, home_team)
                 norm_away = _OPTICODDS_TEAM_NAME_FIX.get(away_team, away_team)
-                odds_by_matchup[(norm_away, norm_home)] = {
+                odds_by_matchup[(start_date, norm_away, norm_home)] = {
                     "home": home_price,
                     "away": away_price,
                     "bookmaker": book,

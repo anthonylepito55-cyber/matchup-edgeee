@@ -1907,7 +1907,7 @@ def _compute_today_response(date: str = None):
     batter_hands = {}
     results = []
     for g in games:
-        odds_entry = live_odds.get((g["away_team"], g["home_team"]))
+        odds_entry = live_odds.get((g.get("game_time_utc"), g["away_team"], g["home_team"]))
         live_odds_out = {
             "home": odds_entry["home"],
             "away": odds_entry["away"],
