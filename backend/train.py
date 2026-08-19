@@ -50,8 +50,17 @@ def main():
         "win_prob_games": len(df),
     }
 
-    print("\n--- Walk-forward backtest: Model B (baseball + market features, full FEATURE_COLUMNS) ---")
-    backtest_results = model_module.backtest(df, feature_columns=FEATURE_COLUMNS)
+    # Model B trained/backtested as a 5-seed ENSEMBLE too, same reasoning/discipline as Model A
+    # and Model C -- found live 2026-08-19 that Model B has the SAME single-seed decision-stump
+    # fragility: consensus_prob_diff's contribution for the identical real feature value ranged
+    # +0.0021 to +0.1772 across 5 seeds (83x) on a live LAA@HOU game whose own 4 tracked books all
+    # agreed within a point of each other (~59%) -- production (seed=42) landed near the high end,
+    # serving 69% against a market that was really ~59-62%. This isn't cosmetic: _compute_value_bet
+    # (the VALUE badge) is built specifically on Model B, so this fragility could flip/mis-flag
+    # value bets on seed noise rather than real signal. Validated via backtest_ensemble before
+    # switching: AUC -0.0004, Brier -0.0001 -- same wash band as Model A/C's own validations.
+    print("\n--- Walk-forward backtest: Model B (baseball + market features, full FEATURE_COLUMNS, 5-seed ensemble) ---")
+    backtest_results = model_module.backtest_ensemble(df, feature_columns=FEATURE_COLUMNS)
     print(f"Avg Brier score: {backtest_results['avg_brier_score']:.4f}")
     print(f"Avg log loss:    {backtest_results['avg_log_loss']:.4f}")
     print(f"Avg AUC:         {backtest_results['avg_auc']:.4f}")
@@ -89,11 +98,11 @@ def main():
         "log_loss": backtest_results["avg_log_loss"],
     }
 
-    print("\n--- Training final Model B (full feature set) ---")
-    _, _, metrics = model_module.train(df, feature_columns=FEATURE_COLUMNS, model_path=model_module.MODEL_PATH)
+    print("\n--- Training final Model B ensemble (full feature set, 5 seeds) ---")
+    _, _, metrics = model_module.train_ensemble(df, feature_columns=FEATURE_COLUMNS, model_path=model_module.MODEL_PATH)
     print(f"Validation Brier: {metrics['brier_score']:.4f}")
     print(f"Validation AUC:   {metrics['auc']:.4f}")
-    print(f"Model saved to model_artifacts/xgb_model.joblib")
+    print(f"Model saved to model_artifacts/xgb_model.joblib ({metrics['n_seeds']}-seed ensemble)")
 
     print("\n--- Training final Model A ensemble (baseball-only, 5 seeds) ---")
     _, _, baseline_metrics = model_module.train_ensemble(

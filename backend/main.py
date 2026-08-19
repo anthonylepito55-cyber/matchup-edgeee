@@ -1630,7 +1630,7 @@ def model_status():
     # every served prediction, see the plan doc. market_model_* describes Model B (baseball +
     # market features), which only ever feeds the secondary market_model_prob comparison field.
     m, medians, metrics = model_module.load_model_ensemble(model_module.BASELINE_MODEL_PATH)
-    market_m, market_medians, market_metrics = model_module.load_model(model_module.MODEL_PATH)
+    market_m, market_medians, market_metrics = model_module.load_model_ensemble(model_module.MODEL_PATH)
     # Same primary/secondary split for the strikeout model — see props.STRIKEOUT_BASELINE_MODEL_PATH.
     k_model, k_medians, k_metrics = props_module.load_strikeout_model(props_module.STRIKEOUT_BASELINE_MODEL_PATH)
     k_market_model, _, k_market_metrics = props_module.load_strikeout_model(props_module.STRIKEOUT_MODEL_PATH)
@@ -1763,7 +1763,7 @@ def _compute_today_response(date: str = None):
     # ("Market-data expansion...") for the full reasoning. Model B (full, incl. market features)
     # loads too, purely for the secondary market_model_prob comparison field below.
     model_trained = model_module.load_model_ensemble(model_module.BASELINE_MODEL_PATH)[0] is not None
-    market_model_trained = model_module.load_model(model_module.MODEL_PATH)[0] is not None
+    market_model_trained = model_module.load_model_ensemble(model_module.MODEL_PATH)[0] is not None
     # Model C is a 5-seed ensemble (train_ensemble/predict_proba_ensemble in model.py), not a
     # single model -- load_model() would raise trying to read obj["model"] on an ensemble's
     # {"models": [...]} shape, so this needs load_model_ensemble()'s own presence check.
@@ -2284,7 +2284,7 @@ def _compute_today_response(date: str = None):
             market_model_prob = None
             if market_model_trained:
                 try:
-                    market_model_prob = model_module.predict_proba(
+                    market_model_prob = model_module.predict_proba_ensemble(
                         row, model_path=model_module.MODEL_PATH, feature_columns=FEATURE_COLUMNS
                     )["home_win_prob"]
                 except Exception:
