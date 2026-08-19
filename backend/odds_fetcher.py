@@ -766,6 +766,16 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     except requests.exceptions.RequestException:
         return {}
 
+    # Last genuinely-live price seen per (fixture, book), persisted across polls -- see below for
+    # why this exists. Keyed by fixture_id (stable per game, available before the team-name/
+    # snapshot_key computation further down) rather than the snapshot_key tuple.
+    last_live_path = os.path.join(CACHE_DIR, f"model_c_last_live_{date}.json")
+    try:
+        with open(last_live_path) as lf:
+            last_live_by_fixture = json.load(lf)
+    except (FileNotFoundError, json.JSONDecodeError):
+        last_live_by_fixture = {}
+
     fixtures_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
         "league": "mlb", "start_date_after": date, "start_date_before": end_date,
     }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=15)
@@ -797,6 +807,22 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                     if p_open is not None:
                         probs_open[book] = p_open
 
+            # Live coverage across the 6 tracked books is commonly partial on any given ~30s poll
+            # (confirmed live 2026-08-18: most games show 2-4/6 books with a "now" price, never
+            # 6/6) -- see _fetch_panel_odds' docstring on why "now" can gap even when "open"
+            # doesn't. Falling straight back to a book's OPENING line (possibly set days earlier)
+            # for whichever books are missing THIS poll means the blended consensus/sharp-weighted
+            # probability's composition silently shifts between "genuinely current" and "stale
+            # open" as coverage flickers poll to poll -- producing swings that reflect coverage
+            # gaps, not real market movement (flagged live: MIA@PHI moved 64->67->53 in minutes
+            # with no corresponding news). Holding a book at its own LAST KNOWN LIVE price when
+            # this poll has no fresh read for it (falling back to the opening line only if we've
+            # never seen a live price for that book at all) keeps the blend responsive to genuine
+            # movement while removing the coverage-flicker noise.
+            last_live = last_live_by_fixture.get(fixture_id, {})
+            probs_effective = {**probs_open, **last_live, **probs_now}
+            last_live_by_fixture[fixture_id] = {**last_live, **probs_now}
+
             line_movement = None
             if CLOSING_BOOK in probs_now and CLOSING_BOOK in probs_open:
                 line_movement = probs_now[CLOSING_BOOK] - probs_open[CLOSING_BOOK]
@@ -811,8 +837,6 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 probs_now[b] - probs_open[b] for b in MODEL_C_MONEYLINE_BOOKS if b in probs_now and b in probs_open
             ]
             avg_movement = (sum(all_movements) / len(all_movements)) if len(all_movements) >= 2 else None
-
-            probs_effective = {**probs_open, **probs_now}
 
             # Same single-book vulnerability as get_market_snapshot -- flagged live 2026-08-17:
             # consensus_prob/book_median_prob/book_favor_diff only required 1 book, so a
@@ -901,6 +925,8 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     raw = {f"{start_date}|||{away}|||{home}": v for (start_date, away, home), v in snapshot.items()}
     with open(cache_path, "w") as f:
         json.dump(raw, f)
+    with open(last_live_path, "w") as lf:
+        json.dump(last_live_by_fixture, lf)
     return snapshot
 
 
