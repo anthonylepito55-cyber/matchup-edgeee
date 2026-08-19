@@ -722,6 +722,7 @@ _MODEL_C_MONEYLINE_BOOK_COLUMNS = {
 # formulas rather than importing them (see _load_model_c_features_by_game's docstring).
 _MODEL_C_SHARP_BOOKS = {"Pinnacle", "Circa Sports", "LowVig", "Betcris"}
 _MODEL_C_BOOK_WEIGHTS = {b: (2.0 if b in _MODEL_C_SHARP_BOOKS else 1.0) for b in _MODEL_C_MONEYLINE_BOOK_COLUMNS}
+_MODEL_C_BOOK_WEIGHTS["Kalshi"] = 2.0  # see odds_fetcher.MODEL_C_BOOK_WEIGHTS -- must stay in sync
 
 
 def _load_model_c_features_by_game() -> dict:
@@ -776,19 +777,28 @@ def _load_model_c_features_by_game() -> dict:
         avg_movement = (sum(all_movements) / len(all_movements)) if len(all_movements) >= 2 else None
 
         probs_effective = {**probs_open, **probs_now}
-        consensus_prob = (sum(probs_effective.values()) / len(probs_effective)) if len(probs_effective) >= 2 else None
+
+        # Kalshi folded into the core consensus/sharp-weighted blend -- see
+        # odds_fetcher.get_model_c_snapshot's matching comment for why. Must stay in sync with
+        # that function or this training-data mirror silently diverges from what's actually served.
+        kalshi = r.get("market_home_prob_kalshi")
+        consensus_inputs = dict(probs_effective)
+        if pd.notna(kalshi):
+            consensus_inputs["Kalshi"] = kalshi
+
+        consensus_prob = (sum(consensus_inputs.values()) / len(consensus_inputs)) if len(consensus_inputs) >= 2 else None
         sharp_weighted_prob = None
-        if len(probs_effective) >= 2:
-            total_w = sum(_MODEL_C_BOOK_WEIGHTS[b] for b in probs_effective)
-            sharp_weighted_prob = sum(_MODEL_C_BOOK_WEIGHTS[b] * p for b, p in probs_effective.items()) / total_w
-        book_disagreement = (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
-        book_median_prob = float(np.median(list(probs_effective.values()))) if len(probs_effective) >= 2 else None
-        book_prob_std = float(np.std(list(probs_effective.values()))) if len(probs_effective) >= 2 else None
+        if len(consensus_inputs) >= 2:
+            total_w = sum(_MODEL_C_BOOK_WEIGHTS[b] for b in consensus_inputs)
+            sharp_weighted_prob = sum(_MODEL_C_BOOK_WEIGHTS[b] * p for b, p in consensus_inputs.items()) / total_w
+        book_disagreement = (max(consensus_inputs.values()) - min(consensus_inputs.values())) if len(consensus_inputs) >= 2 else None
+        book_median_prob = float(np.median(list(consensus_inputs.values()))) if len(consensus_inputs) >= 2 else None
+        book_prob_std = float(np.std(list(consensus_inputs.values()))) if len(consensus_inputs) >= 2 else None
         book_favor_diff = None
-        if len(probs_effective) >= 2:
-            favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
-            favor_away = sum(1 for p in probs_effective.values() if p < 0.5)
-            book_favor_diff = (favor_home - favor_away) / len(probs_effective)
+        if len(consensus_inputs) >= 2:
+            favor_home = sum(1 for p in consensus_inputs.values() if p > 0.5)
+            favor_away = sum(1 for p in consensus_inputs.values() if p < 0.5)
+            book_favor_diff = (favor_home - favor_away) / len(consensus_inputs)
 
         book_movements = {b: probs_now[b] - probs_open[b] for b in probs_now if b in probs_open}
         book_movement_agreement = None
@@ -797,7 +807,8 @@ def _load_model_c_features_by_game() -> dict:
             toward_away = sum(1 for m in book_movements.values() if m < 0)
             book_movement_agreement = (toward_home - toward_away) / len(book_movements)
 
-        kalshi = r.get("market_home_prob_kalshi")
+        # Kept as Kalshi-vs-Pinnacle specifically, not vs the now-Kalshi-inclusive consensus_prob
+        # above -- see odds_fetcher.get_model_c_snapshot's matching comment.
         prediction_market_diff = None
         if pd.notna(kalshi) and "Pinnacle" in probs_effective:
             prediction_market_diff = kalshi - probs_effective["Pinnacle"]

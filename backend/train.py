@@ -114,7 +114,13 @@ def main():
 
     # Model C: same architecture, market block sourced from a continuously-polled 6-book panel
     # (FanDuel/Pinnacle/LowVig/Betcris/Circa Sports/Kalshi) instead of Model B's 5-book
-    # CONSENSUS_BOOKS -- see odds_fetcher.get_model_c_snapshot and MODEL_C_FEATURE_COLUMNS.
+    # CONSENSUS_BOOKS -- see odds_fetcher.get_model_c_snapshot and MODEL_C_FEATURE_COLUMNS. Kalshi
+    # folded into the core consensus_prob/sharp_weighted_prob blend (weighted as sharp, 2.0) as of
+    # 2026-08-19, not just the separate prediction_market_diff divergence check -- user-requested;
+    # validated as a wash on the historical backtest (AUC -0.0003, Brier +0.0000 vs the
+    # divergence-only version), not a proven improvement, kept anyway since it's not measurably
+    # worse and genuinely reflects more of the real market. See build_training_data.py's
+    # _load_model_c_features_by_game, which must stay in sync with get_model_c_snapshot.
     # Walk-forward validated (build_and_train_model_c.py) as statistically tied with Model B on
     # AUC/Brier, not a proven accuracy edge -- served for its architecture (real-time tracking,
     # the single-book-leak guards Model B doesn't have), not because it backtests better. Only

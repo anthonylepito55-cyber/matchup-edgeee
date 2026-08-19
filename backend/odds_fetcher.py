@@ -121,6 +121,10 @@ MODEL_C_BOOKS = MODEL_C_MONEYLINE_BOOKS + MODEL_C_PREDICTION_BOOKS
 # is the one retail/public book in the panel.
 MODEL_C_SHARP_BOOKS = {"Pinnacle", "Circa Sports", "LowVig", "Betcris"}
 MODEL_C_BOOK_WEIGHTS = {b: (2.0 if b in MODEL_C_SHARP_BOOKS else 1.0) for b in MODEL_C_MONEYLINE_BOOKS}
+# Kalshi weighted the same as the sharp moneyline books (2.0) when folded into the consensus/
+# sharp-weighted blend below -- it's a real-money, CFTC-regulated event-contract market, not a
+# bookmaker's fixed line, so it belongs with the sharp/low-margin side, not treated as public.
+MODEL_C_BOOK_WEIGHTS["Kalshi"] = 2.0
 
 # Model C is meant to be checked ~every 30s (a live tracker, not an opportunistic per-request
 # cache) -- much shorter than _CACHE_MAX_AGE_MIN's 5 minutes. The background poller (main.py)
@@ -838,6 +842,26 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             ]
             avg_movement = (sum(all_movements) / len(all_movements)) if len(all_movements) >= 2 else None
 
+            pred_probs = []
+            prediction_market_probs = {}
+            for book, o in pred_panel.items():
+                p = devig_home_prob(o.get("home"), o.get("away"))
+                if p is not None:
+                    pred_probs.append(p)
+                    prediction_market_probs[book] = p
+
+            # Kalshi folded into the core consensus/sharp-weighted blend as a genuine market
+            # participant, not just the divergence check below -- it's real-money, CFTC-regulated
+            # event-contract pricing, not a bookmaker's line, and there's no principled reason to
+            # track what it thinks the market is (prediction_market_diff) while excluding it from
+            # what WE call the market's consensus. Kept in a separate dict from probs_effective
+            # (used for line_movement/avg_movement/book_movements, moneyline-book-only by
+            # definition) rather than merged into it, since Kalshi has no "open" price the same
+            # way and isn't part of the last-known-live persistence built for the moneyline panel.
+            consensus_inputs = dict(probs_effective)
+            if pred_probs:
+                consensus_inputs["Kalshi"] = sum(pred_probs) / len(pred_probs)
+
             # Same single-book vulnerability as get_market_snapshot -- flagged live 2026-08-17:
             # consensus_prob/book_median_prob/book_favor_diff only required 1 book, so a
             # "consensus" could silently be just whichever single book happened to be synced.
@@ -846,25 +870,25 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             # polled every 30s is exactly the situation where partial coverage is common, so this
             # matters more here than anywhere else in the app.
             consensus_prob = (
-                (sum(probs_effective.values()) / len(probs_effective)) if len(probs_effective) >= 2 else None
+                (sum(consensus_inputs.values()) / len(consensus_inputs)) if len(consensus_inputs) >= 2 else None
             )
             sharp_weighted_prob = None
-            if len(probs_effective) >= 2:
-                total_w = sum(MODEL_C_BOOK_WEIGHTS[b] for b in probs_effective)
-                sharp_weighted_prob = sum(MODEL_C_BOOK_WEIGHTS[b] * p for b, p in probs_effective.items()) / total_w
+            if len(consensus_inputs) >= 2:
+                total_w = sum(MODEL_C_BOOK_WEIGHTS[b] for b in consensus_inputs)
+                sharp_weighted_prob = sum(MODEL_C_BOOK_WEIGHTS[b] * p for b, p in consensus_inputs.items()) / total_w
             book_disagreement = (
-                (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
+                (max(consensus_inputs.values()) - min(consensus_inputs.values())) if len(consensus_inputs) >= 2 else None
             )
             book_median_prob = (
-                statistics.median(probs_effective.values()) if len(probs_effective) >= 2 else None
+                statistics.median(consensus_inputs.values()) if len(consensus_inputs) >= 2 else None
             )
-            book_prob_std = statistics.pstdev(probs_effective.values()) if len(probs_effective) >= 2 else None
+            book_prob_std = statistics.pstdev(consensus_inputs.values()) if len(consensus_inputs) >= 2 else None
 
             book_favor_diff = None
-            if len(probs_effective) >= 2:
-                favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
-                favor_away = sum(1 for p in probs_effective.values() if p < 0.5)
-                book_favor_diff = (favor_home - favor_away) / len(probs_effective)
+            if len(consensus_inputs) >= 2:
+                favor_home = sum(1 for p in consensus_inputs.values() if p > 0.5)
+                favor_away = sum(1 for p in consensus_inputs.values() if p < 0.5)
+                book_favor_diff = (favor_home - favor_away) / len(consensus_inputs)
 
             book_movements = {
                 book: probs_now[book] - probs_open[book]
@@ -876,13 +900,10 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 toward_away = sum(1 for m in book_movements.values() if m < 0)
                 book_movement_agreement = (toward_home - toward_away) / len(book_movements)
 
-            pred_probs = []
-            prediction_market_probs = {}
-            for book, o in pred_panel.items():
-                p = devig_home_prob(o.get("home"), o.get("away"))
-                if p is not None:
-                    pred_probs.append(p)
-                    prediction_market_probs[book] = p
+            # Kept as a Kalshi-vs-Pinnacle-specifically comparison (not vs the now-Kalshi-inclusive
+            # consensus_prob above) -- still meaningful and distinct: this measures whether Kalshi
+            # is an outlier relative to the market's own sharpest single book, not how much it
+            # moved a blend it's now also a member of.
             prediction_market_diff = None
             if pred_probs and CLOSING_BOOK in probs_effective:
                 prediction_market_diff = (sum(pred_probs) / len(pred_probs)) - probs_effective[CLOSING_BOOK]
@@ -917,7 +938,7 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
                 "prediction_market_probs": prediction_market_probs,
                 "team_total_diff": team_total_diff,
                 "market_total_runs": market_total_runs,
-                "n_books": len(probs_effective),
+                "n_books": len(consensus_inputs),
             }
     except requests.exceptions.RequestException:
         pass
