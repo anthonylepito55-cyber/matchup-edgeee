@@ -1,0 +1,1885 @@
+{
+ "n_games": 6765,
+ "date_range": [
+  "2024-03-20",
+  "2026-08-19"
+ ],
+ "univariate": [
+  {
+   "feature": "bullpen_fip_diff",
+   "category": "bullpen_availability",
+   "coverage": 0.976,
+   "auc": 0.5735,
+   "signal": 0.0735,
+   "top_decile_home_win": 0.626,
+   "bottom_decile_home_win": 0.41,
+   "decile_spread_pts": 21.6
+  },
+  {
+   "feature": "opp_platoon_woba_diff",
+   "category": "official_lineups",
+   "coverage": 0.976,
+   "auc": 0.572,
+   "signal": 0.072,
+   "top_decile_home_win": 0.676,
+   "bottom_decile_home_win": 0.41,
+   "decile_spread_pts": 26.6
+  },
+  {
+   "feature": "opp_lineup_woba_diff",
+   "category": "official_lineups",
+   "coverage": 0.976,
+   "auc": 0.4319,
+   "signal": 0.0681,
+   "top_decile_home_win": 0.4,
+   "bottom_decile_home_win": 0.666,
+   "decile_spread_pts": -26.6
+  },
+  {
+   "feature": "defense_oaa_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.5597,
+   "signal": 0.0597,
+   "top_decile_home_win": 0.602,
+   "bottom_decile_home_win": 0.439,
+   "decile_spread_pts": 16.4
+  },
+  {
+   "feature": "high_leverage_bullpen_fip_diff",
+   "category": "bullpen_availability",
+   "coverage": 0.976,
+   "auc": 0.5569,
+   "signal": 0.0569,
+   "top_decile_home_win": 0.605,
+   "bottom_decile_home_win": 0.455,
+   "decile_spread_pts": 15.0
+  },
+  {
+   "feature": "opp_power_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.4494,
+   "signal": 0.0506,
+   "top_decile_home_win": 0.471,
+   "bottom_decile_home_win": 0.619,
+   "decile_spread_pts": -14.7
+  },
+  {
+   "feature": "lineup_xwoba_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.5501,
+   "signal": 0.0501,
+   "top_decile_home_win": 0.602,
+   "bottom_decile_home_win": 0.451,
+   "decile_spread_pts": 15.1
+  },
+  {
+   "feature": "k_bb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.963,
+   "auc": 0.5474,
+   "signal": 0.0474,
+   "top_decile_home_win": 0.61,
+   "bottom_decile_home_win": 0.459,
+   "decile_spread_pts": 15.2
+  },
+  {
+   "feature": "k_pct_diff",
+   "category": "other",
+   "coverage": 0.963,
+   "auc": 0.5457,
+   "signal": 0.0457,
+   "top_decile_home_win": 0.575,
+   "bottom_decile_home_win": 0.456,
+   "decile_spread_pts": 12.0
+  },
+  {
+   "feature": "lineup_xslg_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.5439,
+   "signal": 0.0439,
+   "top_decile_home_win": 0.588,
+   "bottom_decile_home_win": 0.451,
+   "decile_spread_pts": 13.7
+  },
+  {
+   "feature": "prior_season_k_bb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.732,
+   "auc": 0.5435,
+   "signal": 0.0435,
+   "top_decile_home_win": 0.619,
+   "bottom_decile_home_win": 0.462,
+   "decile_spread_pts": 15.7
+  },
+  {
+   "feature": "xfip_diff",
+   "category": "other",
+   "coverage": 0.915,
+   "auc": 0.5431,
+   "signal": 0.0431,
+   "top_decile_home_win": 0.609,
+   "bottom_decile_home_win": 0.472,
+   "decile_spread_pts": 13.7
+  },
+  {
+   "feature": "lineup_chase_percentile_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.4587,
+   "signal": 0.0413,
+   "top_decile_home_win": 0.448,
+   "bottom_decile_home_win": 0.592,
+   "decile_spread_pts": -14.4
+  },
+  {
+   "feature": "fip_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.963,
+   "auc": 0.5407,
+   "signal": 0.0407,
+   "top_decile_home_win": 0.604,
+   "bottom_decile_home_win": 0.469,
+   "decile_spread_pts": 13.5
+  },
+  {
+   "feature": "whip_diff",
+   "category": "other",
+   "coverage": 0.963,
+   "auc": 0.5399,
+   "signal": 0.0399,
+   "top_decile_home_win": 0.609,
+   "bottom_decile_home_win": 0.468,
+   "decile_spread_pts": 14.1
+  },
+  {
+   "feature": "csw_pct_diff",
+   "category": "other",
+   "coverage": 0.995,
+   "auc": 0.5395,
+   "signal": 0.0395,
+   "top_decile_home_win": 0.585,
+   "bottom_decile_home_win": 0.455,
+   "decile_spread_pts": 12.9
+  },
+  {
+   "feature": "prior_season_fip_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.732,
+   "auc": 0.5377,
+   "signal": 0.0377,
+   "top_decile_home_win": 0.603,
+   "bottom_decile_home_win": 0.45,
+   "decile_spread_pts": 15.3
+  },
+  {
+   "feature": "lineup_xba_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.5372,
+   "signal": 0.0372,
+   "top_decile_home_win": 0.599,
+   "bottom_decile_home_win": 0.459,
+   "decile_spread_pts": 14.0
+  },
+  {
+   "feature": "siera_diff",
+   "category": "other",
+   "coverage": 0.915,
+   "auc": 0.5363,
+   "signal": 0.0363,
+   "top_decile_home_win": 0.586,
+   "bottom_decile_home_win": 0.488,
+   "decile_spread_pts": 9.9
+  },
+  {
+   "feature": "season_ip_per_start_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.923,
+   "auc": 0.5352,
+   "signal": 0.0352,
+   "top_decile_home_win": 0.57,
+   "bottom_decile_home_win": 0.509,
+   "decile_spread_pts": 6.1
+  },
+  {
+   "feature": "h9_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.963,
+   "auc": 0.5347,
+   "signal": 0.0347,
+   "top_decile_home_win": 0.59,
+   "bottom_decile_home_win": 0.489,
+   "decile_spread_pts": 10.1
+  },
+  {
+   "feature": "first_pitch_strike_pct_diff",
+   "category": "other",
+   "coverage": 0.995,
+   "auc": 0.5331,
+   "signal": 0.0331,
+   "top_decile_home_win": 0.58,
+   "bottom_decile_home_win": 0.497,
+   "decile_spread_pts": 8.3
+  },
+  {
+   "feature": "recent_ip_per_start_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.874,
+   "auc": 0.5326,
+   "signal": 0.0326,
+   "top_decile_home_win": 0.583,
+   "bottom_decile_home_win": 0.465,
+   "decile_spread_pts": 11.9
+  },
+  {
+   "feature": "xera_diff",
+   "category": "other",
+   "coverage": 0.477,
+   "auc": 0.5324,
+   "signal": 0.0324,
+   "top_decile_home_win": 0.554,
+   "bottom_decile_home_win": 0.471,
+   "decile_spread_pts": 8.3
+  },
+  {
+   "feature": "lineup_hard_hit_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.5321,
+   "signal": 0.0321,
+   "top_decile_home_win": 0.551,
+   "bottom_decile_home_win": 0.455,
+   "decile_spread_pts": 9.5
+  },
+  {
+   "feature": "lineup_contact_percentile_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.4686,
+   "signal": 0.0314,
+   "top_decile_home_win": 0.502,
+   "bottom_decile_home_win": 0.566,
+   "decile_spread_pts": -6.3
+  },
+  {
+   "feature": "contact_pct_diff",
+   "category": "other",
+   "coverage": 0.995,
+   "auc": 0.5308,
+   "signal": 0.0308,
+   "top_decile_home_win": 0.58,
+   "bottom_decile_home_win": 0.503,
+   "decile_spread_pts": 7.7
+  },
+  {
+   "feature": "whiff_pct_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.995,
+   "auc": 0.5308,
+   "signal": 0.0308,
+   "top_decile_home_win": 0.58,
+   "bottom_decile_home_win": 0.503,
+   "decile_spread_pts": 7.7
+  },
+  {
+   "feature": "pitches_per_start_diff",
+   "category": "other",
+   "coverage": 0.995,
+   "auc": 0.5293,
+   "signal": 0.0293,
+   "top_decile_home_win": 0.567,
+   "bottom_decile_home_win": 0.5,
+   "decile_spread_pts": 6.7
+  },
+  {
+   "feature": "recent_team_batting_30d_diff",
+   "category": "team_offense_30d",
+   "coverage": 0.997,
+   "auc": 0.528,
+   "signal": 0.028,
+   "top_decile_home_win": 0.551,
+   "bottom_decile_home_win": 0.471,
+   "decile_spread_pts": 8.0
+  },
+  {
+   "feature": "recent_k9_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.874,
+   "auc": 0.527,
+   "signal": 0.027,
+   "top_decile_home_win": 0.561,
+   "bottom_decile_home_win": 0.498,
+   "decile_spread_pts": 6.3
+  },
+  {
+   "feature": "chase_pct_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.991,
+   "auc": 0.5243,
+   "signal": 0.0243,
+   "top_decile_home_win": 0.569,
+   "bottom_decile_home_win": 0.498,
+   "decile_spread_pts": 7.2
+  },
+  {
+   "feature": "recent_bb9_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.874,
+   "auc": 0.5239,
+   "signal": 0.0239,
+   "top_decile_home_win": 0.547,
+   "bottom_decile_home_win": 0.468,
+   "decile_spread_pts": 7.9
+  },
+  {
+   "feature": "bullpen_edge_when_close_diff",
+   "category": "bullpen_availability",
+   "coverage": 0.976,
+   "auc": 0.523,
+   "signal": 0.023,
+   "top_decile_home_win": 0.584,
+   "bottom_decile_home_win": 0.461,
+   "decile_spread_pts": 12.3
+  },
+  {
+   "feature": "recent_h9_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.874,
+   "auc": 0.522,
+   "signal": 0.022,
+   "top_decile_home_win": 0.561,
+   "bottom_decile_home_win": 0.493,
+   "decile_spread_pts": 6.8
+  },
+  {
+   "feature": "arsenal_matchup_woba_diff",
+   "category": "batter_pitch_type_matchup",
+   "coverage": 0.958,
+   "auc": 0.5213,
+   "signal": 0.0213,
+   "top_decile_home_win": 0.57,
+   "bottom_decile_home_win": 0.492,
+   "decile_spread_pts": 7.9
+  },
+  {
+   "feature": "hr9_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.963,
+   "auc": 0.5212,
+   "signal": 0.0212,
+   "top_decile_home_win": 0.597,
+   "bottom_decile_home_win": 0.492,
+   "decile_spread_pts": 10.4
+  },
+  {
+   "feature": "lineup_pull_pct_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.4789,
+   "signal": 0.0211,
+   "top_decile_home_win": 0.492,
+   "bottom_decile_home_win": 0.56,
+   "decile_spread_pts": -6.7
+  },
+  {
+   "feature": "bb_pct_diff",
+   "category": "other",
+   "coverage": 0.963,
+   "auc": 0.5206,
+   "signal": 0.0206,
+   "top_decile_home_win": 0.541,
+   "bottom_decile_home_win": 0.491,
+   "decile_spread_pts": 5.1
+  },
+  {
+   "feature": "lineup_barrel_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.5204,
+   "signal": 0.0204,
+   "top_decile_home_win": 0.567,
+   "bottom_decile_home_win": 0.48,
+   "decile_spread_pts": 8.7
+  },
+  {
+   "feature": "recent_team_batting_diff",
+   "category": "team_offense_30d",
+   "coverage": 0.997,
+   "auc": 0.5198,
+   "signal": 0.0198,
+   "top_decile_home_win": 0.567,
+   "bottom_decile_home_win": 0.498,
+   "decile_spread_pts": 7.0
+  },
+  {
+   "feature": "recent_fip_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.874,
+   "auc": 0.518,
+   "signal": 0.018,
+   "top_decile_home_win": 0.561,
+   "bottom_decile_home_win": 0.524,
+   "decile_spread_pts": 3.7
+  },
+  {
+   "feature": "hard_hit_pct_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.995,
+   "auc": 0.5172,
+   "signal": 0.0172,
+   "top_decile_home_win": 0.556,
+   "bottom_decile_home_win": 0.49,
+   "decile_spread_pts": 6.5
+  },
+  {
+   "feature": "gb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.995,
+   "auc": 0.5171,
+   "signal": 0.0171,
+   "top_decile_home_win": 0.568,
+   "bottom_decile_home_win": 0.511,
+   "decile_spread_pts": 5.6
+  },
+  {
+   "feature": "h2h_fip_diff",
+   "category": "other",
+   "coverage": 0.304,
+   "auc": 0.5155,
+   "signal": 0.0155,
+   "top_decile_home_win": 0.553,
+   "bottom_decile_home_win": 0.495,
+   "decile_spread_pts": 5.8
+  },
+  {
+   "feature": "lineup_sweet_spot_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.5153,
+   "signal": 0.0153,
+   "top_decile_home_win": 0.57,
+   "bottom_decile_home_win": 0.501,
+   "decile_spread_pts": 6.9
+  },
+  {
+   "feature": "travel_fatigue_diff",
+   "category": "travel_fatigue",
+   "coverage": 0.98,
+   "auc": 0.488,
+   "signal": 0.012,
+   "top_decile_home_win": 0.5,
+   "bottom_decile_home_win": 0.535,
+   "decile_spread_pts": -3.5
+  },
+  {
+   "feature": "velo_trend_diff",
+   "category": "other",
+   "coverage": 0.981,
+   "auc": 0.5119,
+   "signal": 0.0119,
+   "top_decile_home_win": 0.56,
+   "bottom_decile_home_win": 0.498,
+   "decile_spread_pts": 6.2
+  },
+  {
+   "feature": "game_temp_f",
+   "category": "other",
+   "coverage": 0.988,
+   "auc": 0.4883,
+   "signal": 0.0117,
+   "top_decile_home_win": 0.504,
+   "bottom_decile_home_win": 0.545,
+   "decile_spread_pts": -4.0
+  },
+  {
+   "feature": "fip_trend_diff",
+   "category": "other",
+   "coverage": 0.874,
+   "auc": 0.4925,
+   "signal": 0.0075,
+   "top_decile_home_win": 0.517,
+   "bottom_decile_home_win": 0.52,
+   "decile_spread_pts": -0.3
+  },
+  {
+   "feature": "pitch_diversity_diff",
+   "category": "other",
+   "coverage": 0.981,
+   "auc": 0.5066,
+   "signal": 0.0066,
+   "top_decile_home_win": 0.566,
+   "bottom_decile_home_win": 0.559,
+   "decile_spread_pts": 0.8
+  },
+  {
+   "feature": "lineup_gb_pct_diff",
+   "category": "other",
+   "coverage": 0.976,
+   "auc": 0.4943,
+   "signal": 0.0057,
+   "top_decile_home_win": 0.528,
+   "bottom_decile_home_win": 0.551,
+   "decile_spread_pts": -2.3
+  },
+  {
+   "feature": "game_wind_mph",
+   "category": "other",
+   "coverage": 0.988,
+   "auc": 0.4947,
+   "signal": 0.0053,
+   "top_decile_home_win": 0.512,
+   "bottom_decile_home_win": 0.548,
+   "decile_spread_pts": -3.6
+  },
+  {
+   "feature": "barrel_pct_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.995,
+   "auc": 0.5053,
+   "signal": 0.0053,
+   "top_decile_home_win": 0.571,
+   "bottom_decile_home_win": 0.548,
+   "decile_spread_pts": 2.2
+  },
+  {
+   "feature": "bullpen_availability_diff",
+   "category": "other",
+   "coverage": 0.996,
+   "auc": 0.4948,
+   "signal": 0.0052,
+   "top_decile_home_win": 0.524,
+   "bottom_decile_home_win": 0.552,
+   "decile_spread_pts": -2.7
+  },
+  {
+   "feature": "zone_pct_diff",
+   "category": "other",
+   "coverage": 0.995,
+   "auc": 0.5042,
+   "signal": 0.0042,
+   "top_decile_home_win": 0.543,
+   "bottom_decile_home_win": 0.558,
+   "decile_spread_pts": -1.5
+  },
+  {
+   "feature": "rest_days_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 1.0,
+   "auc": 0.5037,
+   "signal": 0.0037,
+   "top_decile_home_win": 0.552,
+   "bottom_decile_home_win": 0.517,
+   "decile_spread_pts": 3.5
+  },
+  {
+   "feature": "recent_hr9_diff",
+   "category": "starting_pitcher_quality",
+   "coverage": 0.874,
+   "auc": 0.5037,
+   "signal": 0.0037,
+   "top_decile_home_win": 0.556,
+   "bottom_decile_home_win": 0.549,
+   "decile_spread_pts": 0.7
+  },
+  {
+   "feature": "park_factor_home",
+   "category": "weather_and_park",
+   "coverage": 1.0,
+   "auc": 0.498,
+   "signal": 0.002,
+   "top_decile_home_win": 0.487,
+   "bottom_decile_home_win": 0.517,
+   "decile_spread_pts": -2.9
+  },
+  {
+   "feature": "bullpen_fatigue_diff",
+   "category": "bullpen_availability",
+   "coverage": 1.0,
+   "auc": 0.5015,
+   "signal": 0.0015,
+   "top_decile_home_win": 0.566,
+   "bottom_decile_home_win": 0.521,
+   "decile_spread_pts": 4.5
+  }
+ ],
+ "weights": [
+  {
+   "feature": "bullpen_fip_diff",
+   "category": "bullpen_availability",
+   "weight_per_sd": 0.27129850467679856,
+   "l1_weight": 0.15020156598022613,
+   "abs_share_pct": 7.27,
+   "survives_l1": true
+  },
+  {
+   "feature": "recent_hr9_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.19882467803579415,
+   "l1_weight": -0.04707555744598565,
+   "abs_share_pct": 5.33,
+   "survives_l1": true
+  },
+  {
+   "feature": "hr9_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.18789765846490605,
+   "l1_weight": 0.011249913375424098,
+   "abs_share_pct": 5.03,
+   "survives_l1": true
+  },
+  {
+   "feature": "k_pct_diff",
+   "category": "other",
+   "weight_per_sd": 0.18257536630707888,
+   "l1_weight": 0.06514951027561722,
+   "abs_share_pct": 4.89,
+   "survives_l1": true
+  },
+  {
+   "feature": "fip_trend_diff",
+   "category": "other",
+   "weight_per_sd": 0.1604238749435644,
+   "l1_weight": 0.0,
+   "abs_share_pct": 4.3,
+   "survives_l1": false
+  },
+  {
+   "feature": "k_bb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.1442248569555466,
+   "l1_weight": 0.0,
+   "abs_share_pct": 3.86,
+   "survives_l1": false
+  },
+  {
+   "feature": "hard_hit_pct_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.13937569652691323,
+   "l1_weight": 0.031640441552401824,
+   "abs_share_pct": 3.73,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_xwoba_diff",
+   "category": "other",
+   "weight_per_sd": 0.13789881579635482,
+   "l1_weight": 0.0,
+   "abs_share_pct": 3.69,
+   "survives_l1": false
+  },
+  {
+   "feature": "opp_platoon_woba_diff",
+   "category": "official_lineups",
+   "weight_per_sd": 0.13155151223870482,
+   "l1_weight": 0.10834477833796248,
+   "abs_share_pct": 3.52,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_barrel_diff",
+   "category": "other",
+   "weight_per_sd": -0.12303075618495632,
+   "l1_weight": -0.00352853285382313,
+   "abs_share_pct": 3.3,
+   "survives_l1": true
+  },
+  {
+   "feature": "recent_fip_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.11532695754037317,
+   "l1_weight": 0.0,
+   "abs_share_pct": 3.09,
+   "survives_l1": false
+  },
+  {
+   "feature": "recent_ip_per_start_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.11095550704091947,
+   "l1_weight": 0.057032093698762124,
+   "abs_share_pct": 2.97,
+   "survives_l1": true
+  },
+  {
+   "feature": "gb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.1072467991353443,
+   "l1_weight": 0.01950888492315126,
+   "abs_share_pct": 2.87,
+   "survives_l1": true
+  },
+  {
+   "feature": "barrel_pct_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.10586895164096403,
+   "l1_weight": -0.00637759425458473,
+   "abs_share_pct": 2.84,
+   "survives_l1": true
+  },
+  {
+   "feature": "pitches_per_start_diff",
+   "category": "other",
+   "weight_per_sd": 0.08421466567888167,
+   "l1_weight": 0.0346114404425902,
+   "abs_share_pct": 2.26,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_xslg_diff",
+   "category": "other",
+   "weight_per_sd": -0.08141035587826267,
+   "l1_weight": 0.0,
+   "abs_share_pct": 2.18,
+   "survives_l1": false
+  },
+  {
+   "feature": "rest_days_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.07332406424847218,
+   "l1_weight": 0.03793665536228325,
+   "abs_share_pct": 1.96,
+   "survives_l1": true
+  },
+  {
+   "feature": "arsenal_matchup_woba_diff",
+   "category": "batter_pitch_type_matchup",
+   "weight_per_sd": -0.0717696056263856,
+   "l1_weight": -0.01525300536588382,
+   "abs_share_pct": 1.92,
+   "survives_l1": true
+  },
+  {
+   "feature": "zone_pct_diff",
+   "category": "other",
+   "weight_per_sd": 0.07066271433478316,
+   "l1_weight": 0.005934152045466628,
+   "abs_share_pct": 1.89,
+   "survives_l1": true
+  },
+  {
+   "feature": "defense_oaa_diff",
+   "category": "other",
+   "weight_per_sd": 0.06549233993056182,
+   "l1_weight": 0.051870575363048,
+   "abs_share_pct": 1.75,
+   "survives_l1": true
+  },
+  {
+   "feature": "first_pitch_strike_pct_diff",
+   "category": "other",
+   "weight_per_sd": 0.06342540304118208,
+   "l1_weight": 0.02496204871063591,
+   "abs_share_pct": 1.7,
+   "survives_l1": true
+  },
+  {
+   "feature": "xfip_diff",
+   "category": "other",
+   "weight_per_sd": -0.06006655709995866,
+   "l1_weight": 0.0,
+   "abs_share_pct": 1.61,
+   "survives_l1": false
+  },
+  {
+   "feature": "game_wind_mph",
+   "category": "other",
+   "weight_per_sd": -0.060100783584575226,
+   "l1_weight": -0.015619318646860397,
+   "abs_share_pct": 1.61,
+   "survives_l1": true
+  },
+  {
+   "feature": "travel_fatigue_diff",
+   "category": "travel_fatigue",
+   "weight_per_sd": -0.05781888144614934,
+   "l1_weight": -0.027043081736702158,
+   "abs_share_pct": 1.55,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_hard_hit_diff",
+   "category": "other",
+   "weight_per_sd": 0.054911764685091166,
+   "l1_weight": 0.0,
+   "abs_share_pct": 1.47,
+   "survives_l1": false
+  },
+  {
+   "feature": "recent_bb9_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.049659536740509214,
+   "l1_weight": 0.0,
+   "abs_share_pct": 1.33,
+   "survives_l1": false
+  },
+  {
+   "feature": "game_temp_f",
+   "category": "other",
+   "weight_per_sd": -0.04756260360159696,
+   "l1_weight": -0.025378478828946605,
+   "abs_share_pct": 1.27,
+   "survives_l1": true
+  },
+  {
+   "feature": "chase_pct_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.046467251417130206,
+   "l1_weight": 0.007012033598883716,
+   "abs_share_pct": 1.25,
+   "survives_l1": true
+  },
+  {
+   "feature": "recent_k9_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.043643726172976655,
+   "l1_weight": 0.0022987675598394913,
+   "abs_share_pct": 1.17,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_pull_pct_diff",
+   "category": "other",
+   "weight_per_sd": -0.04364575479740338,
+   "l1_weight": -0.013813611190906122,
+   "abs_share_pct": 1.17,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_chase_percentile_diff",
+   "category": "other",
+   "weight_per_sd": -0.043184039790522585,
+   "l1_weight": -0.027105413420692226,
+   "abs_share_pct": 1.16,
+   "survives_l1": true
+  },
+  {
+   "feature": "season_ip_per_start_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.03928645971397286,
+   "l1_weight": 0.0,
+   "abs_share_pct": 1.05,
+   "survives_l1": false
+  },
+  {
+   "feature": "bullpen_edge_when_close_diff",
+   "category": "bullpen_availability",
+   "weight_per_sd": -0.03744629428869062,
+   "l1_weight": 0.0,
+   "abs_share_pct": 1.0,
+   "survives_l1": false
+  },
+  {
+   "feature": "h9_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.03527349051922234,
+   "l1_weight": 0.008475999055522813,
+   "abs_share_pct": 0.95,
+   "survives_l1": true
+  },
+  {
+   "feature": "bb_pct_diff",
+   "category": "other",
+   "weight_per_sd": -0.03477201240688652,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.93,
+   "survives_l1": false
+  },
+  {
+   "feature": "lineup_sweet_spot_diff",
+   "category": "other",
+   "weight_per_sd": 0.033074883354839414,
+   "l1_weight": -0.004729803658358788,
+   "abs_share_pct": 0.89,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_gb_pct_diff",
+   "category": "other",
+   "weight_per_sd": 0.031733605257091846,
+   "l1_weight": 0.004264539384662759,
+   "abs_share_pct": 0.85,
+   "survives_l1": true
+  },
+  {
+   "feature": "opp_lineup_woba_diff",
+   "category": "official_lineups",
+   "weight_per_sd": -0.031779974349535514,
+   "l1_weight": -0.05475207384189769,
+   "abs_share_pct": 0.85,
+   "survives_l1": true
+  },
+  {
+   "feature": "csw_pct_diff",
+   "category": "other",
+   "weight_per_sd": -0.03097102524311038,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.83,
+   "survives_l1": false
+  },
+  {
+   "feature": "contact_pct_diff",
+   "category": "other",
+   "weight_per_sd": -0.02811119276076989,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.75,
+   "survives_l1": false
+  },
+  {
+   "feature": "whiff_pct_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.028111192760770044,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.75,
+   "survives_l1": false
+  },
+  {
+   "feature": "park_factor_home",
+   "category": "weather_and_park",
+   "weight_per_sd": 0.027528336722310927,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.74,
+   "survives_l1": false
+  },
+  {
+   "feature": "h2h_fip_diff",
+   "category": "other",
+   "weight_per_sd": 0.025236865763006804,
+   "l1_weight": 0.005381796912192416,
+   "abs_share_pct": 0.68,
+   "survives_l1": true
+  },
+  {
+   "feature": "bullpen_fatigue_diff",
+   "category": "bullpen_availability",
+   "weight_per_sd": -0.02316147379539644,
+   "l1_weight": -0.0038807724732353665,
+   "abs_share_pct": 0.62,
+   "survives_l1": true
+  },
+  {
+   "feature": "siera_diff",
+   "category": "other",
+   "weight_per_sd": -0.023209567784279784,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.62,
+   "survives_l1": false
+  },
+  {
+   "feature": "prior_season_k_bb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.022766472821971313,
+   "l1_weight": 0.00094113748171268,
+   "abs_share_pct": 0.61,
+   "survives_l1": true
+  },
+  {
+   "feature": "whip_diff",
+   "category": "other",
+   "weight_per_sd": -0.02214313775983302,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.59,
+   "survives_l1": false
+  },
+  {
+   "feature": "high_leverage_bullpen_fip_diff",
+   "category": "bullpen_availability",
+   "weight_per_sd": -0.02083658031809348,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.56,
+   "survives_l1": false
+  },
+  {
+   "feature": "recent_h9_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.016980862498256113,
+   "l1_weight": 0.0012157092715535567,
+   "abs_share_pct": 0.45,
+   "survives_l1": true
+  },
+  {
+   "feature": "fip_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": 0.016398778609864894,
+   "l1_weight": 0.024853790394337955,
+   "abs_share_pct": 0.44,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_xba_diff",
+   "category": "other",
+   "weight_per_sd": -0.01610618201013141,
+   "l1_weight": 0.0022474134401664824,
+   "abs_share_pct": 0.43,
+   "survives_l1": true
+  },
+  {
+   "feature": "prior_season_fip_diff",
+   "category": "starting_pitcher_quality",
+   "weight_per_sd": -0.015223592801513525,
+   "l1_weight": 0.005494744831922059,
+   "abs_share_pct": 0.41,
+   "survives_l1": true
+  },
+  {
+   "feature": "xera_diff",
+   "category": "other",
+   "weight_per_sd": 0.00924831098659744,
+   "l1_weight": 0.008600400067283144,
+   "abs_share_pct": 0.25,
+   "survives_l1": true
+  },
+  {
+   "feature": "velo_trend_diff",
+   "category": "other",
+   "weight_per_sd": -0.008657293987767798,
+   "l1_weight": -0.002380431589061249,
+   "abs_share_pct": 0.23,
+   "survives_l1": true
+  },
+  {
+   "feature": "recent_team_batting_diff",
+   "category": "team_offense_30d",
+   "weight_per_sd": 0.005473322143152234,
+   "l1_weight": 0.001578778546628495,
+   "abs_share_pct": 0.15,
+   "survives_l1": true
+  },
+  {
+   "feature": "recent_team_batting_30d_diff",
+   "category": "team_offense_30d",
+   "weight_per_sd": 0.005088269692677655,
+   "l1_weight": 0.002198333631928288,
+   "abs_share_pct": 0.14,
+   "survives_l1": true
+  },
+  {
+   "feature": "lineup_contact_percentile_diff",
+   "category": "other",
+   "weight_per_sd": 0.0036072089081228774,
+   "l1_weight": -0.022086791011380676,
+   "abs_share_pct": 0.1,
+   "survives_l1": true
+  },
+  {
+   "feature": "opp_power_diff",
+   "category": "other",
+   "weight_per_sd": 0.0028796734064845467,
+   "l1_weight": -0.028025014906313317,
+   "abs_share_pct": 0.08,
+   "survives_l1": true
+  },
+  {
+   "feature": "pitch_diversity_diff",
+   "category": "other",
+   "weight_per_sd": 0.0020105197212494557,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.05,
+   "survives_l1": false
+  },
+  {
+   "feature": "bullpen_availability_diff",
+   "category": "other",
+   "weight_per_sd": 0.0012954973134937794,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.03,
+   "survives_l1": false
+  },
+  {
+   "feature": "home_field",
+   "category": "other",
+   "weight_per_sd": 0.0,
+   "l1_weight": 0.0,
+   "abs_share_pct": 0.0,
+   "survives_l1": false
+  }
+ ],
+ "category_weight_share": {
+  "other": 41.56,
+  "starting_pitcher_quality": 40.09,
+  "bullpen_availability": 9.45,
+  "official_lineups": 4.37,
+  "batter_pitch_type_matchup": 1.92,
+  "travel_fatigue": 1.55,
+  "weather_and_park": 0.74,
+  "team_offense_30d": 0.29
+ },
+ "lr_oof": {
+  "baseball": {
+   "auc": 0.5784313353575603,
+   "brier": 0.24715048012492927
+  },
+  "baseball_plus_extras": {
+   "auc": 0.5767791270938383,
+   "brier": 0.2476975543198283
+  },
+  "l1": {
+   "auc": 0.5844359857181225,
+   "n_nonzero": 40
+  }
+ },
+ "permutation_importance": [
+  {
+   "feature": "bullpen_fip_diff",
+   "category": "bullpen_availability",
+   "auc_drop_A_context": 0.014092837599069319,
+   "auc_drop_B_context": 0.011007649505729354
+  },
+  {
+   "feature": "opp_platoon_woba_diff",
+   "category": "official_lineups",
+   "auc_drop_A_context": 0.0053631421555645755,
+   "auc_drop_B_context": 0.004658419945412332
+  },
+  {
+   "feature": "defense_oaa_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.003688416608092303,
+   "auc_drop_B_context": 0.003777770063179445
+  },
+  {
+   "feature": "opp_power_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.003096585385504015,
+   "auc_drop_B_context": 0.0026465259242817885
+  },
+  {
+   "feature": "opp_lineup_woba_diff",
+   "category": "official_lineups",
+   "auc_drop_A_context": 0.002272474147608778,
+   "auc_drop_B_context": 0.0016629527314866222
+  },
+  {
+   "feature": "recent_bb9_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 0.0009409648357613685,
+   "auc_drop_B_context": 0.0006623256728202576
+  },
+  {
+   "feature": "season_ip_per_start_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 0.0006502552849246234,
+   "auc_drop_B_context": 0.0006286257236046022
+  },
+  {
+   "feature": "recent_hr9_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 0.0006311395586872681,
+   "auc_drop_B_context": 0.0005324984615173035
+  },
+  {
+   "feature": "travel_fatigue_diff",
+   "category": "travel_fatigue",
+   "auc_drop_A_context": 0.0005714447279980518,
+   "auc_drop_B_context": 0.0004913708122349014
+  },
+  {
+   "feature": "lineup_chase_percentile_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.0007820832504057361,
+   "auc_drop_B_context": 0.00031423802101063875
+  },
+  {
+   "feature": "lineup_contact_percentile_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.0005052533436196927,
+   "auc_drop_B_context": 0.0002881870053204627
+  },
+  {
+   "feature": "pitches_per_start_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.0007403794693165943,
+   "auc_drop_B_context": 0.00026169924784277376
+  },
+  {
+   "feature": "first_pitch_strike_pct_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.0006663000035482525,
+   "auc_drop_B_context": 0.00020831414803770706
+  },
+  {
+   "feature": "lineup_xwoba_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.0006339408153867878,
+   "auc_drop_B_context": 0.0001968389031396922
+  },
+  {
+   "feature": "lineup_hard_hit_diff",
+   "category": "other",
+   "auc_drop_A_context": 9.662420109241232e-05,
+   "auc_drop_B_context": 0.00017169024029595415
+  },
+  {
+   "feature": "fip_trend_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.00016350856906173104,
+   "auc_drop_B_context": 0.00012637557702413596
+  },
+  {
+   "feature": "pitch_diversity_diff",
+   "category": "other",
+   "auc_drop_A_context": 5.439157312498445e-05,
+   "auc_drop_B_context": 9.259022073972445e-05
+  },
+  {
+   "feature": "high_leverage_bullpen_fip_diff",
+   "category": "bullpen_availability",
+   "auc_drop_A_context": 0.0003835239657820999,
+   "auc_drop_B_context": 6.349512209998468e-05
+  },
+  {
+   "feature": "park_factor_home",
+   "category": "weather_and_park",
+   "auc_drop_A_context": 0.0001363691600396888,
+   "auc_drop_B_context": 5.905566729726754e-05
+  },
+  {
+   "feature": "recent_fip_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -4.16350226013825e-06,
+   "auc_drop_B_context": 4.206296385742658e-05
+  },
+  {
+   "feature": "xfip_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.0003717281920417148,
+   "auc_drop_B_context": 2.0852901878662964e-05
+  },
+  {
+   "feature": "zone_pct_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.0004821362500833914,
+   "auc_drop_B_context": 2.0849143349153114e-05
+  },
+  {
+   "feature": "bullpen_fatigue_diff",
+   "category": "bullpen_availability",
+   "auc_drop_A_context": -0.00040748922797771643,
+   "auc_drop_B_context": 1.095454090723313e-05
+  },
+  {
+   "feature": "home_field",
+   "category": "other",
+   "auc_drop_A_context": 0.0,
+   "auc_drop_B_context": 0.0
+  },
+  {
+   "feature": "h2h_fip_diff",
+   "category": "other",
+   "auc_drop_A_context": 4.1914068304915805e-06,
+   "auc_drop_B_context": -1.6210964591985017e-05
+  },
+  {
+   "feature": "contact_pct_diff",
+   "category": "other",
+   "auc_drop_A_context": 1.887397396390655e-05,
+   "auc_drop_B_context": -2.2474052706693558e-05
+  },
+  {
+   "feature": "rest_days_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 0.000470510848170117,
+   "auc_drop_B_context": -2.5860662229225632e-05
+  },
+  {
+   "feature": "lineup_barrel_diff",
+   "category": "other",
+   "auc_drop_A_context": -4.230131371765089e-05,
+   "auc_drop_B_context": -3.397002897290169e-05
+  },
+  {
+   "feature": "lineup_pull_pct_diff",
+   "category": "other",
+   "auc_drop_A_context": 0.00011059985430658446,
+   "auc_drop_B_context": -3.851982031460864e-05
+  },
+  {
+   "feature": "whiff_pct_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 0.00011875491680769624,
+   "auc_drop_B_context": -5.218687877327488e-05
+  },
+  {
+   "feature": "lineup_sweet_spot_diff",
+   "category": "other",
+   "auc_drop_A_context": -7.642719207915149e-05,
+   "auc_drop_B_context": -6.645779769707927e-05
+  },
+  {
+   "feature": "csw_pct_diff",
+   "category": "other",
+   "auc_drop_A_context": 8.809069655882794e-05,
+   "auc_drop_B_context": -8.407881458170731e-05
+  },
+  {
+   "feature": "lineup_xba_diff",
+   "category": "other",
+   "auc_drop_A_context": 2.0381752549978314e-05,
+   "auc_drop_B_context": -0.00011059096036872497
+  },
+  {
+   "feature": "recent_h9_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 3.514113734197633e-05,
+   "auc_drop_B_context": -0.00013787873804038786
+  },
+  {
+   "feature": "lineup_xslg_diff",
+   "category": "other",
+   "auc_drop_A_context": -0.00014366898662446565,
+   "auc_drop_B_context": -0.00014487619763562724
+  },
+  {
+   "feature": "gb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 7.034471695481752e-06,
+   "auc_drop_B_context": -0.00016450097567341282
+  },
+  {
+   "feature": "lineup_gb_pct_diff",
+   "category": "other",
+   "auc_drop_A_context": -6.939538042988633e-05,
+   "auc_drop_B_context": -0.0001745349429816911
+  },
+  {
+   "feature": "siera_diff",
+   "category": "other",
+   "auc_drop_A_context": -3.548406824578576e-05,
+   "auc_drop_B_context": -0.0001815172638894824
+  },
+  {
+   "feature": "recent_k9_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.00017301480614625664,
+   "auc_drop_B_context": -0.0002167959850250634
+  },
+  {
+   "feature": "k_bb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": 0.0004899980259679516,
+   "auc_drop_B_context": -0.00021967582901525666
+  },
+  {
+   "feature": "bullpen_edge_when_close_diff",
+   "category": "bullpen_availability",
+   "auc_drop_A_context": -0.00014491661458857386,
+   "auc_drop_B_context": -0.00023582336550844073
+  },
+  {
+   "feature": "velo_trend_diff",
+   "category": "other",
+   "auc_drop_A_context": -0.0003333361094527488,
+   "auc_drop_B_context": -0.00026106719549491726
+  },
+  {
+   "feature": "game_temp_f",
+   "category": "other",
+   "auc_drop_A_context": -0.00041155844788891337,
+   "auc_drop_B_context": -0.00026226107226229865
+  },
+  {
+   "feature": "xera_diff",
+   "category": "other",
+   "auc_drop_A_context": -0.00022469189893762676,
+   "auc_drop_B_context": -0.00027328858227594567
+  },
+  {
+   "feature": "arsenal_matchup_woba_diff",
+   "category": "batter_pitch_type_matchup",
+   "auc_drop_A_context": 8.939931241054281e-06,
+   "auc_drop_B_context": -0.00028690569091547994
+  },
+  {
+   "feature": "chase_pct_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.00023802960649975665,
+   "auc_drop_B_context": -0.000316741525382993
+  },
+  {
+   "feature": "barrel_pct_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.0004611068851383537,
+   "auc_drop_B_context": -0.00033001791642773946
+  },
+  {
+   "feature": "hr9_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.00034997760462973984,
+   "auc_drop_B_context": -0.00043899579743817633
+  },
+  {
+   "feature": "hard_hit_pct_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.0004964927212656911,
+   "auc_drop_B_context": -0.00044340396513258603
+  },
+  {
+   "feature": "prior_season_fip_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.0006949909337716864,
+   "auc_drop_B_context": -0.0005812591076574602
+  },
+  {
+   "feature": "fip_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.0005457230987969219,
+   "auc_drop_B_context": -0.000604302023542983
+  },
+  {
+   "feature": "prior_season_k_bb_pct_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.00023133151777589124,
+   "auc_drop_B_context": -0.001037025649811172
+  },
+  {
+   "feature": "h9_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.0011082275215373385,
+   "auc_drop_B_context": -0.001108879870002597
+  },
+  {
+   "feature": "recent_ip_per_start_diff",
+   "category": "starting_pitcher_quality",
+   "auc_drop_A_context": -0.0010552049279838505,
+   "auc_drop_B_context": -0.0012026795107089347
+  },
+  {
+   "feature": "recent_team_batting_diff",
+   "category": "team_offense_30d",
+   "auc_drop_A_context": -0.0011520571995239793,
+   "auc_drop_B_context": -0.001286752269233934
+  }
+ ],
+ "variants": {
+  "E0 control (current recipe)": {
+   "auc": 0.6048321464646083,
+   "brier": 0.23928811315329288,
+   "logloss": 0.6707729192046655,
+   "bets": {
+    "favorite": {
+     "n": 1494,
+     "hit": 0.6305,
+     "implied": 0.5711,
+     "roi": 10.55
+    },
+    "underdog": {
+     "n": 612,
+     "hit": 0.5261,
+     "implied": 0.4661,
+     "roi": 13.37
+    },
+    "all": {
+     "n": 2106,
+     "hit": 0.6002,
+     "implied": 0.5406,
+     "roi": 11.37
+    }
+   },
+   "per_fold_roi": {
+    "2": -5.83,
+    "3": 16.82,
+    "4": 11.39,
+    "5": 12.26
+   },
+   "folds_positive": 3,
+   "thr": {
+    "0.04": 12.92,
+    "0.06": 18.86
+   }
+  },
+  "E1 top-10 baseball + market": {
+   "auc": 0.6130161159221487,
+   "brier": 0.2379975881143244,
+   "logloss": 0.6679846432190881,
+   "bets": {
+    "favorite": {
+     "n": 1563,
+     "hit": 0.6289,
+     "implied": 0.5721,
+     "roi": 10.0
+    },
+    "underdog": {
+     "n": 716,
+     "hit": 0.5251,
+     "implied": 0.4632,
+     "roi": 13.66
+    },
+    "all": {
+     "n": 2279,
+     "hit": 0.5963,
+     "implied": 0.5379,
+     "roi": 11.15
+    }
+   },
+   "per_fold_roi": {
+    "2": -0.65,
+    "3": 15.83,
+    "4": 7.67,
+    "5": 14.96
+   },
+   "folds_positive": 3,
+   "thr": {
+    "0.04": 15.18,
+    "0.06": 20.84
+   }
+  },
+  "E1 top-20 baseball + market": {
+   "auc": 0.6126166573345857,
+   "brier": 0.23821949123245106,
+   "logloss": 0.6685465361895003,
+   "bets": {
+    "favorite": {
+     "n": 1516,
+     "hit": 0.6214,
+     "implied": 0.571,
+     "roi": 8.81
+    },
+    "underdog": {
+     "n": 677,
+     "hit": 0.5406,
+     "implied": 0.4642,
+     "roi": 16.73
+    },
+    "all": {
+     "n": 2193,
+     "hit": 0.5964,
+     "implied": 0.538,
+     "roi": 11.26
+    }
+   },
+   "per_fold_roi": {
+    "2": -3.4,
+    "3": 14.94,
+    "4": 10.66,
+    "5": 14.04
+   },
+   "folds_positive": 3,
+   "thr": {
+    "0.04": 15.24,
+    "0.06": 19.05
+   }
+  },
+  "E1 top-30 baseball + market": {
+   "auc": 0.6126379010961275,
+   "brier": 0.2382135756224889,
+   "logloss": 0.6685326883225235,
+   "bets": {
+    "favorite": {
+     "n": 1516,
+     "hit": 0.6306,
+     "implied": 0.5724,
+     "roi": 10.26
+    },
+    "underdog": {
+     "n": 660,
+     "hit": 0.5409,
+     "implied": 0.465,
+     "roi": 16.76
+    },
+    "all": {
+     "n": 2176,
+     "hit": 0.6034,
+     "implied": 0.5398,
+     "roi": 12.23
+    }
+   },
+   "per_fold_roi": {
+    "2": 1.83,
+    "3": 16.42,
+    "4": 9.91,
+    "5": 14.08
+   },
+   "folds_positive": 4,
+   "thr": {
+    "0.04": 15.12,
+    "0.06": 19.28
+   }
+  },
+  "E2 control + LR weight score": {
+   "auc": 0.6008711965447527,
+   "brier": 0.24117438948541253,
+   "logloss": 0.6748718846841577,
+   "bets": {
+    "favorite": {
+     "n": 1762,
+     "hit": 0.6203,
+     "implied": 0.5722,
+     "roi": 8.56
+    },
+    "underdog": {
+     "n": 780,
+     "hit": 0.4859,
+     "implied": 0.4586,
+     "roi": 6.39
+    },
+    "all": {
+     "n": 2542,
+     "hit": 0.5791,
+     "implied": 0.5374,
+     "roi": 7.89
+    }
+   },
+   "per_fold_roi": {
+    "2": 0.5,
+    "3": 13.73,
+    "4": 3.18,
+    "5": 11.0
+   },
+   "folds_positive": 4,
+   "thr": {
+    "0.04": 11.24,
+    "0.06": 12.05
+   }
+  },
+  "E3 blend control/LR 50-50": {
+   "auc": 0.599520700275309,
+   "brier": 0.24118510892194794,
+   "logloss": 0.6751247976187135,
+   "bets": {
+    "favorite": {
+     "n": 1532,
+     "hit": 0.6188,
+     "implied": 0.5672,
+     "roi": 9.19
+    },
+    "underdog": {
+     "n": 635,
+     "hit": 0.4992,
+     "implied": 0.4635,
+     "roi": 7.91
+    },
+    "all": {
+     "n": 2167,
+     "hit": 0.5838,
+     "implied": 0.5368,
+     "roi": 8.81
+    }
+   },
+   "per_fold_roi": {
+    "2": 0.35,
+    "3": 12.23,
+    "4": 6.79,
+    "5": 12.81
+   },
+   "folds_positive": 4,
+   "thr": {
+    "0.04": 10.51,
+    "0.06": 12.16
+   }
+  },
+  "E3b blend control/LR 75-25": {
+   "auc": 0.6052152928781301,
+   "brier": 0.2397280641083296,
+   "logloss": 0.6719351762480127,
+   "bets": {
+    "favorite": {
+     "n": 1521,
+     "hit": 0.6246,
+     "implied": 0.5696,
+     "roi": 9.85
+    },
+    "underdog": {
+     "n": 605,
+     "hit": 0.5223,
+     "implied": 0.4657,
+     "roi": 12.72
+    },
+    "all": {
+     "n": 2126,
+     "hit": 0.5955,
+     "implied": 0.54,
+     "roi": 10.67
+    }
+   },
+   "per_fold_roi": {
+    "2": 0.13,
+    "3": 15.98,
+    "4": 9.43,
+    "5": 11.08
+   },
+   "folds_positive": 4,
+   "thr": {
+    "0.04": 12.51,
+    "0.06": 16.9
+   }
+  },
+  "E4 control + fip-gap weights": {
+   "auc": 0.6038665669221481,
+   "brier": 0.23949651790687063,
+   "logloss": 0.6712071369668097,
+   "bets": {
+    "favorite": {
+     "n": 1518,
+     "hit": 0.6212,
+     "implied": 0.5721,
+     "roi": 8.78
+    },
+    "underdog": {
+     "n": 601,
+     "hit": 0.5191,
+     "implied": 0.4666,
+     "roi": 11.71
+    },
+    "all": {
+     "n": 2119,
+     "hit": 0.5923,
+     "implied": 0.5422,
+     "roi": 9.61
+    }
+   },
+   "per_fold_roi": {
+    "2": -7.43,
+    "3": 14.59,
+    "4": 9.14,
+    "5": 12.07
+   },
+   "folds_positive": 3,
+   "thr": {
+    "0.04": 13.0,
+    "0.06": 18.45
+   }
+  },
+  "E5 top-20 + market, depth 2": {
+   "auc": 0.6073507334914476,
+   "brier": 0.23923380393399427,
+   "logloss": 0.6707670470004569,
+   "bets": {
+    "favorite": {
+     "n": 1368,
+     "hit": 0.6206,
+     "implied": 0.5689,
+     "roi": 9.06
+    },
+    "underdog": {
+     "n": 703,
+     "hit": 0.5306,
+     "implied": 0.4615,
+     "roi": 15.08
+    },
+    "all": {
+     "n": 2071,
+     "hit": 0.5901,
+     "implied": 0.5324,
+     "roi": 11.11
+    }
+   },
+   "per_fold_roi": {
+    "2": -2.56,
+    "3": 16.34,
+    "4": 9.31,
+    "5": 12.37
+   },
+   "folds_positive": 3,
+   "thr": {
+    "0.04": 16.27,
+    "0.06": 18.4
+   }
+  },
+  "E6 control + retired extras": {
+   "auc": 0.6041651176423876,
+   "brier": 0.23942934190897586,
+   "logloss": 0.6710789442703955,
+   "bets": {
+    "favorite": {
+     "n": 1493,
+     "hit": 0.6222,
+     "implied": 0.571,
+     "roi": 9.06
+    },
+    "underdog": {
+     "n": 586,
+     "hit": 0.5205,
+     "implied": 0.467,
+     "roi": 12.03
+    },
+    "all": {
+     "n": 2079,
+     "hit": 0.5936,
+     "implied": 0.5417,
+     "roi": 9.89
+    }
+   },
+   "per_fold_roi": {
+    "2": -2.96,
+    "3": 14.65,
+    "4": 7.58,
+    "5": 11.86
+   },
+   "folds_positive": 3,
+   "thr": {
+    "0.04": 12.4,
+    "0.06": 20.55
+   }
+  },
+  "E7 control - redundant starter fam": {
+   "auc": 0.6059805740974816,
+   "brier": 0.23914352964082294,
+   "logloss": 0.6704702468871311,
+   "bets": {
+    "favorite": {
+     "n": 1541,
+     "hit": 0.6288,
+     "implied": 0.572,
+     "roi": 10.05
+    },
+    "underdog": {
+     "n": 606,
+     "hit": 0.5281,
+     "implied": 0.4662,
+     "roi": 13.81
+    },
+    "all": {
+     "n": 2147,
+     "hit": 0.6004,
+     "implied": 0.5421,
+     "roi": 11.11
+    }
+   },
+   "per_fold_roi": {
+    "2": -6.37,
+    "3": 16.5,
+    "4": 11.65,
+    "5": 11.52
+   },
+   "folds_positive": 3,
+   "thr": {
+    "0.04": 14.43,
+    "0.06": 17.42
+   }
+  }
+ },
+ "top_baseball_by_B_context": [
+  "bullpen_fip_diff",
+  "opp_platoon_woba_diff",
+  "defense_oaa_diff",
+  "opp_power_diff",
+  "opp_lineup_woba_diff",
+  "recent_bb9_diff",
+  "season_ip_per_start_diff",
+  "recent_hr9_diff",
+  "travel_fatigue_diff",
+  "lineup_chase_percentile_diff",
+  "lineup_contact_percentile_diff",
+  "pitches_per_start_diff",
+  "first_pitch_strike_pct_diff",
+  "lineup_xwoba_diff",
+  "lineup_hard_hit_diff",
+  "fip_trend_diff",
+  "pitch_diversity_diff",
+  "high_leverage_bullpen_fip_diff",
+  "park_factor_home",
+  "recent_fip_diff",
+  "xfip_diff",
+  "zone_pct_diff",
+  "bullpen_fatigue_diff",
+  "home_field",
+  "h2h_fip_diff",
+  "contact_pct_diff",
+  "rest_days_diff",
+  "lineup_barrel_diff",
+  "lineup_pull_pct_diff",
+  "whiff_pct_diff"
+ ]
+}
