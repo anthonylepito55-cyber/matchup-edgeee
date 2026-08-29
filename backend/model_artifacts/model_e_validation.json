@@ -1,5 +1,5 @@
 {
- "n_games": 6866,
+ "n_games": 6881,
  "folds_evaluated": [
   3,
   4,
@@ -8,97 +8,97 @@
  "candidates": {
   "identity": {
    "calibration": {
-    "brier": 0.23630624753585316,
-    "logloss": 0.6640159758950345,
-    "auc": 0.6185516398944909,
-    "ece": 0.017149023909716763,
-    "n": 3432
+    "brier": 0.2368277188324788,
+    "logloss": 0.6651324640253515,
+    "auc": 0.6172156026802775,
+    "ece": 0.019244824257472534,
+    "n": 3438
    },
    "betting_fair_odds": {
     "favorite": {
-     "n": 1344,
-     "hit_rate": 0.6287,
-     "market_implied": 0.5736,
-     "model_avg": 0.6493,
-     "edge_pts": 0.0551,
-     "roi_fair_odds_pct": 9.76
+     "n": 1375,
+     "hit_rate": 0.6269,
+     "market_implied": 0.5757,
+     "model_avg": 0.6529,
+     "edge_pts": 0.0512,
+     "roi_fair_odds_pct": 9.14
     },
     "underdog": {
-     "n": 508,
-     "hit_rate": 0.563,
-     "market_implied": 0.4643,
-     "model_avg": 0.5732,
-     "edge_pts": 0.0987,
-     "roi_fair_odds_pct": 21.84
+     "n": 515,
+     "hit_rate": 0.5573,
+     "market_implied": 0.4645,
+     "model_avg": 0.573,
+     "edge_pts": 0.0928,
+     "roi_fair_odds_pct": 20.35
     },
     "all": {
-     "n": 1852,
-     "hit_rate": 0.6107,
-     "roi_fair_odds_pct": 13.08
+     "n": 1890,
+     "hit_rate": 0.6079,
+     "roi_fair_odds_pct": 12.19
     }
    }
   },
   "platt": {
    "calibration": {
-    "brier": 0.23773227135774377,
-    "logloss": 0.6669833549885723,
-    "auc": 0.616962935108228,
-    "ece": 0.028867611581568427,
-    "n": 3432
+    "brier": 0.238183892647751,
+    "logloss": 0.6680951889214557,
+    "auc": 0.6153672642655139,
+    "ece": 0.028130235186414373,
+    "n": 3438
    },
    "betting_fair_odds": {
     "favorite": {
-     "n": 1540,
-     "hit_rate": 0.6221,
-     "market_implied": 0.5779,
-     "model_avg": 0.6743,
-     "edge_pts": 0.0442,
-     "roi_fair_odds_pct": 7.8
+     "n": 1509,
+     "hit_rate": 0.6196,
+     "market_implied": 0.5788,
+     "model_avg": 0.6745,
+     "edge_pts": 0.0409,
+     "roi_fair_odds_pct": 7.2
     },
     "underdog": {
-     "n": 549,
-     "hit_rate": 0.5592,
-     "market_implied": 0.4642,
-     "model_avg": 0.5836,
-     "edge_pts": 0.095,
-     "roi_fair_odds_pct": 20.94
+     "n": 539,
+     "hit_rate": 0.551,
+     "market_implied": 0.464,
+     "model_avg": 0.5817,
+     "edge_pts": 0.087,
+     "roi_fair_odds_pct": 19.16
     },
     "all": {
-     "n": 2089,
-     "hit_rate": 0.6056,
-     "roi_fair_odds_pct": 11.25
+     "n": 2048,
+     "hit_rate": 0.6016,
+     "roi_fair_odds_pct": 10.35
     }
    }
   },
   "isotonic": {
    "calibration": {
-    "brier": 0.24402176904937925,
-    "logloss": 0.8072039000618493,
-    "auc": 0.6129127606745791,
-    "ece": 0.042659874723330944,
-    "n": 3432
+    "brier": 0.24189435842729143,
+    "logloss": 0.7451016244751439,
+    "auc": 0.6112179296639462,
+    "ece": 0.028373370875302114,
+    "n": 3438
    },
    "betting_fair_odds": {
     "favorite": {
-     "n": 1425,
-     "hit_rate": 0.626,
-     "market_implied": 0.5777,
-     "model_avg": 0.7161,
-     "edge_pts": 0.0483,
-     "roi_fair_odds_pct": 8.53
+     "n": 1387,
+     "hit_rate": 0.6236,
+     "market_implied": 0.576,
+     "model_avg": 0.6868,
+     "edge_pts": 0.0477,
+     "roi_fair_odds_pct": 8.43
     },
     "underdog": {
-     "n": 543,
-     "hit_rate": 0.547,
-     "market_implied": 0.4654,
-     "model_avg": 0.5923,
-     "edge_pts": 0.0815,
-     "roi_fair_odds_pct": 17.9
+     "n": 447,
+     "hit_rate": 0.5638,
+     "market_implied": 0.4665,
+     "model_avg": 0.595,
+     "edge_pts": 0.0972,
+     "roi_fair_odds_pct": 21.28
     },
     "all": {
-     "n": 1968,
-     "hit_rate": 0.6042,
-     "roi_fair_odds_pct": 11.12
+     "n": 1834,
+     "hit_rate": 0.6091,
+     "roi_fair_odds_pct": 11.56
     }
    }
   }
@@ -107,27 +107,27 @@
  "brier_gain_vs_identity": 0.0,
  "baseball_leg": {
   "baseball_leg": {
-   "brier": 0.2430938630381385,
-   "logloss": 0.679151900622074,
-   "auc": 0.5873356525150429,
-   "ece": 0.008935223400710778,
-   "n": 5720
+   "brier": 0.24296849326626516,
+   "logloss": 0.6788967052092862,
+   "auc": 0.5883108432482349,
+   "ece": 0.01189580943296109,
+   "n": 5730
   },
   "model_a_same_folds": {
-   "brier": 0.24382778743889014,
-   "logloss": 0.6806298337253573,
-   "auc": 0.5793875391424821,
-   "ece": 0.002638185939305185,
-   "n": 5720
+   "brier": 0.2438716186879249,
+   "logloss": 0.680718363443905,
+   "auc": 0.5793768824552874,
+   "ece": 0.006177761460144461,
+   "n": 5730
   }
  },
  "ensemble_val_metrics": {
-  "brier_score": 0.23780492170176643,
-  "log_loss": 0.6667193724231855,
-  "auc": 0.6112527055273842,
-  "n_train": 5492,
-  "n_val": 1374,
+  "brier_score": 0.2342147386170062,
+  "log_loss": 0.6590106095605714,
+  "auc": 0.6259356419414629,
+  "n_train": 5504,
+  "n_val": 1377,
   "n_seeds": 5
  },
- "trained_at": "2026-08-28T11:23:24.992161+00:00"
+ "trained_at": "2026-08-29T11:21:58.400850+00:00"
 }
