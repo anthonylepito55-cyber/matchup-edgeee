@@ -219,17 +219,22 @@ export default function ProfitView({ games, date, marketAge }) {
                     {bet.type === 'favorite' && !live ? <span style={{ color: '#58a6ff', opacity: 0.85, fontSize: 10 }} title="Favorites: bet as early as you can. In the timing study their lines drift TOWARD the model side by first pitch (worth ~+3 pts of ROI vs betting at close). Underdog timing was neutral — bet dogs whenever the price is right."> ⏱ bet early</span> : null}
                   </span>
                   <span style={{ color: 'var(--text-tertiary)' }}>{pct(bet.model_prob)} vs {pct(bet.market_prob)} (+{((bet.edge || 0) * 100).toFixed(1)} pts){(() => {
-                    // One-signal flag: the top feature in the bet's own contribution breakdown
-                    // outweighs every other listed feature COMBINED. Seen live 2026-09-01 (CWS@HOU:
-                    // market_divergence_diff +0.86 vs ~0.27 from everything else, model 69% vs a 49%
-                    // market with A/C at 44%). Information, never a gate — the OOF record can't
-                    // separate these bets historically without per-game contribution replays.
+                    // One-signal flag: the top feature pushes TOWARD the bet side while every
+                    // other listed feature COMBINED nets against it — one signal overruling the
+                    // rest of the model. Seen live 2026-09-01 (CWS@HOU: market_divergence_diff
+                    // +0.86 toward HOU vs −0.27 net from everything else, model 69% vs a 49%
+                    // market with A/C at 44%). Direction-aware on purpose: a bet whose loudest
+                    // feature merely OUTWEIGHS agreeing teammates (MIA@KC same night: bullpen
+                    // −0.29 toward MIA with the rest also netting toward MIA) is corroborated,
+                    // not one-signal — the first magnitude-only version wrongly flagged it.
+                    // Information, never a gate.
                     const ex = g.model_e_explain
                     if (!ex || ex.length < 2) return null
-                    const top = Math.abs(ex[0].contribution || 0)
-                    const rest = ex.slice(1).reduce((s, f) => s + Math.abs(f.contribution || 0), 0)
-                    if (top <= rest) return null
-                    return <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`ONE-SIGNAL BET: '${ex[0].feature}' alone contributes ${(ex[0].contribution || 0).toFixed(2)} toward ${ex[0].favors} — more than every other feature in the breakdown combined (${rest.toFixed(2)}). If that single reading is off (thin book coverage, a stale opening line, one book out of sync), the whole edge collapses. Not filtered out — but treat as low-corroboration: a reason to pass or size down, like MOVED AGAINST.`}> · ⚠ one-signal</span>
+                    const sideSign = bet.side_is_home ? 1 : -1
+                    const topToward = (ex[0].contribution || 0) * sideSign
+                    const restToward = ex.slice(1).reduce((s, f) => s + (f.contribution || 0), 0) * sideSign
+                    if (topToward <= 0 || restToward > 0) return null
+                    return <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`ONE-SIGNAL BET: '${ex[0].feature}' alone pushes ${topToward.toFixed(2)} toward ${bet.side}, while every other feature in the breakdown COMBINED nets ${restToward.toFixed(2)} — i.e. the rest of the model leans the other way and this single reading overrules it. If that one signal is off (thin book coverage, a stale opening line, one book out of sync), the whole edge collapses. Not filtered out — but treat as low-corroboration: a reason to pass or size down, like MOVED AGAINST.`}> · ⚠ one-signal</span>
                   })()}{cor.n ? ` · ${cor.k}/${cor.n} agree` : ''}{f5c === null ? '' : <span style={{ color: f5c ? '#3fb950' : '#8b949e' }} title="F5 model also beats the F5 market on this side by >=2 pts: bets with this hit 63% / +18% ROI, every fold">{f5c ? ' · F5 ✓' : ' · F5 ✗'}</span>}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
@@ -272,10 +277,12 @@ export default function ProfitView({ games, date, marketAge }) {
           77.6% when the move is that big). It is a warning, not a filter: on split windows the direction held but the magnitude did
           not (−56% early, −12% late on only 28 bets), and four other sub-rules have already failed that same test. Nothing here is a lock:
           a BEST bet still loses ~35–40% of the time; it is simply priced wrong by more. If limits or bankroll bind, drop LEAN first.
-          {' '}<b style={{ color: 'var(--amber)' }}>⚠ one-signal</b> marks a bet whose contribution breakdown is carried by a single feature
-          outweighing everything else combined — usually a market-microstructure reading (sharp/public divergence) that no baseball
-          feature corroborates. The class of big-edge, low-corroboration bets still backtests positive, so it is information, not a
-          filter — but if the one signal is wrong (thin book coverage, stale open), the edge is imaginary. Hover it for the exact feature.
+          {' '}<b style={{ color: 'var(--amber)' }}>⚠ one-signal</b> marks a bet where the top feature pushes toward the bet side while
+          every OTHER feature combined nets against it — one reading (usually market microstructure like sharp/public divergence)
+          overruling the rest of the model. A bet whose loudest feature simply outweighs teammates that AGREE with it does not get
+          flagged — that's corroboration, not isolation. The class of big-edge, low-corroboration bets still backtests positive, so it
+          is information, not a filter — but if the one signal is wrong (thin book coverage, stale open), the edge is imaginary.
+          Hover it for the exact feature.
           {' '}<b style={{ color: '#58a6ff' }}>⏱ Timing:</b> favorites are best bet early — their lines drift toward our side by
           first pitch (~+3 pts ROI in the timing study); underdog timing is neutral. <b style={{ color: 'var(--text-secondary)' }}>Compounding:</b> stakes
           are a % of your CURRENT bankroll — update the $ figure above as the roll changes (monthly is fine). Keeping units fixed
