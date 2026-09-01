@@ -4,6 +4,10 @@ import ModelStatus from './ModelStatus.jsx'
 import TrackRecord from './TrackRecord.jsx'
 import UserTrackRecord from './UserTrackRecord.jsx'
 import CLVTrackRecord from './CLVTrackRecord.jsx'
+import ModelETrackRecord from './ModelETrackRecord.jsx'
+import ModelF5TrackRecord from './ModelF5TrackRecord.jsx'
+import BetBoard from './BetBoard.jsx'
+import ProfitView from './ProfitView.jsx'
 import StrikeoutTrackRecord from './StrikeoutTrackRecord.jsx'
 import PitcherDetail from './PitcherDetail.jsx'
 import TeamDetail from './TeamDetail.jsx'
@@ -114,14 +118,23 @@ export default function App() {
       <main style={{ maxWidth: 920, margin: '0 auto', padding: '0 24px' }}>
         {sport === 'mlb' ? (
           <>
-            <ModelStatus />
-            <TrackRecord />
-            <UserTrackRecord />
-            <CLVTrackRecord />
-            <StrikeoutTrackRecord />
             <ViewToggle view={view} onChange={setView} />
+            {view !== 'profit' && (
+              <>
+                <BetBoard games={games} date={data?.date} />
+                <ModelStatus />
+                <TrackRecord />
+                <UserTrackRecord />
+                <CLVTrackRecord />
+                <ModelETrackRecord />
+                <ModelF5TrackRecord />
+                <StrikeoutTrackRecord />
+              </>
+            )}
 
-            {view === 'history' ? (
+            {view === 'profit' ? (
+              <ProfitView games={games} date={data?.date} marketAge={data?.market_age_seconds} />
+            ) : view === 'history' ? (
               <HistorySection />
             ) : (
               <>
@@ -266,6 +279,7 @@ function SportTabs({ sport, onChange }) {
 function ViewToggle({ view, onChange }) {
   const options = [
     { key: 'today', label: 'today' },
+    { key: 'profit', label: 'bet for profit' },
     { key: 'history', label: 'previous day' },
   ]
   return (
@@ -526,6 +540,8 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
           </span>
         )}
         <ValueBetBadge valueBet={game.value_bet} />
+        <ModelEBetBadge bet={game.model_e_bet} />
+        <ModelEBetBadge bet={game.model_f5_bet} label="F5" />
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
         <PitcherLink id={game.away_pitcher_id} name={game.away_pitcher_name} onSelect={onSelectPitcher} />
@@ -591,6 +607,47 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
             >
               model B (Aug 16, pre-changes): {game.model_d_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
               {((game.model_d_prob >= 0.5 ? game.model_d_prob : 1 - game.model_d_prob) * 100).toFixed(0)}%
+            </div>
+          )}
+
+          {game.model_e_prob != null && (
+            <div
+              className="mono"
+              style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}
+              title="Model E: the betting model. Same recipe and features as the market-aware model (its probabilities are validated to match it -- post-hoc calibration was tested and did NOT help), but with its own artifacts and a betting layer on top: it only flags a game when it disagrees with the market by a validated margin, prices the bet at the best available book, and sizes it at quarter-Kelly. Comparison/betting only, never the number driving the prediction above."
+            >
+              model E (betting): {game.model_e_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+              {((game.model_e_prob >= 0.5 ? game.model_e_prob : 1 - game.model_e_prob) * 100).toFixed(0)}%
+              {game.model_e_baseball_prob != null && (
+                <span title="Model E's market-blind leg: the same 13 baseball factors with no market features -- a comparison against the primary (Model A) prediction above, never bets." style={{ marginLeft: 8 }}>
+                  · baseball-only {game.model_e_baseball_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+                  {((game.model_e_baseball_prob >= 0.5 ? game.model_e_baseball_prob : 1 - game.model_e_baseball_prob) * 100).toFixed(0)}%
+                </span>
+              )}
+              {game.model_e_bet && game.model_e_bet.stake_units != null && (
+                <span style={{ color: 'var(--green, #3fb950)', marginLeft: 8 }}>
+                  bet {game.model_e_bet.side} {game.model_e_bet.best_price > 0 ? '+' : ''}{game.model_e_bet.best_price}
+                  {game.model_e_bet.best_book ? ` @ ${game.model_e_bet.best_book}` : ''} · {game.model_e_bet.stake_units}u · EV {game.model_e_bet.ev_pct > 0 ? '+' : ''}{game.model_e_bet.ev_pct}%
+                </span>
+              )}
+            </div>
+          )}
+
+          {game.model_f5_prob != null && (
+            <div
+              className="mono"
+              style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}
+              title="F5 model: probability the home team LEADS after 5 innings (ties excluded), trained on the same features and recipe as the market-aware model but on the first-5-innings outcome -- the line that prices the two starters most directly. Shown next to the F5 market's own de-vigged price when OpticOdds has one. Comparison/betting only, never the number driving the prediction above."
+            >
+              F5 model: {game.model_f5_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+              {((game.model_f5_prob >= 0.5 ? game.model_f5_prob : 1 - game.model_f5_prob) * 100).toFixed(0)}%
+              {game.f5_odds && game.f5_odds.home_prob != null && (
+                <span style={{ marginLeft: 8 }}>
+                  · F5 market {game.f5_odds.home_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+                  {((game.f5_odds.home_prob >= 0.5 ? game.f5_odds.home_prob : 1 - game.f5_odds.home_prob) * 100).toFixed(0)}%
+                  {game.f5_odds.home != null ? ` (${game.f5_odds.home > 0 ? '+' : ''}${game.f5_odds.home} / ${game.f5_odds.away > 0 ? '+' : ''}${game.f5_odds.away}${game.f5_odds.bookmaker ? ` ${game.f5_odds.bookmaker}` : ''})` : ''}
+                </span>
+              )}
             </div>
           )}
 
@@ -1087,6 +1144,28 @@ const VALUE_BET_STYLES = {
   underdog: { color: 'var(--edge-pos)', label: '(dog)', dashed: false },
   favorite: { color: 'var(--amber)', label: '(fav)', dashed: false },
   dog_value: { color: 'var(--edge-pos)', label: '(dog value)', dashed: true },
+}
+
+// Model E's bet badge (see backend/model_e.py). Distinct from ValueBetBadge above: that one flags
+// a probability gap; this one is a priced, sized bet -- best book price for the side, quarter-Kelly
+// stake in units of a 100u bankroll, expected value at that price. Only rendered when Model E
+// actually has a qualifying, positive-EV bet for the game.
+export function ModelEBetBadge({ bet, label = 'MODEL E' }) {
+  if (!bet || bet.stake_units == null) return null
+  const color = bet.type === 'underdog' ? '#3fb950' : '#58a6ff'
+  const price = bet.best_price > 0 ? `+${bet.best_price}` : `${bet.best_price}`
+  const tooltip = `Model E ${(bet.model_prob * 100).toFixed(0)}% vs market ${(bet.market_prob * 100).toFixed(0)}% on ${bet.side}`
+    + ` — best price ${price}${bet.best_book ? ` (${bet.best_book})` : ''}, fair ${bet.fair_price > 0 ? '+' : ''}${bet.fair_price}`
+    + `, EV ${bet.ev_pct > 0 ? '+' : ''}${bet.ev_pct}%, quarter-Kelly stake ${bet.stake_units}u`
+    + (bet.first_seen_price != null && bet.first_seen_price !== bet.best_price ? ` (first seen ${bet.first_seen_price > 0 ? '+' : ''}${bet.first_seen_price})` : '')
+  return (
+    <span className="mono" title={tooltip} style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color,
+      border: `1px solid ${color}`, borderRadius: 4, padding: '2px 6px', marginLeft: 6,
+    }}>
+      {label}{bet.strength === 'strong' ? ' ★' : ''}: {bet.side} {price} · {bet.stake_units}u
+    </span>
+  )
 }
 
 export function ValueBetBadge({ valueBet }) {
