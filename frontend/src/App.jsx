@@ -1154,7 +1154,8 @@ export function ModelEBetBadge({ bet, label = 'MODEL E' }) {
   if (!bet || bet.stake_units == null) return null
   const color = bet.type === 'underdog' ? '#3fb950' : '#58a6ff'
   const price = bet.best_price > 0 ? `+${bet.best_price}` : `${bet.best_price}`
-  const tooltip = `Model E ${(bet.model_prob * 100).toFixed(0)}% vs market ${(bet.market_prob * 100).toFixed(0)}% on ${bet.side}`
+  const who = label === 'MODEL E' ? 'Model E' : `${label} model`
+  const tooltip = `${who} ${(bet.model_prob * 100).toFixed(0)}% vs market ${(bet.market_prob * 100).toFixed(0)}% on ${bet.side}`
     + ` — best price ${price}${bet.best_book ? ` (${bet.best_book})` : ''}, fair ${bet.fair_price > 0 ? '+' : ''}${bet.fair_price}`
     + `, EV ${bet.ev_pct > 0 ? '+' : ''}${bet.ev_pct}%, quarter-Kelly stake ${bet.stake_units}u`
     + (bet.first_seen_price != null && bet.first_seen_price !== bet.best_price ? ` (first seen ${bet.first_seen_price > 0 ? '+' : ''}${bet.first_seen_price})` : '')

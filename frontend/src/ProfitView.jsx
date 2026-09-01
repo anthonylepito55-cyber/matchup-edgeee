@@ -105,8 +105,19 @@ export default function ProfitView({ games, date, marketAge }) {
   // Bankroll for compounding: stakes are a % of the CURRENT bankroll (1u = 1%), so keeping this
   // number current as the roll grows/shrinks is what turns +ROI into geometric growth. Stored
   // only in this browser, never sent anywhere.
-  const [bank, setBank] = useState(() => Number(localStorage.getItem('me_bankroll')) || 10000)
-  useEffect(() => { localStorage.setItem('me_bankroll', String(bank || 0)) }, [bank])
+  // try/catch: browsers set to block site data make localStorage.getItem itself throw, which
+  // would crash the whole tab inside a render. A stored "0" is an explicit user choice (they
+  // cleared the field), not a missing value — `Number(...) || 10000` silently resurrected a
+  // $10,000 default over it and priced every stake off money the user zeroed out.
+  const [bank, setBank] = useState(() => {
+    try {
+      const v = localStorage.getItem('me_bankroll')
+      if (v == null) return 10000
+      const n = Number(v)
+      return Number.isFinite(n) ? n : 10000
+    } catch { return 10000 }
+  })
+  useEffect(() => { try { localStorage.setItem('me_bankroll', String(bank || 0)) } catch {} }, [bank])
   const usd = u => (u == null || !bank ? '' : `$${Math.round((u * bank) / 100).toLocaleString()}`)
 
   // Model E (full-game moneyline) only -- F5 stays on the today tab and its own panel.
@@ -228,13 +239,20 @@ export default function ProfitView({ games, date, marketAge }) {
                     // −0.29 toward MIA with the rest also netting toward MIA) is corroborated,
                     // not one-signal — the first magnitude-only version wrongly flagged it.
                     // Information, never a gate.
+                    // The explain payload is the TOP 8 of ~27 features by |contribution|, so
+                    // "the rest" here means the 7 next-largest — the truncated tail is bounded
+                    // by the smallest visible row but could still sum to a few tenths. Hence:
+                    // (a) restToward must be strictly negative (a 0.00 tie proves nothing),
+                    // (b) topToward must clear a 0.25 loudness floor so no plausible tail sum
+                    // could flip the picture, and (c) the tooltip claims exactly what was
+                    // measured (seven next-largest), not "every other feature in the model".
                     const ex = g.model_e_explain
                     if (!ex || ex.length < 2) return null
                     const sideSign = bet.side_is_home ? 1 : -1
                     const topToward = (ex[0].contribution || 0) * sideSign
                     const restToward = ex.slice(1).reduce((s, f) => s + (f.contribution || 0), 0) * sideSign
-                    if (topToward <= 0 || restToward > 0) return null
-                    return <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`ONE-SIGNAL BET: '${ex[0].feature}' alone pushes ${topToward.toFixed(2)} toward ${bet.side}, while every other feature in the breakdown COMBINED nets ${restToward.toFixed(2)} — i.e. the rest of the model leans the other way and this single reading overrules it. If that one signal is off (thin book coverage, a stale opening line, one book out of sync), the whole edge collapses. Not filtered out — but treat as low-corroboration: a reason to pass or size down, like MOVED AGAINST.`}> · ⚠ one-signal</span>
+                    if (topToward < 0.25 || restToward >= 0) return null
+                    return <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`ONE-SIGNAL BET: '${ex[0].feature}' alone pushes ${topToward.toFixed(2)} toward ${bet.side}, while the seven next-largest features COMBINED net ${restToward.toFixed(2)} — the loudest parts of the model lean the other way and this single reading overrules them. If that one signal is off (thin book coverage, a stale opening line, one book out of sync), the whole edge collapses. Not filtered out — but treat as low-corroboration: a reason to pass or size down, like MOVED AGAINST.`}> · ⚠ one-signal</span>
                   })()}{cor.n ? ` · ${cor.k}/${cor.n} agree` : ''}{f5c === null ? '' : <span style={{ color: f5c ? '#3fb950' : '#8b949e' }} title="F5 model also beats the F5 market on this side by >=2 pts: bets with this hit 63% / +18% ROI, every fold">{f5c ? ' · F5 ✓' : ' · F5 ✗'}</span>}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
