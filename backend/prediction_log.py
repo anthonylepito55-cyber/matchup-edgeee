@@ -14,6 +14,7 @@ that have gone Final since they were logged.
 
 import os
 import json
+import math
 import time
 import requests
 import pandas as pd
@@ -60,6 +61,14 @@ LOG_COLUMNS = [
     "market_model_prob",      # Model B's own (market-inclusive) probability, distinct from market_home_prob above (which is the raw devigged odds line, not a model output)
     "model_c_prob",           # Model C's own probability (baseball + the 6-book real-time-tracked market block) -- comparison-only like market_model_prob, never drives the primary prediction; see main.py
     "value_bet_json",         # {side, type, model_prob, market_prob} from main._compute_value_bet, or None -- frozen for the same reason market_model_prob is (recomputing live for a decided game would use the live_odds line at request time, not the price actually offered pre-game)
+    "model_e_prob",           # Model E's calibrated probability (see model_e.py) -- comparison/betting only, never drives the primary prediction
+    "model_e_bet_json",       # model_e.compute_bet output (side/type/best price/stake/first-seen price), frozen like value_bet_json; graded by get_model_e_track_record
+    "model_e_baseball_prob",  # Model E's market-blind leg (same 13 factors, no market) -- comparison vs Model A only, never bets
+    "model_e_shade_json",     # model_e.compute_shade_bet -- UNPROVEN dog-shade signal, logged separately so the forward record can settle it; never part of the validated slip
+    "model_f5_prob",          # F5 model's P(home leads after 5 innings) -- see model_f5.py; comparison/betting only
+    "f5_market_home_prob",    # de-vigged consensus F5 ("1st Half Moneyline") home prob at freeze time -- see odds_fetcher.get_f5_odds
+    "model_f5_bet_json",      # model_e.compute_bet output against the F5 market price, or None; graded by get_model_f5_track_record
+    "f5_settled", "f5_home_runs", "f5_away_runs", "f5_home_won",  # first-5-innings result (f5_home_won None = tied after 5 = push), via settle_f5
     "live_odds_json", "book_odds_json",  # the moneyline pair and the full multi-book consensus panel, frozen at prediction time -- these are point-in-time market snapshots, showing "current" odds for a past game would be actively misleading
     "prediction_market_odds_json",  # {book: devigged_home_prob} for Kalshi/Polymarket -- same point-in-time-snapshot reasoning as book_odds_json above, just for prediction-market exchanges instead of sportsbooks
     "h2h_json",                # this pitcher-vs-opponent head-to-head history -- previously nulled for decided games (see main.py's old h2h_out leakage comment) since there was nowhere to freeze it; now captured like everything else here
@@ -205,6 +214,13 @@ def log_predictions(date: str, games: list[dict]):
             "market_model_prob": g.get("market_model_prob"),
             "model_c_prob": g.get("model_c_prob"),
             "value_bet_json": _j("value_bet"),
+            "model_e_prob": g.get("model_e_prob"),
+            "model_e_bet_json": _j("model_e_bet"),
+            "model_e_baseball_prob": g.get("model_e_baseball_prob"),
+            "model_e_shade_json": _j("model_e_shade"),
+            "model_f5_prob": g.get("model_f5_prob"),
+            "f5_market_home_prob": (g.get("f5_odds") or {}).get("home_prob"),
+            "model_f5_bet_json": _j("model_f5_bet"),
             "live_odds_json": _j("live_odds"),
             "book_odds_json": _j("book_odds"),
             "prediction_market_odds_json": _j("prediction_market_odds"),
@@ -225,6 +241,7 @@ def log_predictions(date: str, games: list[dict]):
             new_rows.append({
                 **row,
                 "settled": False, "home_score": None, "away_score": None, "home_won": None, "correct": None,
+                "f5_settled": False, "f5_home_runs": None, "f5_away_runs": None, "f5_home_won": None,
             })
 
     if not new_rows and not updates:
@@ -344,15 +361,29 @@ def get_prediction_history(game_pk: int, date: str = None) -> list[dict]:
     if date:
         sub = sub[sub["date"] == date]
     sub = sub.sort_values("logged_at")
+
+    def _num(val):
+        """NaN -> None. A snapshot taken before the moneyline posted stores market_home_prob as
+        NaN, and NaN is not valid JSON -- FastAPI's encoder raised
+        "Out of range float values are not JSON compliant", 500-ing this endpoint for every game
+        that was first seen before its odds went up (i.e. most of them). Found 2026-08-21."""
+        if val is None:
+            return None
+        try:
+            f = float(val)
+        except (TypeError, ValueError):
+            return None
+        return None if (math.isnan(f) or math.isinf(f)) else f
+
     out = []
     for _, r in sub.iterrows():
         out.append({
             "logged_at": r["logged_at"], "status": r["status"],
-            "model_home_win_prob": r["model_home_win_prob"],
-            "market_model_prob": r["market_model_prob"],
-            "market_home_prob": r["market_home_prob"],
+            "model_home_win_prob": _num(r["model_home_win_prob"]),
+            "market_model_prob": _num(r["market_model_prob"]),
+            "market_home_prob": _num(r["market_home_prob"]),
             "live_odds": json.loads(r["live_odds_json"]) if r.get("live_odds_json") else None,
-            "completeness_pct": r["completeness_pct"],
+            "completeness_pct": _num(r["completeness_pct"]),
             "missing_features": json.loads(r["missing_features_json"]) if r.get("missing_features_json") else None,
         })
     return out
@@ -425,6 +456,13 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "market_model_prob": r.get("market_model_prob") if pd.notna(r.get("market_model_prob")) else None,
         "model_c_prob": r.get("model_c_prob") if pd.notna(r.get("model_c_prob")) else None,
         "value_bet": _load_json("value_bet_json"),
+        "model_e_prob": r.get("model_e_prob") if pd.notna(r.get("model_e_prob")) else None,
+        "model_e_bet": _load_json("model_e_bet_json"),
+        "model_e_baseball_prob": r.get("model_e_baseball_prob") if pd.notna(r.get("model_e_baseball_prob")) else None,
+        "model_e_shade": _load_json("model_e_shade_json"),
+        "model_f5_prob": r.get("model_f5_prob") if pd.notna(r.get("model_f5_prob")) else None,
+        "f5_market_home_prob": r.get("f5_market_home_prob") if pd.notna(r.get("f5_market_home_prob")) else None,
+        "model_f5_bet": _load_json("model_f5_bet_json"),
         "live_odds": _load_json("live_odds_json"),
         "book_odds": _load_json("book_odds_json"),
         "prediction_market_odds": _load_json("prediction_market_odds_json"),
@@ -654,6 +692,14 @@ def get_games_for_date(date: str) -> list[dict]:
             "market_home_prob": float(r["market_home_prob"]) if pd.notna(r["market_home_prob"]) else None,
             "market_model_prob": float(r["market_model_prob"]) if pd.notna(r.get("market_model_prob")) else None,
             "value_bet": _load_json(r, "value_bet_json"),
+            "model_e_prob": float(r["model_e_prob"]) if pd.notna(r.get("model_e_prob")) else None,
+            "model_e_bet": _load_json(r, "model_e_bet_json"),
+            "model_e_baseball_prob": float(r["model_e_baseball_prob"]) if pd.notna(r.get("model_e_baseball_prob")) else None,
+            "model_e_shade": _load_json(r, "model_e_shade_json"),
+            "model_f5_prob": float(r["model_f5_prob"]) if pd.notna(r.get("model_f5_prob")) else None,
+            "f5_market_home_prob": float(r["f5_market_home_prob"]) if pd.notna(r.get("f5_market_home_prob")) else None,
+            "model_f5_bet": _load_json(r, "model_f5_bet_json"),
+            "f5_home_won": (bool(r["f5_home_won"]) if pd.notna(r.get("f5_home_won")) else None),
             "reason": r.get("reason"),
             # Pre-game snapshot of each pitcher's recent-form/season stat line, frozen at
             # prediction time — same fields the live "pitcher stats" toggle shows, just
@@ -684,3 +730,252 @@ def get_games_for_date(date: str) -> list[dict]:
             "correct": bool(r["correct"]) if pd.notna(r["correct"]) else None,
         })
     return out
+
+
+# ============================================================================================
+# Model E (see model_e.py) -- read-side helpers. Kept here rather than in model_e.py so the
+# parquet log has exactly one owner module; model_e.py never touches the file directly.
+# ============================================================================================
+
+def get_logged_model_e_bet(date: str, game_pk: int) -> dict | None:
+    """The model_e_bet dict currently frozen for this game (pre-game rows keep updating, so
+    this is 'the latest', not 'the first') -- main.py passes it back into model_e.compute_bet as
+    previous_bet so the first-seen price/probability survive each refresh."""
+    log = _read_log()
+    if log.empty:
+        return None
+    row = log[(log["date"] == date) & (log["game_pk"] == game_pk)]
+    if row.empty:
+        return None
+    val = row.iloc[0].get("model_e_bet_json")
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    try:
+        return json.loads(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def get_model_e_track_record() -> dict:
+    """
+    Real forward record of Model E's BETS (not its predictions): every settled row that carried
+    a model_e_bet at freeze time, graded at the best book price that was logged, with CLV
+    (close minus first-seen market prob on our side; positive = the line moved toward us after
+    we flagged it). Same blind-forward-test discipline as get_track_record: the bet, its price
+    and its stake were all frozen before first pitch; nothing is recomputed here.
+
+    ROI is on the quarter-Kelly stakes actually logged (units of a 100-unit bankroll), and also
+    flat 1u per bet so stake sizing can't flatter or hide the pick quality. Grows one slate a
+    day -- early reads are noise, same caveat as every other track record in this app.
+    """
+    import model_e  # local import: model_e imports model/features only, no cycle back here
+    log = _read_log()
+    settled = log[(log["settled"] == True) & log["model_e_bet_json"].notna()]  # noqa: E712
+    bets = []
+    for _, r in settled.iterrows():
+        try:
+            bet = json.loads(r["model_e_bet_json"])
+        except (TypeError, ValueError):
+            continue
+        if not bet or r["home_won"] is None or pd.isna(r["home_won"]):
+            continue
+        g = model_e.grade_bet(bet, bool(r["home_won"]))
+        dec = model_e.american_to_decimal(bet.get("best_price"))
+        bets.append({
+            "date": r["date"], "matchup": f"{r['away_team_abbr']}@{r['home_team_abbr']}",
+            "side": bet.get("side"), "type": bet.get("type"),
+            "model_prob": bet.get("model_prob"), "market_prob": bet.get("market_prob"),
+            "best_price": bet.get("best_price"), "best_book": bet.get("best_book"),
+            "stake_units": bet.get("stake_units"), "won": g["won"],
+            "profit_units": g["profit_units"],
+            "flat_profit": ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None,
+            "clv": g["clv"],
+        })
+    if not bets:
+        return {"total": 0, "by_type": {}, "recent": [], "since": None, "validation": model_e.load_validation()}
+    df = pd.DataFrame(bets)
+
+    def _agg(sub):
+        staked = sub["stake_units"].fillna(0).sum()
+        profit = sub["profit_units"].fillna(0).sum()
+        flat = sub["flat_profit"].dropna()
+        clv = sub["clv"].dropna()
+        return {
+            "n": int(len(sub)), "wins": int(sub["won"].sum()), "hit_rate": round(sub["won"].mean(), 4),
+            "market_implied": round(sub["market_prob"].mean(), 4),
+            "edge_pts": round(sub["won"].mean() - sub["market_prob"].mean(), 4),
+            "units_staked": round(staked, 2), "units_profit": round(profit, 2),
+            "roi_pct": round(100 * profit / staked, 2) if staked else None,
+            "flat_roi_pct": round(100 * flat.mean(), 2) if len(flat) else None,
+            "avg_clv_pts": round(100 * clv.mean(), 2) if len(clv) else None,
+            "clv_positive_share": round((clv > 0).mean(), 3) if len(clv) else None,
+        }
+
+    by_type = {t: _agg(sub) for t, sub in df.groupby("type")}
+    by_type["all"] = _agg(df)
+    # market-blind leg vs Model A: pick accuracy on the same settled games (both frozen pre-game)
+    leg = log[(log["settled"] == True) & log["model_e_baseball_prob"].notna() & log["model_home_win_prob"].notna() & log["home_won"].notna()]  # noqa: E712
+    baseball_leg = None
+    if len(leg):
+        hw = leg["home_won"].astype(bool)
+        baseball_leg = {"n": int(len(leg)),
+                        "e_baseball_hit": round(float(((leg["model_e_baseball_prob"].astype(float) >= 0.5) == hw).mean()), 4),
+                        "model_a_hit": round(float(((leg["model_home_win_prob"].astype(float) >= 0.5) == hw).mean()), 4),
+                        "since": str(leg["date"].min())}
+    recent = df.sort_values("date", ascending=False).head(40).to_dict(orient="records")
+    # UNPROVEN dog-shade signal, graded separately (never mixed into by_type) -- see
+    # model_e.compute_shade_bet for why it is tracked rather than bet.
+    shade_rows = []
+    for _, r in log[(log["settled"] == True) & log["model_e_shade_json"].notna()].iterrows():  # noqa: E712
+        try:
+            sb = json.loads(r["model_e_shade_json"])
+        except (TypeError, ValueError):
+            continue
+        if not sb or r["home_won"] is None or pd.isna(r["home_won"]):
+            continue
+        g = model_e.grade_bet(sb, bool(r["home_won"]))
+        dec = model_e.american_to_decimal(sb.get("best_price"))
+        shade_rows.append({"won": g["won"], "profit_units": g["profit_units"], "stake_units": sb.get("stake_units"),
+                           "flat": ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None,
+                           "market_prob": sb.get("market_prob")})
+    shade = None
+    if shade_rows:
+        sdf = pd.DataFrame(shade_rows)
+        staked = float(sdf["stake_units"].fillna(0).sum())
+        shade = {"n": int(len(sdf)), "hit_rate": round(float(sdf["won"].mean()), 4),
+                 "market_implied": round(float(sdf["market_prob"].mean()), 4),
+                 "units_staked": round(staked, 2), "units_profit": round(float(sdf["profit_units"].fillna(0).sum()), 2),
+                 "roi_pct": round(100 * float(sdf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
+                 "flat_roi_pct": round(100 * float(sdf["flat"].dropna().mean()), 2) if sdf["flat"].notna().any() else None}
+    return {"total": int(len(df)), "by_type": by_type, "recent": recent, "since": str(df["date"].min()),
+            "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade}
+
+
+# ============================================================================================
+# F5 model (see model_f5.py) -- read-side helpers, settlement by linescore, track record
+# ============================================================================================
+
+def get_logged_model_f5_bet(date: str, game_pk: int) -> dict | None:
+    log = _read_log()
+    if log.empty:
+        return None
+    row = log[(log["date"] == date) & (log["game_pk"] == game_pk)]
+    if row.empty:
+        return None
+    val = row.iloc[0].get("model_f5_bet_json")
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    try:
+        return json.loads(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def settle_f5(max_dates: int = 14):
+    """Fills first-5-innings results for rows whose game is already settled (full-game final) but
+    whose F5 outcome hasn't been recorded -- only rows the F5 model actually predicted on, from
+    the MLB linescore (per-inning runs). Tied after 5 -> f5_home_won None (a push on a 2-way F5
+    line). Same lazy, most-recent-dates-first pattern as settle_predictions."""
+    log = _read_log()
+    if log.empty:
+        return
+    todo = log[(log["settled"] == True) & (log["f5_settled"] != True) & log["model_f5_prob"].notna()]  # noqa: E712
+    if todo.empty:
+        return
+    dates = sorted(todo["date"].unique())[-max_dates:]
+    for idx in todo[todo["date"].isin(dates)].index:
+        pk = log.at[idx, "game_pk"]
+        try:
+            resp = requests.get(f"{MLB_STATS_API}/game/{int(pk)}/linescore", timeout=15)
+            resp.raise_for_status()
+            innings = resp.json().get("innings", [])
+        except (requests.exceptions.RequestException, ValueError):
+            continue
+        if len(innings) < 5:
+            continue
+        h = sum(int((i.get("home") or {}).get("runs") or 0) for i in innings[:5])
+        a = sum(int((i.get("away") or {}).get("runs") or 0) for i in innings[:5])
+        log.at[idx, "f5_home_runs"] = h
+        log.at[idx, "f5_away_runs"] = a
+        log.at[idx, "f5_home_won"] = (h > a) if h != a else None
+        log.at[idx, "f5_settled"] = True
+    _write_log(log)
+
+
+def get_model_f5_track_record() -> dict:
+    """Forward record of the F5 model: pick accuracy vs the F5 market's own pick on the same
+    frozen rows, plus the graded F5 bets (ties = push, stake returned). Same blind-forward
+    discipline as every other track record here; bets only exist if model_f5.bets_enabled()."""
+    import model_e
+    import model_f5
+    log = _read_log()
+    done = log[(log["f5_settled"] == True) & log["model_f5_prob"].notna()].copy()  # noqa: E712
+    out = {"total": 0, "decided": 0, "model_hit_rate": None, "market_hit_rate": None, "bets": {}, "recent": [],
+           "since": None, "validation": model_f5.load_validation(), "bets_enabled": model_f5.bets_enabled()}
+    if done.empty:
+        return out
+    dec = done[done["f5_home_won"].notna()].copy()
+    out["total"] = int(len(done))
+    out["decided"] = int(len(dec))
+    out["since"] = str(done["date"].min())
+    if len(dec):
+        dec["f5_home_won"] = dec["f5_home_won"].astype(bool)
+        out["model_hit_rate"] = round(float(((dec["model_f5_prob"].astype(float) >= 0.5) == dec["f5_home_won"]).mean()), 4)
+        mk = dec[dec["f5_market_home_prob"].notna()]
+        if len(mk):
+            out["market_hit_rate"] = round(float(((mk["f5_market_home_prob"].astype(float) >= 0.5) == mk["f5_home_won"]).mean()), 4)
+            out["market_n"] = int(len(mk))
+    bets = []
+    for _, r in done[done["model_f5_bet_json"].notna()].iterrows():
+        try:
+            bet = json.loads(r["model_f5_bet_json"])
+        except (TypeError, ValueError):
+            continue
+        if not bet:
+            continue
+        base = {"date": r["date"], "matchup": f"{r['away_team_abbr']}@{r['home_team_abbr']}", "side": bet.get("side"),
+                "type": bet.get("type"), "best_price": bet.get("best_price"), "stake_units": bet.get("stake_units")}
+        if r["f5_home_won"] is None or pd.isna(r["f5_home_won"]):
+            bets.append({**base, "won": None, "profit_units": 0.0, "push": True, "clv": None})
+            continue
+        g = model_e.grade_bet(bet, bool(r["f5_home_won"]))
+        bets.append({**base, "won": g["won"], "profit_units": g["profit_units"], "push": False, "clv": g["clv"]})
+    if bets:
+        b = pd.DataFrame(bets)
+        live = b[~b["push"]]
+        staked = float(live["stake_units"].fillna(0).sum())
+        profit = float(live["profit_units"].fillna(0).sum())
+        out["bets"] = {"n": int(len(b)), "pushes": int(b["push"].sum()), "wins": int(live["won"].fillna(False).sum()),
+                       "hit_rate": round(float(live["won"].mean()), 4) if len(live) else None,
+                       "units_staked": round(staked, 2), "units_profit": round(profit, 2),
+                       "roi_pct": round(100 * profit / staked, 2) if staked else None}
+        out["recent"] = b.sort_values("date", ascending=False).head(40).to_dict(orient="records")
+    return out
+
+
+def get_opening_market_prob(date: str, game_pk: int):
+    """The earliest de-vigged market price we ever recorded for this game today -- our "opening"
+    reference for line movement. Read from prediction_history (logged on every refresh), not from
+    the bet's own first_seen_market_prob, because that one only starts when the BET first
+    qualified; a game we watched for hours before it became a bet would otherwise report no
+    movement. None if we never saw a price.
+
+    Used to flag bets where the market has moved hard against our side. Validated 2026-08-22:
+    pooled, bets with the line 4+ pts against returned -44% (n=103), and on all games the side a
+    4+ pt move goes toward wins 77.6% vs a 56.3% implied price. On disjoint windows the direction
+    holds but the magnitude does not (-56% early on n=75, -12% late on n=28, CI straddling zero),
+    so this WARNS and never gates -- four other sub-rules have already failed that same test.
+    """
+    hist = _read_parquet_log(HISTORY_PATH, HISTORY_COLUMNS)
+    if hist.empty:
+        return None
+    sub = hist[(hist["game_pk"] == game_pk) & (hist["date"] == date)]
+    sub = sub[sub["market_home_prob"].notna()]
+    if sub.empty:
+        return None
+    row = sub.sort_values("logged_at").iloc[0]
+    try:
+        val = float(row["market_home_prob"])
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(val) else val

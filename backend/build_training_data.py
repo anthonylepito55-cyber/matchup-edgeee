@@ -608,6 +608,15 @@ def _load_market_divergence_by_game() -> dict:
     for _, r in odds_df.iterrows():
         sharp_moves = [r[c] - r[o] for c, o in sharp_pairs if pd.notna(r[c]) and pd.notna(r[o])]
         public_moves = [r[c] - r[o] for c, o in public_pairs if pd.notna(r[c]) and pd.notna(r[o])]
+        # KNOWN SKEW (2026-09-01): odds_fetcher.get_market_snapshot's live path now requires
+        # >=2 books per side before serving market_divergence, but this training mirror
+        # deliberately still accepts 1 per side -- matching the live gate here was tried and
+        # measured on the real historical cache: it NaN'd 1,299 of 3,131 rows (41.5%), every
+        # legacy Pinnacle-vs-DraftKings-only row the graceful fallback above exists to keep.
+        # Aligning them properly means re-backfilling those rows with the full 5-book panel
+        # and walk-forward revalidating -- not silently amputating 40% of the feature's
+        # training coverage. Until then: training may learn from 1v1 contrasts that live
+        # serving now returns NaN for, which is the conservative direction of the two.
         if sharp_moves and public_moves:
             divergence[r["game_pk"]] = (sum(sharp_moves) / len(sharp_moves)) - (sum(public_moves) / len(public_moves))
     print(f"Loaded market divergence for {len(divergence)} games.")

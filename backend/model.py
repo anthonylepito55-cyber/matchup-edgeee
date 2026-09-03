@@ -62,7 +62,8 @@ DEFAULT_XGB_PARAMS = {
 
 
 def train(training_df: pd.DataFrame, label_col: str = "home_win", save: bool = True, xgb_params: dict = None,
-          feature_columns: list = None, model_path: str = None, random_state: int = 42):
+          feature_columns: list = None, model_path: str = None, random_state: int = 42,
+          sample_weight_fn=None):
     """
     training_df must contain feature_columns (defaults to FEATURE_COLUMNS) + label_col (1 if
     home team won). Missing feature values are median-imputed.
@@ -80,16 +81,34 @@ def train(training_df: pd.DataFrame, label_col: str = "home_win", save: bool = T
     stochastic. Defaults to 42 (this file's long-standing fixed seed) so every existing caller
     is unaffected; only multi-seed stability studies (see analyze_feature_stability.py) pass
     something else.
+
+    sample_weight_fn: optional callable(training_df) -> array-like of per-row weights, computed
+    from training_df itself (never from held-out data, so it can't leak) before the train/val
+    split -- e.g. up-weighting games with an extreme starting-pitcher FIP gap, see
+    fip_gap_sample_weight below. None (default) means every row weighted equally, identical to
+    every existing caller's behavior before this param existed.
     """
     feature_columns = feature_columns or FEATURE_COLUMNS
     model_path = model_path or MODEL_PATH
     X = training_df[feature_columns].copy()
     y = training_df[label_col].astype(int)
+    # float32 explicitly -- CalibratedClassifierCV's internal sigmoid fit compares sample_weight
+    # against XGBoost's own raw decision-function output, which XGBoost returns as float32;
+    # sklearn's Cython loss (_loss.pyx) requires an exact dtype match between the two rather than
+    # casting, so a float64 weight array (numpy's default) raises "Buffer dtype mismatch, expected
+    # 'const float' but got 'double'" the moment sample_weight is actually passed.
+    w = pd.Series(np.asarray(sample_weight_fn(training_df), dtype=np.float32), index=training_df.index) if sample_weight_fn else None
 
     medians = X.median(numeric_only=True)
     X = X.fillna(medians)
 
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=random_state, shuffle=True)
+    if w is not None:
+        X_train, X_val, y_train, y_val, w_train, _ = train_test_split(
+            X, y, w, test_size=0.2, random_state=random_state, shuffle=True
+        )
+    else:
+        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=random_state, shuffle=True)
+        w_train = None
 
     params = {**DEFAULT_XGB_PARAMS, **(xgb_params or {})}
     base_model = xgb.XGBClassifier(
@@ -106,7 +125,10 @@ def train(training_df: pd.DataFrame, label_col: str = "home_win", save: bool = T
     # few-hundred-example folds this dataset size produces; sigmoid is a
     # constrained 2-parameter curve that generalizes much better here.
     calibrated = CalibratedClassifierCV(base_model, method="sigmoid", cv=5)
-    calibrated.fit(X_train, y_train)
+    if w_train is not None:
+        calibrated.fit(X_train, y_train, sample_weight=w_train.to_numpy(dtype=np.float32))
+    else:
+        calibrated.fit(X_train, y_train)
 
     val_probs = calibrated.predict_proba(X_val)[:, 1]
     metrics = {
@@ -162,8 +184,33 @@ def predict_proba(feature_row: pd.DataFrame, model_path: str = None, feature_col
 ENSEMBLE_SEEDS = [1, 7, 42, 100, 777]
 
 
+# Found live 2026-08-19 (DET@PIT, Skenes vs Jobe): bucketing walk-forward OOF predictions by
+# |fip_diff| showed the model is systematically UNDERconfident specifically on the most extreme
+# starting-pitcher mismatches -- |fip_diff| > 2.0 (n=281/6735, ~4% of games) had a real favored-
+# side win rate of 61.9% but the model only predicted ~58% on average, a +3.8pt gap. Every other
+# bucket (including 1.5-2.0, where that specific game sits) was fine or mildly overconfident, so
+# this is a genuine tail-specific effect, not a general "big gaps are underrated" pattern -- most
+# likely because only ~4% of training rows populate this extreme range, giving the boosting
+# process little data mass to learn an accelerating response there.
+#
+# Fix is a sample weight, not a post-hoc score adjustment -- _apply_confidence_override (a manual
+# post-hoc pull toward more/less confident) was already tried and killed after a full backtest
+# showed it made calibration WORSE across the board (ECE 12x worse, ROI flipped from +5.2% to
+# -4.2%). This instead changes what the model itself learns from the SAME real games, by making
+# the (rare) extreme-gap rows count for more during training -- same class of fix as the ensemble
+# work, not a second uncalibrated layer stacked on top of an already-calibrated model.
+FIP_GAP_WEIGHT_THRESHOLD = 2.0
+FIP_GAP_WEIGHT_SLOPE = 1.0  # weight = 1 + slope * max(0, |fip_diff| - threshold)
+
+
+def fip_gap_sample_weight(df: pd.DataFrame) -> np.ndarray:
+    abs_fip_diff = df["fip_diff"].abs().fillna(0.0)
+    return (1.0 + FIP_GAP_WEIGHT_SLOPE * (abs_fip_diff - FIP_GAP_WEIGHT_THRESHOLD).clip(lower=0)).values
+
+
 def train_ensemble(training_df: pd.DataFrame, label_col: str = "home_win", save: bool = True, xgb_params: dict = None,
-                    feature_columns: list = None, model_path: str = None, seeds: list = None):
+                    feature_columns: list = None, model_path: str = None, seeds: list = None,
+                    sample_weight_fn=None):
     """
     Trains len(seeds) independent models on the SAME data (only random_state differs -- both the
     train/val split and XGBoost's own row/column subsampling, see train()'s docstring), then
@@ -189,7 +236,7 @@ def train_ensemble(training_df: pd.DataFrame, label_col: str = "home_win", save:
     for seed in seeds:
         m, med, metrics = train(
             training_df, label_col, save=False, xgb_params=xgb_params,
-            feature_columns=feature_columns, random_state=seed,
+            feature_columns=feature_columns, random_state=seed, sample_weight_fn=sample_weight_fn,
         )
         models.append(m)
         medians = med  # medians are computed from training_df alone, identical across seeds
@@ -240,11 +287,16 @@ def predict_proba_ensemble(feature_row: pd.DataFrame, model_path: str = None, fe
 
 
 def backtest_ensemble(historical_df: pd.DataFrame, label_col: str = "home_win", n_folds: int = 5,
-                       xgb_params: dict = None, feature_columns: list = None, seeds: list = None) -> dict:
+                       xgb_params: dict = None, feature_columns: list = None, seeds: list = None,
+                       sample_weight_fn=None) -> dict:
     """Same walk-forward methodology as backtest(), but each fold trains len(seeds) models and
     averages their held-out predictions before scoring -- lets you validate the ensemble actually
     improves (or at least doesn't hurt) AUC/Brier before trusting it in production, same
-    "validate before claiming improvement" standard as every other change to this pipeline."""
+    "validate before claiming improvement" standard as every other change to this pipeline.
+
+    sample_weight_fn: see train()'s docstring -- computed fresh from each fold's OWN train_df,
+    never from test_df, so a weighting scheme can't leak future information across the fold
+    boundary."""
     seeds = seeds or ENSEMBLE_SEEDS
     feature_columns = feature_columns or FEATURE_COLUMNS
     df = historical_df.sort_values("game_date").reset_index(drop=True)
@@ -264,7 +316,7 @@ def backtest_ensemble(historical_df: pd.DataFrame, label_col: str = "home_win", 
         for seed in seeds:
             m, med, _ = train(
                 train_df, label_col, save=False, xgb_params=xgb_params,
-                feature_columns=feature_columns, random_state=seed,
+                feature_columns=feature_columns, random_state=seed, sample_weight_fn=sample_weight_fn,
             )
             medians = med
             X_test = test_df[feature_columns].fillna(med)
@@ -289,6 +341,15 @@ def backtest_ensemble(historical_df: pd.DataFrame, label_col: str = "home_win", 
         "avg_auc": results_df["auc"].mean(),
         "folds": results_df.to_dict(orient="records"),
         "n_seeds": len(seeds),
+        # Same interpretive note backtest() returns -- train.py prints backtest_results["note"]
+        # after the A-vs-B delta, and started KeyError-ing (killing daily_retrain.py before its
+        # gate every night from 2026-08-19) once Model B's backtest moved to this function.
+        "note": (
+            "Brier score < 0.25 beats a coin flip; MLB game outcomes are "
+            "inherently noisy, so even a well-calibrated model typically "
+            "lands around 0.23-0.24 Brier and 55-58% AUC. If your numbers "
+            "look dramatically better than that, be suspicious of leakage."
+        ),
     }
     return summary
 

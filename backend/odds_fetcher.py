@@ -25,6 +25,16 @@ OPTICODDS_BASE_URL = "https://api.opticodds.com/api/v3"
 # Tried in order per fixture — not every book prices every game, so fall
 # back down the list rather than showing nothing.
 PREFERRED_SPORTSBOOKS = ["FanDuel", "DraftKings", "BetMGM"]
+# Books whose raw prices get_moneyline_odds ALSO pulls for Model E's best-price shopping (the
+# "books" key) -- PREFERRED_SPORTSBOOKS above still decides the primary displayed line and the
+# strikeout-prop default, unchanged. 5 = OpticOdds' per-request sportsbook cap. Pinnacle/Circa
+# are sharp and rarely the best price, but "best of 5" can only be >= "best of 3".
+MONEYLINE_SHOP_BOOKS = PREFERRED_SPORTSBOOKS + ["Pinnacle", "Circa Sports"]
+# Second shopping panel (OpticOdds caps 5 books/request, so widening the shop needs a second
+# request per batch). Every additional book can only raise "best of" -- one cent of price is pure
+# ROI. LowVig/Betcris are known-good from Model C's panel; Caesars from PROP_CONSENSUS_BOOKS;
+# BetRivers/ESPN BET are speculative and simply return nothing if OpticOdds doesn't carry them.
+MONEYLINE_SHOP_BOOKS_2 = ["LowVig", "Betcris", "Caesars", "BetRivers", "ESPN BET"]
 
 # Kept separate from PREFERRED_SPORTSBOOKS rather than folded into that
 # fallback chain — PrizePicks is a pick'em DFS product, not a sportsbook,
@@ -150,6 +160,35 @@ PLAYER_PROP_MARKETS = ["Player Strikeouts", "Player Outs", "Player Earned Runs",
 # here doesn't touch CONSENSUS_BOOKS' moneyline-consensus sharp/retail balance or add any extra
 # requests.
 PROP_CONSENSUS_BOOKS = ["Pinnacle", "DraftKings", "FanDuel", "BetMGM", "Caesars"]
+
+
+def _fetch_fixtures_full(start_date: str, end_date: str, statuses: tuple = ("unplayed", "live")) -> list:
+    """Full fixture objects (not just ids) for every MLB fixture in range matching `statuses`.
+
+    Exists because get_market_snapshot / get_model_c_snapshot both iterated /fixtures/active,
+    which silently drops any fixture OpticOdds no longer considers active. That is NOT the same
+    boundary as MLB's PRE_GAME_STATUSES, which decides when a bet freezes -- so a game could still
+    be pre-game by our rules (still updating its frozen bet) while already gone from the market
+    snapshot, leaving Model E to price it with no market block at all. Measured 2026-08-22: 19 of
+    80 tracked game-days (23.8%) hit that state, and /fixtures returned 38 fixtures for a window
+    where /fixtures/active returned 16. See model_e.CORE_MARKET_COLUMNS for the NYM@CWS bet that
+    surfaced it (Castillo 5.74 recent FIP favored over Scott 2.42, 5u staked, lost)."""
+    out = []
+    page = 1
+    while True:
+        resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures", params={
+            "league": "mlb", "start_date_after": start_date, "start_date_before": end_date, "page": page,
+        }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=20)
+        resp.raise_for_status()
+        payload = resp.json()
+        for f in payload.get("data", []):
+            if f.get("status") in statuses:
+                out.append(f)
+        total_pages = (payload.get("meta") or {}).get("total_pages") or 1
+        if page >= total_pages:
+            break
+        page += 1
+    return out
 
 
 def _fetch_fixture_map(start_date: str, end_date: str, statuses: tuple = ("completed",)) -> dict:
@@ -544,6 +583,15 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
         return {}
     date = date or todays_date_et()
     cache_path = os.path.join(CACHE_DIR, f"market_snapshot_{date}.json")
+    # Last-known-good store, merged under every rebuild below. The market block was observed
+    # FLAPPING on 2026-08-22 -- for a single pre-game game, consensus/median/spread/std/favor
+    # would vanish and return roughly every 7 minutes all day, same status, same price (see
+    # game_pk 823910's prediction_history). Whatever the upstream cause (a partial page, a
+    # transient panel fetch, a fixture briefly absent), a game that HAD a market read a few
+    # minutes ago should not silently become market-blind: Model E's 13 features were pruned on
+    # the assumption a price is present, and prediction_log freezes whichever snapshot happens to
+    # be current at first pitch. Sticky-merging means the freeze can no longer land on a hole.
+    sticky_path = os.path.join(CACHE_DIR, f"market_snapshot_sticky_{date}.json")
     if not force_refresh and os.path.exists(cache_path):
         age_min = (time.time() - os.path.getmtime(cache_path)) / 60
         if age_min < _CACHE_MAX_AGE_MIN:
@@ -559,13 +607,19 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     except requests.exceptions.RequestException:
         return {}
 
-    fixtures_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
-        "league": "mlb", "start_date_after": date, "start_date_before": end_date,
-    }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=15)
+    # /fixtures (unplayed + live), NOT /fixtures/active -- that endpoint silently dropped games
+    # that were still pre-game by our own freeze rules. See _fetch_fixtures_full.
+    # Guarded like _fetch_fixture_map above: main._compute_today_response calls this from a
+    # thread pool whose .result() has no try around it (by documented contract every fetch
+    # "tolerates its own failure internally"), so a transient OpticOdds 429/5xx here must
+    # degrade to a market-less response, not 500 the whole /api/today for a cache-TTL window.
+    try:
+        fixtures_full = _fetch_fixtures_full(date, end_date, statuses=("unplayed", "live"))
+    except requests.exceptions.RequestException:
+        return {}
     snapshot = {}
     try:
-        fixtures_resp.raise_for_status()
-        for f in fixtures_resp.json().get("data", []):
+        for f in fixtures_full:
             game_date = f["start_date"][:10]
             home_abbr = f.get("home_competitors", [{}])[0].get("abbreviation")
             away_abbr = f.get("away_competitors", [{}])[0].get("abbreviation")
@@ -611,9 +665,15 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             public_movements = [
                 probs_now[b] - probs_open[b] for b in PUBLIC_BOOKS if b in probs_now and b in probs_open
             ]
+            # >=2 books per side (same threshold as every other level feature) -- with a single
+            # book on either side, half of this CONTRAST is one book's private drift passed off
+            # as "sharp money" or "public money". Flagged from a live CWS@HOU case (2026-09-01)
+            # where this feature single-handedly carried a 20-pt Model E edge: that night's
+            # reading was legitimately 2v2, but the 1-book degenerate case was still open here
+            # even though get_model_c_snapshot closed its equivalent a week earlier.
             market_divergence = (
                 (sum(sharp_movements) / len(sharp_movements)) - (sum(public_movements) / len(public_movements))
-                if sharp_movements and public_movements else None
+                if len(sharp_movements) >= 2 and len(public_movements) >= 2 else None
             )
 
             # Level features (a snapshot of where the market sits right now) can fall back to a
@@ -626,7 +686,16 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             # fallback price as "now" would compute a fake zero movement instead of leaving it NaN.
             probs_effective = {**probs_open, **probs_now}
 
-            consensus_prob = (sum(probs_effective.values()) / len(probs_effective)) if probs_effective else None
+            # >=2-book minimum -- same fix already applied to get_model_c_snapshot (flagged live
+            # 2026-08-17, see that function's "Same single-book vulnerability" comment), never
+            # backported here even though the vulnerability is identical: with only 1 book's price
+            # available, "consensus" was silently just that single book's raw number, and it
+            # swinging in/out of sync between requests (common with thin pre-game coverage) looked
+            # like the market moving when it hadn't. book_disagreement/book_prob_std already had
+            # this threshold; consensus_prob/book_median_prob/book_favor_diff didn't.
+            consensus_prob = (
+                (sum(probs_effective.values()) / len(probs_effective)) if len(probs_effective) >= 2 else None
+            )
             book_disagreement = (
                 (max(probs_effective.values()) - min(probs_effective.values())) if len(probs_effective) >= 2 else None
             )
@@ -634,7 +703,7 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             # Median (robust to one outlier book skewing the mean) and population std (a more
             # holistic disagreement measure than book_disagreement's max-min range, which is
             # driven entirely by the two most extreme books and ignores everything in between).
-            book_median_prob = statistics.median(probs_effective.values()) if probs_effective else None
+            book_median_prob = statistics.median(probs_effective.values()) if len(probs_effective) >= 2 else None
             book_prob_std = statistics.pstdev(probs_effective.values()) if len(probs_effective) >= 2 else None
 
             # Signed fraction of CONSENSUS_BOOKS currently favoring home vs. away (>50%/<50%) —
@@ -643,7 +712,7 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
             # current-price side). +1.0 = every book favors home right now, -1.0 = every book
             # favors away.
             book_favor_diff = None
-            if probs_effective:
+            if len(probs_effective) >= 2:
                 favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
                 favor_away = sum(1 for p in probs_effective.values() if p < 0.5)
                 book_favor_diff = (favor_home - favor_away) / len(probs_effective)
@@ -726,6 +795,29 @@ def get_market_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     except requests.exceptions.RequestException:
         pass
 
+    # Merge with last-known-good before returning: any game whose market fields came back empty
+    # this pass keeps its most recent non-empty read instead of going market-blind. See the
+    # sticky_path comment at the top of this function for the flapping this defends against.
+    try:
+        prev = {}
+        if os.path.exists(sticky_path):
+            with open(sticky_path) as f:
+                prev = {tuple(k.split("|||")): v for k, v in json.load(f).items()}
+        for key, old_v in prev.items():
+            cur = snapshot.get(key)
+            if cur is None:
+                snapshot[key] = old_v
+            elif cur.get("consensus_prob") is None and old_v.get("consensus_prob") is not None:
+                merged = dict(old_v)
+                merged.update({k: v for k, v in cur.items() if v is not None})
+                snapshot[key] = merged
+        good = {f"{k[0]}|||{k[1]}|||{k[2]}": v for k, v in snapshot.items()
+                if (v or {}).get("consensus_prob") is not None}
+        with open(sticky_path, "w") as f:
+            json.dump(good, f)
+    except (OSError, ValueError) as e:
+        print(f"[market snapshot] sticky merge skipped: {e}")
+
     raw = {f"{start_date}|||{away}|||{home}": v for (start_date, away, home), v in snapshot.items()}
     with open(cache_path, "w") as f:
         json.dump(raw, f)
@@ -780,13 +872,19 @@ def get_model_c_snapshot(date: str = None, force_refresh: bool = False) -> dict:
     except (FileNotFoundError, json.JSONDecodeError):
         last_live_by_fixture = {}
 
-    fixtures_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
-        "league": "mlb", "start_date_after": date, "start_date_before": end_date,
-    }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=15)
+    # /fixtures (unplayed + live), NOT /fixtures/active -- that endpoint silently dropped games
+    # that were still pre-game by our own freeze rules. See _fetch_fixtures_full.
+    # Guarded like _fetch_fixture_map above: main._compute_today_response calls this from a
+    # thread pool whose .result() has no try around it (by documented contract every fetch
+    # "tolerates its own failure internally"), so a transient OpticOdds 429/5xx here must
+    # degrade to a market-less response, not 500 the whole /api/today for a cache-TTL window.
+    try:
+        fixtures_full = _fetch_fixtures_full(date, end_date, statuses=("unplayed", "live"))
+    except requests.exceptions.RequestException:
+        return {}
     snapshot = {}
     try:
-        fixtures_resp.raise_for_status()
-        for f in fixtures_resp.json().get("data", []):
+        for f in fixtures_full:
             game_date = f["start_date"][:10]
             home_abbr = f.get("home_competitors", [{}])[0].get("abbreviation")
             away_abbr = f.get("away_competitors", [{}])[0].get("abbreviation")
@@ -1100,6 +1198,17 @@ def _write_cache(date: str, odds_by_matchup: dict):
         json.dump(raw, f)
 
 
+def moneyline_cache_age_seconds(date: str = None):
+    """Seconds since the live moneyline cache for `date` was last written, or None if it has
+    never been fetched. Surfaced in /api/today so the UI can show how stale the prices behind a
+    bet actually are -- a frozen bet is only as good as the market data it was priced from."""
+    date = date or todays_date_et()
+    path = _cache_path(date)
+    if not os.path.exists(path):
+        return None
+    return max(0.0, time.time() - os.path.getmtime(path))
+
+
 def _get_active_fixture_ids(date: str) -> list:
     """Fixture ids for unplayed MLB games on the given US-local calendar date."""
     headers = {"X-Api-Key": OPTICODDS_API_KEY}
@@ -1162,7 +1271,7 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
             odds_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
                 "league": "mlb",
                 "market": "moneyline",
-                "sportsbook": PREFERRED_SPORTSBOOKS,
+                "sportsbook": MONEYLINE_SHOP_BOOKS,
                 "is_main": "true",
                 "fixture_id": batch,
             }, headers=headers, timeout=20)
@@ -1170,6 +1279,44 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
             fixtures_with_odds.extend(odds_resp.json().get("data", []))
         except requests.exceptions.RequestException:
             continue
+        # second panel purely for best-price shopping (see MONEYLINE_SHOP_BOOKS_2). Failure here
+        # never blocks the primary panel above -- fewer books just means a slightly worse "best".
+        try:
+            odds_resp2 = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
+                "league": "mlb",
+                "market": "moneyline",
+                "sportsbook": MONEYLINE_SHOP_BOOKS_2,
+                "is_main": "true",
+                "fixture_id": batch,
+            }, headers=headers, timeout=20)
+            odds_resp2.raise_for_status()
+            extra_by_id = {f.get("id"): f for f in odds_resp2.json().get("data", [])}
+            for f in fixtures_with_odds:
+                ex = extra_by_id.get(f.get("id"))
+                if ex and ex.get("odds"):
+                    f.setdefault("odds", []).extend(ex["odds"])
+        except requests.exceptions.RequestException:
+            pass
+        # Third panel: Kalshi (2026-08-24, user bets there). A prediction-market contract, not a
+        # bookmaker -- parsed into its own "kalshi" key below, NEVER folded into "books" (the
+        # sportsbook best-price shop), because Kalshi adds a ~7%*p*(1-p) trading fee the quoted
+        # price doesn't include. Same never-blocks-the-primary contract as panel 2.
+        try:
+            odds_resp3 = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
+                "league": "mlb",
+                "market": "moneyline",
+                "sportsbook": ["Kalshi"],
+                "is_main": "true",
+                "fixture_id": batch,
+            }, headers=headers, timeout=20)
+            odds_resp3.raise_for_status()
+            extra_by_id3 = {f.get("id"): f for f in odds_resp3.json().get("data", [])}
+            for f in fixtures_with_odds:
+                ex = extra_by_id3.get(f.get("id"))
+                if ex and ex.get("odds"):
+                    f.setdefault("odds", []).extend(ex["odds"])
+        except requests.exceptions.RequestException:
+            pass
 
     odds_by_matchup = {}
     for fixture in fixtures_with_odds:
@@ -1219,10 +1366,41 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
                 # actually feeds predictions), but still a real, misleading bug on its own.
                 norm_home = _OPTICODDS_TEAM_NAME_FIX.get(home_team, home_team)
                 norm_away = _OPTICODDS_TEAM_NAME_FIX.get(away_team, away_team)
+                # Kalshi: separated from the sportsbook shop (see panel-3 comment above). The
+                # contract price IS the probability (65c = 65%), so no devig -- but keep the
+                # identical-price guard plus a two-sided-sum sanity window: prediction-market rows
+                # through OpticOdds have shown corrupt both-sides-identical extremes before
+                # (PREDICTION_MARKET_BOOKS docstring), and a pair not summing near 1.0 +/- spread
+                # is that artifact, not a real market.
+                kal = by_book.pop("Kalshi", None)
+                kalshi = None
+                if kal and home_team in kal and away_team in kal and kal[home_team] != kal[away_team]:
+                    def _ap(o):
+                        try:
+                            o = float(o)
+                        except (TypeError, ValueError):
+                            return None
+                        return 100.0 / (o + 100.0) if o > 0 else (-o) / ((-o) + 100.0)
+                    hp, ap = _ap(kal[home_team]), _ap(kal[away_team])
+                    if hp and ap and 0.90 <= hp + ap <= 1.12:
+                        kalshi = {"home_prob": round(hp, 4), "away_prob": round(ap, 4),
+                                  "home_cents": int(round(hp * 100)), "away_cents": int(round(ap * 100))}
+                # "books": EVERY preferred book's raw two-sided price for this fixture (same
+                # identical-price guard as above), not just the first one -- Model E's betting
+                # layer shops the best available price per side across these (see
+                # model_e.compute_bet). Additive key; every existing reader of this dict only
+                # looks at home/away/bookmaker.
+                books = {
+                    b: {"home": pr[home_team], "away": pr[away_team]}
+                    for b, pr in by_book.items()
+                    if home_team in pr and away_team in pr and pr[home_team] != pr[away_team]
+                }
                 odds_by_matchup[(start_date, norm_away, norm_home)] = {
                     "home": home_price,
                     "away": away_price,
                     "bookmaker": book,
+                    "books": books,
+                    "kalshi": kalshi,
                 }
                 break
 
@@ -1271,11 +1449,9 @@ def get_pitcher_market_lines(date: str = None, force_refresh: bool = False) -> d
 
     lines_by_pitcher = {}
     try:
-        fixtures_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
-            "league": "mlb", "start_date_after": date, "start_date_before": end_date,
-        }, headers={"X-Api-Key": OPTICODDS_API_KEY}, timeout=15)
-        fixtures_resp.raise_for_status()
-        for f in fixtures_resp.json().get("data", []):
+        # /fixtures (unplayed + live) rather than /fixtures/active -- same dropped-fixture bug
+        # fixed in get_market_snapshot; see _fetch_fixtures_full.
+        for f in _fetch_fixtures_full(date, end_date, statuses=("unplayed", "live")):
             game_date = f["start_date"][:10]
             home_abbr = f.get("home_competitors", [{}])[0].get("abbreviation")
             away_abbr = f.get("away_competitors", [{}])[0].get("abbreviation")
@@ -1388,3 +1564,67 @@ def get_strikeout_prop_lines(date: str = None, force_refresh: bool = False, spor
 def get_prizepicks_strikeout_lines(date: str = None, force_refresh: bool = False) -> dict:
     """PrizePicks' own strikeout line per pitcher — see get_strikeout_prop_lines."""
     return get_strikeout_prop_lines(date, force_refresh, sportsbooks=PRIZEPICKS_SPORTSBOOK)
+
+
+# ============================================================================================
+# First-5-innings ("1st Half") moneyline -- live prices for the F5 model (see model_f5.py)
+# ============================================================================================
+
+F5_MARKET_ID = "1st_half_moneyline"
+F5_LIVE_BOOKS = PREFERRED_SPORTSBOOKS + ["Pinnacle", "Circa Sports"]  # 5 = OpticOdds per-request cap
+
+
+def get_f5_odds(date: str = None, force_refresh: bool = False) -> dict:
+    """
+    { (start_date_utc, away_full_name, home_full_name): {"home": american, "away": american,
+    "bookmaker": first preferred book with both sides, "books": {book: {"home","away"}},
+    "home_prob": de-vigged consensus home F5 win prob across books} } for the given date.
+    Same fixture lookup, keying, identical-price guard and team-name normalization as
+    get_moneyline_odds -- only the market differs. Own cache file (f5_odds_<date>.json, same TTL)
+    so it can't collide with the full-game moneyline cache. {} when no key / no fixtures.
+    """
+    if not OPTICODDS_API_KEY:
+        return {}
+    date = date or todays_date_et()
+    cache_path = os.path.join(os.path.dirname(_cache_path(date)), f"f5_odds_{date}.json")
+    if not force_refresh and os.path.exists(cache_path) and (time.time() - os.path.getmtime(cache_path)) / 60 < _CACHE_MAX_AGE_MIN:
+        with open(cache_path) as f:
+            return {tuple(k.split("|||")): v for k, v in json.load(f).items()}
+
+    fixture_ids = _get_active_fixture_ids(date)
+    if not fixture_ids:
+        return {}
+    headers = {"X-Api-Key": OPTICODDS_API_KEY}
+    fixtures = []
+    for i in range(0, len(fixture_ids), FIXTURE_BATCH_SIZE):
+        try:
+            resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
+                "league": "mlb", "market": F5_MARKET_ID, "sportsbook": F5_LIVE_BOOKS,
+                "is_main": "true", "fixture_id": fixture_ids[i:i + FIXTURE_BATCH_SIZE],
+            }, headers=headers, timeout=20)
+            resp.raise_for_status()
+            fixtures.extend(resp.json().get("data", []))
+        except requests.exceptions.RequestException:
+            continue
+
+    out = {}
+    for fx in fixtures:
+        home, away, start = fx.get("home_team_display"), fx.get("away_team_display"), fx.get("start_date")
+        by_book = {}
+        for o in fx.get("odds") or []:
+            if o.get("market_id") != F5_MARKET_ID:
+                continue
+            by_book.setdefault(o.get("sportsbook"), {})[o.get("name")] = o.get("price")
+        books = {b: {"home": pr[home], "away": pr[away]} for b, pr in by_book.items()
+                 if home in pr and away in pr and pr[home] != pr[away]}
+        if not books:
+            continue
+        primary = next((b for b in F5_LIVE_BOOKS if b in books), next(iter(books)))
+        probs = [p for p in (devig_home_prob(v["home"], v["away"]) for v in books.values()) if p is not None]
+        out[(start, _OPTICODDS_TEAM_NAME_FIX.get(away, away), _OPTICODDS_TEAM_NAME_FIX.get(home, home))] = {
+            "home": books[primary]["home"], "away": books[primary]["away"], "bookmaker": primary,
+            "books": books, "home_prob": (sum(probs) / len(probs)) if probs else None,
+        }
+    with open(cache_path, "w") as f:
+        json.dump({f"{k[0]}|||{k[1]}|||{k[2]}": v for k, v in out.items()}, f)
+    return out

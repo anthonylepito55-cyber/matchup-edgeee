@@ -21,7 +21,7 @@ import secrets
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -59,6 +59,7 @@ from features import (
 )
 from odds_fetcher import (
     get_moneyline_odds, get_strikeout_prop_lines, get_prizepicks_strikeout_lines, devig_home_prob,
+    get_f5_odds, moneyline_cache_age_seconds,
     get_market_snapshot, get_active_injuries, get_pitcher_market_lines, normalize_player_name,
     get_model_c_snapshot,
 )
@@ -75,6 +76,9 @@ from strikeout_prediction_log import (
 )
 from user_picks import set_user_pick, get_user_pick, get_user_picks_for_date, get_user_track_record
 import model as model_module
+import model_e  # Model E: Model B's recipe + betting layer, fully separate artifacts (see model_e.py)
+import model_f5  # F5 (first-5-innings) model, separate artifacts (see model_f5.py)
+import prediction_log as prediction_log_module
 import rating_system
 import props as props_module
 import simulation
@@ -112,24 +116,86 @@ async def require_dashboard_password(request, call_next):
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
     return await call_next(request)
 
-BACKGROUND_REFRESH_SECONDS = 3600  # once an hour — keeps strikeout/moneyline predictions logged and
-# the track records settled against real results even with nobody actively loading the page. Without
-# this, both only ever updated as a side effect of a browser hitting /api/today — fine while someone's
-# actively using the app, but the "record" could sit stale (unsettled Finals, un-logged later games)
-# for however long nobody happens to look.
+BACKGROUND_REFRESH_SECONDS = 3600  # the IDLE cadence — keeps strikeout/moneyline predictions
+# logged and the track records settled against real results even with nobody loading the page.
+# Without this, both only ever updated as a side effect of a browser hitting /api/today.
+#
+# But an hour is far too slow near first pitch. A bet is FROZEN at whatever the last pre-game
+# computation produced (see prediction_log.log_predictions), so on an hourly cadence a bet could
+# lock in market data up to 60 minutes stale -- precisely during the window when lineups post and
+# lines move most. The cadence below scales with time-to-first-pitch, and inside the critical
+# window the odds caches are force-refreshed first so today() doesn't just re-read a 5-minute-old
+# price. Added 2026-08-22 after the frozen Model E bets were found to be only as fresh as an
+# hourly loop allowed.
+REFRESH_IMMINENT_SECONDS = 60      # a game starts within 20 min -> re-price every minute
+REFRESH_SOON_SECONDS = 180         # within 2 hours -> every 3 minutes
+REFRESH_TODAY_SECONDS = 900        # games later today -> every 15 minutes
+IMMINENT_WINDOW = 20 * 60
+SOON_WINDOW = 2 * 3600
+
+
+def _seconds_to_next_first_pitch(resolved_date: str):
+    """Seconds until the soonest not-yet-started game today, or None if none are pending. Read
+    from the frozen/served payload rather than a fresh fetch so this stays cheap."""
+    try:
+        games = (_TODAY_RESPONSE_CACHE.get(resolved_date) or (None, None))[1]
+        games = (games or {}).get("games") or []
+    except Exception:
+        return None
+    best = None
+    now = datetime.now(timezone.utc)
+    for g in games:
+        if g.get("status") not in PRE_GAME_STATUSES:
+            continue
+        ts = g.get("game_time_utc")
+        if not ts:
+            continue
+        try:
+            start = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        delta = (start - now).total_seconds()
+        if delta > -1800 and (best is None or delta < best):   # ignore games long past their start
+            best = delta
+    return best
+
+
+def _refresh_interval(resolved_date: str) -> tuple:
+    """(sleep_seconds, force_odds_refresh) for the next background pass."""
+    nxt = _seconds_to_next_first_pitch(resolved_date)
+    if nxt is None:
+        return BACKGROUND_REFRESH_SECONDS, False
+    if nxt <= IMMINENT_WINDOW:
+        return REFRESH_IMMINENT_SECONDS, True
+    if nxt <= SOON_WINDOW:
+        return REFRESH_SOON_SECONDS, True
+    return REFRESH_TODAY_SECONDS, False
 
 
 async def _background_refresh_loop():
+    loop = asyncio.get_event_loop()
     while True:
-        await asyncio.sleep(BACKGROUND_REFRESH_SECONDS)
+        resolved_date = todays_date_et()
+        sleep_s, force_odds = _refresh_interval(resolved_date)
+        await asyncio.sleep(sleep_s)
+        try:
+            if force_odds:
+                # Prime the odds caches BEFORE today() reads them, otherwise a 1-3 minute refresh
+                # cadence just re-reads a price up to _CACHE_MAX_AGE_MIN (5 min) old and the extra
+                # passes buy nothing.
+                await loop.run_in_executor(None, get_moneyline_odds, resolved_date, True)
+                await loop.run_in_executor(None, get_f5_odds, resolved_date, True)
+                _TODAY_RESPONSE_CACHE.pop(resolved_date, None)   # force a real recompute
+        except Exception as e:
+            print(f"[background refresh] odds force-refresh failed: {e}")
         try:
             # today()/tennis_today() are sync functions doing real network I/O — run them in a
             # worker thread so this doesn't block the event loop for every other request meanwhile.
-            await asyncio.get_event_loop().run_in_executor(None, today)
+            await loop.run_in_executor(None, today)
         except Exception as e:
             print(f"[background refresh] today() failed: {e}")
         try:
-            await asyncio.get_event_loop().run_in_executor(None, tennis_today)
+            await loop.run_in_executor(None, tennis_today)
         except Exception as e:
             print(f"[background refresh] tennis_today() failed: {e}")
 
@@ -1768,6 +1834,10 @@ def _compute_today_response(date: str = None):
     # single model -- load_model() would raise trying to read obj["model"] on an ensemble's
     # {"models": [...]} shape, so this needs load_model_ensemble()'s own presence check.
     model_c_trained = model_module.load_model_ensemble(model_module.MODEL_C_PATH)[0] is not None
+    # Model E (model_e.py): comparison/betting only, same "never drives the primary prediction" status as B/C.
+    model_e_trained = model_e.is_trained()
+    model_f5_trained = model_f5.is_trained()
+    f5_odds = {}  # filled from the setup pool below; stays empty if that path is skipped
     rating_fitted = rating_system.load_rating_system()  # display-only "why" breakdown, see rating_system.py
 
     # All 8 of these are independent live/market fetches with no shared state — each already
@@ -1778,6 +1848,7 @@ def _compute_today_response(date: str = None):
     # between a few seconds and a minute-plus.
     with ThreadPoolExecutor(max_workers=8) as _setup_pool:
         _live_odds_f = _setup_pool.submit(get_moneyline_odds, date)
+        _f5_odds_f = _setup_pool.submit(get_f5_odds, date)
         # One shared fetch backing line_movement/market_divergence/consensus/book-by-book/
         # prediction markets — see odds_fetcher.get_market_snapshot for why this replaced 3-4 calls.
         _market_snapshot_f = _setup_pool.submit(get_market_snapshot, date)
@@ -1801,6 +1872,7 @@ def _compute_today_response(date: str = None):
         _il_activations_f = _setup_pool.submit(_il_activations_safe)
 
         live_odds = _live_odds_f.result()
+        f5_odds = _f5_odds_f.result() or {}
         market_snapshot = _market_snapshot_f.result()
         # Model C reads whatever the background poller (_model_c_poller_loop) last wrote instead
         # of fetching fresh here -- a live request should never block on an OpticOdds round trip
@@ -1912,7 +1984,16 @@ def _compute_today_response(date: str = None):
             "home": odds_entry["home"],
             "away": odds_entry["away"],
             "bookmaker": odds_entry["bookmaker"],
+            # every preferred book's raw two-sided price -- model_e.compute_bet shops the best one;
+            # frozen into live_odds_json with the rest so a graded bet's price is auditable
+            "books": odds_entry.get("books") or {},
+            # Kalshi contract prices (own key, never in the "books" shop) -- the user bets there,
+            # so ProfitView shows each bet's Kalshi cents + EV after Kalshi's trading fee.
+            "kalshi": odds_entry.get("kalshi"),
         } if odds_entry else None
+        # First-5-innings ("1st Half") market for the same fixture -- see odds_fetcher.get_f5_odds
+        f5_entry = f5_odds.get((g.get("game_time_utc"), g["away_team"], g["home_team"])) if f5_odds else None
+        f5_odds_out = {k: f5_entry.get(k) for k in ("home", "away", "bookmaker", "books", "home_prob")} if f5_entry else None
         # Keyed by exact start-time too, not just team names -- get_market_snapshot's fetch window
         # spans multiple days, so a team-name-only key let a later date's not-yet-lined fixture in
         # the same series silently overwrite today's real market data (confirmed live on a
@@ -2141,6 +2222,15 @@ def _compute_today_response(date: str = None):
         rating_out = None
         market_model_prob = None
         model_c_prob = None
+        model_e_prob = None
+        model_e_bet_out = None
+        model_e_baseball_prob = None
+        model_e_shade_out = None
+        model_e_explain = None
+        line_move_out = None
+        market_blind = False
+        model_f5_prob = None
+        model_f5_bet_out = None
         value_bet_out = None
         if model_trained:
             for pid in (effective_home_id, effective_away_id, g["home_pitcher_id"], g["away_pitcher_id"]):
@@ -2311,6 +2401,101 @@ def _compute_today_response(date: str = None):
                 g["home_team_abbr"], g["away_team_abbr"],
                 kalshi_home_prob=(prediction_market_odds_out or {}).get("Kalshi"),
             )
+            # Model E -- Model B's exact recipe on its own artifacts plus a betting layer (best
+            # available price across books, quarter-Kelly stake, first-seen price carried forward
+            # for CLV). Comparison/betting only; see model_e.py. previous_bet is whatever this
+            # game's row already holds today, so the first-seen fields survive every refresh.
+            model_e_prob = None
+            model_e_bet_out = None
+            model_e_baseball_prob = None
+            # market_blind is INFORMATIONAL ONLY -- it does not suppress anything.
+            # A guard was shipped 2026-08-22 on the theory that Model E, pruned of starter quality
+            # because the market prices it, would misfire without a market block (the NYM@CWS bet:
+            # Castillo 5.74 recent FIP favoured over Scott 2.42, 5u, lost). Measured the next day
+            # (_fallback_model_study.py) that theory did not hold: simulated market-blind Model E
+            # returns +7.5% ROI, CI [+3.5%, +11.4%], and on the BIGGEST starter mismatches
+            # (|fip_diff| >= 2.0) it makes +12.8% -- slightly BETTER than the market-aware model's
+            # +12.5%. Every starter-inclusive fallback tested was worse, not better (A-55 +1.2%,
+            # A-pruned-13 +5.0%, E13+starters +4.6%). So the CWS bet was variance, not a design
+            # flaw, and suppressing these games was throwing away ~24% of a profitable book.
+            # The sticky merge in odds_fetcher.get_market_snapshot still repairs the underlying
+            # data flapping; this flag just tells you the market block was thin for this game.
+            market_blind = model_e_trained and not model_e.core_market_present(row)
+            if model_e_trained:
+                try:
+                    model_e_prob = model_e.predict(row)["home_win_prob"]
+                    if model_e.is_baseball_trained():
+                        model_e_baseball_prob = model_e.predict_baseball(row)["home_win_prob"]
+                    # UNPROVEN dog-shade signal -- served and logged for its own forward record,
+                    # never part of the validated slip. See model_e.compute_shade_bet.
+                    model_e_shade_out = model_e.compute_shade_bet(
+                        model_e_prob,
+                        devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
+                        g["home_team_abbr"], g["away_team_abbr"],
+                        book_prices=(live_odds_out or {}).get("books"), live_odds=live_odds_out,
+                        previous_bet=((get_logged_prediction(resolved_date, g.get("game_pk")) or {}).get("model_e_shade")
+                                      if g.get("game_pk") else None),
+                    )
+                    model_e_bet_out = model_e.compute_bet(
+                        model_e_prob,
+                        devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
+                        g["home_team_abbr"], g["away_team_abbr"],
+                        book_prices=(live_odds_out or {}).get("books"), live_odds=live_odds_out,
+                        previous_bet=(
+                            prediction_log_module.get_logged_model_e_bet(resolved_date, g.get("game_pk"))
+                            if g.get("game_pk") else None
+                        ),
+                    )
+                except Exception:
+                    model_e_prob = None
+                    model_e_bet_out = None
+            # Per-feature contributions, only for games that actually produced a bet -- ~0.2s
+            # each (5 seeds x calibration folds of pred_contribs), so not worth paying on the
+            # ~5 games a night that have no bet. Live-only: not frozen into the log.
+            model_e_explain = None
+            if model_e_bet_out or model_e_shade_out:
+                try:
+                    model_e_explain = model_e.explain(row, top_n=8)
+                except Exception:
+                    model_e_explain = None
+            # Line movement on our side since the first price we saw today. A 4+ pt move AGAINST
+            # a bet is the strongest negative signal found (see
+            # prediction_log.get_opening_market_prob) -- surfaced as a warning, never a gate.
+            line_move_out = None
+            _lm_bet = model_e_bet_out or model_e_shade_out
+            if _lm_bet and g.get("game_pk"):
+                try:
+                    opening = prediction_log_module.get_opening_market_prob(resolved_date, g["game_pk"])
+                    if opening is not None:
+                        open_side = opening if _lm_bet["side_is_home"] else 1 - opening
+                        line_move_out = {
+                            "opening_prob": round(open_side, 4),
+                            "current_prob": _lm_bet["market_prob"],
+                            "move_pts": round((_lm_bet["market_prob"] - open_side) * 100, 1),
+                        }
+                except Exception:
+                    line_move_out = None
+            # F5 model (model_f5.py): P(home leads after 5). Its BET only exists once
+            # model_f5.bets_enabled() -- i.e. the walk-forward validation against the real F5
+            # market showed positive ROI on a real sample. Same best-price/Kelly/CLV layer as E.
+            model_f5_prob = None
+            model_f5_bet_out = None
+            if model_f5_trained:
+                try:
+                    model_f5_prob = model_f5.predict(row)["home_win_prob"]
+                    if model_f5.bets_enabled() and f5_odds_out and f5_odds_out.get("home_prob") is not None:
+                        model_f5_bet_out = model_e.compute_bet(
+                            model_f5_prob, f5_odds_out["home_prob"], g["home_team_abbr"], g["away_team_abbr"],
+                            book_prices=f5_odds_out.get("books"), live_odds=f5_odds_out,
+                            min_underdog_edge=0.02,  # F5's own validation used the 0.02 rule; the 0.04 dog floor is Model E's
+                            previous_bet=(
+                                prediction_log_module.get_logged_model_f5_bet(resolved_date, g.get("game_pk"))
+                                if g.get("game_pk") else None
+                            ),
+                        )
+                except Exception:
+                    model_f5_prob = None
+                    model_f5_bet_out = None
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])
@@ -2477,6 +2662,15 @@ def _compute_today_response(date: str = None):
             market_model_prob = None
             model_c_prob = None
             value_bet_out = None
+            model_e_prob = None
+            model_e_bet_out = None
+            model_e_baseball_prob = None
+            model_e_shade_out = None
+            model_e_explain = None
+            line_move_out = None
+            market_blind = False
+            model_f5_prob = None
+            model_f5_bet_out = None
             simulation_out = None
             team_stats_out = None
             lineup_breakdown_out = None
@@ -2506,6 +2700,20 @@ def _compute_today_response(date: str = None):
                     model_c_prob = frozen["model_c_prob"]
                 if frozen.get("value_bet"):
                     value_bet_out = frozen["value_bet"]
+                if frozen.get("model_e_prob") is not None:
+                    model_e_prob = frozen["model_e_prob"]
+                if frozen.get("model_e_bet"):
+                    model_e_bet_out = frozen["model_e_bet"]
+                if frozen.get("model_e_baseball_prob") is not None:
+                    model_e_baseball_prob = frozen["model_e_baseball_prob"]
+                if frozen.get("model_e_shade"):
+                    model_e_shade_out = frozen["model_e_shade"]
+                if frozen.get("model_f5_prob") is not None:
+                    model_f5_prob = frozen["model_f5_prob"]
+                if frozen.get("model_f5_bet"):
+                    model_f5_bet_out = frozen["model_f5_bet"]
+                if frozen.get("f5_market_home_prob") is not None:
+                    f5_odds_out = {"home_prob": frozen["f5_market_home_prob"]}  # point-in-time, like live_odds
                 if frozen.get("simulation"):
                     simulation_out = frozen["simulation"]
                 prediction_frozen = True
@@ -2551,6 +2759,10 @@ def _compute_today_response(date: str = None):
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
+            "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
+            "model_e_explain": model_e_explain, "line_move": line_move_out,
+            "market_blind": market_blind,
+            "model_f5_prob": model_f5_prob, "model_f5_bet": model_f5_bet_out, "f5_odds": f5_odds_out,
             "model_d_prob": model_d_prob_b, "model_d_prob_a": model_d_prob_a,
             "simulation": simulation_out, "injuries": injuries_out,
             "book_odds": book_odds_out, "model_c_book_odds": model_c_book_odds_out,
@@ -2559,10 +2771,17 @@ def _compute_today_response(date: str = None):
             "note": None if prediction else "Model not trained yet — run train.py",
         })
 
+    market_age = None
+    try:
+        market_age = moneyline_cache_age_seconds(resolved_date)
+    except Exception:
+        market_age = None
+
     try:
         log_predictions(resolved_date, results)
         log_prediction_history(resolved_date, results)
         settle_predictions()
+        prediction_log_module.settle_f5()
         log_strikeout_predictions(resolved_date, results)
         settle_strikeout_predictions()
     except Exception:
@@ -2572,12 +2791,31 @@ def _compute_today_response(date: str = None):
         "date": resolved_date,
         "games": results,
         "warning": data_error,
+        # How many seconds old the live moneyline prices behind these bets are. A frozen bet is
+        # only as good as the market data it was priced from, so this is surfaced rather than
+        # left implicit -- see _background_refresh_loop for the cadence that keeps it small.
+        "market_age_seconds": round(market_age) if market_age is not None else None,
     }
 
 
 @app.get("/api/track-record")
 def track_record():
     return get_track_record()
+
+
+@app.get("/api/model-e-track-record")
+def model_e_track_record():
+    """Model E's real forward BETTING record (graded at logged best price, quarter-Kelly and flat
+    ROI, per-bet CLV) plus its walk-forward validation report -- see model_e.py /
+    prediction_log.get_model_e_track_record."""
+    return prediction_log_module.get_model_e_track_record()
+
+
+@app.get("/api/model-f5-track-record")
+def model_f5_track_record():
+    """F5 model forward record: pick accuracy vs the F5 market's own pick on the same frozen rows,
+    graded F5 bets (if enabled), validation report -- see model_f5.py."""
+    return prediction_log_module.get_model_f5_track_record()
 
 
 @app.get("/api/clv-track-record")

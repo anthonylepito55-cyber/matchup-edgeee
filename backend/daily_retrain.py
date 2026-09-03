@@ -132,6 +132,19 @@ def main():
     if ok:
         print("Candidate is not worse than the live model (or no prior deployment to compare "
               "against) — deploying.")
+        # Model E (model_e.py) retrains from the same freshly-rebuilt dataset, but only once the
+        # gate has accepted it -- its artifacts aren't git-tracked yet, so a `git checkout --
+        # backend/model_artifacts/` rollback on rejection wouldn't undo a Model E trained on the
+        # rejected data. Failure here is logged, not fatal: Model E is comparison/betting-only
+        # and must never block A/B/C from deploying.
+        print("\n=== Step 3b: retrain Model E (betting model) on the accepted dataset ===")
+        model_e_run = subprocess.run(
+            [sys.executable, "-u", os.path.join(os.path.dirname(os.path.abspath(__file__)), "build_and_train_model_e.py")],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        )
+        log_entry["model_e_retrained"] = (model_e_run.returncode == 0)
+        if model_e_run.returncode != 0:
+            print(f"Model E retrain FAILED (exit {model_e_run.returncode}) -- A/B/C deploy continues.")
         status = _git("status", "--porcelain", "backend/model_artifacts/")
         if not status.stdout.strip():
             print("No changes to model_artifacts/ (new games didn't move anything) — nothing to deploy.")
