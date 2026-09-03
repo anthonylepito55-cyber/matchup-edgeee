@@ -2496,6 +2496,22 @@ def _compute_today_response(date: str = None):
                 except Exception:
                     model_f5_prob = None
                     model_f5_bet_out = None
+            # F5-value status frozen ON the Model E bet at bet time -- true/false/null, exactly
+            # the frontend's f5Confirms rule (BetBoard.jsx): does the F5 model beat the F5 market
+            # by >= 2 pts on the bet's side? Stored here because it CANNOT be reconstructed at
+            # settle time (the F5 read is gone once the game starts), and the settle-side
+            # by_class aggregation (prediction_log.get_model_e_track_record) buckets favorites
+            # by it. Recomputed on every pre-game refresh like the rest of the bet; the last
+            # pre-pitch value is what freezes into the log. bool() guards against numpy.bool_
+            # leaking into the JSON (the 'is True' bug family, found 2026-09-03).
+            if model_e_bet_out is not None:
+                _f5_mkt_home = f5_odds_out.get("home_prob") if f5_odds_out else None
+                if model_f5_prob is not None and _f5_mkt_home is not None:
+                    _f5_side = model_f5_prob if model_e_bet_out.get("side_is_home") else 1 - model_f5_prob
+                    _f5_mkt_side = _f5_mkt_home if model_e_bet_out.get("side_is_home") else 1 - _f5_mkt_home
+                    model_e_bet_out["f5_value"] = bool(_f5_side - _f5_mkt_side >= 0.02)
+                else:
+                    model_e_bet_out["f5_value"] = None
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])

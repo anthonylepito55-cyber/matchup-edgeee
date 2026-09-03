@@ -737,6 +737,15 @@ def get_games_for_date(date: str) -> list[dict]:
 # parquet log has exactly one owner module; model_e.py never touches the file directly.
 # ============================================================================================
 
+def _records_json_safe(df: pd.DataFrame) -> list[dict]:
+    """to_dict(orient="records") with NaN -> None. A column mixing None with floats (e.g. an F5
+    push's clv=None next to real CLVs) gets its Nones silently coerced to NaN by pandas, and NaN
+    is not valid JSON -- FastAPI's encoder raises "Out of range float values are not JSON
+    compliant", 500-ing the whole endpoint (confirmed live on /api/model-f5-track-record
+    2026-09-01; the Model E record carried the identical hazard in flat_profit/clv)."""
+    return df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+
+
 def get_logged_model_e_bet(date: str, game_pk: int) -> dict | None:
     """The model_e_bet dict currently frozen for this game (pre-game rows keep updating, so
     this is 'the latest', not 'the first') -- main.py passes it back into model_e.compute_bet as
@@ -790,9 +799,15 @@ def get_model_e_track_record() -> dict:
             "profit_units": g["profit_units"],
             "flat_profit": ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None,
             "clv": g["clv"],
+            # class inputs, frozen on the bet at bet time: dog_grade since the beginning,
+            # f5_value since 2026-09-03 (it CANNOT be reconstructed at settle time -- the F5
+            # model/market read that defined it is gone once the game starts). Older bets
+            # without the field read None and land in fav_nof5 below, same as the frontend's
+            # no-F5-read class.
+            "dog_grade": bet.get("dog_grade"), "f5_value": bet.get("f5_value"),
         })
     if not bets:
-        return {"total": 0, "by_type": {}, "recent": [], "since": None, "validation": model_e.load_validation()}
+        return {"total": 0, "by_type": {}, "by_class": {}, "recent": [], "since": None, "validation": model_e.load_validation()}
     df = pd.DataFrame(bets)
 
     def _agg(sub):
@@ -813,6 +828,31 @@ def get_model_e_track_record() -> dict:
 
     by_type = {t: _agg(sub) for t, sub in df.groupby("type")}
     by_type["all"] = _agg(df)
+
+    # Per-class live forward record -- the exact five classes ProfitView's class-ROI chips key
+    # on (frontend commit 4715249): a chip swaps its backtest constant for this live number,
+    # tagged LIVE, once the class reaches n >= 150 graded bets. Class assignment mirrors the
+    # frontend's own rule verbatim: underdogs split by dog_grade (anything but "A" -> dog_b),
+    # favorites split by the f5_value frozen at bet time (True/False/None -> yes/no/no-read).
+    def _bet_class(r):
+        if r.get("type") == "underdog":
+            return "dog_a" if r.get("dog_grade") == "A" else "dog_b"
+        if r.get("f5_value") is True:
+            return "fav_f5yes"
+        if r.get("f5_value") is False:
+            return "fav_f5no"
+        return "fav_nof5"
+
+    df["bet_class"] = [_bet_class(r) for r in bets]
+    by_class = {}
+    for cls, sub in df.groupby("bet_class"):
+        flat = sub["flat_profit"].dropna()
+        by_class[cls] = {
+            "n": int(len(sub)),
+            "hit_rate": round(float(sub["won"].mean()), 4),
+            "units_profit": round(float(sub["profit_units"].fillna(0).sum()), 2),
+            "flat_roi_pct": round(100 * float(flat.mean()), 2) if len(flat) else None,
+        }
     # market-blind leg vs Model A: pick accuracy on the same settled games (both frozen pre-game)
     leg = log[(log["settled"] == True) & log["model_e_baseball_prob"].notna() & log["model_home_win_prob"].notna() & log["home_won"].notna()]  # noqa: E712
     baseball_leg = None
@@ -822,7 +862,7 @@ def get_model_e_track_record() -> dict:
                         "e_baseball_hit": round(float(((leg["model_e_baseball_prob"].astype(float) >= 0.5) == hw).mean()), 4),
                         "model_a_hit": round(float(((leg["model_home_win_prob"].astype(float) >= 0.5) == hw).mean()), 4),
                         "since": str(leg["date"].min())}
-    recent = df.sort_values("date", ascending=False).head(40).to_dict(orient="records")
+    recent = _records_json_safe(df.sort_values("date", ascending=False).head(40))
     # UNPROVEN dog-shade signal, graded separately (never mixed into by_type) -- see
     # model_e.compute_shade_bet for why it is tracked rather than bet.
     shade_rows = []
@@ -847,7 +887,8 @@ def get_model_e_track_record() -> dict:
                  "units_staked": round(staked, 2), "units_profit": round(float(sdf["profit_units"].fillna(0).sum()), 2),
                  "roi_pct": round(100 * float(sdf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
                  "flat_roi_pct": round(100 * float(sdf["flat"].dropna().mean()), 2) if sdf["flat"].notna().any() else None}
-    return {"total": int(len(df)), "by_type": by_type, "recent": recent, "since": str(df["date"].min()),
+    return {"total": int(len(df)), "by_type": by_type, "by_class": by_class, "recent": recent,
+            "since": str(df["date"].min()),
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade}
 
 
@@ -949,7 +990,7 @@ def get_model_f5_track_record() -> dict:
                        "hit_rate": round(float(live["won"].mean()), 4) if len(live) else None,
                        "units_staked": round(staked, 2), "units_profit": round(profit, 2),
                        "roi_pct": round(100 * profit / staked, 2) if staked else None}
-        out["recent"] = b.sort_values("date", ascending=False).head(40).to_dict(orient="records")
+        out["recent"] = _records_json_safe(b.sort_values("date", ascending=False).head(40))
     return out
 
 
