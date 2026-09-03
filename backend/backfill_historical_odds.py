@@ -153,7 +153,13 @@ def _fetch_game_fields(fixture_id: str) -> dict:
     # training columns for what was really just a same-day sync lag. book_movements below stays on
     # probs_now/probs_open only, same reasoning as market_home_prob above.
     probs_effective = {**probs_open, **probs_now}
-    if probs_effective:
+    # >=2 books, matching odds_fetcher.get_market_snapshot's live gate (2026-09-03): with a
+    # single book, "consensus"/"median"/"favor_diff" were silently just that one book's raw
+    # number -- the live path stopped serving those 1-book reads, so backfilling them here
+    # would train on values serving now refuses to produce. (The 1,299 legacy 1-book rows
+    # already in the training cache are a separate re-backfill task -- see
+    # build_training_data._load_market_divergence_by_game's KNOWN SKEW note.)
+    if len(probs_effective) >= 2:
         fields["market_home_prob_consensus"] = sum(probs_effective.values()) / len(probs_effective)
         fields["market_home_prob_median"] = statistics.median(probs_effective.values())
         favor_home = sum(1 for p in probs_effective.values() if p > 0.5)
