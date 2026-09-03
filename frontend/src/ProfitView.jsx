@@ -252,7 +252,12 @@ export default function ProfitView({ games, date, marketAge }) {
                     const topToward = (ex[0].contribution || 0) * sideSign
                     const restToward = ex.slice(1).reduce((s, f) => s + (f.contribution || 0), 0) * sideSign
                     if (topToward < 0.25 || restToward >= 0) return null
-                    return <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`ONE-SIGNAL BET: '${ex[0].feature}' alone pushes ${topToward.toFixed(2)} toward ${bet.side}, while the seven next-largest features COMBINED net ${restToward.toFixed(2)} — the loudest parts of the model lean the other way and this single reading overrules them. If that one signal is off (thin book coverage, a stale opening line, one book out of sync), the whole edge collapses. Not filtered out — but treat as low-corroboration: a reason to pass or size down, like MOVED AGAINST.`}> · ⚠ one-signal</span>
+                    // Two flavors, same chip: rest ≈ 0 means "this one reading IS the whole
+                    // case" (MIA@KC 2026-09-03: bullpen +0.29, rest −0.00 — mild); rest clearly
+                    // negative means "one reading is overruling a model that leans the other
+                    // way" (CWS@HOU 2026-09-01: divergence +0.86, rest −0.27 — the scary one).
+                    const opposed = restToward < -0.05
+                    return <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`ONE-SIGNAL BET: '${ex[0].feature}' alone pushes ${topToward.toFixed(2)} toward ${bet.side}, while the seven next-largest features COMBINED net ${restToward.toFixed(2)} — ${opposed ? 'the loudest parts of the model lean the other way and this single reading overrules them' : 'the rest of the model roughly cancels itself out, so this single reading is the entire case for the bet'}. If that one signal is off${ex[0].feature.includes('market') || ex[0].feature.includes('consensus') || ex[0].feature.includes('divergence') ? ' (thin book coverage, a stale opening line, one book out of sync)' : ''}, the whole edge collapses. Not filtered out — but treat as low-corroboration: a reason to pass or size down, like MOVED AGAINST.`}> · ⚠ one-signal</span>
                   })()}{cor.n ? ` · ${cor.k}/${cor.n} agree` : ''}{f5c === null ? '' : <span style={{ color: f5c ? '#3fb950' : '#8b949e' }} title="F5 model also beats the F5 market on this side by >=2 pts: bets with this hit 63% / +18% ROI, every fold">{f5c ? ' · F5 ✓' : ' · F5 ✗'}</span>}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
