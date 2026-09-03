@@ -1211,7 +1211,6 @@ def moneyline_cache_age_seconds(date: str = None):
 
 def _get_active_fixture_ids(date: str) -> list:
     """Fixture ids for unplayed MLB games on the given US-local calendar date."""
-    headers = {"X-Api-Key": OPTICODDS_API_KEY}
     # Games on a given US-local calendar date can start anywhere from
     # mid-afternoon to nearly midnight local, which crosses into the next
     # UTC day for evening/West-coast games — pad the window on both sides.
@@ -1229,15 +1228,19 @@ def _get_active_fixture_ids(date: str) -> list:
     # date-only param can't represent — guaranteed to cover any real-world US-timezone crossing.
     start_after = date
     start_before = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
+    # /fixtures (paginated, status-filtered client-side), NOT /fixtures/active — that endpoint
+    # silently drops fixtures OpticOdds no longer considers active even while they are still
+    # pre-game by our own freeze rules (measured 2026-08-22: 19 of 80 tracked game-days, ~24%).
+    # This function feeds get_moneyline_odds/get_f5_odds — the calls that PRICE the frozen
+    # bets — so a dropped fixture here meant a bet kept updating with no market at all. Same
+    # migration get_market_snapshot/get_model_c_snapshot already made; see _fetch_fixtures_full.
+    # Keeps the unplayed-only filter: this path prices pre-game bets, and an OpticOdds-"live"
+    # fixture's moneyline is an in-play price we must never freeze as a pre-game line.
     try:
-        fixtures_resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
-            "league": "mlb", "start_date_after": start_after, "start_date_before": start_before,
-        }, headers=headers, timeout=15)
-        fixtures_resp.raise_for_status()
-        fixtures = fixtures_resp.json().get("data", [])
+        fixtures = _fetch_fixtures_full(start_after, start_before, statuses=("unplayed",))
     except requests.exceptions.RequestException:
         return []
-    return [f["id"] for f in fixtures if f.get("status") == "unplayed"]
+    return [f["id"] for f in fixtures]
 
 
 def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
