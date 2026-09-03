@@ -286,8 +286,21 @@ export default function ProfitView({ games, date, marketAge }) {
                     } else {
                       cr = { roi: 12.8, n: 142, win: 'last 1,000 games', extra: 'all favorites (no F5 read available for this game)' }
                     }
+                    // Once the LIVE forward record has enough graded bets in this class
+                    // (served as by_class on /api/model-e-track-record; needs the backend
+                    // reconcile to start populating), the real number replaces the backtest
+                    // estimate automatically and the chip gains a LIVE tag. 150 bets ≈ the
+                    // point where a class's live ROI means more than its backtest cousin.
+                    const key = bet.type === 'underdog'
+                      ? (bet.dog_grade === 'A' ? 'dog_a' : 'dog_b')
+                      : (f5c === true ? 'fav_f5yes' : f5c === false ? 'fav_f5no' : 'fav_nof5')
+                    const lv = e && e.by_class && e.by_class[key]
+                    if (lv && lv.n >= 150 && lv.flat_roi_pct != null) {
+                      cr = { roi: Math.round(lv.flat_roi_pct * 10) / 10, n: lv.n, win: 'LIVE forward record, graded at real logged prices',
+                             extra: cr.extra + ' — this number now comes from real logged bets, replacing the backtest estimate', live: true }
+                    }
                     const col = cr.roi >= 15 ? '#3fb950' : cr.roi >= 8 ? 'var(--text-secondary)' : '#f85149'
-                    return <span style={{ color: col, fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}), flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%</span>
+                    return <span style={{ color: col, fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win})${cr.live ? '' : ', flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower'}. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%{cr.live ? ' LIVE' : ''}</span>
                   })()}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
@@ -327,7 +340,9 @@ export default function ProfitView({ games, date, marketAge }) {
           — still not a gate, since even that weakest class stays positive, but the F5 value mark deserves more weight than this note
           previously gave it, especially on favorites. <b style={{ color: 'var(--text-secondary)' }}>class %</b> on each row is the
           measured historical ROI of that bet's class (grade-A dog, F5-backed favorite, …) — an average over 76-336-bet samples at
-          fair prices, shown so the pecking order is visible at a glance; it is never this game's expected profit. The original list (edge tiers, F5 confirmation,
+          fair prices, shown so the pecking order is visible at a glance; it is never this game's expected profit. Once a class
+          accumulates 150+ real graded bets in the forward record, its chip switches to the LIVE number automatically (tagged LIVE) —
+          real bets outrank backtests here the moment there are enough of them. The original list (edge tiers, F5 confirmation,
           corroboration), so all three are shown as information, never as gates. Only the base rule decides a bet. Nothing is a lock:
           even grade-A dogs lose ~44% of the time.
           <br />
