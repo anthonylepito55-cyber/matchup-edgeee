@@ -259,7 +259,7 @@ export default function ProfitView({ games, date, marketAge }) {
                     const opposed = restToward < -0.05
                     return <span style={{ color: 'var(--amber)', fontWeight: 700 }} title={`ONE-SIGNAL BET: '${ex[0].feature}' alone pushes ${topToward.toFixed(2)} toward ${bet.side}, while the seven next-largest features COMBINED net ${restToward.toFixed(2)} — ${opposed ? 'the loudest parts of the model lean the other way and this single reading overrules them' : 'the rest of the model roughly cancels itself out, so this single reading is the entire case for the bet'}. If that one signal is off${ex[0].feature.includes('market') || ex[0].feature.includes('consensus') || ex[0].feature.includes('divergence') ? ' (thin book coverage, a stale opening line, one book out of sync)' : ''}, the whole edge collapses. Not filtered out — but treat as low-corroboration: a reason to pass or size down, like MOVED AGAINST.`}> · ⚠ one-signal</span>
                   })()}{cor.n ? ` · ${cor.k}/${cor.n} agree` : ''}{f5c === null ? '' : <span style={{ color: f5c ? '#3fb950' : '#8b949e' }} title={f5c
-                    ? 'F5 VALUE check: the F5 model rates this side’s first-5-innings PRICE as >=2 pts generous. This is about the price, NOT a prediction of who leads after 5 — the F5 model can favor the OTHER team to lead and still mark this side’s longer price as good value (seen live CWS@HOU 9/3: F5 had HOU 58% to lead, while CWS’s F5 price was 2 pts cheap). Bets with this hit 63% / +18% ROI, every fold.'
+                    ? 'F5 VALUE check: the F5 model rates this side’s first-5-innings PRICE as >=2 pts generous. This is about the price, NOT a prediction of who leads after 5 — the F5 model can favor the OTHER team to lead and still mark this side’s longer price as good value (seen live CWS@HOU 9/3: F5 had HOU 58% to lead, while CWS’s F5 price was 2 pts cheap). Corrected measurement (9/3, after fixing a bug that had silently disabled every earlier F5 test): bets with F5 agreement made +15.4% ROI (n=432, positive in both backtest windows) vs +6.3% without it — the gap is almost entirely in FAVORITES, which made just +1.8% full-sample (+6.5% on the last 1,000) when F5 disagreed. Dogs are strong either way.'
                     : 'F5 VALUE check: the F5 model does NOT rate this side’s first-5-innings price as >=2 pts generous — no corroboration from the F5 market angle. About the price, not a prediction of who leads after 5.'}>{f5c ? ' · F5 value ✓' : ' · F5 value ✗'}</span>}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
@@ -293,7 +293,11 @@ export default function ProfitView({ games, date, marketAge }) {
           group in every test, +37.9% on the last 1,000 games), then other underdogs, then favorites. <b>SKIP</b> = no other model
           corroborates the side — that looked like a reliable filter twice, but the full 2,111-bet replay put those bets at +6.9%
           (CI −5.4% to +19.1%), so it no longer excludes anything. <b>Nothing is filtered out now</b> — every qualifying bet counts in
-          the risk total. Three sub-rules were tried and all three failed to reproduce on a bigger sample (edge tiers, F5 confirmation,
+          the risk total. Three sub-rules were tried as gates and none earned one — though the record needs a correction (9/3): the
+          test behind &quot;F5 confirmation failed to reproduce&quot; had a bug that silently disabled its F5 gate on every run. Measured
+          properly, F5-backed bets made +15.4% vs +6.3% without, with the whole gap in favorites (+1.8% full-sample when F5 disagrees)
+          — still not a gate, since even that weakest class stays positive, but the F5 value mark deserves more weight than this note
+          previously gave it, especially on favorites. The original list (edge tiers, F5 confirmation,
           corroboration), so all three are shown as information, never as gates. Only the base rule decides a bet. Nothing is a lock:
           even grade-A dogs lose ~44% of the time.
           <br />
