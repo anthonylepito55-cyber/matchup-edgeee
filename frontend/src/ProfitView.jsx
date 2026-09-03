@@ -270,6 +270,25 @@ export default function ProfitView({ games, date, marketAge }) {
                         ? 'WEAKEST CLASS: a favorite the F5 model does NOT back — these made just +1.8% ROI full-sample (+6.5% on the last 1,000), the thinnest still-positive group on the board. First candidates to size down or skip when the bankroll is spread thin. Not excluded: they do stay positive, and hard-gating them was never supported by a clean test.'
                         : 'F5 VALUE check: the F5 model does NOT rate this side’s first-5-innings price as >=2 pts generous — no corroboration from the F5 market angle. About the price, not a prediction of who leads after 5. For DOGS this has no measured effect on ROI (+16-21% either way).'}>{f5c ? ' · F5 value ✓' : ' · F5 value ✗'}</span>
                   })()}{(() => {
+                    // Historical ROI of this bet's CLASS -- class averages from the measured
+                    // record, never this game's expected profit. Sources: last-1,000 ruleset
+                    // test (2026-09-03 rerun with the F5 gate actually working) for dog grades
+                    // and favorites overall; full-sample F5-agreement study for the F5 splits.
+                    let cr
+                    if (bet.type === 'underdog') {
+                      cr = bet.dog_grade === 'A'
+                        ? { roi: 26.3, n: 83, win: 'last 1,000 games', extra: 'grade-A dog flips (model has the dog >= 55%) — +21-35% on the full sample too, the best class in every test ever run' }
+                        : { roi: 19.1, n: 76, win: 'last 1,000 games', extra: 'grade-B dog flips (model 52-55% on the dog)' }
+                    } else if (f5c === true) {
+                      cr = { roi: 14.6, n: 202, win: 'full sample', extra: 'favorites WITH F5 value backing' }
+                    } else if (f5c === false) {
+                      cr = { roi: 1.8, n: 336, win: 'full sample', extra: 'favorites WITHOUT F5 backing — the weakest still-positive class (+6.5% on the last 1,000, n=89)' }
+                    } else {
+                      cr = { roi: 12.8, n: 142, win: 'last 1,000 games', extra: 'all favorites (no F5 read available for this game)' }
+                    }
+                    const col = cr.roi >= 15 ? '#3fb950' : cr.roi >= 8 ? 'var(--text-secondary)' : '#f85149'
+                    return <span style={{ color: col, fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}), flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%</span>
+                  })()}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
                     const m = lm.move_pts
@@ -306,7 +325,9 @@ export default function ProfitView({ games, date, marketAge }) {
           test behind &quot;F5 confirmation failed to reproduce&quot; had a bug that silently disabled its F5 gate on every run. Measured
           properly, F5-backed bets made +15.4% vs +6.3% without, with the whole gap in favorites (+1.8% full-sample when F5 disagrees)
           — still not a gate, since even that weakest class stays positive, but the F5 value mark deserves more weight than this note
-          previously gave it, especially on favorites. The original list (edge tiers, F5 confirmation,
+          previously gave it, especially on favorites. <b style={{ color: 'var(--text-secondary)' }}>class %</b> on each row is the
+          measured historical ROI of that bet's class (grade-A dog, F5-backed favorite, …) — an average over 76-336-bet samples at
+          fair prices, shown so the pecking order is visible at a glance; it is never this game's expected profit. The original list (edge tiers, F5 confirmation,
           corroboration), so all three are shown as information, never as gates. Only the base rule decides a bet. Nothing is a lock:
           even grade-A dogs lose ~44% of the time.
           <br />
