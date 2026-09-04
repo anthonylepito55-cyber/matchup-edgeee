@@ -421,12 +421,19 @@ export default function ProfitView({ games, date, marketAge }) {
           </div>
         )}
         <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 6, lineHeight: 1.5 }}>
-          Settled on the score after 5 innings (ties refund at most books — check yours). The F5 model is the only one that beats
-          its own market outright: <b>+9.4%</b> at real prices across ~1,100 validation bets, positive in every window. Stacks with a
-          full-game bet on the same team — same lean, different market, graded separately.
+          Settled on the score after 5 innings (~15% of games are tied after 5 and PUSH — check your book). Stacks with a full-game
+          bet on the same team — same lean, different market, graded separately.
+          <div style={{ color: '#f85149', marginTop: 4 }}>
+            <b>⚠ THESIS UNDER REVIEW (9/4).</b> The validation claim behind this section (+9.4% at real prices) is contradicted by
+            three independent measurements: on raw picks the F5 MARKET is more accurate than the model (55.4% vs 54.4%); on the
+            513 games where they DISAGREE — which is exactly when a bet fires — the model is right only <b>47.6%</b> vs the market&apos;s
+            52.4%; and the live record below is deeply negative. A bet can still profit at a 47.6% hit rate if the prices are long
+            enough, so this is not proof the edge is gone — but treat these as speculative, not as the app&apos;s best edge, until the
+            forward record or a re-validation settles it.
+          </div>
           {f5 && f5.bets && f5.bets.n > 0 && (
             <> <b style={{ color: f5.bets.units_profit >= 0 ? '#3fb950' : '#f85149' }}>Live so far: {f5.bets.n} bets, {signed(f5.bets.units_profit, 2, 'u')} ({signed(f5.bets.roi_pct, 1, '%')})</b>
-            {f5.bets.n < 100 ? ' — far too few bets to mean anything yet; judge it at ~200+, or stop if CLV goes sustained-negative.' : ''}</>
+            {f5.bets.n < 100 ? ' — still a small sample on its own (±25 pts of noise at this size), but it now points the same way as the disagreement-accuracy finding above, which is the part that is not small.' : ''}</>
           )}
         </div>
       </div>
