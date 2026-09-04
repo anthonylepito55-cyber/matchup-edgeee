@@ -75,7 +75,7 @@ export const betPriority = (bet, game) => {
 const TIER_STYLE = {
   BEST: { color: '#ffb627', label: 'BEST', title: 'edge >= 6 pts (backtest ROI ~+19-34% at fair odds)' },
   GOOD: { color: '#3fb950', label: 'GOOD', title: 'edge 4-6 pts (backtest ROI ~+15%)' },
-  LEAN: { color: 'var(--text-tertiary)', label: 'LEAN', title: 'edge 2-4 pts (backtest ROI ~+11%) -- smallest validated edge' },
+  LEAN: { color: 'var(--text-tertiary)', label: 'LEAN', title: 'edge 3-4 pts -- smallest edge that still fires since the 9/4 threshold raise (2-pt edges were mostly paying vig and no longer bet)' },
   LOW: { color: '#8b949e', label: 'LOW', title: 'no other model corroborates this side (0 of 4). Looked bad on two samples (-6.8%, -11.3%) but the full 2,111-bet replay put these at +6.9% (CI -5.4% to +19.1%) -- unproven, not excluded. Informational only.' },
 }
 
@@ -190,7 +190,7 @@ export default function BetBoard({ games, date, models = ['F5', 'E'] }) {
       />
 
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 10 }}>
-        Only the two validated patterns fire: the model flips to the market&apos;s underdog, or it&apos;s ≥2 pts more bullish on the
+        Only the two validated patterns fire: the model flips to the market&apos;s underdog (≥6 pts of edge since 9/4), or it&apos;s ≥3 pts more bullish on the
         favorite than the price. A 62%-vs-65% shade toward the dog is not a bet. Stakes are units of a 100u bankroll at
         quarter-Kelly, capped at 5u; ★ = edge ≥ 6 pts. Ties after 5 innings push on F5.
       </div>

@@ -98,9 +98,11 @@ const kalshiChip = (g, sideIsHome, modelProb, compact = false) => {
 export default function ProfitView({ games, date, marketAge }) {
   const [e, setE] = useState(null)
   const [f5, setF5] = useState(null)
+  const [retro, setRetro] = useState(null)
   useEffect(() => {
     fetch('/api/model-e-track-record').then(r => r.json()).then(setE).catch(() => {})
     fetch('/api/model-f5-track-record').then(r => r.json()).then(setF5).catch(() => {})
+    fetch('/api/model-e-retro-record').then(r => r.json()).then(setRetro).catch(() => {})
   }, [])
   // Bankroll for compounding: stakes are a % of the CURRENT bankroll (1u = 1%), so keeping this
   // number current as the roll grows/shrinks is what turns +ROI into geometric growth. Stored
@@ -524,7 +526,7 @@ export default function ProfitView({ games, date, marketAge }) {
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 8, lineHeight: 1.5 }}>
               What made underdogs pay in the backtest (932 flips, fair odds): grade A (model has the dog ≥ 55%) +21–35% and positive
               every period; grade B (52–55%) +6%; dogs priced +122 to +150 were the best range (+24%); dogs in near-pick&apos;em games
-              with under 4 pts of edge lost (−18%) and are no longer bet. A dog the model still has as the loser is never a bet here,
+              with under 6 pts of edge are no longer bet (2-4 pts lost −18%; 4-6 pts cut 9/4 — at realistic vig, dropping them beat keeping them at every threshold combination tested). A dog the model still has as the loser is never a bet here,
               however tempting the price — that pattern tested negative at every shade size that was stable.
             </div>
           </div>
@@ -619,7 +621,7 @@ export default function ProfitView({ games, date, marketAge }) {
               )
             })}
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>
-              These clear no rule: the model is within ~2 pts of the market, or leans the market&apos;s way, or the line/starter isn&apos;t posted yet.
+              These clear no rule: the model is within ~3 pts of the market, or leans the market&apos;s way, or the line/starter isn&apos;t posted yet.
               Listed so the whole slate is accounted for — a bet appears here the moment it qualifies.
               <br />
               <span style={{ color: '#8b949e' }}>thin market data</span> flags a game whose market feature block was incomplete.
@@ -677,6 +679,15 @@ export default function ProfitView({ games, date, marketAge }) {
           {e && e.shade && <span><span style={{ color: '#8b949e' }}>shades (unproven): </span>{e.shade.n} · hit {pct(e.shade.hit_rate)} · {signed(e.shade.units_profit, 2, 'u')} · ROI {signed(e.shade.roi_pct, 1, '%')}</span>}
           {!eAll && <span style={{ color: 'var(--text-tertiary)' }}>no graded bets yet — the record starts with tonight&apos;s slate.</span>}
         </div>
+        {retro && retro.all && (
+          <div className="mono" style={{ marginTop: 8, padding: '6px 10px', fontSize: 11, color: 'var(--text-secondary)', borderLeft: '3px solid var(--text-tertiary)', background: 'var(--panel)' }}
+            title={`${retro.note || ''} Rule: ${retro.rule || ''}. Monthly (ROI at ~3.5% vig): ${(retro.by_month || []).map(m => `${m.month} ${m.flat_roi_pct_at_vig > 0 ? '+' : ''}${m.flat_roi_pct_at_vig}% (n=${m.n})`).join(' · ')}`}>
+            <span style={{ color: 'var(--text-tertiary)' }}>{retro.label}: </span>
+            {retro.all.n} bets · hit {pct(retro.all.hit_rate)} · <span style={{ color: retro.all.units_profit > 0 ? '#3fb950' : '#f85149', fontWeight: 700 }}>{signed(retro.all.units_profit, 1, 'u')}</span>
+            {' '}· ROI {signed(retro.all.flat_roi_pct, 1, '%')} at close / {signed(retro.all.flat_roi_pct_at_vig, 1, '%')} at ~3.5% vig
+            <span style={{ color: 'var(--text-tertiary)' }}> · hover for monthly + caveats</span>
+          </div>
+        )}
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 8 }}>
           Read this, not the backtests, to judge whether it&apos;s working: positive CLV is the earliest sign (hours), hit rate vs
           implied needs ~100 bets, ROI needs ~200–300 bets to separate from luck. A sustained negative CLV is the signal to stop.

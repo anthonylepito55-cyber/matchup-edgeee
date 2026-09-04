@@ -78,11 +78,18 @@ MODEL_E_VALIDATION_PATH = os.path.join(ARTIFACT_DIR, "model_e_validation.json")
 MODEL_E_BASEBALL_PATH = os.path.join(ARTIFACT_DIR, "model_e_baseball.joblib")
 
 # --- betting layer constants -----------------------------------------------------------------
-# Same 0.02 thresholds the existing VALUE badge validated (main.UNDERDOG/FAVORITE_VALUE_THRESHOLD)
-# and that the 2026-08-20 clean revalidation confirmed on n=607 / n=1,474. dog_value deliberately
-# absent: -1.7 pts vs market-implied on n=1,133 in that same clean run.
+# UNDERDOG_THRESHOLD (the flip requirement, model has the dog > 52%) is unchanged from the
+# validated VALUE-badge rule. FAVORITE_THRESHOLD raised 0.02 -> 0.03 on 2026-09-04: at
+# realistic vig (3.5%, multi-book shop) the vig-sensitivity sweep (_e_vig_threshold_sweep.py)
+# found the old 2%/4% setting was the WORST of all 15 threshold combos tested -- 2-pt edges
+# barely clear the juice -- and raising to 3%/6% improved ROI +5.65% -> +8.45% AND total units
+# +96 -> +116 in that sweep. Independently re-validated (_e_threshold_validation.py: fresh
+# 5-seed walk-forward on the current cache under a DIFFERENT 6-slice fold geometry): still
+# better in both halves (early +1.73 vs +0.56, late +10.51 vs +8.68), 4/4 evaluable folds,
+# +5.87% vs +4.41% ROI, +79.8u vs +73.2u. dog_value deliberately absent: -1.7 pts vs
+# market-implied on n=1,133 in the 2026-08-20 clean run.
 UNDERDOG_THRESHOLD = 0.02
-FAVORITE_THRESHOLD = 0.02
+FAVORITE_THRESHOLD = 0.03
 KELLY_FRACTION = 0.25       # quarter-Kelly: backtest edges routinely halve live; full Kelly on a halved edge over-bets ~2x
 BANKROLL_UNITS = 100.0      # stakes are expressed in units of a 100-unit bankroll
 MAX_STAKE_UNITS = 5.0       # hard cap regardless of what Kelly says -- a single MLB game is never worth more
@@ -90,9 +97,13 @@ MIN_EV_PCT = 0.0            # don't flag a bet whose EV at the best available pr
 STRONG_EDGE = 0.06          # gap at which backtest ROI@fair roughly doubled vs the 0.02 floor -- see compute_bet
 # Underdog flips with only 2-4 pts of edge are near-pick'em games (market dog 48-50%, model 52-54%):
 # 2026-08-20 underdog profile on 932 held-out flips -- that bucket was -18.5% ROI, negative in 3 of
-# 4 folds, while 4-6 pts was +11%, 8+ pts +20%. Model E's underdog bets therefore need >= 4 pts.
-# F5 passes min_underdog_edge=0.02 explicitly (its own validation used 0.02; not re-tested).
-UNDERDOG_MIN_EDGE = 0.04
+# 4 folds, so dogs needed >= 4 pts. Raised again 0.04 -> 0.06 on 2026-09-04: at realistic vig the
+# dog-6 setting beat both dog-4 and dog-8 at EVERY favorite threshold and both vig levels tested
+# (_e_vig_threshold_sweep.py), and held under the independent-geometry revalidation
+# (_e_threshold_validation.py) -- see FAVORITE_THRESHOLD's comment for both sets of numbers.
+# F5 passes min_underdog_edge=0.02 explicitly (its own validation used 0.02; not re-tested --
+# and the F5 betting thesis is separately under review as of 2026-09-04).
+UNDERDOG_MIN_EDGE = 0.06
 # Dog grade by how strongly the model flips (same profile): A = model has the dog >= 55%
 # (+21% ROI 55-60%, +35% 60%+, fold-stable), B = 52-55% (+6%). Display/ranking only.
 DOG_GRADE_A = 0.55

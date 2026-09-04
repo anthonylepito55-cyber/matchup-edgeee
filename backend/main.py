@@ -2827,6 +2827,22 @@ def model_e_track_record():
     return prediction_log_module.get_model_e_track_record()
 
 
+# Backdated 2026-season record (2026-03-25 -> 2026-08-19), retro-computed walk-forward at the
+# de-vigged close and clearly labeled "not a live log" -- a committed static artifact built by
+# _build_retro_record.py, NOT recomputed live (same snapshot philosophy as Model D). Rebuild the
+# JSON after any bet-rule or model change so the label stays truthful.
+_RETRO_RECORD_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "model_e_retro_record.json")
+
+
+@app.get("/api/model-e-retro-record")
+def model_e_retro_record():
+    try:
+        with open(_RETRO_RECORD_PATH) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"available": False}
+
+
 @app.get("/api/model-f5-track-record")
 def model_f5_track_record():
     """F5 model forward record: pick accuracy vs the F5 market's own pick on the same frozen rows,

@@ -1,0 +1,117 @@
+{
+ "label": "2026-03-25 \u2192 2026-08-19 (retro-computed walk-forward at close \u00b7 not a live log)",
+ "start": "2026-03-25",
+ "end": "2026-08-19",
+ "computed_at": "2026-09-04T07:25:35.921790+00:00",
+ "rule": "fav >= 3 pts, dog flip >= 6 pts (post-2026-09-04 thresholds)",
+ "settle": "fair de-vigged closing consensus; _at_vig fields assume a 3.5% effective vig",
+ "note": "Retro-computed: every game predicted by an ensemble trained only on earlier games, but no retro record pays vig variance, gets limited, or misses a close -- treat as an upper bound on the period, not a diary.",
+ "all": {
+  "n": 577,
+  "wins": 338,
+  "hit_rate": 0.5858,
+  "flat_roi_pct": 16.71,
+  "flat_roi_pct_at_vig": 12.62,
+  "units_profit": 96.4
+ },
+ "by_type": {
+  "favorite": {
+   "n": 335,
+   "wins": 209,
+   "hit_rate": 0.6239,
+   "flat_roi_pct": 15.98,
+   "flat_roi_pct_at_vig": 11.92,
+   "units_profit": 53.55
+  },
+  "underdog": {
+   "n": 242,
+   "wins": 129,
+   "hit_rate": 0.5331,
+   "flat_roi_pct": 17.71,
+   "flat_roi_pct_at_vig": 13.59,
+   "units_profit": 42.85
+  }
+ },
+ "by_class": {
+  "dog_a": {
+   "n": 156,
+   "wins": 82,
+   "hit_rate": 0.5256,
+   "flat_roi_pct": 13.88,
+   "flat_roi_pct_at_vig": 9.89,
+   "units_profit": 21.65
+  },
+  "dog_b": {
+   "n": 86,
+   "wins": 47,
+   "hit_rate": 0.5465,
+   "flat_roi_pct": 24.65,
+   "flat_roi_pct_at_vig": 20.29,
+   "units_profit": 21.2
+  },
+  "favorite": {
+   "n": 335,
+   "wins": 209,
+   "hit_rate": 0.6239,
+   "flat_roi_pct": 15.98,
+   "flat_roi_pct_at_vig": 11.92,
+   "units_profit": 53.55
+  }
+ },
+ "by_month": [
+  {
+   "month": "2026-03",
+   "n": 16,
+   "wins": 7,
+   "hit_rate": 0.4375,
+   "flat_roi_pct": -15.21,
+   "flat_roi_pct_at_vig": -18.18,
+   "units_profit": -2.43
+  },
+  {
+   "month": "2026-04",
+   "n": 117,
+   "wins": 71,
+   "hit_rate": 0.6068,
+   "flat_roi_pct": 25.8,
+   "flat_roi_pct_at_vig": 21.39,
+   "units_profit": 30.18
+  },
+  {
+   "month": "2026-05",
+   "n": 138,
+   "wins": 81,
+   "hit_rate": 0.587,
+   "flat_roi_pct": 16.57,
+   "flat_roi_pct_at_vig": 12.49,
+   "units_profit": 22.86
+  },
+  {
+   "month": "2026-06",
+   "n": 132,
+   "wins": 77,
+   "hit_rate": 0.5833,
+   "flat_roi_pct": 15.88,
+   "flat_roi_pct_at_vig": 11.83,
+   "units_profit": 20.97
+  },
+  {
+   "month": "2026-07",
+   "n": 107,
+   "wins": 63,
+   "hit_rate": 0.5888,
+   "flat_roi_pct": 15.06,
+   "flat_roi_pct_at_vig": 11.04,
+   "units_profit": 16.12
+  },
+  {
+   "month": "2026-08",
+   "n": 67,
+   "wins": 39,
+   "hit_rate": 0.5821,
+   "flat_roi_pct": 12.98,
+   "flat_roi_pct_at_vig": 9.03,
+   "units_profit": 8.7
+  }
+ ]
+}
