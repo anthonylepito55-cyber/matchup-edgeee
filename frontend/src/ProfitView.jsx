@@ -483,6 +483,52 @@ export default function ProfitView({ games, date, marketAge }) {
         </div>
       </div>
 
+      {/* ---- Model A selectivity (informational) — same menu math applied to A's number ---- */}
+      {(() => {
+        const dv = (h, a) => {
+          if (h == null || a == null) return null
+          const d = p => (p > 0 ? 1 + p / 100 : 1 + 100 / Math.abs(p))
+          const ih = 1 / d(h), ia = 1 / d(a)
+          return ih / (ih + ia)
+        }
+        const rows = (games || []).map(g => {
+          const p = g.prediction && g.prediction.home_win_prob
+          const m = g.live_odds ? dv(g.live_odds.home, g.live_odds.away) : null
+          if (p == null || m == null) return null
+          const favHome = m >= 0.5
+          const pFav = favHome ? p : 1 - p
+          const mFav = favHome ? m : 1 - m
+          let type = null, side = null, pSide = null, mSide = null
+          if (pFav < 0.48 && (1 - pFav) - (1 - mFav) >= 0.06) {
+            type = 'dog flip'; side = favHome ? g.away_team_abbr : g.home_team_abbr; pSide = 1 - pFav; mSide = 1 - mFav
+          } else if (pFav - mFav >= 0.03) {
+            type = 'favorite'; side = favHome ? g.home_team_abbr : g.away_team_abbr; pSide = pFav; mSide = mFav
+          }
+          return type ? { g, type, side, pSide, mSide, edge: pSide - mSide } : null
+        }).filter(Boolean).sort((a, b2) => b2.edge - a.edge)
+        return (
+          <div style={{
+            marginTop: 12, padding: '14px 18px', borderRadius: 8, border: '1px dashed #58a6ff',
+            background: 'linear-gradient(180deg, var(--panel-raised), var(--panel))',
+          }}>
+            <div className="mono" style={{ fontSize: 10, color: '#58a6ff', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
+              title="Model A (the baseball-only primary) pushed through the EXACT same bet menu as Model E (favorite >= 3 pts, dog flip >= 6 pts). Live record when graded this way: +18.0% ROI, +39u on 76 bets since July 10 — the best of every model on the page. The honesty: A's big-sample walk-forward backtest measured only +1.9%, and forced to bet EVERY game it loses (−2.1% on 363), so the +18% is its selective bets during a hot stretch, not a proven edge. Shown as information, never in the risk total; if it still leads at 300+ bets, the menu decision gets re-litigated with real ammunition.">
+              Model A selectivity {rows.length ? `(${rows.length} game${rows.length === 1 ? '' : 's'} today)` : ''} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— the +18% live streak (76 bets) · backtest says +1.9% · informational, not in the risk total — hover for the full story</span>
+            </div>
+            {rows.length === 0 ? (
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>no games clear Model A&apos;s menu today.</div>
+            ) : rows.map(r => (
+              <div key={`asel-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '110px 1fr 150px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--text-tertiary)' }}>{r.type}</span>
+                <span><span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span><b style={{ color: '#58a6ff' }}>{r.side}</b></span>
+                <span style={{ color: 'var(--text-tertiary)' }}>A {(r.pSide * 100).toFixed(1)}% vs {(r.mSide * 100).toFixed(1)}% (+{(r.edge * 100).toFixed(1)} pts)</span>
+                <span style={{ color: ['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? 'var(--text-tertiary)' : 'var(--amber)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status} (frozen)`}</span>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
       {/* ---- Jacob's OMEGA BOOK card, proxied live from the clone on :8080 ---- */}
       {book && book.available && book.games && book.games.some(g => g.omega) && (
         <div style={{
