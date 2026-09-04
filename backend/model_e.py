@@ -70,6 +70,21 @@ ARTIFACT_DIR = os.path.join(os.path.dirname(__file__), "model_artifacts")
 MODEL_E_PATH = os.path.join(ARTIFACT_DIR, "model_e.joblib")
 MODEL_E_CALIBRATOR_PATH = os.path.join(ARTIFACT_DIR, "model_e_calibrator.joblib")
 MODEL_E_VALIDATION_PATH = os.path.join(ARTIFACT_DIR, "model_e_validation.json")
+
+# --- day-form blend leg (validated 2026-09-03, _dayform_blend_study.py) ----------------------
+# Model E's served probability is the 50/50 mean of the base ensemble above and a second
+# ensemble trained on the SAME columns + these three day-of-start "stuff" diffs (home starter
+# minus away): fastball spin/movement trend vs season (data_collection.statcast_movement_trend)
+# and the times-through-the-order whiff% penalty (statcast_tto_penalty). Day-form ALONE failed
+# the both-windows bar (+4.5%/+12.5% vs control +3.7%/+12.8%, worse AUC); the 50/50 blend beat
+# control in BOTH chronological halves (+8.8% overall vs +8.0%) AND 4 of 5 folds, which is the
+# ship bar. Training values come per-start (walk-forward) from the strikeout dataset; live
+# serving computes the same three numbers from the cached statcast pulls (main.py).
+# If the day-form artifact is missing (box not yet retrained), predict() serves the base
+# ensemble alone -- graceful degrade, never an error.
+MODEL_E_DAYFORM_COLUMNS = ["spin_trend_diff", "movement_trend_diff", "tto_penalty_diff"]
+MODEL_E_DAYFORM_PATH = os.path.join(ARTIFACT_DIR, "model_e_dayform.joblib")
+DAYFORM_BLEND_WEIGHT = 0.5   # weight on the day-form leg; the 50/50 mix is the validated one
 # Baseball-only leg: MODEL_E_BASEBALL_COLUMNS with NO market features -- the same 13 factors
 # as a market-blind model. Comparison-only (never bets): it exists to be measured against
 # Model A on the same frozen games. Validated 2026-08-20: vs Model A (55 baseball cols),
@@ -175,6 +190,10 @@ def is_baseball_trained() -> bool:
     return model_module.load_model_ensemble(MODEL_E_BASEBALL_PATH)[0] is not None
 
 
+def is_dayform_trained() -> bool:
+    return model_module.load_model_ensemble(MODEL_E_DAYFORM_PATH)[0] is not None
+
+
 def predict_baseball(feature_row: pd.DataFrame) -> dict:
     """Market-blind leg: same 13 baseball factors, no market columns. {"home_win_prob", ...}."""
     return model_module.predict_proba_ensemble(feature_row, model_path=MODEL_E_BASEBALL_PATH,
@@ -182,13 +201,35 @@ def predict_baseball(feature_row: pd.DataFrame) -> dict:
 
 
 def predict(feature_row: pd.DataFrame) -> dict:
-    """{"home_win_prob", "raw_home_win_prob", "calibration"} -- raw is the 5-seed ensemble
-    average over MODEL_E_FEATURE_COLUMNS, home_win_prob is after the calibration layer.
-    feature_row must carry those columns (Model B's FEATURE_COLUMNS row is a superset, it works)."""
+    """{"home_win_prob", "raw_home_win_prob", "calibration", "blend", "dayform_home_win_prob"} --
+    raw is the 5-seed ensemble average over MODEL_E_FEATURE_COLUMNS; when the day-form leg is
+    trained, raw becomes the 50/50 blend with the second ensemble (see MODEL_E_DAYFORM_COLUMNS
+    above) before the calibration layer. feature_row must carry MODEL_E_FEATURE_COLUMNS (Model
+    B's FEATURE_COLUMNS row is a superset, it works); the three day-form diffs are optional --
+    absent/NaN values are median-imputed inside predict_proba_ensemble, same as any other
+    missing feature."""
     raw = model_module.predict_proba_ensemble(feature_row, model_path=MODEL_E_PATH, feature_columns=MODEL_E_FEATURE_COLUMNS)
+    raw_p = raw["home_win_prob"]
+    blend = None
+    dayform_p = None
+    # existence check, not is_dayform_trained() -- that would joblib.load the 5.8MB ensemble
+    # once to answer the question and predict_proba_ensemble would load it again right after
+    if os.path.exists(MODEL_E_DAYFORM_PATH):
+        fr = feature_row.copy()
+        for c in MODEL_E_DAYFORM_COLUMNS:
+            if c not in fr.columns:
+                fr[c] = np.nan
+        dayform_p = model_module.predict_proba_ensemble(
+            fr, model_path=MODEL_E_DAYFORM_PATH,
+            feature_columns=MODEL_E_FEATURE_COLUMNS + MODEL_E_DAYFORM_COLUMNS,
+        )["home_win_prob"]
+        raw_p = (1 - DAYFORM_BLEND_WEIGHT) * raw_p + DAYFORM_BLEND_WEIGHT * dayform_p
+        blend = f"dayform-{DAYFORM_BLEND_WEIGHT:g}"
     cal = load_calibrator()
-    p = float(cal.transform([raw["home_win_prob"]])[0])
-    return {"home_win_prob": round(p, 4), "raw_home_win_prob": raw["home_win_prob"], "calibration": cal.kind}
+    p = float(cal.transform([raw_p])[0])
+    return {"home_win_prob": round(p, 4), "raw_home_win_prob": round(float(raw_p), 4),
+            "calibration": cal.kind, "blend": blend,
+            "dayform_home_win_prob": round(float(dayform_p), 4) if dayform_p is not None else None}
 
 
 # ============================================================================================

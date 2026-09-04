@@ -39,6 +39,7 @@ from data_collection import (
     get_pitcher_statcast_daily, statcast_cumulative_as_of, statcast_recent_as_of,
     get_pitcher_velocity_daily, statcast_velocity_trend,
     get_pitcher_movement_daily, statcast_movement_trend,
+    get_pitcher_tto_daily, statcast_tto_penalty,
     get_pitcher_pitch_types_daily, statcast_pitch_diversity, statcast_pitch_mix_as_of, get_batter_pitch_arsenal,
     get_batter_expected_stats, get_batter_exitvelo_barrels, get_batter_percentile_ranks,
     get_batted_ball_profile, get_batter_team_map,
@@ -334,6 +335,29 @@ def _movement_trend_for_matchup(home_pitcher_id: int, away_pitcher_id: int, seas
     return {
         home_pitcher_id: statcast_movement_trend(get_pitcher_movement_daily(home_pitcher_id, season)),
         away_pitcher_id: statcast_movement_trend(get_pitcher_movement_daily(away_pitcher_id, season)),
+    }
+
+
+def _dayform_diffs_for_matchup(home_pitcher_id: int, away_pitcher_id: int, season: int) -> dict:
+    """The three day-form "stuff" diffs (home starter minus away) Model E's day-form blend leg
+    runs on — see model_e.MODEL_E_DAYFORM_COLUMNS. Live mirror of the training construction
+    (per-start walk-forward values from the strikeout dataset, home minus away by game_pk):
+    here each side is that starter's season-to-date read as of now, from the same cached
+    statcast pulls the strikeout path already makes. NaN when either side is missing — the
+    ensemble median-imputes, same as any sparse feature."""
+    mt = _movement_trend_for_matchup(home_pitcher_id, away_pitcher_id, season)
+    tto = {
+        pid: statcast_tto_penalty(get_pitcher_tto_daily(pid, season))
+        for pid in (home_pitcher_id, away_pitcher_id)
+    }
+
+    def _diff(h, a):
+        return (h - a) if pd.notna(h) and pd.notna(a) else np.nan
+
+    return {
+        "spin_trend_diff": _diff(mt[home_pitcher_id]["spin_trend"], mt[away_pitcher_id]["spin_trend"]),
+        "movement_trend_diff": _diff(mt[home_pitcher_id]["movement_trend"], mt[away_pitcher_id]["movement_trend"]),
+        "tto_penalty_diff": _diff(tto[home_pitcher_id]["tto_penalty"], tto[away_pitcher_id]["tto_penalty"]),
     }
 
 
@@ -2423,6 +2447,17 @@ def _compute_today_response(date: str = None):
             market_blind = model_e_trained and not model_e.core_market_present(row)
             if model_e_trained:
                 try:
+                    # Day-form diffs for the blend leg (model_e.MODEL_E_DAYFORM_COLUMNS) --
+                    # computed from the same cached statcast pulls the strikeout path makes,
+                    # only when the day-form artifact actually exists. Failure just leaves the
+                    # columns absent; predict() median-imputes them like any sparse feature.
+                    if os.path.exists(model_e.MODEL_E_DAYFORM_PATH):
+                        try:
+                            for _dfk, _dfv in _dayform_diffs_for_matchup(
+                                    effective_home_id, effective_away_id, season).items():
+                                row[_dfk] = _dfv
+                        except Exception:
+                            pass
                     model_e_prob = model_e.predict(row)["home_win_prob"]
                     if model_e.is_baseball_trained():
                         model_e_baseball_prob = model_e.predict_baseball(row)["home_win_prob"]

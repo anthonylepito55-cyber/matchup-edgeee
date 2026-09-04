@@ -32,12 +32,32 @@ from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 
 import model as model_module
 import model_e
-from build_training_data import TRAINING_CACHE
+from build_training_data import TRAINING_CACHE, STRIKEOUT_TRAINING_CACHE
 
 N_FOLDS = 5
 SEEDS = model_module.ENSEMBLE_SEEDS
 CANDIDATES = ["identity", "platt", "isotonic"]
 MIN_CAL_FOLD = 3  # first fold evaluated with a calibrator fitted on earlier folds' OOF
+
+
+def merge_dayform_diffs(df: pd.DataFrame) -> pd.DataFrame:
+    """Adds MODEL_E_DAYFORM_COLUMNS (home starter minus away, joined by game_pk) from the
+    strikeout dataset's per-start walk-forward values -- exactly _sharper_starter_tool_study.py
+    stage 3 / _dayform_blend_study.py's construction. Games missing either starter's per-start
+    row get NaN (median-imputed at train time, same as any sparse feature). Left-join: never
+    drops a game."""
+    per_start = ["spin_trend", "movement_trend", "tto_penalty"]
+    pp = pd.read_parquet(STRIKEOUT_TRAINING_CACHE)
+    home = pp[pp["is_home"] == 1].set_index("game_pk")[per_start]
+    away = pp[pp["is_home"] == 0].set_index("game_pk")[per_start]
+    both = home.join(away, how="inner", lsuffix="_h", rsuffix="_a")
+    game_feats = pd.DataFrame(index=both.index)
+    for c in per_start:
+        game_feats[f"{c}_diff"] = both[f"{c}_h"] - both[f"{c}_a"]
+    out = df.merge(game_feats, left_on="game_pk", right_index=True, how="left")
+    n = out[model_e.MODEL_E_DAYFORM_COLUMNS[0]].notna().sum()
+    print(f"day-form diffs joined for {n}/{len(out)} games")
+    return out
 
 
 def score(p, y):
@@ -75,10 +95,13 @@ def betting_outcomes(p_home, mkt_home, y):
 def main():
     df = pd.read_parquet(TRAINING_CACHE).sort_values("game_date").reset_index(drop=True)
     df = df[df["home_win"].notna()].reset_index(drop=True)
+    df = merge_dayform_diffs(df)
     print(f"{len(df)} games {df['game_date'].min()} -> {df['game_date'].max()}; {N_FOLDS} folds x {len(SEEDS)} seeds", flush=True)
 
+    dayform_cols = model_e.MODEL_E_FEATURE_COLUMNS + model_e.MODEL_E_DAYFORM_COLUMNS
     fold_size = len(df) // (N_FOLDS + 1)
-    raw_oof = np.full(len(df), np.nan)
+    base_oof = np.full(len(df), np.nan)      # base recipe (MODEL_E_FEATURE_COLUMNS)
+    dayform_oof = np.full(len(df), np.nan)   # base + the three day-form diffs
     fold_id = np.full(len(df), -1)
     t0 = time.time()
     for fold in range(1, N_FOLDS + 1):
@@ -86,12 +109,17 @@ def main():
         train_df, test_idx = df.iloc[:tr_end], np.arange(tr_end, te_end)
         test_df = df.iloc[test_idx]
         fold_id[test_idx] = fold
-        seed_probs = []
-        for seed in SEEDS:
-            m, med, _ = model_module.train(train_df, "home_win", save=False, feature_columns=model_e.MODEL_E_FEATURE_COLUMNS, random_state=seed)
-            seed_probs.append(m.predict_proba(test_df[model_e.MODEL_E_FEATURE_COLUMNS].fillna(med))[:, 1])
-        raw_oof[test_idx] = np.mean(seed_probs, axis=0)
-        print(f"  fold {fold} OOF done ({time.time()-t0:.0f}s)", flush=True)
+        for cols, arr in ((model_e.MODEL_E_FEATURE_COLUMNS, base_oof), (dayform_cols, dayform_oof)):
+            seed_probs = []
+            for seed in SEEDS:
+                m, med, _ = model_module.train(train_df, "home_win", save=False, feature_columns=cols, random_state=seed)
+                seed_probs.append(m.predict_proba(test_df[cols].fillna(med))[:, 1])
+            arr[test_idx] = np.mean(seed_probs, axis=0)
+        print(f"  fold {fold} OOF done, base + day-form ({time.time()-t0:.0f}s)", flush=True)
+    # what serving does (model_e.predict): 50/50 blend of the two raw ensembles, THEN the
+    # calibration layer -- so the calibrator below is selected/fit on the blended OOF.
+    w = model_e.DAYFORM_BLEND_WEIGHT
+    raw_oof = (1 - w) * base_oof + w * dayform_oof
 
     y_all = df["home_win"].astype(int).values
     mkt_all = (0.5 + df["consensus_prob_diff"]).values
@@ -125,14 +153,47 @@ def main():
     report["brier_gain_vs_identity"] = round(briers["identity"] - briers[chosen], 6)
     print(f"\nCHOSEN calibrator: {chosen}  (Brier gain vs identity {report['brier_gain_vs_identity']:+.6f})")
 
-    # ---- final fit: ensemble on all data, calibrator on ALL OOF ------------------------------
-    print("\n--- Training final Model E ensemble (Model B recipe, 5 seeds) ---", flush=True)
+    # ---- day-form blend vs base control on the same OOF games (nightly regression check) -----
+    # The blend shipped on the 2026-09-03 validation (_dayform_blend_study.py: beats control in
+    # both chronological halves AND 4/5 folds). This block re-measures that comparison on every
+    # retrain so a silent regression shows up in model_e_validation.json rather than nowhere.
+    oof_mask = fold_id > 0
+    print("\n=== Day-form blend vs base control (OOF, fair odds) ===")
+    # Same corrupted-week exclusion as _dayform_blend_study.py (Circa in-play leak / fixture
+    # collision window, see _last1000_ruleset_test.py) -- scoring those rows made this check
+    # disagree with the study's verdict on the identical predictions. Drop the exclusion once
+    # the corrupted-week re-backfill lands and the study is re-run without it.
+    bad_week = (df["game_date"].astype(str).values >= "2025-07-13") & (df["game_date"].astype(str).values <= "2025-07-20")
+    blend_report = {"weight": w, "per_fold": [], "excludes_bad_week_2025_07_13_20": True}
+    for name, p in (("base", base_oof), ("blend", raw_oof)):
+        m_ok = oof_mask & ~np.isnan(mkt_all) & ~bad_week
+        blend_report[name] = {
+            "auc": float(roc_auc_score(y_all[oof_mask], p[oof_mask])),
+            "brier": float(brier_score_loss(y_all[oof_mask], p[oof_mask])),
+            "betting_fair_odds": betting_outcomes(p[m_ok], mkt_all[m_ok], y_all[m_ok]),
+        }
+        b_all = blend_report[name]["betting_fair_odds"].get("all", {})
+        print(f"  {name:5s}: auc {blend_report[name]['auc']:.4f}  brier {blend_report[name]['brier']:.5f}  "
+              f"bets {b_all.get('n', 0)}  ROI@fair {b_all.get('roi_fair_odds_pct', float('nan')):+.2f}%")
+    for k in range(1, N_FOLDS + 1):
+        fm = (fold_id == k) & ~np.isnan(mkt_all) & ~bad_week
+        fold_row = {"fold": k}
+        for name, p in (("base", base_oof), ("blend", raw_oof)):
+            fold_row[name] = betting_outcomes(p[fm], mkt_all[fm], y_all[fm]).get("all", {}).get("roi_fair_odds_pct")
+        blend_report["per_fold"].append(fold_row)
+        print(f"    fold {k}: base {fold_row['base']}  blend {fold_row['blend']}")
+    report["dayform_blend"] = blend_report
+
+    # ---- final fit: both ensembles on all data, calibrator on ALL blended OOF ----------------
+    print("\n--- Training final Model E ensembles (base + day-form, 5 seeds each) ---", flush=True)
     _, _, metrics = model_module.train_ensemble(df, feature_columns=model_e.MODEL_E_FEATURE_COLUMNS, model_path=model_e.MODEL_E_PATH)
     print(f"Validation Brier {metrics['brier_score']:.4f}  AUC {metrics['auc']:.4f}  -> {model_e.MODEL_E_PATH}")
-    oof_mask = fold_id > 0
+    _, _, dayform_metrics = model_module.train_ensemble(df, feature_columns=dayform_cols, model_path=model_e.MODEL_E_DAYFORM_PATH)
+    print(f"Day-form leg Brier {dayform_metrics['brier_score']:.4f}  AUC {dayform_metrics['auc']:.4f}  -> {model_e.MODEL_E_DAYFORM_PATH}")
+    report["dayform_ensemble_val_metrics"] = dayform_metrics
     cal = model_e.Calibrator(chosen).fit(raw_oof[oof_mask], y_all[oof_mask])
     model_e.save_calibrator(cal)
-    print(f"Calibrator '{chosen}' fit on {cal.n_fit} OOF games -> {model_e.MODEL_E_CALIBRATOR_PATH}")
+    print(f"Calibrator '{chosen}' fit on {cal.n_fit} blended OOF games -> {model_e.MODEL_E_CALIBRATOR_PATH}")
 
     # ---- baseball-only leg: same 13 factors, no market; OOF vs Model A on identical folds -------
     print("\n--- Baseball-only leg (MODEL_E_BASEBALL_COLUMNS, no market) vs Model A, same folds ---", flush=True)
