@@ -649,6 +649,53 @@ def get_clv_track_record() -> dict:
     }
 
 
+def get_daily_profit() -> dict:
+    """Day-by-day flat-stake P&L of the settled E bets, in FLAT UNITS (1u risked per bet at its
+    logged best price; the client multiplies by the user's per-bet dollar amount, e.g. $20).
+    Two series per day: 'cur' = bets the CURRENT ruleset keeps (post-9/4 thresholds + omega
+    co-fire filter, retro-applied -- what following the site's slip means today) and 'all' =
+    every bet as originally placed. Feeds the daily-profit tab."""
+    log = _read_log()
+    if log.empty or "model_e_bet_json" not in log.columns:
+        return {"days": []}
+    days = {}
+    for _, r in log[(log["settled"] == True) & log["model_e_bet_json"].notna()].iterrows():  # noqa: E712
+        try:
+            eb = json.loads(r["model_e_bet_json"])
+        except (TypeError, ValueError):
+            continue
+        if not eb or r["home_won"] is None or pd.isna(r["home_won"]):
+            continue
+        dec = model_e.american_to_decimal(eb.get("best_price"))
+        if dec is None:
+            continue
+        won = model_e.grade_bet(eb, bool(r["home_won"]))["won"]
+        flat = (dec - 1.0) if won else -1.0
+        d = days.setdefault(str(r["date"]), {"n_all": 0, "w_all": 0, "flat_all": 0.0,
+                                             "n_cur": 0, "w_cur": 0, "flat_cur": 0.0})
+        d["n_all"] += 1
+        d["w_all"] += int(won)
+        d["flat_all"] += flat
+        # current-rules filter (mirrors the current_rules block in get_model_e_track_record)
+        edge = eb.get("edge") or 0
+        if eb.get("type") == "favorite" and edge < 0.03:
+            continue
+        if eb.get("type") == "underdog" and edge < 0.06:
+            continue
+        if pd.notna(r.get("model_e_baseball_prob")) and pd.notna(r.get("market_home_prob")):
+            op = model_e.compute_omega_prob(float(r["model_e_baseball_prob"]), float(r["market_home_prob"]))
+            if op is not None:
+                ob = model_e.compute_bet(op, float(r["market_home_prob"]),
+                                         str(r["home_team_abbr"]), str(r["away_team_abbr"]))
+                if ob and ob.get("side_is_home") == eb.get("side_is_home"):
+                    continue
+        d["n_cur"] += 1
+        d["w_cur"] += int(won)
+        d["flat_cur"] += flat
+    return {"days": [{"date": k, **{kk: (round(vv, 3) if isinstance(vv, float) else vv) for kk, vv in v.items()}}
+                     for k, v in sorted(days.items())]}
+
+
 def get_available_dates() -> list[str]:
     """Every date with at least one logged prediction, most recent first — powers the
     frontend's previous-day tab so it only offers dates that actually have data."""

@@ -2944,6 +2944,13 @@ def _clone_book_map():
     return out
 
 
+@app.get("/api/daily-profit")
+def daily_profit():
+    """Day-by-day flat-stake P&L of settled E bets (current-rules and as-placed series, in flat
+    units; client scales by its per-bet dollar amount) -- feeds the daily-profit tab."""
+    return prediction_log_module.get_daily_profit()
+
+
 @app.get("/api/omega-book")
 def omega_book():
     d = _clone_today_raw()
