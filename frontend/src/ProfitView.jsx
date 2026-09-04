@@ -187,6 +187,18 @@ export default function ProfitView({ games, date, marketAge }) {
           </span>
         </div>
 
+        {/* Estimated month at these stakes — unit-based constants from the 2026-09-04 quarter-Kelly
+            simulation under the post-9/4 thresholds (5,000 bootstrapped 30-day months over the clean
+            walk-forward sample, ~5.4 bets/day), scaled to the entered bankroll (1u = 1%). Median
+            +45.6u / −9.2u..+102u at realistic ~3.5% vig; +58.4u / −2.4u..+119u at 2%. */}
+        {bank ? (
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 8 }}
+            title={`Backtest-derived estimate, not a promise: 5,000 simulated 30-day months of the current rule (fav ≥3 pts, dog flip ≥6 pts) at quarter-Kelly stakes on the clean walk-forward sample. At a 2% effective vig (excellent line shopping) the median month is ${usd(58.4)} with ~11% of months losing. Edges have historically run at about half strength live, so a prudent expectation is roughly half these figures — and the live record, not this line, is the final word. September also has only ~3.5 weeks of season left.`}>
+            <span style={{ color: 'var(--text-tertiary)' }}>estimated month at these stakes (backtest, post-9/4 rule): </span>
+            median <b style={{ color: '#3fb950' }}>+{usd(45.6)}</b> · range −{usd(9.2)} to +{usd(102)} · ~15% of months lose · at realistic prices — hover for caveats
+          </div>
+        ) : null}
+
         {/* SKIP rows are included in `slip` — sorted last by betPriority, flagged red, and left out of the risk total */}
         {slip.length === 0 ? (
           <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 12 }}>
@@ -314,12 +326,17 @@ export default function ProfitView({ games, date, marketAge }) {
                       ? (bet.dog_grade === 'A' ? 'dog_a' : 'dog_b')
                       : (f5c === true ? 'fav_f5yes' : f5c === false ? 'fav_f5no' : 'fav_nof5')
                     const lv = e && e.by_class && e.by_class[key]
+                    let liveNote = ''
                     if (lv && lv.n >= 150 && lv.flat_roi_pct != null) {
                       cr = { roi: Math.round(lv.flat_roi_pct * 10) / 10, n: lv.n, win: 'LIVE forward record, graded at real logged prices',
                              extra: cr.extra + ' — this number now comes from real logged bets, replacing the backtest estimate', live: true }
+                    } else if (lv && lv.n > 0 && lv.flat_roi_pct != null) {
+                      liveNote = ` Live so far in this class: ${lv.flat_roi_pct > 0 ? '+' : ''}${lv.flat_roi_pct}% on ${lv.n} bets — far too few to mean anything; the chip switches to the live number at 150.`
                     }
-                    const col = cr.roi >= 15 ? '#3fb950' : cr.roi >= 8 ? 'var(--text-secondary)' : '#f85149'
-                    return <span style={{ color: col, fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win})${cr.live ? '' : ', flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower'}. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%{cr.live ? ' LIVE' : ''}</span>
+                    // Yellow per user request (2026-09-04) — the class % reads as one consistent
+                    // mark next to every pick; the weak-favorite section still signals danger via
+                    // its red divider, row tint and the red F5 value ✗.
+                    return <span style={{ color: '#ffb627', fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win})${cr.live ? '' : ', flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower'}. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.${liveNote}`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%{cr.live ? ' LIVE' : ''}</span>
                   })()}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
