@@ -2867,6 +2867,38 @@ def model_e_retro_record():
         return {"available": False}
 
 
+# Jacob's live "OMEGA -- THE BOOK" card, proxied server-side from the clone app on :8080 (same
+# box, same dashboard password) so the bet-for-profit tab can render his primary betting card
+# next to Model E's slip for direct comparison. Pass-through of HIS service's own numbers --
+# the certification/grading claims on that card are his page's, not re-validated here; the
+# shared-pipeline Omega shadow record remains the referee. Cached 120s; degrades gracefully.
+_OMEGA_BOOK_CACHE = {"ts": 0.0, "data": None}
+
+
+@app.get("/api/omega-book")
+def omega_book():
+    import requests as _rq
+    if _OMEGA_BOOK_CACHE["data"] is not None and time.time() - _OMEGA_BOOK_CACHE["ts"] < 120:
+        return _OMEGA_BOOK_CACHE["data"]
+    try:
+        r = _rq.get("http://localhost:8080/api/today",
+                    headers={"X-Dashboard-Password": os.environ.get("DASHBOARD_PASSWORD", "")}, timeout=90)
+        r.raise_for_status()
+        d = r.json()
+        games = []
+        for g in d.get("games", []):
+            games.append({
+                "matchup": f"{g.get('away_team_abbr')}@{g.get('home_team_abbr')}",
+                "status": g.get("status"), "game_time_utc": g.get("game_time_utc"),
+                "omega": g.get("omega"), "bet_board": g.get("bet_board"),
+            })
+        out = {"available": True, "date": d.get("date"), "summary": d.get("bet_board_summary"), "games": games}
+        _OMEGA_BOOK_CACHE.update(ts=time.time(), data=out)
+        return out
+    except Exception:
+        return _OMEGA_BOOK_CACHE["data"] or {"available": False}
+
+
 @app.get("/api/model-f5-track-record")
 def model_f5_track_record():
     """F5 model forward record: pick accuracy vs the F5 market's own pick on the same frozen rows,

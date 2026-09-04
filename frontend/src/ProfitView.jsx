@@ -99,10 +99,12 @@ export default function ProfitView({ games, date, marketAge }) {
   const [e, setE] = useState(null)
   const [f5, setF5] = useState(null)
   const [retro, setRetro] = useState(null)
+  const [book, setBook] = useState(null)
   useEffect(() => {
     fetch('/api/model-e-track-record').then(r => r.json()).then(setE).catch(() => {})
     fetch('/api/model-f5-track-record').then(r => r.json()).then(setF5).catch(() => {})
     fetch('/api/model-e-retro-record').then(r => r.json()).then(setRetro).catch(() => {})
+    fetch('/api/omega-book').then(r => r.json()).then(setBook).catch(() => {})
   }, [])
   // Bankroll for compounding: stakes are a % of the CURRENT bankroll (1u = 1%), so keeping this
   // number current as the roll grows/shrinks is what turns +ROI into geometric growth. Stored
@@ -480,6 +482,45 @@ export default function ProfitView({ games, date, marketAge }) {
           )}
         </div>
       </div>
+
+      {/* ---- Jacob's OMEGA BOOK card, proxied live from the clone on :8080 ---- */}
+      {book && book.available && book.games && book.games.some(g => g.omega) && (
+        <div style={{
+          marginTop: 12, padding: '14px 18px', borderRadius: 8, border: '1px solid #d2a8ff',
+          background: 'linear-gradient(180deg, var(--panel-raised), var(--panel))',
+        }}>
+          <div className="mono" style={{ fontSize: 10, color: '#d2a8ff', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+            Ω OMEGA — THE BOOK <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— Jacob&apos;s live card, proxied straight from his page so both books sit side by side. His numbers, his sizing, his calls.</span>
+          </div>
+          <div className="mono" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 70px 110px 110px', gap: 10, fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 6px 4px', borderBottom: '1px solid var(--line)' }}>
+            <span>game</span><span>his lean · Ω vs mkt</span><span>conf</span><span>EV fair</span><span>his stake</span><span>call</span>
+          </div>
+          {book.games.filter(g => g.omega).sort((a, b2) => ((b2.bet_board && b2.bet_board.ev_pct) || (b2.omega.ev_fair * 100) || 0) - ((a.bet_board && a.bet_board.ev_pct) || (a.omega.ev_fair * 100) || 0)).map(g => {
+            const o = g.omega, b = g.bet_board || {}
+            const lean = b.side || (o.lean === 'home' ? g.matchup.split('@')[1] : g.matchup.split('@')[0])
+            const ev = b.ev_pct != null ? b.ev_pct : o.ev_fair != null ? o.ev_fair * 100 : null
+            const call = b.vetoed ? 'VETO' : (b.stake_units > 0 ? `${(b.type || 'lean').toUpperCase()} ${b.stake_units}u` : 'PASS')
+            const ccolor = b.vetoed ? '#f85149' : b.stake_units > 0 ? (b.type === 'bet' ? '#3fb950' : 'var(--amber)') : 'var(--text-tertiary)'
+            return (
+              <div key={`book-${g.matchup}-${g.game_time_utc}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 70px 110px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{g.matchup}</span>
+                <span><b style={{ color: '#d2a8ff' }}>{lean}</b> <span style={{ color: 'var(--text-tertiary)' }}>{o.p_side != null ? `${(o.p_side * 100).toFixed(1)}%` : ''} vs {o.implied_side != null ? `${(o.implied_side * 100).toFixed(1)}%` : ''}{o.edge != null ? ` (${o.edge > 0 ? '+' : ''}${(Math.abs(o.edge) * 100).toFixed(1)} pts)` : ''}</span></span>
+                <span style={{ color: (b.conf_score || 100) >= 100 ? 'var(--text-secondary)' : '#8b949e' }}>{b.conf_score != null ? b.conf_score : '—'}</span>
+                <span style={{ color: ev > 0 ? '#3fb950' : 'var(--text-tertiary)' }}>{ev != null ? `${ev > 0 ? '+' : ''}${ev.toFixed(1)}%` : '—'}</span>
+                <span>{b.stake_units > 0 ? <>{b.stake_units}u{bank ? <span style={{ color: 'var(--text-tertiary)' }}> {usd(b.stake_units)}</span> : null}</> : '—'}</span>
+                <span style={{ color: ccolor, fontWeight: 700 }}>{call}</span>
+              </div>
+            )
+          })}
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 8, lineHeight: 1.5 }}>
+            Rendered from his service&apos;s own live numbers (cached ~2 min) — the certification claims on his page are his, not
+            re-validated here. The scoreboard that settles whose book is better stays the running P&amp;L above: his real ledger is
+            −3.3% overall (favorites +1.6%, dog flips +14.4%, dog_value −28%), and the Omega shadow line grades his model through
+            this app&apos;s pipeline going forward. His stakes here are shown in his units, converted at YOUR bankroll — do not add
+            them to the risk total above.
+          </div>
+        </div>
+      )}
 
       {/* ---- unproven: dog shades ---- */}
       <div style={{
