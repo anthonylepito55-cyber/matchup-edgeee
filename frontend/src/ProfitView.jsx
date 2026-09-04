@@ -262,17 +262,25 @@ export default function ProfitView({ games, date, marketAge }) {
           </span>
         </div>
 
-        {/* Estimated month at these stakes — unit-based constants from the 2026-09-04 quarter-Kelly
-            simulation under the post-9/4 thresholds (5,000 bootstrapped 30-day months over the clean
-            walk-forward sample, ~5.4 bets/day), scaled to the entered bankroll (1u = 1%). Median
-            +45.6u / −9.2u..+102u at realistic ~3.5% vig; +58.4u / −2.4u..+119u at 2%. */}
-        {bank ? (
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 8 }}
-            title={`Backtest-derived estimate, not a promise: 5,000 simulated 30-day months of the current rule (fav ≥3 pts, dog flip ≥6 pts) at quarter-Kelly stakes on the clean walk-forward sample. At a 2% effective vig (excellent line shopping) the median month is ${usd(58.4)} with ~11% of months losing. Edges have historically run at about half strength live, so a prudent expectation is roughly half these figures — and the live record, not this line, is the final word. September also has only ~3.5 weeks of season left.`}>
-            <span style={{ color: 'var(--text-tertiary)' }}>estimated month at these stakes (backtest, post-9/4 rule): </span>
-            median <b style={{ color: '#3fb950' }}>+{usd(45.6)}</b> · range −{usd(9.2)} to +{usd(102)} · ~15% of months lose · at realistic prices — hover for caveats
-          </div>
-        ) : null}
+        {/* LIVE current-rules record + pace-based month estimate — all numbers from real settled
+            bets under the ruleset that is live right now (post-9/4 thresholds + co-fire filter),
+            retro-applied server-side and refreshed as bets settle. No backtest figures here. */}
+        {e && e.current_rules && e.current_rules.roi_pct != null ? (() => {
+          const cr = e.current_rules
+          const perDay = cr.days > 0 ? cr.units_staked / cr.days : 0
+          const estU = perDay * 30 * (cr.roi_pct / 100)
+          const noise = Math.round(200 / Math.sqrt(cr.n))
+          return (
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 8 }}
+              title={`The CURRENT ruleset (fav >= 3 pts, dog flip >= 6 pts, omega-co-fire filter) retro-applied to every real settled bet: ${cr.n} bets over ${cr.days} slate days, hit ${(100 * cr.hit_rate).toFixed(1)}%, ${cr.units_profit > 0 ? '+' : ''}${cr.units_profit}u on ${cr.units_staked}u staked. The monthly figure is simple arithmetic — this ROI at this staking pace over 30 slate days — NOT a guarantee: at n=${cr.n} the ROI itself carries a ±${noise}-point noise band, so the true pace could be anywhere in that range. This line updates automatically as bets settle. For reference, ALL bets ever placed under the old rules sit at −2.0%.`}>
+              <span style={{ color: 'var(--text-tertiary)' }}>LIVE record of current rules: </span>
+              <b style={{ color: cr.roi_pct > 0 ? '#3fb950' : '#f85149' }}>{cr.roi_pct > 0 ? '+' : ''}{cr.roi_pct}%</b> on {cr.n} real bets ({cr.days} days)
+              {' '}· {cr.units_profit > 0 ? '+' : ''}{cr.units_profit}u
+              {bank ? <> · at this pace ≈ <b style={{ color: estU > 0 ? '#3fb950' : '#f85149' }}>{estU > 0 ? '+' : ''}{usd(Math.abs(estU)).replace('$', '$') && (estU > 0 ? '' : '−') + usd(Math.abs(estU))}</b>/month</> : null}
+              {' '}· ±{noise}pt noise at this sample — hover
+            </div>
+          )
+        })() : null}
 
         {/* SKIP rows are included in `slip` — sorted last by betPriority, flagged red, and left out of the risk total */}
         {slip.length === 0 ? (
@@ -392,39 +400,26 @@ export default function ProfitView({ games, date, marketAge }) {
                     } else {
                       cr = { roi: 12.8, n: 142, win: 'last 1,000 games', extra: 'all favorites (no F5 read available for this game)' }
                     }
-                    // Once the LIVE forward record has enough graded bets in this class
-                    // (served as by_class on /api/model-e-track-record; needs the backend
-                    // reconcile to start populating), the real number replaces the backtest
-                    // estimate automatically and the chip gains a LIVE tag. 150 bets ≈ the
-                    // point where a class's live ROI means more than its backtest cousin.
+                    // LIVE-FIRST (user call 2026-09-04, "i want all data current"): the one chip
+                    // shown is the class's REAL record whenever any live bets exist — yellow,
+                    // with (n) and its noise band. Falls back to the TYPE-level live record
+                    // (labeled) when the exact class has none; the backtest figure appears only
+                    // in the tooltip as reference, or as the chip itself when nothing live exists.
                     const key = bet.type === 'underdog'
                       ? (bet.dog_grade === 'A' ? 'dog_a' : 'dog_b')
                       : (f5c === true ? 'fav_f5yes' : f5c === false ? 'fav_f5no' : 'fav_nof5')
                     const lv = e && e.by_class && e.by_class[key]
-                    if (lv && lv.n >= 150 && lv.flat_roi_pct != null) {
-                      cr = { roi: Math.round(lv.flat_roi_pct * 10) / 10, n: lv.n, win: 'LIVE forward record, graded at real logged prices',
-                             extra: cr.extra + ' — this number now comes from real logged bets, replacing the backtest estimate', live: true }
+                    const tvv = e && e.by_type && e.by_type[bet.type === 'underdog' ? 'underdog' : 'favorite']
+                    const useLv = lv && lv.n > 0 && lv.flat_roi_pct != null
+                    const src = useLv ? lv : (tvv && tvv.n > 0 && tvv.flat_roi_pct != null ? tvv : null)
+                    if (src) {
+                      const noise = Math.round(200 / Math.sqrt(src.n))
+                      const label = useLv ? '' : ` ${bet.type === 'underdog' ? 'dogs' : 'favs'}`
+                      return <span style={{ color: '#ffb627', fontWeight: 700 }}
+                        title={`LIVE ${useLv ? 'record of this class' : `record of ALL ${bet.type === 'underdog' ? 'underdog' : 'favorite'} bets (this exact class has no settled live bets yet)`}: ${src.flat_roi_pct > 0 ? '+' : ''}${src.flat_roi_pct}% flat ROI on ${src.n} real graded bets${src.hit_rate != null ? `, hit ${(100 * src.hit_rate).toFixed(0)}%` : ''} — a ±${noise}-point noise band at this sample size, so treat the sign loosely and the digits not at all. Updates automatically as bets settle. Backtest reference for this class: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}).`}> · live {src.flat_roi_pct > 0 ? '+' : ''}{src.flat_roi_pct}% ({src.n}{label})</span>
                     }
                     const col = cr.roi >= 15 ? '#3fb950' : cr.roi >= 8 ? 'var(--text-secondary)' : '#f85149'
-                    return <>
-                      <span style={{ color: col, fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win})${cr.live ? '' : ', flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower'}. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%{cr.live ? ' LIVE' : ''}</span>
-                      {/* Yellow = how this class is ACTUALLY doing in the live forward record right
-                          now (user request 2026-09-04) — real graded bets since Aug 20, from the
-                          by_class feed. Distinct from the backtest class % beside it. */}
-                      {(() => {
-                        if (cr.live) return null
-                        // Fallback when this exact class has no settled live bets yet (e.g.
-                        // fav_f5yes right after F5-status logging began 9/3): show the
-                        // TYPE-level live number instead, labeled, so every pick carries a
-                        // yellow current-record number.
-                        const tv = (!lv || !(lv.n > 0)) ? (e && e.by_type && e.by_type[bet.type === 'underdog' ? 'underdog' : 'favorite']) : null
-                        const src = (lv && lv.n > 0 && lv.flat_roi_pct != null) ? lv : (tv && tv.n > 0 && tv.flat_roi_pct != null ? tv : null)
-                        if (!src) return null
-                        const isFallback = src === tv
-                        const label = isFallback ? `${bet.type === 'underdog' ? 'dogs' : 'favs'}` : ''
-                        return <span style={{ color: '#ffb627', fontWeight: 700 }} title={`${isFallback ? `This exact class has NO settled live bets yet (its F5-status logging only began 9/3), so this is the live record of ALL ${bet.type === 'underdog' ? 'underdog' : 'favorite'} bets as the nearest read. ` : 'How this class is ACTUALLY doing so far. '}${src.flat_roi_pct > 0 ? '+' : ''}${src.flat_roi_pct}% flat ROI on ${src.n} real graded bets since the live log began (Aug 20)${src.hit_rate != null ? `, hit rate ${(100 * src.hit_rate).toFixed(0)}%` : ''}. Samples this small swing wildly (±20+ pts under 100 bets) — don't re-decide anything nightly off this number. At 150 real bets in the exact class it replaces the backtest class % automatically.`}> · live {src.flat_roi_pct > 0 ? '+' : ''}{src.flat_roi_pct}% ({src.n}{label ? ` ${label}` : ''})</span>
-                      })()}
-                    </>
+                    return <span style={{ color: col, fontWeight: 700 }} title={`No live bets exist for this class or type yet — the backtest figure is shown as the only available number: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}), flat stakes at fair de-vigged prices. The chip switches to the live record automatically as soon as real bets settle.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}% (backtest)</span>
                   })()}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null

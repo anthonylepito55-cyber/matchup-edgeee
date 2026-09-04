@@ -991,10 +991,47 @@ def get_model_e_track_record() -> dict:
         "e_alone": _agg_sig([x for x in sig_rows if not x["o_same"]]),
         "omega_same": _agg_sig([x for x in sig_rows if x["o_same"]]),
     }
+    # LIVE record of the CURRENT rules, retro-applied to every settled bet: post-9/4 thresholds
+    # (fav >= 3 pts, dog >= 6 pts) plus the omega-co-fire filter. This is the honest "what has
+    # the ruleset that is live RIGHT NOW actually earned on real bets" number -- the Profit tab's
+    # headline live figure and the basis of its pace-based monthly estimate.
+    cur_rows = []
+    for _, r in log[(log["settled"] == True) & log["model_e_bet_json"].notna()].iterrows():  # noqa: E712
+        try:
+            eb = json.loads(r["model_e_bet_json"])
+        except (TypeError, ValueError):
+            continue
+        if not eb or r["home_won"] is None or pd.isna(r["home_won"]):
+            continue
+        edge = eb.get("edge") or 0
+        if eb.get("type") == "favorite" and edge < 0.03:
+            continue
+        if eb.get("type") == "underdog" and edge < 0.06:
+            continue
+        cofired = False
+        if pd.notna(r.get("model_e_baseball_prob")) and pd.notna(r.get("market_home_prob")):
+            op = model_e.compute_omega_prob(float(r["model_e_baseball_prob"]), float(r["market_home_prob"]))
+            if op is not None:
+                ob = model_e.compute_bet(op, float(r["market_home_prob"]),
+                                         str(r["home_team_abbr"]), str(r["away_team_abbr"]))
+                cofired = bool(ob and ob.get("side_is_home") == eb.get("side_is_home"))
+        if cofired:
+            continue
+        g = model_e.grade_bet(eb, bool(r["home_won"]))
+        cur_rows.append({"won": g["won"], "profit": g["profit_units"] or 0,
+                         "stake": eb.get("stake_units") or 0, "date": str(r["date"])})
+    current_rules = None
+    if cur_rows:
+        staked = sum(x["stake"] for x in cur_rows)
+        current_rules = {"n": len(cur_rows), "days": len(set(x["date"] for x in cur_rows)),
+                         "hit_rate": round(sum(1 for x in cur_rows if x["won"]) / len(cur_rows), 4),
+                         "units_staked": round(staked, 2),
+                         "units_profit": round(sum(x["profit"] for x in cur_rows), 2),
+                         "roi_pct": round(100 * sum(x["profit"] for x in cur_rows) / staked, 2) if staked else None}
     return {"total": int(len(df)), "by_type": by_type, "by_class": by_class, "recent": recent,
             "since": str(df["date"].min()),
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
-            "jacob_book": jacob_book, "by_signal": by_signal}
+            "jacob_book": jacob_book, "by_signal": by_signal, "current_rules": current_rules}
 
 
 # ============================================================================================
