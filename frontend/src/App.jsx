@@ -638,8 +638,32 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
               style={{ fontSize: 10, color: '#d2a8ff', marginTop: 1 }}
               title="Omega (shadow): Jacob's market-anchored model — the market price plus a half-weight pull toward the baseball-only leg — graded through the IDENTICAL betting pipeline as Model E (same menu, best-price shopping, quarter-Kelly stakes, CLV bookkeeping) purely so the two forward records are directly comparable. Shadow only: its bets are never on the slip and never in the risk total."
             >
-              model Ω (shadow): {game.model_omega_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+              model Ω (Jacob): {game.model_omega_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
               {((game.model_omega_prob >= 0.5 ? game.model_omega_prob : 1 - game.model_omega_prob) * 100).toFixed(0)}%
+              {(() => {
+                // Classify this game the way JACOB'S PAGE bets (old 2-pt VALUE rules, incl. the
+                // dog_value pattern this app retired), and color it by his REAL LEDGER for that
+                // class (9/4 snapshot from the clone's own log): favorites +1.6% (n=117, purple),
+                // dog flips +14.4% (n=38, green), dog_value −28% (n=50, red).
+                const lo = game.live_odds
+                if (!lo || lo.home == null || lo.away == null) return null
+                const dec = p => (p > 0 ? 1 + p / 100 : 1 + 100 / Math.abs(p))
+                const ih = 1 / dec(lo.home), ia = 1 / dec(lo.away)
+                const mktHome = ih / (ih + ia)
+                const p = game.model_omega_prob
+                const favHome = mktHome >= 0.5
+                const pFav = favHome ? p : 1 - p
+                const mFav = favHome ? mktHome : 1 - mktHome
+                let cls = null
+                if (pFav - mFav >= 0.02) cls = { name: 'favorite', c: '#d2a8ff', roi: '+1.6%', n: 117, hit: '59.8%' }
+                else if (1 - pFav >= 0.52 && (1 - pFav) - (1 - mFav) >= 0.02) cls = { name: 'dog flip', c: '#3fb950', roi: '+14.4%', n: 38, hit: '55.3%' }
+                else if ((1 - pFav) - (1 - mFav) >= 0.02) cls = { name: 'dog_value', c: '#f85149', roi: '−28%', n: 50, hit: '30.0%' }
+                if (!cls) return <span style={{ color: 'var(--text-tertiary)', marginLeft: 8 }}>· no flag on his rules</span>
+                return <span style={{ marginLeft: 8, background: `${cls.c}1f`, border: `1px solid ${cls.c}`, borderRadius: 4, padding: '0px 5px', color: cls.c, fontWeight: 700 }}
+                  title={`On Jacob's page this game would be a ${cls.name.toUpperCase()} flag under his 2-pt VALUE rules. His REAL ledger for that class (9/4 snapshot from the clone's own prediction log, Jul 10 - Sep 5, flat stakes at the frozen line): ${cls.n} bets, hit ${cls.hit}, ROI ${cls.roi}. Compare with the Model E line above — the two profitable classes on his page are the same two patterns E's validated menu bets, while dog_value is the pattern this app retired after three negative tests.`}>
+                  {cls.name} · his ledger {cls.roi} ({cls.n})
+                </span>
+              })()}
               {game.model_omega_bet && game.model_omega_bet.stake_units != null && (
                 <span style={{ marginLeft: 8 }}>
                   shadow bet {game.model_omega_bet.side} {game.model_omega_bet.best_price > 0 ? '+' : ''}{game.model_omega_bet.best_price} · {game.model_omega_bet.stake_units}u
