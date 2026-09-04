@@ -486,13 +486,29 @@ def _prior_season_blend_warning(pitcher_name: str, current_ip, blended_ip) -> li
     recent-form. Caught directly from a real case: a pitcher back from injury with one bad
     start looked like a toss-up instead of the above-average pitcher his 2025 season said he was."""
     current_ip = current_ip or 0.0
-    if blended_ip is None or pd.isna(blended_ip) or blended_ip <= current_ip + 0.1:
-        return []
     if current_ip >= MIN_RELIABLE_SEASON_IP:
         return []
+    blended = blended_ip is not None and not pd.isna(blended_ip) and blended_ip > current_ip + 0.1
+    if blended:
+        return [
+            f"{pitcher_name} has only {current_ip:.1f} innings this season, so their season stats are "
+            f"blended with last season's performance to avoid overreacting to a tiny sample."
+        ]
+    # No prior-season data to blend in AND a tiny current sample -- the worse case, and the one
+    # that used to fall through silently: the old gate only warned when blending HAPPENED, so a
+    # rookie call-up with no MLB history at all got no caution whatsoever. Found live 2026-09-04
+    # (SF@NYM: Matt Wilkinson, 5.7 IP all season, zero warnings, while Ronel Blanco at 23 IP had
+    # been flagged) -- exactly the thin-sample games where the model's read is weakest.
+    if current_ip > 0:
+        return [
+            f"{pitcher_name} has only {current_ip:.1f} innings this season and no prior-season MLB "
+            f"data to lean on -- the model's read on this side of the matchup is close to a guess; "
+            f"treat this game with extra caution."
+        ]
     return [
-        f"{pitcher_name} has only {current_ip:.1f} innings this season, so their season stats are "
-        f"blended with last season's performance to avoid overreacting to a tiny sample."
+        f"{pitcher_name} has no recorded MLB innings -- a true debut. The model substitutes a "
+        f"league-average line for them (so the opponent's real stats still count), but this side "
+        f"of the matchup is a pure unknown; treat this game with extra caution."
     ]
 
 
