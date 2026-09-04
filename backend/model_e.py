@@ -108,6 +108,31 @@ UNDERDOG_MIN_EDGE = 0.06
 # (+21% ROI 55-60%, +35% 60%+, fold-stable), B = 52-55% (+6%). Display/ranking only.
 DOG_GRADE_A = 0.55
 
+# --- Omega shadow (wired 2026-09-04) --------------------------------------------------------
+# Jacob's market-anchored model from the clone tree, graded through the IDENTICAL pipeline as
+# Model E -- same slate, same best-price shopping, same quarter-Kelly stakes, same CLV
+# bookkeeping -- to settle "Omega is doing better than E" on a shared forward scoreboard
+# instead of two incomparable site displays. Formula (the clone's own):
+#     logit(omega) = logit(market) + OMEGA_B0 + OMEGA_W * (logit(h13) - logit(market))
+# where h13 is the baseball-only leg already served as model_e_baseball_prob. Parameters
+# ridge-fit (lam=10, the clone's recipe) on 3,842 clean walk-forward OOF games (poisoned
+# 2025-07-13..20 week excluded). Reference, identical-protocol backtest: E +7.3% flat vs
+# Omega -0.6% overall -- but Omega's >=2pt dog leans made +8.5% (n=1,036), so this is a real
+# contest. SHADOW ONLY: never on the slip, never in the risk total, own record section.
+OMEGA_B0 = 0.023680
+OMEGA_W = 0.492927
+
+
+def compute_omega_prob(h13_home_prob: float, market_home_prob: float) -> float | None:
+    """Omega's home-win probability -- see OMEGA_B0's comment for provenance."""
+    if h13_home_prob is None or market_home_prob is None:
+        return None
+    def _lg(p):
+        p = min(max(float(p), 1e-6), 1 - 1e-6)
+        return math.log(p / (1 - p))
+    z = _lg(market_home_prob) + OMEGA_B0 + OMEGA_W * (_lg(h13_home_prob) - _lg(market_home_prob))
+    return round(1.0 / (1.0 + math.exp(-z)), 4)
+
 
 # ============================================================================================
 # Calibration layer

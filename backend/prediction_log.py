@@ -65,6 +65,7 @@ LOG_COLUMNS = [
     "model_e_bet_json",       # model_e.compute_bet output (side/type/best price/stake/first-seen price), frozen like value_bet_json; graded by get_model_e_track_record
     "model_e_baseball_prob",  # Model E's market-blind leg (same 13 factors, no market) -- comparison vs Model A only, never bets
     "model_e_shade_json",     # model_e.compute_shade_bet -- UNPROVEN dog-shade signal, logged separately so the forward record can settle it; never part of the validated slip
+    "model_omega_bet_json",   # Omega SHADOW bettor (model_e.compute_omega_prob + compute_bet) -- Jacob's market-anchored model graded through the identical pipeline as Model E, logged/settled separately so E-vs-Omega has one shared scoreboard; never on the slip
     "model_f5_prob",          # F5 model's P(home leads after 5 innings) -- see model_f5.py; comparison/betting only
     "f5_market_home_prob",    # de-vigged consensus F5 ("1st Half Moneyline") home prob at freeze time -- see odds_fetcher.get_f5_odds
     "model_f5_bet_json",      # model_e.compute_bet output against the F5 market price, or None; graded by get_model_f5_track_record
@@ -218,6 +219,7 @@ def log_predictions(date: str, games: list[dict]):
             "model_e_bet_json": _j("model_e_bet"),
             "model_e_baseball_prob": g.get("model_e_baseball_prob"),
             "model_e_shade_json": _j("model_e_shade"),
+            "model_omega_bet_json": _j("model_omega_bet"),
             "model_f5_prob": g.get("model_f5_prob"),
             "f5_market_home_prob": (g.get("f5_odds") or {}).get("home_prob"),
             "model_f5_bet_json": _j("model_f5_bet"),
@@ -460,6 +462,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "model_e_bet": _load_json("model_e_bet_json"),
         "model_e_baseball_prob": r.get("model_e_baseball_prob") if pd.notna(r.get("model_e_baseball_prob")) else None,
         "model_e_shade": _load_json("model_e_shade_json"),
+        "model_omega_bet": _load_json("model_omega_bet_json"),
         "model_f5_prob": r.get("model_f5_prob") if pd.notna(r.get("model_f5_prob")) else None,
         "f5_market_home_prob": r.get("f5_market_home_prob") if pd.notna(r.get("f5_market_home_prob")) else None,
         "model_f5_bet": _load_json("model_f5_bet_json"),
@@ -696,6 +699,7 @@ def get_games_for_date(date: str) -> list[dict]:
             "model_e_bet": _load_json(r, "model_e_bet_json"),
             "model_e_baseball_prob": float(r["model_e_baseball_prob"]) if pd.notna(r.get("model_e_baseball_prob")) else None,
             "model_e_shade": _load_json(r, "model_e_shade_json"),
+            "model_omega_bet": _load_json(r, "model_omega_bet_json"),
             "model_f5_prob": float(r["model_f5_prob"]) if pd.notna(r.get("model_f5_prob")) else None,
             "f5_market_home_prob": float(r["f5_market_home_prob"]) if pd.notna(r.get("f5_market_home_prob")) else None,
             "model_f5_bet": _load_json(r, "model_f5_bet_json"),
@@ -887,9 +891,36 @@ def get_model_e_track_record() -> dict:
                  "units_staked": round(staked, 2), "units_profit": round(float(sdf["profit_units"].fillna(0).sum()), 2),
                  "roi_pct": round(100 * float(sdf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
                  "flat_roi_pct": round(100 * float(sdf["flat"].dropna().mean()), 2) if sdf["flat"].notna().any() else None}
+    # Omega SHADOW record -- Jacob's market-anchored model graded through the identical
+    # best-price/quarter-Kelly pipeline as Model E (see model_e.OMEGA_B0). Same grading code
+    # path as the shade stream above; kept fully separate from by_type/by_class.
+    omega_rows = []
+    if "model_omega_bet_json" in log.columns:
+        for _, r in log[(log["settled"] == True) & log["model_omega_bet_json"].notna()].iterrows():  # noqa: E712
+            try:
+                ob = json.loads(r["model_omega_bet_json"])
+            except (TypeError, ValueError):
+                continue
+            if not ob or r["home_won"] is None or pd.isna(r["home_won"]):
+                continue
+            g = model_e.grade_bet(ob, bool(r["home_won"]))
+            dec = model_e.american_to_decimal(ob.get("best_price"))
+            omega_rows.append({"won": g["won"], "profit_units": g["profit_units"], "stake_units": ob.get("stake_units"),
+                               "flat": ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None,
+                               "market_prob": ob.get("market_prob"), "clv": g.get("clv")})
+    omega = None
+    if omega_rows:
+        odf = pd.DataFrame(omega_rows)
+        staked = float(odf["stake_units"].fillna(0).sum())
+        omega = {"n": int(len(odf)), "hit_rate": round(float(odf["won"].mean()), 4),
+                 "market_implied": round(float(odf["market_prob"].mean()), 4),
+                 "units_staked": round(staked, 2), "units_profit": round(float(odf["profit_units"].fillna(0).sum()), 2),
+                 "roi_pct": round(100 * float(odf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
+                 "flat_roi_pct": round(100 * float(odf["flat"].dropna().mean()), 2) if odf["flat"].notna().any() else None,
+                 "avg_clv_pts": round(100 * float(odf["clv"].dropna().mean()), 2) if odf["clv"].notna().any() else None}
     return {"total": int(len(df)), "by_type": by_type, "by_class": by_class, "recent": recent,
             "since": str(df["date"].min()),
-            "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade}
+            "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega}
 
 
 # ============================================================================================
