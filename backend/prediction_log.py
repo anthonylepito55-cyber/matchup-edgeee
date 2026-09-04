@@ -950,10 +950,51 @@ def get_model_e_track_record() -> dict:
                       "roi_pct": round(100 * float(jdf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
                       "flat_roi_pct": round(100 * float(jdf["flat"].dropna().mean()), 2) if jdf["flat"].notna().any() else None,
                       "avg_clv_pts": round(100 * float(jdf["clv"].dropna().mean()), 2) if jdf["clv"].notna().any() else None}
+    # LIVE per-signal splits over the real settled E bets -- feeds the Profit tab's confluence
+    # panel so it ranks by what has ACTUALLY happened, not backtest numbers. Flat 1u grading at
+    # each bet's logged best price. Signals: line movement since first flag (toward/flat/against)
+    # and whether the Omega formula would fire the same bet (e_alone vs omega_same -- the
+    # 7/7-fold backtest split, now measured live).
+    sig_rows = []
+    for _, r in log[(log["settled"] == True) & log["model_e_bet_json"].notna()].iterrows():  # noqa: E712
+        try:
+            eb = json.loads(r["model_e_bet_json"])
+        except (TypeError, ValueError):
+            continue
+        if not eb or r["home_won"] is None or pd.isna(r["home_won"]):
+            continue
+        g = model_e.grade_bet(eb, bool(r["home_won"]))
+        dec = model_e.american_to_decimal(eb.get("best_price"))
+        flat = ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None
+        fs, mp = eb.get("first_seen_market_prob"), eb.get("market_prob")
+        move = (mp - fs) if (fs is not None and mp is not None) else None
+        o_same = False
+        if pd.notna(r.get("model_e_baseball_prob")) and pd.notna(r.get("market_home_prob")):
+            op = model_e.compute_omega_prob(float(r["model_e_baseball_prob"]), float(r["market_home_prob"]))
+            if op is not None:
+                ob = model_e.compute_bet(op, float(r["market_home_prob"]),
+                                         str(r["home_team_abbr"]), str(r["away_team_abbr"]))
+                o_same = bool(ob and ob.get("side_is_home") == eb.get("side_is_home"))
+        sig_rows.append({"flat": flat, "won": g["won"], "move": move, "o_same": o_same})
+
+    def _agg_sig(rows):
+        v = [x["flat"] for x in rows if x["flat"] is not None]
+        if not v:
+            return None
+        return {"n": len(rows), "flat_roi_pct": round(100 * sum(v) / len(v), 2),
+                "hit_rate": round(sum(1 for x in rows if x["won"]) / len(rows), 4)}
+
+    by_signal = {
+        "line_toward": _agg_sig([x for x in sig_rows if x["move"] is not None and x["move"] > 0.005]),
+        "line_flat": _agg_sig([x for x in sig_rows if x["move"] is not None and abs(x["move"]) <= 0.005]),
+        "line_against": _agg_sig([x for x in sig_rows if x["move"] is not None and x["move"] < -0.005]),
+        "e_alone": _agg_sig([x for x in sig_rows if not x["o_same"]]),
+        "omega_same": _agg_sig([x for x in sig_rows if x["o_same"]]),
+    }
     return {"total": int(len(df)), "by_type": by_type, "by_class": by_class, "recent": recent,
             "since": str(df["date"].min()),
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
-            "jacob_book": jacob_book}
+            "jacob_book": jacob_book, "by_signal": by_signal}
 
 
 # ============================================================================================

@@ -160,30 +160,48 @@ export default function ProfitView({ games, date, marketAge }) {
 
   return (
     <div>
-      {/* ---- CONFLUENCE: slip bets ranked by how many measured best-ROI signals they stack ---- */}
+      {/* ---- CONFLUENCE: slip bets ranked by LIVE-record signal ROIs (real bets only) ---- */}
       {(() => {
+        const bs = (e && e.by_signal) || {}
+        const chipOf = (label, agg, extra) => agg && agg.n > 0 && agg.flat_roi_pct != null
+          ? { t: label, roi: agg.flat_roi_pct, n: agg.n, extra: extra || '' } : null
         const scored = mainSlip.map(({ g, bet }) => {
-          const f5c = f5Confirms(g, bet)
           const sigs = []
-          if (bet.type === 'underdog' && bet.dog_grade === 'A') sigs.push({ t: '◆ grade-A dog', roi: '+26.3%', src: 'last 1,000 (n=83)' })
-          else if (bet.type === 'underdog') sigs.push({ t: 'grade-B dog', roi: '+19.1%', src: 'last 1,000 (n=76)' })
-          if (f5c === true) sigs.push({ t: 'F5 value ✓', roi: '+15.4%', src: 'full sample (n=432)' })
-          const ob = g.model_omega_bet
-          if (!ob || ob.side !== bet.side) sigs.push({ t: 'E-alone', roi: '+14.2%', src: 'bets no baseball-anchored model makes — 7/7 folds vs +3.1% when Omega fires too' })
-          const ex = g.model_e_explain
-          if (ex && ex.length >= 2) {
-            const ss = bet.side_is_home ? 1 : -1
-            const top = (ex[0].contribution || 0) * ss
-            const rest = ex.slice(1).reduce((s, f) => s + (f.contribution || 0), 0) * ss
-            if (!(top >= 0.25 && rest < 0)) sigs.push({ t: 'corroborated', roi: 'not one-signal', src: 'breakdown not carried by a single feature' })
+          // class signal from the LIVE by_class/by_type record (same source as the yellow chips)
+          const key = bet.type === 'underdog' ? (bet.dog_grade === 'A' ? 'dog_a' : 'dog_b')
+            : (f5Confirms(g, bet) === true ? 'fav_f5yes' : f5Confirms(g, bet) === false ? 'fav_f5no' : 'fav_nof5')
+          let cls = e && e.by_class && e.by_class[key]
+          let clsLabel = { dog_a: 'grade-A dogs', dog_b: 'grade-B dogs', fav_f5yes: 'F5-backed favs', fav_f5no: 'F5-less favs', fav_nof5: 'favs (no F5 read)' }[key]
+          if (!cls || !(cls.n > 0)) {
+            cls = e && e.by_type && e.by_type[bet.type === 'underdog' ? 'underdog' : 'favorite']
+            clsLabel = bet.type === 'underdog' ? 'all dogs' : 'all favs'
           }
+          const c1 = cls && cls.n > 0 && cls.flat_roi_pct != null ? { t: clsLabel, roi: cls.flat_roi_pct, n: cls.n, extra: 'live class record' } : null
+          if (c1) sigs.push(c1)
+          const ob = g.model_omega_bet
+          const alone = !ob || ob.side !== bet.side
+          const c2 = chipOf(alone ? 'E-alone' : 'Ω fires too', alone ? bs.e_alone : bs.omega_same, 'live split of real bets')
+          if (c2) sigs.push(c2)
           const lm = g.line_move
-          if (lm && lm.move_pts != null && lm.move_pts >= 1) sigs.push({ t: 'line toward us', roi: '+13.0% live', src: 'n=38 — market corrected our way after the flag' })
+          if (lm && lm.move_pts != null && lm.move_pts >= 1) {
+            const c3 = chipOf('line toward us', bs.line_toward, 'live')
+            if (c3) sigs.push(c3)
+          } else if (lm && lm.move_pts != null && lm.move_pts <= -1) {
+            const c3 = chipOf('line against', bs.line_against, 'live')
+            if (c3) sigs.push(c3)
+          }
           const hrs = bet.first_seen_at ? (Date.now() - new Date(bet.first_seen_at).getTime()) / 3.6e6 : 0
           const flatStale = lm && lm.move_pts != null && Math.abs(lm.move_pts) < 1 && hrs >= 3
-          return { g, bet, f5c, sigs, flatStale, n: sigs.length }
-        }).filter(x => x.n >= 3 && !x.flatStale)
-          .sort((a, b2) => b2.n - a.n || (b2.bet.edge || 0) - (a.bet.edge || 0))
+          if (flatStale) {
+            const c4 = chipOf('line flat 3h+', bs.line_flat, 'live — the bleed bucket')
+            if (c4) sigs.push(c4)
+          }
+          const pos = sigs.filter(s => s.roi > 0).length
+          const neg = sigs.filter(s => s.roi <= 0).length
+          const sum = sigs.reduce((s, x) => s + x.roi, 0)
+          return { g, bet, sigs, pos, neg, sum }
+        }).filter(x => x.sigs.length >= 2 && x.pos >= 2 && x.neg === 0)
+          .sort((a, b2) => b2.pos - a.pos || b2.sum - a.sum)
         if (!scored.length) return null
         return (
           <div style={{
@@ -191,16 +209,17 @@ export default function ProfitView({ games, date, marketAge }) {
             background: 'linear-gradient(180deg, var(--panel-raised), var(--panel))',
           }}>
             <div className="mono" style={{ fontSize: 10, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
-              title="Slip bets stacking 3+ of the independently-measured best-ROI signals (grade-A/B dog flip, F5 value backing, E-alone, corroborated breakdown, line moved toward us) with no stale-flat-line flag. HONESTY: each signal's ROI is measured ALONE — the intersections are small samples and no combined ROI exists until the live log accumulates them, so this is a ranking of the slip you already have, never extra stake. Every bet here is already counted in the risk total above. Because each signal is logged, the live record will eventually answer whether confluence actually predicts ROI.">
-              ⭐ confluence — bets stacking the most measured edges ({scored.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— a ranking of the slip below, not extra bets; hover for the honesty note</span>
+              title="Slip bets whose applicable LIVE signals are ALL positive in the real record so far — the class's live ROI (same feed as the yellow chips), the E-alone/Ω-fires split measured on real settled bets, and the line-movement split (+ live when the market has come toward us; a bet drops off this list entirely if any applicable live signal is negative, e.g. grade-A dogs at −59.8% on 10, or a 3h+ flat line at −22.4%). Every number updates automatically as bets settle. HONESTY: these are real-bet ROIs but tiny samples (±15–30 pt noise under 100 bets) — this ranks recent reality, which is not the same as truth. Bets are already in the slip and risk total; this adds no stake.">
+              ⭐ confluence — every applicable LIVE signal positive ({scored.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— real-bet ROIs only, auto-updating · small samples · hover for the honesty note</span>
             </div>
-            {scored.map(({ g, bet, sigs, n }) => (
+            {scored.map(({ g, bet, sigs, pos }) => (
               <div key={`conf-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '150px 60px 1fr 120px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)' }}>
                 <span><span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr} — </span><b style={{ color: 'var(--amber)' }}>{bet.side}</b> {bet.best_price > 0 ? '+' : ''}{bet.best_price}</span>
-                <span style={{ color: n >= 5 ? '#3fb950' : 'var(--amber)', fontWeight: 700 }}>{n} sig{n === 1 ? '' : 's'}</span>
+                <span style={{ color: pos >= 3 ? '#3fb950' : 'var(--amber)', fontWeight: 700 }}>{pos} live</span>
                 <span>{sigs.map((s, i) => (
-                  <span key={i} className="mono" style={{ fontSize: 10, border: '1px solid var(--line)', borderRadius: 4, padding: '1px 5px', marginRight: 5, color: 'var(--text-secondary)' }} title={`${s.t}: measured ${s.roi} (${s.src})`}>
-                    {s.t} <b style={{ color: '#3fb950' }}>{s.roi}</b>
+                  <span key={i} className="mono" style={{ fontSize: 10, border: `1px solid ${s.roi > 0 ? 'var(--line)' : '#f85149'}`, borderRadius: 4, padding: '1px 5px', marginRight: 5, color: s.roi > 0 ? 'var(--text-secondary)' : '#f85149' }}
+                    title={`${s.t}: ${s.roi > 0 ? '+' : ''}${s.roi}% flat ROI on ${s.n} real settled bets (${s.extra}). Live record, not backtest — and n=${s.n} means a ±${Math.round(200 / Math.sqrt(s.n))}pt noise band.`}>
+                    {s.t} <b style={{ color: s.roi > 0 ? '#3fb950' : '#f85149' }}>{s.roi > 0 ? '+' : ''}{s.roi}% ({s.n})</b>
                   </span>
                 ))}</span>
                 <span style={{ fontWeight: 700 }}>{bet.stake_units}u{bank ? <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}> {usd(bet.stake_units)}</span> : null}</span>
