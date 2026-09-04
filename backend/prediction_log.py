@@ -67,6 +67,7 @@ LOG_COLUMNS = [
     "model_e_shade_json",     # model_e.compute_shade_bet -- UNPROVEN dog-shade signal, logged separately so the forward record can settle it; never part of the validated slip
     "model_omega_bet_json",   # Omega SHADOW bettor (model_e.compute_omega_prob + compute_bet) -- Jacob's market-anchored model graded through the identical pipeline as Model E, logged/settled separately so E-vs-Omega has one shared scoreboard; never on the slip
     "model_omega_prob",       # Omega's own probability at freeze time -- displayed under Model E on the game card, frozen like every other model prob
+    "jacob_book_bet_json",    # Jacob's live BOOK pick for this game (proxied from the clone on :8080, kept picks only), frozen pre-game and settled through Model E's grading so his card's certification claims finally face neutral grading
     "model_f5_prob",          # F5 model's P(home leads after 5 innings) -- see model_f5.py; comparison/betting only
     "f5_market_home_prob",    # de-vigged consensus F5 ("1st Half Moneyline") home prob at freeze time -- see odds_fetcher.get_f5_odds
     "model_f5_bet_json",      # model_e.compute_bet output against the F5 market price, or None; graded by get_model_f5_track_record
@@ -222,6 +223,7 @@ def log_predictions(date: str, games: list[dict]):
             "model_e_shade_json": _j("model_e_shade"),
             "model_omega_bet_json": _j("model_omega_bet"),
             "model_omega_prob": g.get("model_omega_prob"),
+            "jacob_book_bet_json": _j("jacob_book_bet"),
             "model_f5_prob": g.get("model_f5_prob"),
             "f5_market_home_prob": (g.get("f5_odds") or {}).get("home_prob"),
             "model_f5_bet_json": _j("model_f5_bet"),
@@ -466,6 +468,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "model_e_shade": _load_json("model_e_shade_json"),
         "model_omega_bet": _load_json("model_omega_bet_json"),
         "model_omega_prob": r.get("model_omega_prob") if pd.notna(r.get("model_omega_prob")) else None,
+        "jacob_book_bet": _load_json("jacob_book_bet_json"),
         "model_f5_prob": r.get("model_f5_prob") if pd.notna(r.get("model_f5_prob")) else None,
         "f5_market_home_prob": r.get("f5_market_home_prob") if pd.notna(r.get("f5_market_home_prob")) else None,
         "model_f5_bet": _load_json("model_f5_bet_json"),
@@ -921,9 +924,36 @@ def get_model_e_track_record() -> dict:
                  "roi_pct": round(100 * float(odf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
                  "flat_roi_pct": round(100 * float(odf["flat"].dropna().mean()), 2) if odf["flat"].notna().any() else None,
                  "avg_clv_pts": round(100 * float(odf["clv"].dropna().mean()), 2) if odf["clv"].notna().any() else None}
+    # Jacob's BOOK record -- his kept picks (proxied live from the clone) graded through the
+    # same code path as everything else here. His stakes, our neutral settlement.
+    book_rows = []
+    if "jacob_book_bet_json" in log.columns:
+        for _, r in log[(log["settled"] == True) & log["jacob_book_bet_json"].notna()].iterrows():  # noqa: E712
+            try:
+                jb = json.loads(r["jacob_book_bet_json"])
+            except (TypeError, ValueError):
+                continue
+            if not jb or r["home_won"] is None or pd.isna(r["home_won"]):
+                continue
+            g = model_e.grade_bet(jb, bool(r["home_won"]))
+            dec = model_e.american_to_decimal(jb.get("best_price"))
+            book_rows.append({"won": g["won"], "profit_units": g["profit_units"], "stake_units": jb.get("stake_units"),
+                              "flat": ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None,
+                              "market_prob": jb.get("market_prob"), "clv": g.get("clv")})
+    jacob_book = None
+    if book_rows:
+        jdf = pd.DataFrame(book_rows)
+        staked = float(jdf["stake_units"].fillna(0).sum())
+        jacob_book = {"n": int(len(jdf)), "hit_rate": round(float(jdf["won"].mean()), 4),
+                      "market_implied": round(float(jdf["market_prob"].dropna().mean()), 4) if jdf["market_prob"].notna().any() else None,
+                      "units_staked": round(staked, 2), "units_profit": round(float(jdf["profit_units"].fillna(0).sum()), 2),
+                      "roi_pct": round(100 * float(jdf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
+                      "flat_roi_pct": round(100 * float(jdf["flat"].dropna().mean()), 2) if jdf["flat"].notna().any() else None,
+                      "avg_clv_pts": round(100 * float(jdf["clv"].dropna().mean()), 2) if jdf["clv"].notna().any() else None}
     return {"total": int(len(df)), "by_type": by_type, "by_class": by_class, "recent": recent,
             "since": str(df["date"].min()),
-            "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega}
+            "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
+            "jacob_book": jacob_book}
 
 
 # ============================================================================================

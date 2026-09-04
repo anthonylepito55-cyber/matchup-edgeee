@@ -2228,6 +2228,7 @@ def _compute_today_response(date: str = None):
         model_e_shade_out = None
         model_omega_prob = None
         model_omega_bet_out = None
+        jacob_book_bet_out = None
         model_e_explain = None
         line_move_out = None
         market_blind = False
@@ -2468,6 +2469,29 @@ def _compute_today_response(date: str = None):
                 except Exception:
                     model_e_prob = None
                     model_e_bet_out = None
+            # Jacob's BOOK pick for this game (see _clone_book_map), captured pre-game into our
+            # log so it settles through the identical grading pipeline as Model E -- his page's
+            # "+8.1% certified" claim has never faced neutral grading; this is that experiment.
+            # His side/stake, our best-price fill when his is null, our first-seen/CLV fields.
+            try:
+                bb = _clone_book_map().get(g.get("game_pk")) if g.get("game_pk") else None
+                if bb:
+                    _price = bb.get("best_price")
+                    if _price is None and live_odds_out:
+                        _price = live_odds_out["home"] if bb.get("side_is_home") else live_odds_out["away"]
+                    if _price is not None:
+                        jacob_book_bet_out = {**bb, "best_price": _price}
+                        _prev = (get_logged_prediction(resolved_date, g["game_pk"]) or {}).get("jacob_book_bet")
+                        if _prev and _prev.get("side") == bb.get("side") and _prev.get("first_seen_at"):
+                            for _k in ("first_seen_at", "first_seen_market_prob", "first_seen_price"):
+                                jacob_book_bet_out[_k] = _prev.get(_k)
+                        else:
+                            from datetime import timezone as _tz
+                            jacob_book_bet_out["first_seen_at"] = datetime.now(_tz.utc).isoformat()
+                            jacob_book_bet_out["first_seen_market_prob"] = bb.get("market_prob")
+                            jacob_book_bet_out["first_seen_price"] = _price
+            except Exception:
+                jacob_book_bet_out = None
             # Per-feature contributions, only for games that actually produced a bet -- ~0.2s
             # each (5 seeds x calibration folds of pred_contribs), so not worth paying on the
             # ~5 games a night that have no bet. Live-only: not frozen into the log.
@@ -2747,6 +2771,8 @@ def _compute_today_response(date: str = None):
                     model_omega_bet_out = frozen["model_omega_bet"]
                 if frozen.get("model_omega_prob") is not None:
                     model_omega_prob = frozen["model_omega_prob"]
+                if frozen.get("jacob_book_bet"):
+                    jacob_book_bet_out = frozen["jacob_book_bet"]
                 if frozen.get("model_f5_prob") is not None:
                     model_f5_prob = frozen["model_f5_prob"]
                 if frozen.get("model_f5_bet"):
@@ -2800,6 +2826,7 @@ def _compute_today_response(date: str = None):
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
             "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
+            "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,
             "model_f5_prob": model_f5_prob, "model_f5_bet": model_f5_bet_out, "f5_odds": f5_odds_out,
@@ -2868,35 +2895,50 @@ def model_e_retro_record():
 
 
 # Jacob's live "OMEGA -- THE BOOK" card, proxied server-side from the clone app on :8080 (same
-# box, same dashboard password) so the bet-for-profit tab can render his primary betting card
-# next to Model E's slip for direct comparison. Pass-through of HIS service's own numbers --
-# the certification/grading claims on that card are his page's, not re-validated here; the
-# shared-pipeline Omega shadow record remains the referee. Cached 120s; degrades gracefully.
-_OMEGA_BOOK_CACHE = {"ts": 0.0, "data": None}
+# box, same dashboard password). Two consumers: the /api/omega-book endpoint (renders his card
+# on the bet-for-profit tab) and _compute_today_response's per-game loop, which LOGS his kept
+# picks (jacob_book_bet) so they settle through the identical grading pipeline as Model E --
+# his new BOOK's "+8.1% certified" claim has never faced neutral grading, and this gives it one.
+# Pass-through of HIS numbers; cached 120s; degrades gracefully when the clone is down.
+_OMEGA_BOOK_CACHE = {"ts": 0.0, "raw": None}
+
+
+def _clone_today_raw():
+    import requests as _rq
+    if _OMEGA_BOOK_CACHE["raw"] is not None and time.time() - _OMEGA_BOOK_CACHE["ts"] < 120:
+        return _OMEGA_BOOK_CACHE["raw"]
+    try:
+        r = _rq.get("http://localhost:8080/api/today",
+                    headers={"X-Dashboard-Password": os.environ.get("DASHBOARD_PASSWORD", "")}, timeout=60)
+        r.raise_for_status()
+        _OMEGA_BOOK_CACHE.update(ts=time.time(), raw=r.json())
+    except Exception:
+        pass  # keep whatever we last had (or None) -- book capture just skips this refresh
+    return _OMEGA_BOOK_CACHE["raw"]
+
+
+def _clone_book_map():
+    """{game_pk: bet_board} for Jacob's kept picks (stake > 0, not vetoed)."""
+    d = _clone_today_raw()
+    out = {}
+    for g in (d or {}).get("games", []):
+        bb = g.get("bet_board")
+        if g.get("game_pk") and bb and not bb.get("vetoed") and (bb.get("stake_units") or 0) > 0:
+            out[int(g["game_pk"])] = bb
+    return out
 
 
 @app.get("/api/omega-book")
 def omega_book():
-    import requests as _rq
-    if _OMEGA_BOOK_CACHE["data"] is not None and time.time() - _OMEGA_BOOK_CACHE["ts"] < 120:
-        return _OMEGA_BOOK_CACHE["data"]
-    try:
-        r = _rq.get("http://localhost:8080/api/today",
-                    headers={"X-Dashboard-Password": os.environ.get("DASHBOARD_PASSWORD", "")}, timeout=90)
-        r.raise_for_status()
-        d = r.json()
-        games = []
-        for g in d.get("games", []):
-            games.append({
-                "matchup": f"{g.get('away_team_abbr')}@{g.get('home_team_abbr')}",
-                "status": g.get("status"), "game_time_utc": g.get("game_time_utc"),
-                "omega": g.get("omega"), "bet_board": g.get("bet_board"),
-            })
-        out = {"available": True, "date": d.get("date"), "summary": d.get("bet_board_summary"), "games": games}
-        _OMEGA_BOOK_CACHE.update(ts=time.time(), data=out)
-        return out
-    except Exception:
-        return _OMEGA_BOOK_CACHE["data"] or {"available": False}
+    d = _clone_today_raw()
+    if not d:
+        return {"available": False}
+    games = [{
+        "matchup": f"{g.get('away_team_abbr')}@{g.get('home_team_abbr')}",
+        "status": g.get("status"), "game_time_utc": g.get("game_time_utc"),
+        "omega": g.get("omega"), "bet_board": g.get("bet_board"),
+    } for g in d.get("games", [])]
+    return {"available": True, "date": d.get("date"), "summary": d.get("bet_board_summary"), "games": games}
 
 
 @app.get("/api/model-f5-track-record")
