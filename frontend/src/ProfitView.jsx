@@ -133,7 +133,11 @@ export default function ProfitView({ games, date, marketAge }) {
   // headline risk total (user sizing call, 2026-09-03: the menu without them measured ~+13.8%
   // full-sample / +18.1% recent vs ~+10.7% / +15.5% with them). Demoted, not censored: they are
   // still positive, and hard-gating them never survived a clean test.
-  const isWeakFav = x => x.bet.type === 'favorite' && f5Confirms(x.g, x.bet) === false
+  // Demoted out of the recommended slip + headline risk total (both user calls, both measured):
+  //   - F5-less favorites: +1.8% full-sample / +6.5% last-1,000 -- weakest still-positive class
+  //   - Ω-co-fired bets (SHIPPED 9/4): E bets the Omega formula also fires -- +3.1% vs +14.2%
+  //     E-alone in backtest (7/7 folds, two geometries), -20.6% on 25 live bets
+  const isWeakFav = x => (x.bet.type === 'favorite' && f5Confirms(x.g, x.bet) === false) || x.bet.omega_cofired
   const mainSlip = slip.filter(x => !isWeakFav(x))
   const weakFavs = slip.filter(isWeakFav)
   const totalUnits = mainSlip.reduce((s, x) => s + (x.bet.stake_units || 0), 0)
@@ -239,7 +243,7 @@ export default function ProfitView({ games, date, marketAge }) {
             bet for profit{date ? ` · ${date}` : ''} <span style={{ fontSize: 10, color: 'var(--text-tertiary)', letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>· full-game moneyline, Model E</span>
           </span>
           <span className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-            {mainSlip.length} bet{mainSlip.length === 1 ? '' : 's'}{dogsA ? <span style={{ color: '#3fb950' }}> · {dogsA} grade-A dog{dogsA === 1 ? '' : 's'} ◆</span> : null} · risk <b>{totalUnits.toFixed(2)}u</b>{bank ? <> = <b>{usd(totalUnits)}</b></> : null} (1u = 1% of bankroll){weakFavs.length ? <span style={{ color: '#f85149' }}> · {weakFavs.length} weak fav{weakFavs.length === 1 ? '' : 's'} demoted below</span> : null}
+            {mainSlip.length} bet{mainSlip.length === 1 ? '' : 's'}{dogsA ? <span style={{ color: '#3fb950' }}> · {dogsA} grade-A dog{dogsA === 1 ? '' : 's'} ◆</span> : null} · risk <b>{totalUnits.toFixed(2)}u</b>{bank ? <> = <b>{usd(totalUnits)}</b></> : null} (1u = 1% of bankroll){weakFavs.length ? <span style={{ color: '#f85149' }}> · {weakFavs.length} demoted below</span> : null}
             {marketAge != null && (
               <span
                 title="How old the live moneyline prices behind these bets are. The server re-prices every minute inside 20 min of first pitch, every 3 min within 2 hours, and force-refreshes the odds cache first — so a frozen bet is priced from current market data, not an hour-old snapshot."
@@ -284,8 +288,8 @@ export default function ProfitView({ games, date, marketAge }) {
             {[...mainSlip, ...(weakFavs.length ? [{ divider: true }] : []), ...weakFavs].map((item) => {
               if (item.divider) return (
                 <div key="weak-divider" className="mono" style={{ fontSize: 10, color: '#f85149', fontWeight: 700, padding: '12px 6px 4px', borderBottom: '1px solid var(--line)', textTransform: 'uppercase', letterSpacing: '0.06em' }}
-                  title="Favorites the F5 model does not back — the weakest measured still-positive class (+1.8% ROI full-sample on 336 bets, +6.5% on the last 1,000). Kept visible because they ARE still positive and hard-gating never survived a clean test, but excluded from the headline risk total: the menu without them measured ~+13.8% full-sample / +18.1% recent vs ~+10.7% / +15.5% with them.">
-                  ⚠ weakest class — favorites without F5 backing ({weakFavs.length}, {weakUnits.toFixed(2)}u{bank ? ` = ${usd(weakUnits)}` : ''}) · class +1.8% · not in the risk total
+                  title="Two demoted classes, both measured: (1) favorites the F5 model does not back — +1.8% ROI full-sample on 336 bets, the weakest still-positive class; (2) Ω-co-fired bets (filter shipped 9/4) — E bets the Omega formula also fires on the same side, +3.1% vs +14.2% for E-alone in backtest, reproduced in 7 of 7 folds across two independent fold geometries, and −20.6% on the 25 live co-fired bets. Kept visible and still logged/settled so the classes stay measured, but excluded from the recommended slip and the headline risk total. Each row's chips show which reason applies (red F5 ✗, or 'Ω fires too').">
+                  ⚠ demoted — F5-less favorites (+1.8%) &amp; Ω-co-fired (−20.6% live) ({weakFavs.length}, {weakUnits.toFixed(2)}u{bank ? ` = ${usd(weakUnits)}` : ''}) · not in the risk total
                 </div>
               )
               const { g, bet, market } = item
@@ -300,8 +304,8 @@ export default function ProfitView({ games, date, marketAge }) {
                 <div key={`${market}-${g.game_pk}`} className="mono" style={{
                   display: 'grid', gridTemplateColumns: '60px 110px 1fr 150px 70px 90px 110px', gap: 10, alignItems: 'center',
                   fontSize: 12, padding: '8px 6px', borderBottom: '1px solid var(--line)',
-                  background: topDog ? 'rgba(63,185,80,0.10)' : (bet.type === 'favorite' && f5c === false) ? 'rgba(248,81,73,0.08)' : 'transparent',
-                  borderLeft: `3px solid ${topDog ? '#3fb950' : (bet.type === 'favorite' && f5c === false) ? '#f85149' : 'transparent'}`,
+                  background: topDog ? 'rgba(63,185,80,0.10)' : ((bet.type === 'favorite' && f5c === false) || bet.omega_cofired) ? 'rgba(248,81,73,0.08)' : 'transparent',
+                  borderLeft: `3px solid ${topDog ? '#3fb950' : ((bet.type === 'favorite' && f5c === false) || bet.omega_cofired) ? '#f85149' : 'transparent'}`,
                 }}>
                   <span style={{ color: tcolor, fontWeight: 700, fontSize: 10 }} title={tier === 'LOW' ? 'no other model corroborates this side — unproven (+6.9% on the full 2,111-bet replay, CI -5.4% to +19.1%); shown, not excluded' : ''}>{tier}</span>
                   <span style={{ color: 'var(--text-tertiary)' }}>{market}</span>
@@ -507,8 +511,8 @@ export default function ProfitView({ games, date, marketAge }) {
         background: 'linear-gradient(180deg, var(--panel-raised), var(--panel))',
       }}>
         <div className="mono" style={{ fontSize: 10, color: '#58a6ff', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-          first-5-innings bets {f5slip.length ? `(${f5slip.length} · risk ${f5Units.toFixed(2)}u${bank ? ` = ${usd(f5Units)}` : ''})` : ''}
-          <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> — place at the F5 / 1st-half moneyline, NOT the full game</span>
+          first-5-innings bets {f5slip.length ? `(${f5slip.length} · shadow ${f5Units.toFixed(2)}u)` : ''} <span style={{ color: '#f85149' }}>⛔ SUSPENDED 9/4</span>
+          <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> — logged as a shadow record only; do NOT place these until re-validation clears the thesis (live −18.0% on 61 bets; the F5 market out-picks the model 52.4%–47.6% exactly where bets fire)</span>
         </div>
         {f5slip.length === 0 ? (
           <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>no F5 bets right now.</div>

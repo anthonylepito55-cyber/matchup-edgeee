@@ -2466,6 +2466,15 @@ def _compute_today_response(date: str = None):
                             previous_bet=((get_logged_prediction(resolved_date, g.get("game_pk")) or {}).get("model_omega_bet")
                                           if g.get("game_pk") else None),
                         )
+                    # SHIPPED FILTER 2026-09-04 (user call): an E bet the Omega formula also fires
+                    # on the same side is E's WORST class -- +3.1% vs +14.2% for E-alone in the
+                    # backtest (reproduced 7/7 folds across two independent fold geometries) and
+                    # -20.6% on the 25 live co-fired bets. The bet stays computed/logged/settled
+                    # (by_signal.omega_same keeps measuring the class forward), but the flag
+                    # demotes it out of the recommended slip and the headline risk total.
+                    if (model_e_bet_out is not None and model_omega_bet_out is not None
+                            and model_omega_bet_out.get("side") == model_e_bet_out.get("side")):
+                        model_e_bet_out["omega_cofired"] = True
                 except Exception:
                     model_e_prob = None
                     model_e_bet_out = None
@@ -2536,6 +2545,13 @@ def _compute_today_response(date: str = None):
                                 if g.get("game_pk") else None
                             ),
                         )
+                        # SUSPENDED 2026-09-04 (user call): live record -18.0% on 61 bets and the
+                        # thesis review found the F5 market out-picks the model exactly where bets
+                        # fire (47.6% vs 52.4% on 513 disagreements). Picks stay computed, logged
+                        # and settled as a SHADOW forward record -- the flag tells the UI to render
+                        # them as do-not-place until a re-validation clears the thesis.
+                        if model_f5_bet_out is not None:
+                            model_f5_bet_out["suspended"] = True
                 except Exception:
                     model_f5_prob = None
                     model_f5_bet_out = None
