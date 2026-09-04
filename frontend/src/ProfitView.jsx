@@ -160,6 +160,56 @@ export default function ProfitView({ games, date, marketAge }) {
 
   return (
     <div>
+      {/* ---- CONFLUENCE: slip bets ranked by how many measured best-ROI signals they stack ---- */}
+      {(() => {
+        const scored = mainSlip.map(({ g, bet }) => {
+          const f5c = f5Confirms(g, bet)
+          const sigs = []
+          if (bet.type === 'underdog' && bet.dog_grade === 'A') sigs.push({ t: '◆ grade-A dog', roi: '+26.3%', src: 'last 1,000 (n=83)' })
+          else if (bet.type === 'underdog') sigs.push({ t: 'grade-B dog', roi: '+19.1%', src: 'last 1,000 (n=76)' })
+          if (f5c === true) sigs.push({ t: 'F5 value ✓', roi: '+15.4%', src: 'full sample (n=432)' })
+          const ob = g.model_omega_bet
+          if (!ob || ob.side !== bet.side) sigs.push({ t: 'E-alone', roi: '+14.2%', src: 'bets no baseball-anchored model makes — 7/7 folds vs +3.1% when Omega fires too' })
+          const ex = g.model_e_explain
+          if (ex && ex.length >= 2) {
+            const ss = bet.side_is_home ? 1 : -1
+            const top = (ex[0].contribution || 0) * ss
+            const rest = ex.slice(1).reduce((s, f) => s + (f.contribution || 0), 0) * ss
+            if (!(top >= 0.25 && rest < 0)) sigs.push({ t: 'corroborated', roi: 'not one-signal', src: 'breakdown not carried by a single feature' })
+          }
+          const lm = g.line_move
+          if (lm && lm.move_pts != null && lm.move_pts >= 1) sigs.push({ t: 'line toward us', roi: '+13.0% live', src: 'n=38 — market corrected our way after the flag' })
+          const hrs = bet.first_seen_at ? (Date.now() - new Date(bet.first_seen_at).getTime()) / 3.6e6 : 0
+          const flatStale = lm && lm.move_pts != null && Math.abs(lm.move_pts) < 1 && hrs >= 3
+          return { g, bet, f5c, sigs, flatStale, n: sigs.length }
+        }).filter(x => x.n >= 3 && !x.flatStale)
+          .sort((a, b2) => b2.n - a.n || (b2.bet.edge || 0) - (a.bet.edge || 0))
+        if (!scored.length) return null
+        return (
+          <div style={{
+            marginTop: 12, padding: '14px 18px', borderRadius: 8, border: '2px solid var(--amber)',
+            background: 'linear-gradient(180deg, var(--panel-raised), var(--panel))',
+          }}>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
+              title="Slip bets stacking 3+ of the independently-measured best-ROI signals (grade-A/B dog flip, F5 value backing, E-alone, corroborated breakdown, line moved toward us) with no stale-flat-line flag. HONESTY: each signal's ROI is measured ALONE — the intersections are small samples and no combined ROI exists until the live log accumulates them, so this is a ranking of the slip you already have, never extra stake. Every bet here is already counted in the risk total above. Because each signal is logged, the live record will eventually answer whether confluence actually predicts ROI.">
+              ⭐ confluence — bets stacking the most measured edges ({scored.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— a ranking of the slip below, not extra bets; hover for the honesty note</span>
+            </div>
+            {scored.map(({ g, bet, sigs, n }) => (
+              <div key={`conf-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '150px 60px 1fr 120px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)' }}>
+                <span><span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr} — </span><b style={{ color: 'var(--amber)' }}>{bet.side}</b> {bet.best_price > 0 ? '+' : ''}{bet.best_price}</span>
+                <span style={{ color: n >= 5 ? '#3fb950' : 'var(--amber)', fontWeight: 700 }}>{n} sig{n === 1 ? '' : 's'}</span>
+                <span>{sigs.map((s, i) => (
+                  <span key={i} className="mono" style={{ fontSize: 10, border: '1px solid var(--line)', borderRadius: 4, padding: '1px 5px', marginRight: 5, color: 'var(--text-secondary)' }} title={`${s.t}: measured ${s.roi} (${s.src})`}>
+                    {s.t} <b style={{ color: '#3fb950' }}>{s.roi}</b>
+                  </span>
+                ))}</span>
+                <span style={{ fontWeight: 700 }}>{bet.stake_units}u{bank ? <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}> {usd(bet.stake_units)}</span> : null}</span>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
       {/* ---- the slip ---- */}
       <div style={{
         marginTop: 16, padding: '16px 20px', borderRadius: 8, border: '1px solid var(--amber)',
