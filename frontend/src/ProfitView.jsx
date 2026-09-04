@@ -326,17 +326,20 @@ export default function ProfitView({ games, date, marketAge }) {
                       ? (bet.dog_grade === 'A' ? 'dog_a' : 'dog_b')
                       : (f5c === true ? 'fav_f5yes' : f5c === false ? 'fav_f5no' : 'fav_nof5')
                     const lv = e && e.by_class && e.by_class[key]
-                    let liveNote = ''
                     if (lv && lv.n >= 150 && lv.flat_roi_pct != null) {
                       cr = { roi: Math.round(lv.flat_roi_pct * 10) / 10, n: lv.n, win: 'LIVE forward record, graded at real logged prices',
                              extra: cr.extra + ' — this number now comes from real logged bets, replacing the backtest estimate', live: true }
-                    } else if (lv && lv.n > 0 && lv.flat_roi_pct != null) {
-                      liveNote = ` Live so far in this class: ${lv.flat_roi_pct > 0 ? '+' : ''}${lv.flat_roi_pct}% on ${lv.n} bets — far too few to mean anything; the chip switches to the live number at 150.`
                     }
-                    // Yellow per user request (2026-09-04) — the class % reads as one consistent
-                    // mark next to every pick; the weak-favorite section still signals danger via
-                    // its red divider, row tint and the red F5 value ✗.
-                    return <span style={{ color: '#ffb627', fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win})${cr.live ? '' : ', flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower'}. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.${liveNote}`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%{cr.live ? ' LIVE' : ''}</span>
+                    const col = cr.roi >= 15 ? '#3fb950' : cr.roi >= 8 ? 'var(--text-secondary)' : '#f85149'
+                    return <>
+                      <span style={{ color: col, fontWeight: 700 }} title={`Historical ROI of this bet's CLASS — ${cr.extra}. Measured ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win})${cr.live ? '' : ', flat stakes at fair de-vigged prices; real prices run ~2-3 pts lower'}. This is a class AVERAGE, not this game's expected profit — single games are dominated by luck, and samples this size carry ±10-20 pt noise bands. Ordering between classes is the reliable part, the exact digits are not.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}%{cr.live ? ' LIVE' : ''}</span>
+                      {/* Yellow = how this class is ACTUALLY doing in the live forward record right
+                          now (user request 2026-09-04) — real graded bets since Aug 20, from the
+                          by_class feed. Distinct from the backtest class % beside it. */}
+                      {lv && lv.n > 0 && lv.flat_roi_pct != null && !cr.live ? (
+                        <span style={{ color: '#ffb627', fontWeight: 700 }} title={`How this class is ACTUALLY doing so far: ${lv.flat_roi_pct > 0 ? '+' : ''}${lv.flat_roi_pct}% flat ROI on ${lv.n} real graded bets since the live log began (Aug 20)${lv.hit_rate != null ? `, hit rate ${(100 * lv.hit_rate).toFixed(0)}%` : ''}. Samples this small swing wildly (±20+ pts under 100 bets) — don't re-decide anything nightly off this number. At 150 real bets it replaces the backtest class % automatically.`}> · live {lv.flat_roi_pct > 0 ? '+' : ''}{lv.flat_roi_pct}% ({lv.n})</span>
+                      ) : null}
+                    </>
                   })()}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
