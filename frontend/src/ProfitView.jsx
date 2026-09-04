@@ -124,7 +124,16 @@ export default function ProfitView({ games, date, marketAge }) {
   const slip = (games || []).filter(g => g.model_e_bet && g.model_e_bet.stake_units != null)
     .map(g => ({ g, bet: g.model_e_bet, market: 'Full game ML' }))
     .sort((a, b) => betPriority(b.bet, b.g) - betPriority(a.bet, a.g))
-  const totalUnits = slip.reduce((s, x) => s + (x.bet.stake_units || 0), 0)
+  // F5-less favorites — the weakest measured still-positive class (+1.8% full-sample on 336
+  // bets, +6.5% last-1,000) — are demoted to a red section at the bottom and excluded from the
+  // headline risk total (user sizing call, 2026-09-03: the menu without them measured ~+13.8%
+  // full-sample / +18.1% recent vs ~+10.7% / +15.5% with them). Demoted, not censored: they are
+  // still positive, and hard-gating them never survived a clean test.
+  const isWeakFav = x => x.bet.type === 'favorite' && f5Confirms(x.g, x.bet) === false
+  const mainSlip = slip.filter(x => !isWeakFav(x))
+  const weakFavs = slip.filter(isWeakFav)
+  const totalUnits = mainSlip.reduce((s, x) => s + (x.bet.stake_units || 0), 0)
+  const weakUnits = weakFavs.reduce((s, x) => s + (x.bet.stake_units || 0), 0)
   const shades = (games || []).filter(g => g.model_e_shade && g.model_e_shade.stake_units != null)
     .sort((a, b) => (b.model_e_shade.edge || 0) - (a.model_e_shade.edge || 0))
   const shadeUnits = shades.reduce((t, g) => t + (g.model_e_shade.stake_units || 0), 0)
@@ -157,7 +166,7 @@ export default function ProfitView({ games, date, marketAge }) {
             bet for profit{date ? ` · ${date}` : ''} <span style={{ fontSize: 10, color: 'var(--text-tertiary)', letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>· full-game moneyline, Model E</span>
           </span>
           <span className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-            {slip.length} bet{slip.length === 1 ? '' : 's'}{dogsA ? <span style={{ color: '#3fb950' }}> · {dogsA} grade-A dog{dogsA === 1 ? '' : 's'} ◆</span> : null} · risk <b>{totalUnits.toFixed(2)}u</b>{bank ? <> = <b>{usd(totalUnits)}</b></> : null} (1u = 1% of bankroll)
+            {mainSlip.length} bet{mainSlip.length === 1 ? '' : 's'}{dogsA ? <span style={{ color: '#3fb950' }}> · {dogsA} grade-A dog{dogsA === 1 ? '' : 's'} ◆</span> : null} · risk <b>{totalUnits.toFixed(2)}u</b>{bank ? <> = <b>{usd(totalUnits)}</b></> : null} (1u = 1% of bankroll){weakFavs.length ? <span style={{ color: '#f85149' }}> · {weakFavs.length} weak fav{weakFavs.length === 1 ? '' : 's'} demoted below</span> : null}
             {marketAge != null && (
               <span
                 title="How old the live moneyline prices behind these bets are. The server re-prices every minute inside 20 min of first pitch, every 3 min within 2 hours, and force-refreshes the odds cache first — so a frozen bet is priced from current market data, not an hour-old snapshot."
@@ -187,7 +196,14 @@ export default function ProfitView({ games, date, marketAge }) {
             <div className="mono" style={{ display: 'grid', gridTemplateColumns: '60px 110px 1fr 150px 70px 90px 110px', gap: 10, fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', paddingBottom: 4, borderBottom: '1px solid var(--line)' }}>
               <span>tier</span><span>market</span><span>bet</span><span>model vs market</span><span>risk</span><span>EV</span><span>status</span>
             </div>
-            {slip.map(({ g, bet, market }) => {
+            {[...mainSlip, ...(weakFavs.length ? [{ divider: true }] : []), ...weakFavs].map((item) => {
+              if (item.divider) return (
+                <div key="weak-divider" className="mono" style={{ fontSize: 10, color: '#f85149', fontWeight: 700, padding: '12px 6px 4px', borderBottom: '1px solid var(--line)', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                  title="Favorites the F5 model does not back — the weakest measured still-positive class (+1.8% ROI full-sample on 336 bets, +6.5% on the last 1,000). Kept visible because they ARE still positive and hard-gating never survived a clean test, but excluded from the headline risk total: the menu without them measured ~+13.8% full-sample / +18.1% recent vs ~+10.7% / +15.5% with them.">
+                  ⚠ weakest class — favorites without F5 backing ({weakFavs.length}, {weakUnits.toFixed(2)}u{bank ? ` = ${usd(weakUnits)}` : ''}) · class +1.8% · not in the risk total
+                </div>
+              )
+              const { g, bet, market } = item
               const tier = betTier(bet, g)
               const tcolor = tier === 'BEST' ? '#ffb627' : tier === 'GOOD' ? '#3fb950' : 'var(--text-tertiary)'
               const topDog = bet.type === 'underdog' && bet.dog_grade === 'A'
@@ -199,7 +215,8 @@ export default function ProfitView({ games, date, marketAge }) {
                 <div key={`${market}-${g.game_pk}`} className="mono" style={{
                   display: 'grid', gridTemplateColumns: '60px 110px 1fr 150px 70px 90px 110px', gap: 10, alignItems: 'center',
                   fontSize: 12, padding: '8px 6px', borderBottom: '1px solid var(--line)',
-                  background: topDog ? 'rgba(63,185,80,0.10)' : 'transparent', borderLeft: `3px solid ${topDog ? '#3fb950' : 'transparent'}`,
+                  background: topDog ? 'rgba(63,185,80,0.10)' : (bet.type === 'favorite' && f5c === false) ? 'rgba(248,81,73,0.08)' : 'transparent',
+                  borderLeft: `3px solid ${topDog ? '#3fb950' : (bet.type === 'favorite' && f5c === false) ? '#f85149' : 'transparent'}`,
                 }}>
                   <span style={{ color: tcolor, fontWeight: 700, fontSize: 10 }} title={tier === 'LOW' ? 'no other model corroborates this side — unproven (+6.9% on the full 2,111-bet replay, CI -5.4% to +19.1%); shown, not excluded' : ''}>{tier}</span>
                   <span style={{ color: 'var(--text-tertiary)' }}>{market}</span>
@@ -333,8 +350,11 @@ export default function ProfitView({ games, date, marketAge }) {
           backtest windows: <b style={{ color: '#3fb950' }}>◆ grade-A underdog flips first</b> (model has the dog ≥ 55% — the best
           group in every test, +37.9% on the last 1,000 games), then other underdogs, then favorites. <b>SKIP</b> = no other model
           corroborates the side — that looked like a reliable filter twice, but the full 2,111-bet replay put those bets at +6.9%
-          (CI −5.4% to +19.1%), so it no longer excludes anything. <b>Nothing is filtered out now</b> — every qualifying bet counts in
-          the risk total. Three sub-rules were tried as gates and none earned one — though the record needs a correction (9/3): the
+          (CI −5.4% to +19.1%), so it no longer excludes anything. <b>One demotion exists</b> (a user sizing call, 9/3): favorites
+          without F5 backing — the weakest measured still-positive class — sit in the red section at the bottom of the slip and are
+          left out of the headline risk total. They are shown, not censored: the menu without them measured ~+13.8% full-sample /
+          +18.1% recent vs ~+10.7% / +15.5% with them, so skipping them trades a little total profit for better ROI and smaller
+          drawdowns. Every other qualifying bet counts in the risk total. Three sub-rules were tried as gates and none earned one — though the record needs a correction (9/3): the
           test behind &quot;F5 confirmation failed to reproduce&quot; had a bug that silently disabled its F5 gate on every run. Measured
           properly, F5-backed bets made +15.4% vs +6.3% without, with the whole gap in favorites (+1.8% full-sample when F5 disagrees)
           — still not a gate, since even that weakest class stays positive, but the F5 value mark deserves more weight than this note
