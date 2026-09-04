@@ -655,6 +655,7 @@ def get_daily_profit() -> dict:
     Two series per day: 'cur' = bets the CURRENT ruleset keeps (post-9/4 thresholds + omega
     co-fire filter, retro-applied -- what following the site's slip means today) and 'all' =
     every bet as originally placed. Feeds the daily-profit tab."""
+    import model_e  # local import, same circular-import avoidance as the other graders here
     log = _read_log()
     if log.empty or "model_e_bet_json" not in log.columns:
         return {"days": []}

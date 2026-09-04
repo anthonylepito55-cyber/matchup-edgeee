@@ -415,8 +415,13 @@ export default function ProfitView({ games, date, marketAge }) {
                     if (src) {
                       const noise = Math.round(200 / Math.sqrt(src.n))
                       const label = useLv ? '' : ` ${bet.type === 'underdog' ? 'dogs' : 'favs'}`
-                      return <span style={{ color: '#ffb627', fontWeight: 700 }}
-                        title={`LIVE ${useLv ? 'record of this class' : `record of ALL ${bet.type === 'underdog' ? 'underdog' : 'favorite'} bets (this exact class has no settled live bets yet)`}: ${src.flat_roi_pct > 0 ? '+' : ''}${src.flat_roi_pct}% flat ROI on ${src.n} real graded bets${src.hit_rate != null ? `, hit ${(100 * src.hit_rate).toFixed(0)}%` : ''} — a ±${noise}-point noise band at this sample size, so treat the sign loosely and the digits not at all. Updates automatically as bets settle. Backtest reference for this class: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}).`}> · live {src.flat_roi_pct > 0 ? '+' : ''}{src.flat_roi_pct}% ({src.n}{label})</span>
+                      // Under 15 bets a class ROI is pure noise (±52pts at n=15, ±141 at n=2) —
+                      // render it dimmed with an explicit noise tag so a lucky +61% on two bets
+                      // can't outshout a demotion built on n=25-336 evidence.
+                      const tiny = src.n < 15
+                      const roiTxt = `${src.flat_roi_pct > 0 ? '+' : ''}${Number(src.flat_roi_pct).toFixed(1)}%`
+                      return <span style={{ color: tiny ? '#8b949e' : '#ffb627', fontWeight: tiny ? 400 : 700 }}
+                        title={`LIVE ${useLv ? 'record of this class' : `record of ALL ${bet.type === 'underdog' ? 'underdog' : 'favorite'} bets (this exact class has no settled live bets yet)`}: ${roiTxt} flat ROI on ${src.n} real graded bets${src.hit_rate != null ? `, hit ${(100 * src.hit_rate).toFixed(0)}%` : ''} — a ±${noise}-point noise band at this sample size${tiny ? ', which makes this number statistically MEANINGLESS — it is shown only so you can watch it grow up' : ', so treat the sign loosely and the digits not at all'}. Updates automatically as bets settle. Backtest reference for this class: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}).`}> · live {roiTxt} ({src.n}{label}{tiny ? ' · noise' : ''})</span>
                     }
                     const col = cr.roi >= 15 ? '#3fb950' : cr.roi >= 8 ? 'var(--text-secondary)' : '#f85149'
                     return <span style={{ color: col, fontWeight: 700 }} title={`No live bets exist for this class or type yet — the backtest figure is shown as the only available number: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}), flat stakes at fair de-vigged prices. The chip switches to the live record automatically as soon as real bets settle.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}% (backtest)</span>
