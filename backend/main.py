@@ -2226,6 +2226,7 @@ def _compute_today_response(date: str = None):
         model_e_bet_out = None
         model_e_baseball_prob = None
         model_e_shade_out = None
+        model_omega_prob = None
         model_omega_bet_out = None
         model_e_explain = None
         line_move_out = None
@@ -2451,13 +2452,13 @@ def _compute_today_response(date: str = None):
                     # pushed through the exact same bet menu, best-price shop, Kelly sizing and
                     # first-seen/CLV bookkeeping as Model E, logged and settled separately so the
                     # E-vs-Omega argument gets a shared scoreboard. Never shown on the slip.
-                    omega_prob = model_e.compute_omega_prob(
+                    model_omega_prob = model_e.compute_omega_prob(
                         model_e_baseball_prob,
                         devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
                     )
-                    if omega_prob is not None:
+                    if model_omega_prob is not None:
                         model_omega_bet_out = model_e.compute_bet(
-                            omega_prob,
+                            model_omega_prob,
                             devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
                             g["home_team_abbr"], g["away_team_abbr"],
                             book_prices=(live_odds_out or {}).get("books"), live_odds=live_odds_out,
@@ -2744,6 +2745,8 @@ def _compute_today_response(date: str = None):
                     model_e_shade_out = frozen["model_e_shade"]
                 if frozen.get("model_omega_bet"):
                     model_omega_bet_out = frozen["model_omega_bet"]
+                if frozen.get("model_omega_prob") is not None:
+                    model_omega_prob = frozen["model_omega_prob"]
                 if frozen.get("model_f5_prob") is not None:
                     model_f5_prob = frozen["model_f5_prob"]
                 if frozen.get("model_f5_bet"):
@@ -2796,7 +2799,7 @@ def _compute_today_response(date: str = None):
             "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
             "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
-            "model_omega_bet": model_omega_bet_out,
+            "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,
             "model_f5_prob": model_f5_prob, "model_f5_bet": model_f5_bet_out, "f5_odds": f5_odds_out,

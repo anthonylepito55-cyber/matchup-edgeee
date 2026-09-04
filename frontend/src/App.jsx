@@ -632,6 +632,21 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
               )}
             </div>
           )}
+          {game.model_omega_prob != null && (
+            <div
+              className="mono"
+              style={{ fontSize: 10, color: '#d2a8ff', marginTop: 1 }}
+              title="Omega (shadow): Jacob's market-anchored model — the market price plus a half-weight pull toward the baseball-only leg — graded through the IDENTICAL betting pipeline as Model E (same menu, best-price shopping, quarter-Kelly stakes, CLV bookkeeping) purely so the two forward records are directly comparable. Shadow only: its bets are never on the slip and never in the risk total."
+            >
+              model Ω (shadow): {game.model_omega_prob >= 0.5 ? game.home_team_abbr : game.away_team_abbr}{' '}
+              {((game.model_omega_prob >= 0.5 ? game.model_omega_prob : 1 - game.model_omega_prob) * 100).toFixed(0)}%
+              {game.model_omega_bet && game.model_omega_bet.stake_units != null && (
+                <span style={{ marginLeft: 8 }}>
+                  shadow bet {game.model_omega_bet.side} {game.model_omega_bet.best_price > 0 ? '+' : ''}{game.model_omega_bet.best_price} · {game.model_omega_bet.stake_units}u
+                </span>
+              )}
+            </div>
+          )}
 
           {game.model_f5_prob != null && (
             <div

@@ -336,16 +336,37 @@ export default function ProfitView({ games, date, marketAge }) {
                       {/* Yellow = how this class is ACTUALLY doing in the live forward record right
                           now (user request 2026-09-04) — real graded bets since Aug 20, from the
                           by_class feed. Distinct from the backtest class % beside it. */}
-                      {lv && lv.n > 0 && lv.flat_roi_pct != null && !cr.live ? (
-                        <span style={{ color: '#ffb627', fontWeight: 700 }} title={`How this class is ACTUALLY doing so far: ${lv.flat_roi_pct > 0 ? '+' : ''}${lv.flat_roi_pct}% flat ROI on ${lv.n} real graded bets since the live log began (Aug 20)${lv.hit_rate != null ? `, hit rate ${(100 * lv.hit_rate).toFixed(0)}%` : ''}. Samples this small swing wildly (±20+ pts under 100 bets) — don't re-decide anything nightly off this number. At 150 real bets it replaces the backtest class % automatically.`}> · live {lv.flat_roi_pct > 0 ? '+' : ''}{lv.flat_roi_pct}% ({lv.n})</span>
-                      ) : null}
+                      {(() => {
+                        if (cr.live) return null
+                        // Fallback when this exact class has no settled live bets yet (e.g.
+                        // fav_f5yes right after F5-status logging began 9/3): show the
+                        // TYPE-level live number instead, labeled, so every pick carries a
+                        // yellow current-record number.
+                        const tv = (!lv || !(lv.n > 0)) ? (e && e.by_type && e.by_type[bet.type === 'underdog' ? 'underdog' : 'favorite']) : null
+                        const src = (lv && lv.n > 0 && lv.flat_roi_pct != null) ? lv : (tv && tv.n > 0 && tv.flat_roi_pct != null ? tv : null)
+                        if (!src) return null
+                        const isFallback = src === tv
+                        const label = isFallback ? `${bet.type === 'underdog' ? 'dogs' : 'favs'}` : ''
+                        return <span style={{ color: '#ffb627', fontWeight: 700 }} title={`${isFallback ? `This exact class has NO settled live bets yet (its F5-status logging only began 9/3), so this is the live record of ALL ${bet.type === 'underdog' ? 'underdog' : 'favorite'} bets as the nearest read. ` : 'How this class is ACTUALLY doing so far. '}${src.flat_roi_pct > 0 ? '+' : ''}${src.flat_roi_pct}% flat ROI on ${src.n} real graded bets since the live log began (Aug 20)${src.hit_rate != null ? `, hit rate ${(100 * src.hit_rate).toFixed(0)}%` : ''}. Samples this small swing wildly (±20+ pts under 100 bets) — don't re-decide anything nightly off this number. At 150 real bets in the exact class it replaces the backtest class % automatically.`}> · live {src.flat_roi_pct > 0 ? '+' : ''}{src.flat_roi_pct}% ({src.n}{label ? ` ${label}` : ''})</span>
+                      })()}
                     </>
                   })()}{(() => {
                     const lm = g.line_move
                     if (!lm || lm.move_pts == null) return null
                     const m = lm.move_pts
                     const hard = m <= -4
-                    if (Math.abs(m) < 1) return <span style={{ color: 'var(--text-tertiary)' }}> · line flat</span>
+                    if (Math.abs(m) < 1) {
+                      // Red once the bet has been flagged 3+ hours and the market still hasn't
+                      // budged — live record 9/4: the ENTIRE bleed sits in flat-line bets (49%
+                      // hit / −22.4% ROI on 49) while moved-toward made +13.0% (n=38) and even
+                      // moved-against made +4.9% (n=34). Every fresh bet starts flat, hence the
+                      // age gate. Information, never a filter — samples are small.
+                      const hrs = bet.first_seen_at ? (Date.now() - new Date(bet.first_seen_at).getTime()) / 3.6e6 : 0
+                      const stale = hrs >= 3
+                      return <span style={{ color: stale ? '#f85149' : 'var(--text-tertiary)', fontWeight: stale ? 700 : 400 }} title={stale
+                        ? `LINE STILL FLAT ~${Math.round(hrs)}h after we flagged this bet. In the live record the entire bleed is concentrated in flat-line bets: 49% hit / −22.4% ROI (n=49), versus +13.0% when the market moved toward us (n=38) and +4.9% when it moved against (n=34). A market that saw our flag and didn't budge has so far meant the market simply disagreed — and was right. Small samples; information, not a filter.`
+                        : 'line flat — but this bet was flagged recently, and every bet starts flat. No signal yet.'}> · line flat{stale ? ' ⚠' : ''}</span>
+                    }
                     return (
                       <span
                         style={{ color: hard ? '#f85149' : m < 0 ? '#8b949e' : '#3fb950', fontWeight: hard ? 700 : 400 }}

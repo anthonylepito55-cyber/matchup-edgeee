@@ -66,6 +66,7 @@ LOG_COLUMNS = [
     "model_e_baseball_prob",  # Model E's market-blind leg (same 13 factors, no market) -- comparison vs Model A only, never bets
     "model_e_shade_json",     # model_e.compute_shade_bet -- UNPROVEN dog-shade signal, logged separately so the forward record can settle it; never part of the validated slip
     "model_omega_bet_json",   # Omega SHADOW bettor (model_e.compute_omega_prob + compute_bet) -- Jacob's market-anchored model graded through the identical pipeline as Model E, logged/settled separately so E-vs-Omega has one shared scoreboard; never on the slip
+    "model_omega_prob",       # Omega's own probability at freeze time -- displayed under Model E on the game card, frozen like every other model prob
     "model_f5_prob",          # F5 model's P(home leads after 5 innings) -- see model_f5.py; comparison/betting only
     "f5_market_home_prob",    # de-vigged consensus F5 ("1st Half Moneyline") home prob at freeze time -- see odds_fetcher.get_f5_odds
     "model_f5_bet_json",      # model_e.compute_bet output against the F5 market price, or None; graded by get_model_f5_track_record
@@ -220,6 +221,7 @@ def log_predictions(date: str, games: list[dict]):
             "model_e_baseball_prob": g.get("model_e_baseball_prob"),
             "model_e_shade_json": _j("model_e_shade"),
             "model_omega_bet_json": _j("model_omega_bet"),
+            "model_omega_prob": g.get("model_omega_prob"),
             "model_f5_prob": g.get("model_f5_prob"),
             "f5_market_home_prob": (g.get("f5_odds") or {}).get("home_prob"),
             "model_f5_bet_json": _j("model_f5_bet"),
@@ -463,6 +465,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "model_e_baseball_prob": r.get("model_e_baseball_prob") if pd.notna(r.get("model_e_baseball_prob")) else None,
         "model_e_shade": _load_json("model_e_shade_json"),
         "model_omega_bet": _load_json("model_omega_bet_json"),
+        "model_omega_prob": r.get("model_omega_prob") if pd.notna(r.get("model_omega_prob")) else None,
         "model_f5_prob": r.get("model_f5_prob") if pd.notna(r.get("model_f5_prob")) else None,
         "f5_market_home_prob": r.get("f5_market_home_prob") if pd.notna(r.get("f5_market_home_prob")) else None,
         "model_f5_bet": _load_json("model_f5_bet_json"),
