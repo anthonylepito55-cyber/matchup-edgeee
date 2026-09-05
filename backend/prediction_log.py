@@ -1096,6 +1096,47 @@ def get_model_e_track_record() -> dict:
         wins = sum(1 for w, _ in fade_rows if w)
         pen_whip_fade = {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
                          "flat_roi_pct": round(100 * sum(x for _, x in fade_rows) / n, 2)}
+    # Bullpen-lean live record (2026-09-05, the blue panel): over ALL settled games, a flat
+    # bet on the better-bullpen team at the frozen de-vigged consensus minus 3.5% vig,
+    # bucketed by starter-WHIP closeness. Thresholds frozen at the 7/10->9/4 quantiles
+    # (|whip_diff| 0.059 / 0.143, |bullpen_fip_diff| 0.498) -- must match main.py's
+    # bullpen_lean bucketing. HONESTY, baked into the numbers the panel shows: at ship time
+    # no bucket cleared its noise band, and the tightest-starters bucket was NEGATIVE (the
+    # opposite of the intuition) -- information, never staked.
+    bl_buckets = {k: [] for k in ("very_close", "close", "close_strong", "big_gap")}
+    if pw_feats is not None:
+        for _, r in log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
+                        & log["market_home_prob"].notna()].iterrows():
+            gpk = r.get("game_pk")
+            if pd.isna(gpk) or gpk not in pw_feats.index:
+                continue
+            _w = pw_feats.loc[gpk, "whip_diff"]
+            _b = pw_feats.loc[gpk, "bullpen_fip_diff"]
+            if pd.isna(_w) or pd.isna(_b) or _b == 0:
+                continue
+            _aw, _ab = abs(_w), abs(_b)
+            if _aw <= 0.059:
+                bucket = "very_close"
+            elif _aw <= 0.143:
+                bucket = "close_strong" if _ab > 0.498 else "close"
+            else:
+                bucket = "big_gap"
+            bull_home = bool(_b > 0)
+            mkt_bull = float(r["market_home_prob"]) if bull_home else 1 - float(r["market_home_prob"])
+            if not (0 < mkt_bull < 1):
+                continue
+            won = bool(r["home_won"]) if bull_home else not bool(r["home_won"])
+            dec = (1.0 / mkt_bull) * (1 - 0.035)
+            bl_buckets[bucket].append((won, (dec - 1.0) if won else -1.0))
+    bullpen_lean = {}
+    for k, v in bl_buckets.items():
+        if v:
+            n = len(v)
+            wins = sum(1 for w, _ in v if w)
+            bullpen_lean[k] = {"n": n, "hit_rate": round(wins / n, 4),
+                               "flat_roi_pct": round(100 * sum(x for _, x in v) / n, 2)}
+        else:
+            bullpen_lean[k] = None
     # LIVE record of the CURRENT rules, retro-applied to every settled bet: post-9/4 thresholds
     # (fav >= 3 pts, dog >= 6 pts) plus the omega-co-fire filter. This is the honest "what has
     # the ruleset that is live RIGHT NOW actually earned on real bets" number -- the Profit tab's
@@ -1137,7 +1178,7 @@ def get_model_e_track_record() -> dict:
             "since": str(df["date"].min()),
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
             "jacob_book": jacob_book, "by_signal": by_signal, "current_rules": current_rules,
-            "pen_whip_fade": pen_whip_fade}
+            "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean}
 
 
 # ============================================================================================

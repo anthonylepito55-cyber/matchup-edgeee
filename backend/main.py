@@ -2614,6 +2614,21 @@ def _compute_today_response(date: str = None):
                     pen_whip_team_out = "home"
                 elif _w < 0 and _b < 0:
                     pen_whip_team_out = "away"
+            # Bullpen-lean bucket (2026-09-05, the blue-panel ask): which team has the better
+            # bullpen, bucketed by how close the starter-WHIP matchup is. Thresholds frozen at
+            # the 7/10->9/4 live sample's quantiles (|whip_diff| 0.059 / 0.143, |bullpen| 0.498)
+            # so buckets do not drift day to day; the live per-bucket record is served by
+            # get_model_e_track_record()["bullpen_lean"] with the same cuts.
+            bullpen_lean_out = None
+            if _w is not None and _b is not None and pd.notna(_w) and pd.notna(_b) and _b != 0:
+                _aw, _ab = abs(_w), abs(_b)
+                if _aw <= 0.059:
+                    _bucket = "very_close"
+                elif _aw <= 0.143:
+                    _bucket = "close_strong" if _ab > 0.498 else "close"
+                else:
+                    _bucket = "big_gap"
+                bullpen_lean_out = {"team": "home" if _b > 0 else "away", "bucket": _bucket}
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])
@@ -2885,7 +2900,7 @@ def _compute_today_response(date: str = None):
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
             "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
-            "pen_whip_team": pen_whip_team_out,
+            "pen_whip_team": pen_whip_team_out, "bullpen_lean": bullpen_lean_out,
             "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,

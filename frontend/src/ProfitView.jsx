@@ -610,6 +610,65 @@ export default function ProfitView({ games, date, marketAge }) {
           )
         })()}
 
+        {/* ---- BLUE: bullpen-lean board (user call 9/5) — every game bucketed by starter-WHIP
+             closeness, showing the better-bullpen team with that bucket's LIVE forward ROI
+             (all settled games since 7/10, flat on the bullpen team at close − 3.5% vig,
+             served by /api/model-e-track-record.bullpen_lean so it updates as games settle).
+             HONESTY: no bucket clears its noise band, and the tightest-starters bucket is
+             NEGATIVE (no dose-response — the "closer starters → bullpen matters more" story
+             failed); the model already prices the bullpen (its top feature). Informational
+             only, never staked, never in the risk total. ---- */}
+        {(() => {
+          const blue = '#58a6ff'
+          const bl = (e && e.bullpen_lean) || {}
+          const BUCKETS = {
+            close: { label: 'close starters', dim: false },
+            close_strong: { label: 'close starters · strong pen edge', dim: false },
+            big_gap: { label: 'big starter gap', dim: false },
+            very_close: { label: 'starters nearly even', dim: true },
+          }
+          const rows = (games || []).map(g => {
+            const L = g.bullpen_lean
+            if (!L || !BUCKETS[L.bucket]) return null
+            const abbr = L.team === 'home' ? g.home_team_abbr : g.away_team_abbr
+            return { g, abbr, bucket: L.bucket }
+          }).filter(Boolean).sort((a, b2) => (BUCKETS[a.bucket].dim ? 1 : 0) - (BUCKETS[b2.bucket].dim ? 1 : 0))
+          if (!rows.length) return null
+          const chip = k => {
+            const a = bl[k]
+            return a && a.flat_roi_pct != null ? `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})` : '—'
+          }
+          return (
+            <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 8, border: `1px solid ${blue}`, background: 'rgba(88,166,255,0.05)' }}>
+              <div className="mono" style={{ fontSize: 10, color: blue, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
+                title={`Every game's better-BULLPEN team, bucketed by how close the starter-WHIP matchup is. Each row's % is the LIVE forward record of flat-betting the bullpen team in that bucket, all settled games since 7/10 at the de-vigged close minus 3.5% vig — it updates as games settle. HONESTY: none of these buckets clears its noise band (±13-27 pts), the tightest-starters bucket is NEGATIVE (${chip('very_close')}) — the opposite of the intuition — and the model already prices the bullpen (bullpen FIP is its strongest feature). Shown as information at your request; nothing here is staked or in the risk total. The versions of this signal that DO make money are the model-confirmed ones: PEN+WHIP ✓ slip bets (+21.0% live) and the golden fade panel.`}>
+                🔵 bullpen lean — the better-pen team, by starter closeness <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— live ROI per bucket: close {chip('close')} · close+strong pen {chip('close_strong')} · big gap {chip('big_gap')} · nearly even {chip('very_close')} · informational, all inside noise — hover</span>
+              </div>
+              {rows.map(r => {
+                const B = BUCKETS[r.bucket]
+                const a = bl[r.bucket]
+                const roiTxt = a && a.flat_roi_pct != null ? `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})` : '—'
+                const col = B.dim ? 'var(--text-tertiary)' : blue
+                return (
+                  <div key={`blean-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 240px 130px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)', background: B.dim ? 'transparent' : 'rgba(88,166,255,0.08)', borderLeft: `3px solid ${B.dim ? 'transparent' : blue}` }}>
+                    <span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span>
+                      <b style={{ color: col }}>{r.abbr}</b>
+                      <span style={{ color: 'var(--text-tertiary)' }}> better pen</span>
+                    </span>
+                    <span style={{ color: col }}>{B.label}</span>
+                    <span style={{ color: B.dim ? '#f85149' : col, fontWeight: 700 }} title={`LIVE forward record of flat-betting the better-bullpen team in the '${B.label}' bucket since 7/10, at the de-vigged close minus 3.5% vig${a ? `: ${(100 * a.hit_rate).toFixed(1)}% win on ${a.n} games` : ''}. Updates as games settle. Inside its noise band — information, not a rule.`}>live {roiTxt}</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status}`}</span>
+                  </div>
+                )
+              })}
+              <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                blue = the bucket's live record is positive so far · gray rows (starters nearly even) are the NEGATIVE bucket — shown so the whole picture stays honest. All buckets are inside their noise bands; the profitable version of the bullpen signal is the model-confirmed one (PEN+WHIP ✓ on the slip).
+              </div>
+            </div>
+          )
+        })()}
+
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 12, lineHeight: 1.5 }}>
           <b style={{ color: 'var(--text-secondary)' }}>How to use it:</b> place each row at the listed book (or the best price you can find),
           risking the units shown as a % of your bankroll (1u = 1%). Rows are ordered by what actually held up across both
