@@ -575,6 +575,13 @@ export default function ProfitView({ games, date, marketAge }) {
         {(() => {
           const gold = '#ffd700'
           const pwf = e && e.pen_whip_fade
+          const pwfDog = pwf && pwf.dog
+          const dvGold = (h, a) => {
+            if (h == null || a == null) return null
+            const dd = x => (x > 0 ? 1 + x / 100 : 1 + 100 / Math.abs(x))
+            const ih = 1 / dd(h), ia = 1 / dd(a)
+            return ih / (ih + ia)
+          }
           const rows = (games || []).map(g => {
             const t = g.pen_whip_team
             const p = g.prediction && g.prediction.home_win_prob
@@ -583,21 +590,28 @@ export default function ProfitView({ games, date, marketAge }) {
             if (pTeam >= 0.5) return null
             const take = t === 'home' ? g.home_team_abbr : g.away_team_abbr
             const modelSide = t === 'home' ? g.away_team_abbr : g.home_team_abbr
-            return { g, take, modelSide, pTeam }
-          }).filter(Boolean).sort((a, b2) => a.pTeam - b2.pTeam)
+            // DOG wing (user call 9/5): the both-edge team is ALSO the market underdog — the
+            // strongest live cell for unflipped dogs (+29.5% on 25 in the study; the fade
+            // record's dog split is served live as pen_whip_fade.dog). Non-dog rows stay
+            // plain golden.
+            const mkt = g.live_odds ? dvGold(g.live_odds.home, g.live_odds.away) : null
+            const mktTeam = mkt == null ? null : (t === 'home' ? mkt : 1 - mkt)
+            return { g, take, modelSide, pTeam, isDog: mktTeam != null && mktTeam < 0.5 }
+          }).filter(Boolean).sort((a, b2) => (b2.isDog ? 1 : 0) - (a.isDog ? 1 : 0) || a.pTeam - b2.pTeam)
           if (!rows.length) return null
           return (
             <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 8, border: `1px solid ${gold}`, background: 'rgba(255,215,0,0.06)' }}>
               <div className="mono" style={{ fontSize: 10, color: gold, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
                 title={`The model is fading a team that holds BOTH pitching edges (better starter WHIP and better bullpen FIP). Live forward record of taking those teams AGAINST our own model, since 7/10 at the de-vigged close minus 3.5% vig: ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} (${(100 * pwf.hit_rate).toFixed(1)}%), ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}% ROI` : '27-19, +17.3%'} — positive in both halves of the window. The model has these teams under 50% and has measurably underrated this combo (~8 pts in conflicts). HONESTY: ±29-pt noise band at this sample; this is a watch signal shown at your request, not a validated rule — it gets re-judged at 100 live games, and it is never in the risk total.`}>
-                ⭐ pen+whip contrarian — take the OPPOSITE team ({rows.length} game{rows.length === 1 ? '' : 's'}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— model fades a both-edge team · live taking them anyway: {pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'} · watch signal, not in the risk total — hover</span>
+                ⭐ pen+whip contrarian — take the OPPOSITE team ({rows.length} game{rows.length === 1 ? '' : 's'}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— model fades a both-edge team · live taking them anyway: {pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}{pwfDog ? ` · when it's a DOG: ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''} · watch signal, not in the risk total — hover</span>
               </div>
               {rows.map(r => (
-                <div key={`pwfade-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)', background: 'rgba(255,215,0,0.08)', borderLeft: `3px solid ${gold}` }}>
+                <div key={`pwfade-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)', background: r.isDog ? 'rgba(255,215,0,0.16)' : 'rgba(255,215,0,0.08)', borderLeft: `3px solid ${gold}` }}>
                   <span>
                     <span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span>
                     <b style={{ color: gold }}>TAKE {r.take}</b>
                     <span style={{ color: 'var(--text-tertiary)' }}> (model likes {r.modelSide})</span>
+                    {r.isDog ? <b style={{ color: gold }} title={`BOTH-EDGE DOG — the strongest live cell for dogs the model does not favor: ${pwfDog ? `${pwfDog.wins}-${pwfDog.n - pwfDog.wins} (${(100 * pwfDog.hit_rate).toFixed(1)}%), ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% ROI on ${pwfDog.n} games` : '14-9, +32.4%'} at close minus vig, vs −12.1% for unflipped dogs WITHOUT both edges. Underdog price means each win pays more than each loss costs. Tiny sample (±40-pt noise band) — the strongest cell of a watch signal is still a watch signal.`}> · DOG {pwfDog ? `· live ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''}</b> : null}
                   </span>
                   <span style={{ color: gold }}>{r.take} holds both pitching edges · model has them {(r.pTeam * 100).toFixed(1)}%</span>
                   <span style={{ color: 'var(--text-tertiary)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status}`}</span>

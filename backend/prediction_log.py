@@ -1089,13 +1089,20 @@ def get_model_e_track_record() -> dict:
                 continue
             won = bool(r["home_won"]) if pw_home else not bool(r["home_won"])
             dec = (1.0 / mkt_pw) * (1 - 0.035)
-            fade_rows.append((won, (dec - 1.0) if won else -1.0))
+            fade_rows.append((won, (dec - 1.0) if won else -1.0, bool(mkt_pw < 0.5)))
     pen_whip_fade = None
     if fade_rows:
-        n = len(fade_rows)
-        wins = sum(1 for w, _ in fade_rows if w)
-        pen_whip_fade = {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
-                         "flat_roi_pct": round(100 * sum(x for _, x in fade_rows) / n, 2)}
+        def _fade_agg(rows):
+            n = len(rows)
+            wins = sum(1 for w, _, _ in rows if w)
+            return {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
+                    "flat_roi_pct": round(100 * sum(x for _, x, _ in rows) / n, 2)}
+        pen_whip_fade = _fade_agg(fade_rows)
+        # the DOG wing (2026-09-05): the both-edge team is ALSO the market underdog -- the
+        # strongest cell in the unflipped-dog study (60% win / +29.5% on 25 at ship time,
+        # vs -12.1% for unflipped dogs without both edges). Tiny sample, ±40-pt band.
+        dog_rows = [x for x in fade_rows if x[2]]
+        pen_whip_fade["dog"] = _fade_agg(dog_rows) if dog_rows else None
     # Bullpen-lean live record (2026-09-05, the blue panel): over ALL settled games, a flat
     # bet on the better-bullpen team at the frozen de-vigged consensus minus 3.5% vig,
     # bucketed by starter-WHIP closeness. Thresholds frozen at the 7/10->9/4 quantiles
