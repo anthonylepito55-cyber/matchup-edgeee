@@ -1039,7 +1039,25 @@ def get_model_e_track_record() -> dict:
             if pd.notna(_w) and pd.notna(_b):
                 _sh = bool(eb.get("side_is_home"))
                 pw = bool(((_w > 0) if _sh else (_w < 0)) and ((_b > 0) if _sh else (_b < 0)))
-        sig_rows.append({"flat": flat, "won": g["won"], "move": move, "o_same": o_same, "pen_whip": pw})
+        # E-ALONE count (2026-09-05): how many of our other models (A, C, h13) fire the same
+        # side through the same menu, retro-computed from the frozen log probs. Only counted
+        # when all three probs were logged, so the buckets stay comparable.
+        n_agree = None
+        if pd.notna(r.get("market_home_prob")):
+            _cnt = _avail = 0
+            for _col in ("model_home_win_prob", "model_c_prob", "model_e_baseball_prob"):
+                _p = r.get(_col)
+                if pd.isna(_p):
+                    continue
+                _avail += 1
+                _ob = model_e.compute_bet(float(_p), float(r["market_home_prob"]),
+                                          str(r["home_team_abbr"]), str(r["away_team_abbr"]))
+                if _ob and _ob.get("side_is_home") == eb.get("side_is_home"):
+                    _cnt += 1
+            if _avail == 3:
+                n_agree = _cnt
+        sig_rows.append({"flat": flat, "won": g["won"], "move": move, "o_same": o_same, "pen_whip": pw,
+                         "n_agree": n_agree})
 
     def _agg_sig(rows):
         v = [x["flat"] for x in rows if x["flat"] is not None]
@@ -1057,6 +1075,12 @@ def get_model_e_track_record() -> dict:
         # PEN+WHIP split (added 9/4): bet side has BOTH better starter WHIP and better bullpen
         "pen_whip_yes": _agg_sig([x for x in sig_rows if x["pen_whip"] is True]),
         "pen_whip_no": _agg_sig([x for x in sig_rows if x["pen_whip"] is False]),
+        # E-ALONE gradient (added 9/5): count of our other models (A/C/h13) firing the same
+        # side. Monotonically inverse live -- consensus has been a warning.
+        "ours_agree_0": _agg_sig([x for x in sig_rows if x["n_agree"] == 0]),
+        "ours_agree_1": _agg_sig([x for x in sig_rows if x["n_agree"] == 1]),
+        "ours_agree_2": _agg_sig([x for x in sig_rows if x["n_agree"] == 2]),
+        "ours_agree_3": _agg_sig([x for x in sig_rows if x["n_agree"] == 3]),
     }
     # PEN+WHIP FADE record (2026-09-05, the golden-contrarian signal): over ALL settled games
     # (not just E bets), how has the both-edge team done when the site's frozen prediction had

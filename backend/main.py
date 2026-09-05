@@ -2637,6 +2637,25 @@ def _compute_today_response(date: str = None):
                 raw_prediction["home_win_prob"], feats, recent_form_out, season_stats_out, any_long_layoff,
                 any_recent_il_return, any_unresolved_opener,
             )
+            # E-ALONE count frozen on the bet (2026-09-05, the purple marking): how many of our
+            # OTHER models (A = the displayed prediction, C, h13) would fire the SAME side
+            # through the same menu. Live gradient at ship time was monotonic and inverse:
+            # 0 agree +26.5% (n=30), 1 agree +1.2%, 2 agree +0.2%, all 3 agree -25.4% (n=25) --
+            # consensus among our own models has been a warning, not a confirmation (same family
+            # as the shipped omega-co-fire demotion). ours_avail guards partial slates.
+            if model_e_bet_out is not None:
+                _mkt = devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None
+                _agree = _avail = 0
+                if _mkt is not None:
+                    for _p in (prediction.get("home_win_prob"), model_c_prob, model_e_baseball_prob):
+                        if _p is None:
+                            continue
+                        _avail += 1
+                        _ob = model_e.compute_bet(float(_p), float(_mkt), g["home_team_abbr"], g["away_team_abbr"])
+                        if _ob and _ob.get("side_is_home") == model_e_bet_out.get("side_is_home"):
+                            _agree += 1
+                model_e_bet_out["ours_agree"] = int(_agree)
+                model_e_bet_out["ours_avail"] = int(_avail)
             reason = _generate_reason(
                 prediction["home_win_prob"] >= 0.5, season_stats_out, recent_form_out, any_long_layoff,
                 team_stats_out,

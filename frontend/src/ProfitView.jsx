@@ -308,12 +308,19 @@ export default function ProfitView({ games, date, marketAge }) {
               const cor = corroboration(g, bet)
               const scolor = bet.type === 'underdog' ? '#3fb950' : '#58a6ff'
               const live = g.status && !['Scheduled', 'Pre-Game', 'Warmup'].includes(g.status)
+              // PURPLE (user call 9/5): E completely ALONE — none of our other models (A, C,
+              // h13) fires the same side through the menu. The live gradient is monotonically
+              // inverse (0 agree +26.5% on 30 → all 3 agree −25.4% on 25): consensus among our
+              // own models has been a warning, isolation has been E's best class. ours_avail
+              // guards slates where a model's number was missing.
+              const eAlone = bet.ours_agree === 0 && bet.ours_avail === 3
+              const isRed = (bet.type === 'favorite' && f5c === false) || bet.omega_cofired
               return (
                 <div key={`${market}-${g.game_pk}`} className="mono" style={{
                   display: 'grid', gridTemplateColumns: '60px 110px 1fr 150px 70px 90px 110px', gap: 10, alignItems: 'center',
                   fontSize: 12, padding: '8px 6px', borderBottom: '1px solid var(--line)',
-                  background: topDog ? 'rgba(63,185,80,0.10)' : ((bet.type === 'favorite' && f5c === false) || bet.omega_cofired) ? 'rgba(248,81,73,0.08)' : 'transparent',
-                  borderLeft: `3px solid ${topDog ? '#3fb950' : ((bet.type === 'favorite' && f5c === false) || bet.omega_cofired) ? '#f85149' : 'transparent'}`,
+                  background: topDog ? 'rgba(63,185,80,0.10)' : isRed ? 'rgba(248,81,73,0.08)' : eAlone ? 'rgba(163,113,247,0.10)' : 'transparent',
+                  borderLeft: `3px solid ${topDog ? '#3fb950' : isRed ? '#f85149' : eAlone ? '#a371f7' : 'transparent'}`,
                 }}>
                   <span style={{ color: tcolor, fontWeight: 700, fontSize: 10 }} title={tier === 'LOW' ? 'no other model corroborates this side — unproven (+6.9% on the full 2,111-bet replay, CI -5.4% to +19.1%); shown, not excluded' : ''}>{tier}</span>
                   <span style={{ color: 'var(--text-tertiary)' }}>{market}</span>
@@ -411,6 +418,22 @@ export default function ProfitView({ games, date, marketAge }) {
                     const oppAbbr = t === 'home' ? g.home_team_abbr : g.away_team_abbr
                     return <span style={{ color: '#ffd700', fontWeight: 700 }}
                       title={`GOLDEN WARNING: this bet is AGAINST ${oppAbbr}, who holds BOTH pitching edges (better starter WHIP and better bullpen FIP). Live forward: our bets into both-edge teams are 4-7 (−21.5% ROI), while taking those teams against the model is 27-19 (+17.3%). Small samples on both sides — but this is the first bet to size down or skip, and the golden panel below shows the contrarian side.`}> · ⭐ vs both-edge {oppAbbr}</span>
+                  })()}{(() => {
+                    // E-ALONE / consensus chip (purple marking, user call 9/5). Chip on every
+                    // bet with a full 3-model read; purple bold when E stands alone.
+                    if (bet.ours_avail !== 3 || bet.ours_agree == null) return null
+                    const bs2 = (e && e.by_signal) || {}
+                    const agg = bs2[`ours_agree_${bet.ours_agree}`]
+                    const roiTxt = agg && agg.flat_roi_pct != null ? `${agg.flat_roi_pct > 0 ? '+' : ''}${agg.flat_roi_pct.toFixed(1)}%` : ''
+                    const alone = bet.ours_agree === 0
+                    const grad = [0, 1, 2, 3].map(k => {
+                      const a = bs2[`ours_agree_${k}`]
+                      return a ? `${k} agree ${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})` : `${k} agree —`
+                    }).join(' · ')
+                    return <span style={{ color: alone ? '#a371f7' : bet.ours_agree === 3 ? '#f85149' : 'var(--text-tertiary)', fontWeight: alone || bet.ours_agree === 3 ? 700 : 400 }}
+                      title={`How many of OUR other models (A, C, h13) would fire the SAME side through the same bet menu. The live gradient is monotonically INVERSE — isolation has been E's best class, consensus its worst: ${grad}. Why: A/C/h13 share mostly the same baseball ingredients, so triple agreement is one opinion photocopied — and a market refusing to move against ALL of them usually knows something. E alone means the edge comes from the market-microstructure features only E has. Cells are ±30-40 pts each; the clean 4-step gradient is the sturdy part.`}>
+                      {' '}· {alone ? 'E ALONE' : `ours ${bet.ours_agree}/3`}{roiTxt ? ` ${roiTxt}` : ''}{agg ? ` (${agg.n})` : ''}
+                    </span>
                   })()}{(() => {
                     // Historical ROI of this bet's CLASS -- class averages from the measured
                     // record, never this game's expected profit. Sources: last-1,000 ruleset
