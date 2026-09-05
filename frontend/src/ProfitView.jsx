@@ -682,14 +682,33 @@ export default function ProfitView({ games, date, marketAge }) {
             </div>
             {rows.length === 0 ? (
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>no games clear Model A&apos;s menu today.</div>
-            ) : rows.map(r => (
-              <div key={`asel-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '110px 1fr 150px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)' }}>
-                <span style={{ color: 'var(--text-tertiary)' }}>{r.type}</span>
-                <span><span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span><b style={{ color: '#58a6ff' }}>{r.side}</b></span>
-                <span style={{ color: 'var(--text-tertiary)' }}>A {(r.pSide * 100).toFixed(1)}% vs {(r.mSide * 100).toFixed(1)}% (+{(r.edge * 100).toFixed(1)} pts)</span>
+            ) : rows.map(r => {
+              // PINK highlight (user call 9/4): A's BIG clean edges. Live log since 7/10,
+              // clean side-picks only (favorite agreement or true dog flip — the no-flip dog
+              // leans measured −10.4% and stay excluded): edge ≥ 6 pts → 58.5% win / +15.9%
+              // ROI (n=94); edge ≥ 8 pts → 59.4% / +20.6% (n=64). Noise ±21-25 pts at these
+              // sizes — the monotonic ordering (bigger edge → better ROI) is the sturdy part.
+              const hot8 = r.edge >= 0.08
+              const hot6 = r.edge >= 0.06
+              const pink = '#f472b6'
+              return (
+              <div key={`asel-${r.g.game_pk}`} className="mono" title={hot6 ? `BIG MODEL A EDGE (${(r.edge * 100).toFixed(1)} pts). Live record of A's clean ${hot8 ? '8' : '6'}+ point edges since 7/10: ${hot8 ? '59.4% win / +20.6% ROI on 64 games' : '58.5% win / +15.9% ROI on 94 games'} — graded at the de-vigged close minus 3.5% vig. Bigger A edges have been monotonically better (every-game −4.6% → 6+ +15.9% → 8+ +20.6%), but the noise band is still ±21-25 pts at this sample. Informational: not in the risk total.` : ''} style={{
+                display: 'grid', gridTemplateColumns: '110px 1fr 150px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)',
+                background: hot8 ? 'rgba(244,113,181,0.18)' : hot6 ? 'rgba(244,113,181,0.10)' : 'transparent',
+                borderLeft: `3px solid ${hot6 ? pink : 'transparent'}`,
+              }}>
+                <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>{r.type}{hot8 ? ' · 8+ PTS' : hot6 ? ' · 6+ PTS' : ''}</span>
+                <span><span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span><b style={{ color: hot6 ? pink : '#58a6ff' }}>{r.side}</b></span>
+                <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>A {(r.pSide * 100).toFixed(1)}% vs {(r.mSide * 100).toFixed(1)}% (+{(r.edge * 100).toFixed(1)} pts)</span>
                 <span style={{ color: ['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? 'var(--text-tertiary)' : 'var(--amber)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status} (frozen)`}</span>
               </div>
-            ))}
+              )
+            })}
+            {rows.some(r => r.edge >= 0.06) ? (
+              <div className="mono" style={{ fontSize: 9, color: '#f472b6', marginTop: 4 }}>
+                pink = big clean A edge · live since 7/10: 6+ pts +15.9% ROI (94) · 8+ pts +20.6% (64) · clean side-picks only, at close minus vig — hover a row
+              </div>
+            ) : null}
           </div>
         )
       })()}
