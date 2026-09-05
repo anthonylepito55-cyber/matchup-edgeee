@@ -435,6 +435,28 @@ export default function ProfitView({ games, date, marketAge }) {
                       {' '}· {alone ? 'E ALONE' : `ours ${bet.ours_agree}/3`}{roiTxt ? ` ${roiTxt}` : ''}{agg ? ` (${agg.n})` : ''}
                     </span>
                   })()}{(() => {
+                    // PROFILE badge (user call 9/5, "all the positive ones i want it made
+                    // known"): which cell of the two-factor grid (agreement count × pen+whip)
+                    // this bet sits in, with the cell's LIVE record. The grid collapsed clean:
+                    // E alone = money either way; 1-2 agree = pen+whip decides (+29.5% with,
+                    // −26.8% without); 3/3 = breakeven at best. Watch-signal status — cells
+                    // are ±35-70 pts; the cross-cell coherence is the evidence.
+                    if (bet.ours_avail !== 3 || bet.ours_agree == null) return null
+                    const bs3 = (e && e.by_signal) || {}
+                    let key, label, good
+                    if (bet.ours_agree === 0) { key = 'profile_e_alone'; label = 'E alone'; good = true }
+                    else if (bet.pen_whip == null) return null
+                    else if (bet.ours_agree === 3) { key = bet.pen_whip ? 'profile_consensus_pw' : 'profile_consensus_nopw'; label = bet.pen_whip ? 'full consensus + both edges' : 'full consensus, no edges'; good = false }
+                    else { key = bet.pen_whip ? 'profile_agree_pw' : 'profile_agree_nopw'; label = bet.pen_whip ? 'agreement + both edges' : 'agreement, no edges'; good = bet.pen_whip === true }
+                    const a = bs3[key]
+                    const roiTxt2 = a && a.flat_roi_pct != null ? `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}%` : ''
+                    const breakeven = key === 'profile_consensus_pw'
+                    const col = good ? '#3fb950' : breakeven ? 'var(--amber)' : '#f85149'
+                    return <span style={{ color: col, fontWeight: 700 }}
+                      title={`PROFILE: ${label}. The live two-factor grid (how many of our other models fire the same side × whether our side holds both pitching edges), all cells real settled bets at logged prices: E alone +26.5% (30) — money with or without the pitching edges · 1-2 agree WITH both edges +29.5% (33, 75.8% hit) · 1-2 agree WITHOUT −26.8% (33) · full consensus with edges −0.9% (9) · full consensus without −25.2% (13). This bet sits in the '${label}' cell: ${roiTxt2 || 'n/a'}${a ? ` on ${a.n} bets, hit ${(100 * a.hit_rate).toFixed(0)}%` : ''}. Cells are ±35-70 pts each — the coherence across cells is the evidence, and this chip updates live as bets settle. A watch signal made visible, not a staking rule.`}>
+                      {' '}· {good ? '★ WINNING PROFILE' : breakeven ? 'profile ≈ breakeven' : '▼ LOSING PROFILE'} {roiTxt2}{a ? ` (${a.n})` : ''}
+                    </span>
+                  })()}{(() => {
                     // Historical ROI of this bet's CLASS -- class averages from the measured
                     // record, never this game's expected profit. Sources: last-1,000 ruleset
                     // test (2026-09-03 rerun with the F5 gate actually working) for dog grades

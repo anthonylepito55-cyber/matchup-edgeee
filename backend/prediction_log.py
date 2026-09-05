@@ -1081,6 +1081,16 @@ def get_model_e_track_record() -> dict:
         "ours_agree_1": _agg_sig([x for x in sig_rows if x["n_agree"] == 1]),
         "ours_agree_2": _agg_sig([x for x in sig_rows if x["n_agree"] == 2]),
         "ours_agree_3": _agg_sig([x for x in sig_rows if x["n_agree"] == 3]),
+        # PROFILE cells (added 9/5, the two-factor grid): agreement count x pen+whip. The live
+        # record collapsed to: E alone = money either way (+26.5%); 1-2 agree = pen+whip
+        # decides (+26/+35 with, -22.5/-22.8 without); 3/3 = breakeven at best with the
+        # edges, -39% without. Cells are +/-40-70 pts each -- the coherence across cells is
+        # the evidence, and these chips let the forward log keep testing it in the open.
+        "profile_e_alone": _agg_sig([x for x in sig_rows if x["n_agree"] == 0]),
+        "profile_agree_pw": _agg_sig([x for x in sig_rows if x["n_agree"] in (1, 2) and x["pen_whip"] is True]),
+        "profile_agree_nopw": _agg_sig([x for x in sig_rows if x["n_agree"] in (1, 2) and x["pen_whip"] is False]),
+        "profile_consensus_pw": _agg_sig([x for x in sig_rows if x["n_agree"] == 3 and x["pen_whip"] is True]),
+        "profile_consensus_nopw": _agg_sig([x for x in sig_rows if x["n_agree"] == 3 and x["pen_whip"] is False]),
     }
     # PEN+WHIP FADE record (2026-09-05, the golden-contrarian signal): over ALL settled games
     # (not just E bets), how has the both-edge team done when the site's frozen prediction had
