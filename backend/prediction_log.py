@@ -1004,6 +1004,15 @@ def get_model_e_track_record() -> dict:
     # and whether the Omega formula would fire the same bet (e_alone vs omega_same -- the
     # 7/7-fold backtest split, now measured live).
     sig_rows = []
+    # PEN+WHIP retro lookup for bets logged before the frozen flag existed (pre-9/5): unlike the
+    # F5 read, both diffs are deterministic pre-game walk-forward values, so joining the feature
+    # cache reconstructs exactly what the flag would have said at bet time.
+    try:
+        pw_feats = pd.read_parquet(os.path.join(CACHE_DIR, "training_dataset.parquet"),
+                                   columns=["game_pk", "whip_diff", "bullpen_fip_diff"])
+        pw_feats = pw_feats.drop_duplicates("game_pk").set_index("game_pk")
+    except Exception:
+        pw_feats = None
     for _, r in log[(log["settled"] == True) & log["model_e_bet_json"].notna()].iterrows():  # noqa: E712
         try:
             eb = json.loads(r["model_e_bet_json"])
@@ -1023,7 +1032,14 @@ def get_model_e_track_record() -> dict:
                 ob = model_e.compute_bet(op, float(r["market_home_prob"]),
                                          str(r["home_team_abbr"]), str(r["away_team_abbr"]))
                 o_same = bool(ob and ob.get("side_is_home") == eb.get("side_is_home"))
-        sig_rows.append({"flat": flat, "won": g["won"], "move": move, "o_same": o_same})
+        pw = eb.get("pen_whip")
+        if pw is None and pw_feats is not None and pd.notna(r.get("game_pk")) and r["game_pk"] in pw_feats.index:
+            _w = pw_feats.loc[r["game_pk"], "whip_diff"]
+            _b = pw_feats.loc[r["game_pk"], "bullpen_fip_diff"]
+            if pd.notna(_w) and pd.notna(_b):
+                _sh = bool(eb.get("side_is_home"))
+                pw = bool(((_w > 0) if _sh else (_w < 0)) and ((_b > 0) if _sh else (_b < 0)))
+        sig_rows.append({"flat": flat, "won": g["won"], "move": move, "o_same": o_same, "pen_whip": pw})
 
     def _agg_sig(rows):
         v = [x["flat"] for x in rows if x["flat"] is not None]
@@ -1038,6 +1054,9 @@ def get_model_e_track_record() -> dict:
         "line_against": _agg_sig([x for x in sig_rows if x["move"] is not None and x["move"] < -0.005]),
         "e_alone": _agg_sig([x for x in sig_rows if not x["o_same"]]),
         "omega_same": _agg_sig([x for x in sig_rows if x["o_same"]]),
+        # PEN+WHIP split (added 9/4): bet side has BOTH better starter WHIP and better bullpen
+        "pen_whip_yes": _agg_sig([x for x in sig_rows if x["pen_whip"] is True]),
+        "pen_whip_no": _agg_sig([x for x in sig_rows if x["pen_whip"] is False]),
     }
     # LIVE record of the CURRENT rules, retro-applied to every settled bet: post-9/4 thresholds
     # (fav >= 3 pts, dog >= 6 pts) plus the omega-co-fire filter. This is the honest "what has

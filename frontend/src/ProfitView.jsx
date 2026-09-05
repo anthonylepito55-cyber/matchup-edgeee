@@ -384,6 +384,23 @@ export default function ProfitView({ games, date, marketAge }) {
                         ? 'WEAKEST CLASS: a favorite the F5 model does NOT back — these made just +1.8% ROI full-sample (+6.5% on the last 1,000), the thinnest still-positive group on the board. First candidates to size down or skip when the bankroll is spread thin. Not excluded: they do stay positive, and hard-gating them was never supported by a clean test.'
                         : 'F5 VALUE check: the F5 model does NOT rate this side’s first-5-innings price as >=2 pts generous — no corroboration from the F5 market angle. About the price, not a prediction of who leads after 5. For DOGS this has no measured effect on ROI (+16-21% either way).'}>{f5c ? ' · F5 value ✓' : ' · F5 value ✗'}</span>
                   })()}{(() => {
+                    // PEN+WHIP chip (user ask 9/4, in caps with the live ROI next to it): does
+                    // the bet side have BOTH the better starter WHIP and the better bullpen
+                    // (FIP) pre-game? Frozen on the bet by the backend; the ROI shown is the
+                    // LIVE record of that split (by_signal.pen_whip_yes/no), which on the first
+                    // 118 settled bets ran 70.9% hit / +21.0% flat (yes) vs 49.2% / −9.7% (no).
+                    // Noise bands still overlap — information, never a gate.
+                    const pw = bet.pen_whip
+                    if (pw == null) return null
+                    const agg = e && e.by_signal && e.by_signal[pw ? 'pen_whip_yes' : 'pen_whip_no']
+                    const roiTxt = agg && agg.flat_roi_pct != null ? `${agg.flat_roi_pct > 0 ? '+' : ''}${Number(agg.flat_roi_pct).toFixed(1)}%` : ''
+                    return <span style={{ color: pw ? '#3fb950' : '#f85149', fontWeight: 700 }}
+                      title={pw
+                        ? `PEN+WHIP ✓: our side has BOTH the better starter WHIP and the better bullpen (by FIP) as of this morning. Live record of both-edge bets: ${roiTxt || 'n/a'} flat ROI${agg ? ` on ${agg.n} settled bets, hit ${(100 * agg.hit_rate).toFixed(0)}%` : ''} — essentially all of Model E's live profit has come from this group, and the full-sample association points the same way (both-edge teams win 57.5% vs the market's expected 55.9%). Noise bands still overlap between the groups, so this is information, not a gate.`
+                        : `PEN+WHIP ✗: our side does NOT have both pitching edges (starter WHIP + bullpen FIP). Live record of these bets: ${roiTxt || 'n/a'} flat ROI${agg ? ` on ${agg.n} settled bets, hit ${(100 * agg.hit_rate).toFixed(0)}%` : ''} — underwater so far, while both-edge bets carry the profit. Small samples, overlapping noise bands: a caution flag, not a filter.`}>
+                      {' '}· PEN+WHIP {pw ? '✓' : '✗'}{roiTxt ? ` ${roiTxt}` : ''}{agg ? ` (${agg.n})` : ''}
+                    </span>
+                  })()}{(() => {
                     // Historical ROI of this bet's CLASS -- class averages from the measured
                     // record, never this game's expected profit. Sources: last-1,000 ruleset
                     // test (2026-09-03 rerun with the F5 gate actually working) for dog grades

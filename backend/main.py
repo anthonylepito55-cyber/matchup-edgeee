@@ -2587,6 +2587,22 @@ def _compute_today_response(date: str = None):
                     model_e_bet_out["f5_value"] = bool(_f5_side - _f5_mkt_side >= 0.02)
                 else:
                     model_e_bet_out["f5_value"] = None
+                # PEN+WHIP frozen on the bet (2026-09-04): does the bet side have BOTH the
+                # better starter WHIP and the better bullpen (FIP) pre-game? On the first 118
+                # settled live bets the both-edge group went 70.9% hit / +21.0% flat ROI vs
+                # 49.2% / -9.7% for everything else, and the full-sample association points the
+                # same way (both-edge teams win 57.5% vs the market's expected 55.9%). The
+                # noise bands still overlap, so this is an information chip, never a gate.
+                # Both diffs are home-minus-away with positive = home better. bool() guards
+                # the numpy.bool_ JSON bug family (found 2026-09-03).
+                _w, _b = feats.get("whip_diff"), feats.get("bullpen_fip_diff")
+                if _w is not None and _b is not None and pd.notna(_w) and pd.notna(_b):
+                    _home_side = bool(model_e_bet_out.get("side_is_home"))
+                    _w_edge = (_w > 0) if _home_side else (_w < 0)
+                    _b_edge = (_b > 0) if _home_side else (_b < 0)
+                    model_e_bet_out["pen_whip"] = bool(_w_edge and _b_edge)
+                else:
+                    model_e_bet_out["pen_whip"] = None
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])
