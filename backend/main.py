@@ -2603,6 +2603,17 @@ def _compute_today_response(date: str = None):
                     model_e_bet_out["pen_whip"] = bool(_w_edge and _b_edge)
                 else:
                     model_e_bet_out["pen_whip"] = None
+            # Game-level PEN+WHIP team (2026-09-05, user's golden-contrarian ask): which side, if
+            # either, holds BOTH the better starter WHIP and the better bullpen FIP. Feeds the
+            # Profit tab's golden panel (teams the model fades despite both edges — live forward
+            # 27-19 / +17.3% taking them anyway) and its live pen_whip_fade record.
+            _w, _b = feats.get("whip_diff"), feats.get("bullpen_fip_diff")
+            pen_whip_team_out = None
+            if _w is not None and _b is not None and pd.notna(_w) and pd.notna(_b):
+                if _w > 0 and _b > 0:
+                    pen_whip_team_out = "home"
+                elif _w < 0 and _b < 0:
+                    pen_whip_team_out = "away"
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])
@@ -2874,6 +2885,7 @@ def _compute_today_response(date: str = None):
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,
             "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
+            "pen_whip_team": pen_whip_team_out,
             "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,

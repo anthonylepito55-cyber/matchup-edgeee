@@ -401,6 +401,17 @@ export default function ProfitView({ games, date, marketAge }) {
                       {' '}· PEN+WHIP {pw ? '✓' : '✗'}{roiTxt ? ` ${roiTxt}` : ''}{agg ? ` (${agg.n})` : ''}
                     </span>
                   })()}{(() => {
+                    // GOLDEN warning (9/5): this bet is INTO a team holding both pitching
+                    // edges — live, bets like this are 4-7 (−21.5%) and the golden contrarian
+                    // panel below lists the other side (27-19 / +17.3% live taking it).
+                    const t = g.pen_whip_team
+                    if (!t) return null
+                    const oppBoth = (bet.side_is_home && t === 'away') || (!bet.side_is_home && t === 'home')
+                    if (!oppBoth) return null
+                    const oppAbbr = t === 'home' ? g.home_team_abbr : g.away_team_abbr
+                    return <span style={{ color: '#ffd700', fontWeight: 700 }}
+                      title={`GOLDEN WARNING: this bet is AGAINST ${oppAbbr}, who holds BOTH pitching edges (better starter WHIP and better bullpen FIP). Live forward: our bets into both-edge teams are 4-7 (−21.5% ROI), while taking those teams against the model is 27-19 (+17.3%). Small samples on both sides — but this is the first bet to size down or skip, and the golden panel below shows the contrarian side.`}> · ⭐ vs both-edge {oppAbbr}</span>
+                  })()}{(() => {
                     // Historical ROI of this bet's CLASS -- class averages from the measured
                     // record, never this game's expected profit. Sources: last-1,000 ruleset
                     // test (2026-09-03 rerun with the F5 gate actually working) for dog grades
@@ -549,6 +560,51 @@ export default function ProfitView({ games, date, marketAge }) {
               })}
               <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
                 passes, not omissions — the menu only bets edges that clear the validated bars (favorites +3 pts, dog flips +6 pts vs the de-vigged consensus). Betting every small edge measured negative after vig.
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ---- GOLDEN: PEN+WHIP contrarian (user call 9/5) — games where the model fades a
+             team holding BOTH pitching edges (better starter WHIP + better bullpen FIP).
+             LIVE FORWARD ONLY: taking those teams against our own model is 27-19 (58.7%),
+             +17.3% flat at close−vig since 7/10, positive in both halves. Still a watch
+             signal (±29-pt noise at n=46, pre-registered re-judgment at 100 games) — shown
+             golden because the user asked to see the other side, never staked or in the
+             risk total. The live record chip updates from /api/model-e-track-record. ---- */}
+        {(() => {
+          const gold = '#ffd700'
+          const pwf = e && e.pen_whip_fade
+          const rows = (games || []).map(g => {
+            const t = g.pen_whip_team
+            const p = g.prediction && g.prediction.home_win_prob
+            if (!t || p == null) return null
+            const pTeam = t === 'home' ? p : 1 - p
+            if (pTeam >= 0.5) return null
+            const take = t === 'home' ? g.home_team_abbr : g.away_team_abbr
+            const modelSide = t === 'home' ? g.away_team_abbr : g.home_team_abbr
+            return { g, take, modelSide, pTeam }
+          }).filter(Boolean).sort((a, b2) => a.pTeam - b2.pTeam)
+          if (!rows.length) return null
+          return (
+            <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 8, border: `1px solid ${gold}`, background: 'rgba(255,215,0,0.06)' }}>
+              <div className="mono" style={{ fontSize: 10, color: gold, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
+                title={`The model is fading a team that holds BOTH pitching edges (better starter WHIP and better bullpen FIP). Live forward record of taking those teams AGAINST our own model, since 7/10 at the de-vigged close minus 3.5% vig: ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} (${(100 * pwf.hit_rate).toFixed(1)}%), ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}% ROI` : '27-19, +17.3%'} — positive in both halves of the window. The model has these teams under 50% and has measurably underrated this combo (~8 pts in conflicts). HONESTY: ±29-pt noise band at this sample; this is a watch signal shown at your request, not a validated rule — it gets re-judged at 100 live games, and it is never in the risk total.`}>
+                ⭐ pen+whip contrarian — take the OPPOSITE team ({rows.length} game{rows.length === 1 ? '' : 's'}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— model fades a both-edge team · live taking them anyway: {pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'} · watch signal, not in the risk total — hover</span>
+              </div>
+              {rows.map(r => (
+                <div key={`pwfade-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)', background: 'rgba(255,215,0,0.08)', borderLeft: `3px solid ${gold}` }}>
+                  <span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span>
+                    <b style={{ color: gold }}>TAKE {r.take}</b>
+                    <span style={{ color: 'var(--text-tertiary)' }}> (model likes {r.modelSide})</span>
+                  </span>
+                  <span style={{ color: gold }}>{r.take} holds both pitching edges · model has them {(r.pTeam * 100).toFixed(1)}%</span>
+                  <span style={{ color: 'var(--text-tertiary)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status}`}</span>
+                </div>
+              ))}
+              <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                golden = the model picks against a team with both the better starter WHIP and the better bullpen — live forward, those teams have kept winning anyway. Watch signal at your request: real record above updates as games settle; re-judged at 100 games. Not staked, not in the risk total.
               </div>
             </div>
           )

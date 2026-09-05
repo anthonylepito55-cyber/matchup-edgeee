@@ -1058,6 +1058,44 @@ def get_model_e_track_record() -> dict:
         "pen_whip_yes": _agg_sig([x for x in sig_rows if x["pen_whip"] is True]),
         "pen_whip_no": _agg_sig([x for x in sig_rows if x["pen_whip"] is False]),
     }
+    # PEN+WHIP FADE record (2026-09-05, the golden-contrarian signal): over ALL settled games
+    # (not just E bets), how has the both-edge team done when the site's frozen prediction had
+    # them UNDER 50%? Graded as a flat bet on the both-edge team at the frozen de-vigged
+    # consensus minus 3.5% vig. Live-forward only: frozen model prob + frozen market from the
+    # log, deterministic pre-game whip/bullpen diffs from the feature cache. At ship time:
+    # 27-19 (58.7%), +17.3%, positive in both halves of the 7/10->9/4 window. Watch signal --
+    # the golden panel shows it, nothing stakes it; pre-registered re-judgment at 100 games.
+    fade_rows = []
+    if pw_feats is not None:
+        settled_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
+                          & log["market_home_prob"].notna() & log["model_home_win_prob"].notna()]
+        for _, r in settled_all.iterrows():
+            gpk = r.get("game_pk")
+            if pd.isna(gpk) or gpk not in pw_feats.index:
+                continue
+            _w = pw_feats.loc[gpk, "whip_diff"]
+            _b = pw_feats.loc[gpk, "bullpen_fip_diff"]
+            if pd.isna(_w) or pd.isna(_b):
+                continue
+            pw_home = bool(_w > 0 and _b > 0)
+            pw_away = bool(_w < 0 and _b < 0)
+            if not (pw_home or pw_away):
+                continue
+            p_pw = float(r["model_home_win_prob"]) if pw_home else 1 - float(r["model_home_win_prob"])
+            if p_pw >= 0.5:
+                continue  # model agrees with the both-edge team -- not a fade
+            mkt_pw = float(r["market_home_prob"]) if pw_home else 1 - float(r["market_home_prob"])
+            if not (0 < mkt_pw < 1):
+                continue
+            won = bool(r["home_won"]) if pw_home else not bool(r["home_won"])
+            dec = (1.0 / mkt_pw) * (1 - 0.035)
+            fade_rows.append((won, (dec - 1.0) if won else -1.0))
+    pen_whip_fade = None
+    if fade_rows:
+        n = len(fade_rows)
+        wins = sum(1 for w, _ in fade_rows if w)
+        pen_whip_fade = {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
+                         "flat_roi_pct": round(100 * sum(x for _, x in fade_rows) / n, 2)}
     # LIVE record of the CURRENT rules, retro-applied to every settled bet: post-9/4 thresholds
     # (fav >= 3 pts, dog >= 6 pts) plus the omega-co-fire filter. This is the honest "what has
     # the ruleset that is live RIGHT NOW actually earned on real bets" number -- the Profit tab's
@@ -1098,7 +1136,8 @@ def get_model_e_track_record() -> dict:
     return {"total": int(len(df)), "by_type": by_type, "by_class": by_class, "recent": recent,
             "since": str(df["date"].min()),
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
-            "jacob_book": jacob_book, "by_signal": by_signal, "current_rules": current_rules}
+            "jacob_book": jacob_book, "by_signal": by_signal, "current_rules": current_rules,
+            "pen_whip_fade": pen_whip_fade}
 
 
 # ============================================================================================
