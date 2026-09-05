@@ -699,7 +699,16 @@ export default function ProfitView({ games, date, marketAge }) {
               }}>
                 <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>{r.type}{hot8 ? ' · 8+ PTS' : hot6 ? ' · 6+ PTS' : ''}</span>
                 <span><span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span><b style={{ color: hot6 ? pink : '#58a6ff' }}>{r.side}</b></span>
-                <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>A {(r.pSide * 100).toFixed(1)}% vs {(r.mSide * 100).toFixed(1)}% (+{(r.edge * 100).toFixed(1)} pts)</span>
+                <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>A {(r.pSide * 100).toFixed(1)}% vs {(r.mSide * 100).toFixed(1)}% (+{(r.edge * 100).toFixed(1)} pts)
+                  {/* Type-specific LIVE ROI on pink rows (user ask 9/4): A's big-edge profit is
+                      almost entirely dog flips — live since 7/10 at close−vig: dog flips +33.3%
+                      (n=40, 62.5% win), favorites with 6+ pts just +1.9% (n=39). */}
+                  {hot6 ? <span title={r.type === 'dog flip'
+                    ? 'LIVE record of Model A dog flips (menu-qualifying, since 7/10, at the de-vigged close minus 3.5% vig): 62.5% win, +33.3% ROI on 40 games — where nearly all of A’s big-edge profit lives. ±32-pt noise band at n=40: strong, not settled.'
+                    : 'LIVE record of Model A favorites with 6+ pts of edge (since 7/10, close minus vig): 59.0% win but only +1.9% ROI on 39 games — A’s big edges pay on DOG FLIPS (+33.3%), while its big favorite edges have been roughly breakeven so far.'}>
+                    {' '}· {r.type === 'dog flip' ? 'dog flips +33.3% (40)' : 'big favs +1.9% (39)'}
+                  </span> : null}
+                </span>
                 <span style={{ color: ['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? 'var(--text-tertiary)' : 'var(--amber)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status} (frozen)`}</span>
               </div>
               )
