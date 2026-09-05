@@ -462,6 +462,81 @@ export default function ProfitView({ games, date, marketAge }) {
           </div>
         )}
 
+        {/* ---- REST OF THE SLATE: every game with NO qualifying bet, and why (user ask 9/4:
+             "i want every game shown"). The reason strings mirror model_e.compute_bet's real
+             bars (fav >= 3 pts, dog flip >= 2 pts + >= 6 pts edge); the market prob is de-vigged
+             from the live consensus books, same as the menu uses. Display only — no game here
+             is bettable, that's the point. ---- */}
+        {(() => {
+          const noBet = (games || []).filter(g => !(g.model_e_bet && g.model_e_bet.stake_units != null))
+          if (!noBet.length) return null
+          const devig = g => {
+            const books = g.live_odds && g.live_odds.books
+            if (!books) return null
+            const ps = Object.values(books).map(b => {
+              if (b.home == null || b.away == null) return null
+              const ih = b.home > 0 ? 100 / (b.home + 100) : -b.home / (-b.home + 100)
+              const ia = b.away > 0 ? 100 / (b.away + 100) : -b.away / (-b.away + 100)
+              return ih / (ih + ia)
+            }).filter(p => p != null)
+            return ps.length ? ps.reduce((s, p) => s + p, 0) / ps.length : null
+          }
+          const rows = noBet.map(g => {
+            const p = g.model_e_prob
+            const mkt = devig(g)
+            let reason, detail
+            if (p == null) { reason = 'model unavailable'; detail = 'no Model E probability for this game (usually a missing starter or missing market features)' }
+            else if (mkt == null) { reason = 'no market price'; detail = 'no consensus moneyline available yet — the menu cannot price an edge without one' }
+            else {
+              const favIsHome = mkt >= 0.5
+              const favAbbr = favIsHome ? g.home_team_abbr : g.away_team_abbr
+              const dogAbbr = favIsHome ? g.away_team_abbr : g.home_team_abbr
+              const pFav = favIsHome ? p : 1 - p
+              const mFav = favIsHome ? mkt : 1 - mkt
+              if (pFav >= 0.5) {
+                const edge = (pFav - mFav) * 100
+                reason = `${favAbbr} edge ${edge >= 0 ? '+' : ''}${edge.toFixed(1)} pts — favorites need +3`
+                detail = `model ${(pFav * 100).toFixed(1)}% vs market ${(mFav * 100).toFixed(1)}% on the favorite ${favAbbr}. Favorite bets require the model at least 3 points above the de-vigged consensus (validated threshold); this one ${edge >= 3 ? 'HAS the edge but the model probability itself is below the internal bar' : 'falls short'}.`
+              } else {
+                const flip = (1 - pFav - 0.5) * 100
+                const edge = ((1 - pFav) - (1 - mFav)) * 100
+                if (flip < 2) {
+                  reason = `slight ${dogAbbr} lean (+${flip.toFixed(1)} pt flip) — needs +2`
+                  detail = `model ${((1 - pFav) * 100).toFixed(1)}% on the dog ${dogAbbr} vs market ${((1 - mFav) * 100).toFixed(1)}%. A dog bet first requires the model to actually FLIP the game (>= 52% on the dog); a sub-2-point lean is treated as agreement with the market.`
+                } else {
+                  reason = `${dogAbbr} flip +${edge.toFixed(1)} pts — dogs need +6`
+                  detail = `model ${((1 - pFav) * 100).toFixed(1)}% on the dog ${dogAbbr} vs market ${((1 - mFav) * 100).toFixed(1)}%. Dog flips are only bet at a 6+ point edge (raised from 3 on 9/3 — the 3-6 point band measured negative in both validation windows).`
+                }
+              }
+            }
+            return { g, reason, detail }
+          })
+          return (
+            <div style={{ marginTop: 14 }}>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', paddingBottom: 4, borderBottom: '1px solid var(--line)' }}
+                title="Every remaining game on the slate, shown with the reason the bet menu passed. A game with no row in the slip is a deliberate pass, not a missing game: most edges are too small to beat the vig, and the menu's profit comes from only betting the few that clear the validated bars.">
+                rest of the slate — no bet ({rows.length} game{rows.length === 1 ? '' : 's'})
+              </div>
+              {rows.map(({ g, reason, detail }) => {
+                const live = g.status && !['Scheduled', 'Pre-Game', 'Warmup'].includes(g.status)
+                return (
+                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)' }}>
+                    <span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr}</span>
+                      {g.model_e_prob != null ? <span> · model {(g.model_e_prob * 100).toFixed(1)}% home</span> : null}
+                    </span>
+                    <span title={detail}>{reason}</span>
+                    <span>{live ? `${g.status}` : (g.game_time_utc ? new Date(g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game')}</span>
+                  </div>
+                )
+              })}
+              <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                passes, not omissions — the menu only bets edges that clear the validated bars (favorites +3 pts, dog flips +6 pts vs the de-vigged consensus). Betting every small edge measured negative after vig.
+              </div>
+            </div>
+          )
+        })()}
+
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 12, lineHeight: 1.5 }}>
           <b style={{ color: 'var(--text-secondary)' }}>How to use it:</b> place each row at the listed book (or the best price you can find),
           risking the units shown as a % of your bankroll (1u = 1%). Rows are ordered by what actually held up across both
