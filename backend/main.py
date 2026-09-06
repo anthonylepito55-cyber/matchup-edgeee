@@ -90,6 +90,7 @@ from tennis_data import (
 )
 from tennis_features import get_or_compute_state, build_live_matchup_features, features_to_row as tennis_features_to_row
 import tennis_model
+import tennis_log
 
 app = FastAPI(title="MLB Pitcher Matchup Predictor")
 
@@ -1595,7 +1596,21 @@ def tennis_today(date: str = None):
                 "note": note,
             })
 
+    # Tennis forward record (2026-09-06): freeze predictions+odds into the tennis log
+    # (upsert until first serve, frozen after) and settle any finished matches -- tennis
+    # ran two months with no ledger; the record starts accumulating from today.
+    try:
+        tennis_log.log_predictions(results, date)
+        tennis_log.settle()
+    except Exception as e:
+        print(f"[tennis log] logging/settlement failed: {e}")
+
     return {"date": date, "matches": results}
+
+
+@app.get("/api/tennis/track-record")
+def tennis_track_record():
+    return tennis_log.get_tennis_track_record()
 
 
 @app.get("/api/pitcher/{pitcher_id}")

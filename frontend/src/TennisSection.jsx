@@ -7,6 +7,38 @@ const SURFACE_COLOR = {
   Hard: '#4A9EFF', Clay: '#D97748', Grass: '#3DDC84', Carpet: '#B98CE0',
 }
 
+// Tennis FORWARD RECORD panel (2026-09-06): tennis ran two months with predictions but no
+// ledger — nothing frozen, nothing graded. The backend now logs every priced prediction
+// before first serve and settles from real results; this panel shows that record growing
+// from zero. Until it has real sample, the honest banner is "unproven — do not bet this".
+function TennisTrackRecord() {
+  const [r, setR] = useState(null)
+  useEffect(() => {
+    fetch('/api/tennis/track-record').then(x => x.json()).then(setR).catch(() => {})
+  }, [])
+  if (!r) return null
+  const small = !r.n || r.n < 50
+  return (
+    <div style={{ margin: '14px 0', padding: '12px 18px', borderRadius: 8, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--panel-raised), var(--panel))' }}>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+        Tennis forward record <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— started 2026-09-06 · every priced prediction frozen before first serve, graded from real results</span>
+      </div>
+      <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.6 }}>
+        {r.n ? (
+          <>
+            model {(100 * r.model_accuracy).toFixed(1)}% vs market {(100 * r.market_accuracy).toFixed(1)}% on {r.n} settled ·
+            flat-pick ROI {r.flat_roi_pct > 0 ? '+' : ''}{r.flat_roi_pct}% ·
+            disagreements: {r.n_disagree}{r.disagree_flat_roi_pct != null ? ` (model ${(100 * r.disagree_model_accuracy).toFixed(0)}% right, ROI ${r.disagree_flat_roi_pct > 0 ? '+' : ''}${r.disagree_flat_roi_pct}%)` : ''}
+          </>
+        ) : (
+          <>{r.total_logged || 0} predictions logged · {r.settled || 0} settled — the ledger just started; numbers appear as matches finish.</>
+        )}
+        {small ? <span style={{ color: '#f85149', fontWeight: 700 }}> · UNPROVEN — this model has never been graded before; do not bet tennis until this record earns it (±{r.n ? Math.round(200 / Math.sqrt(r.n)) : '∞'}pt noise band)</span> : null}
+      </div>
+    </div>
+  )
+}
+
 export default function TennisSection() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -49,6 +81,8 @@ export default function TennisSection() {
         rest days) — no serve/return stats yet, so this is a rougher edge than the MLB side. Backtested
         against the market and does not beat it; treat these as a second opinion, not a sharp line.
       </div>
+
+      <TennisTrackRecord />
 
       {error && (
         <div style={{
