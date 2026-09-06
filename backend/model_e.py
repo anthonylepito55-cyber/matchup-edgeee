@@ -90,6 +90,16 @@ MODEL_E_BASEBALL_PATH = os.path.join(ARTIFACT_DIR, "model_e_baseball.joblib")
 # market-implied on n=1,133 in the 2026-08-20 clean run.
 UNDERDOG_THRESHOLD = 0.02
 FAVORITE_THRESHOLD = 0.03
+# HEAVY favorites (market >= 60%) need DOUBLE the edge (2026-09-06 containment). The live
+# pipeline runs ~2.7 pts more favorite-bullish than the replay pipeline that validated the
+# menu (root cause: an unresolved serving-vs-build market-feature mismatch, diagnosable once
+# the odds backfill reaches the live era -- see _heavy_fav_diagnostic.py), which manufactured
+# ~10x the replay's heavy-favorite volume at -7.3% live ROI. Requiring 6 pts on 60%+
+# favorites removes exactly the phantom small-edge heavies: live record improves -9.7% ->
+# -5.8% (n 121 -> 103), replay cost is a wash (-0.3 pts first half, +0.7 second). Containment,
+# not cure -- revisit when the feature-vector join names the skewed feature (~2026-09-20).
+HEAVY_FAV_MARKET_PROB = 0.60
+HEAVY_FAV_MIN_EDGE = 0.06
 KELLY_FRACTION = 0.25       # quarter-Kelly: backtest edges routinely halve live; full Kelly on a halved edge over-bets ~2x
 BANKROLL_UNITS = 100.0      # stakes are expressed in units of a 100-unit bankroll
 MAX_STAKE_UNITS = 5.0       # hard cap regardless of what Kelly says -- a single MLB game is never worth more
@@ -288,6 +298,9 @@ def compute_bet(model_e_home_prob: float, market_home_prob: float, home_abbr: st
         side, bet_type = dog_side, "underdog"
         p_model, p_mkt = 1 - p_model_fav, 1 - p_mkt_fav
     elif p_model_fav - p_mkt_fav >= FAVORITE_THRESHOLD:
+        # heavy favorites need double the edge -- see HEAVY_FAV_MIN_EDGE's comment
+        if p_mkt_fav >= HEAVY_FAV_MARKET_PROB and p_model_fav - p_mkt_fav < HEAVY_FAV_MIN_EDGE:
+            return None
         side, bet_type = fav_side, "favorite"
         p_model, p_mkt = p_model_fav, p_mkt_fav
     else:
