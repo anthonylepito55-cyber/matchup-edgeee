@@ -559,6 +559,14 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
             SHADE 2-3: {game.dog_shade23.side} {game.dog_shade23.best_price > 0 ? '+' : ''}{game.dog_shade23.best_price} · tracked
           </span>
         )}
+        {game.fav_sub3 && (
+          <span className="mono" title={`TRACKED EXPERIMENT (pre-registered 9/7): Model E likes the favorite by ${game.fav_sub3.edge_pts} pts — below the 3-pt menu bar (model ${(100 * game.fav_sub3.model_prob).toFixed(1)}% vs market ${(100 * game.fav_sub3.market_prob).toFixed(1)}% on ${game.fav_sub3.side}). Full disclosure: this band FAILED its two-window live test at pre-registration (−23.5% in Jul-Aug, +29.6% since — a 53-pt swing, the signature of a streak, and a 1-3pt edge is smaller than the vig). Tracked flat-1u at the user's request so the forward log finishes the argument. Checkpoint ~75 settled. Shadow only — not a pick, not in any risk total.`} style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#fb923c',
+            border: '1px dashed #fb923c', borderRadius: 4, padding: '2px 6px', marginLeft: 6, opacity: 0.85,
+          }}>
+            FAV 1-3: {game.fav_sub3.side} {game.fav_sub3.best_price > 0 ? '+' : ''}{game.fav_sub3.best_price} · tracked
+          </span>
+        )}
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
         <PitcherLink id={game.away_pitcher_id} name={game.away_pitcher_name} onSelect={onSelectPitcher} />

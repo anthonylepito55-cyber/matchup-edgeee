@@ -2421,6 +2421,7 @@ def _compute_today_response(date: str = None):
             model_c_prob = None
             model_a_bet_out = None
             dog_shade23_out = None
+            fav_sub3_out = None
             if model_c_trained:
                 try:
                     # row above was built with the default FEATURE_COLUMNS (Model A/B's set),
@@ -2774,6 +2775,43 @@ def _compute_today_response(date: str = None):
                                 }
             except Exception:
                 dog_shade23_out = None
+            # sub-bar FAVORITE tracker (2026-09-07, user pre-registration): E likes the
+            # favorite by 1-3 pts -- below the menu bar, and it FAILED the two-window live
+            # test at pre-registration (-23.5% / +29.6%). Tracked flat-1u at the user
+            # request so the log settles the argument. Shadow only.
+            try:
+                if model_e_prob is not None and live_odds_out:
+                    _fmkt = devig_home_prob(live_odds_out["home"], live_odds_out["away"])
+                    if _fmkt is not None:
+                        _ffav_home = _fmkt >= 0.5
+                        _fpf = model_e_prob if _ffav_home else 1 - model_e_prob
+                        _fmf = _fmkt if _ffav_home else 1 - _fmkt
+                        _fedge = _fpf - _fmf
+                        if _fpf >= 0.5 and 0.01 <= _fedge < 0.03:
+                            _fh = _ffav_home
+                            _price = _book = _bestdec = None
+                            for _bk, _pr in (live_odds_out.get("books") or {}).items():
+                                _am = (_pr or {}).get("home" if _fh else "away")
+                                _d = model_e.american_to_decimal(_am)
+                                if _d and (_bestdec is None or _d > _bestdec):
+                                    _bestdec, _price, _book = _d, _am, _bk
+                            if _price is None:
+                                _price = live_odds_out.get("home" if _fh else "away")
+                                _book = live_odds_out.get("bookmaker")
+                            _prev = (prediction_log_module.get_logged_fav_sub3(resolved_date, g.get("game_pk"))
+                                     if g.get("game_pk") else None) or {}
+                            if _price is not None:
+                                fav_sub3_out = {
+                                    "side": g["home_team_abbr"] if _fh else g["away_team_abbr"],
+                                    "side_is_home": bool(_fh), "type": "fav_sub3",
+                                    "model_prob": round(_fpf, 4), "market_prob": round(_fmf, 4),
+                                    "edge_pts": round(100 * _fedge, 2), "best_price": _price, "best_book": _book,
+                                    "stake_units": 1.0, "shadow": True,
+                                    "first_seen_at": _prev.get("first_seen_at") or datetime.now(timezone.utc).isoformat(),
+                                    "first_seen_price": _prev.get("first_seen_price") or _price,
+                                }
+            except Exception:
+                fav_sub3_out = None
             # Display-only "why" breakdown from the separate hand-weighted rating system (see
             # rating_system.py) — NOT what drives the model's own win-prob above (that backtested
             # worse than the trained model, see the plan doc), just a transparent, category-by-
@@ -2974,6 +3012,8 @@ def _compute_today_response(date: str = None):
                     model_a_bet_out = frozen["model_a_bet"]
                 if frozen.get("dog_shade23"):
                     dog_shade23_out = frozen["dog_shade23"]
+                if frozen.get("fav_sub3"):
+                    fav_sub3_out = frozen["fav_sub3"]
                 if frozen.get("model_e_baseball_prob") is not None:
                     model_e_baseball_prob = frozen["model_e_baseball_prob"]
                 if frozen.get("model_e_shade"):
@@ -3039,7 +3079,7 @@ def _compute_today_response(date: str = None):
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
             "pen_whip_team": pen_whip_team_out, "bullpen_lean": bullpen_lean_out,
             "model_e_features": model_e_features_out, "model_a_bet": model_a_bet_out,
-            "dog_shade23": dog_shade23_out,
+            "dog_shade23": dog_shade23_out, "fav_sub3": fav_sub3_out,
             "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,
