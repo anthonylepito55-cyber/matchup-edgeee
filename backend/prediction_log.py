@@ -1091,6 +1091,11 @@ def get_model_e_track_record() -> dict:
         "profile_agree_nopw": _agg_sig([x for x in sig_rows if x["n_agree"] in (1, 2) and x["pen_whip"] is False]),
         "profile_consensus_pw": _agg_sig([x for x in sig_rows if x["n_agree"] == 3 and x["pen_whip"] is True]),
         "profile_consensus_nopw": _agg_sig([x for x in sig_rows if x["n_agree"] == 3 and x["pen_whip"] is False]),
+        # Ω-co-fire x pen+whip intersection (added 9/6): the co-fire demotion's live damage
+        # concentrates in the no-edges half; co-fired bets WITH both edges have been near
+        # breakeven. Feeds the edge tab's "excluded" row so the demotion stays testable.
+        "omega_same_pw_yes": _agg_sig([x for x in sig_rows if x["o_same"] and x["pen_whip"] is True]),
+        "omega_same_pw_no": _agg_sig([x for x in sig_rows if x["o_same"] and x["pen_whip"] is False]),
     }
     # PEN+WHIP FADE record (2026-09-05, the golden-contrarian signal): over ALL settled games
     # (not just E bets), how has the both-edge team done when the site's frozen prediction had

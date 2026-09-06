@@ -106,6 +106,26 @@ export default function EdgePicksView({ games }) {
         `— both pitching edges (${chip('pen_whip_yes', '+21.0% (55)')} overall) but full model consensus caps it (${chip('profile_consensus_pw', '-0.9% (9)')}) · trim to ~half size`,
         pwOnly.map(x => betRow(x, '#ffb627', `PEN+WHIP ✓ ${chip('profile_consensus_pw', '')}`)))}
 
+      {/* Excluded-but-close (user challenge 9/6, "shouldn't PIT be under pen+whip"): Ω-co-fired
+          bets that DO hold both pitching edges. The shipped co-fire demotion outranks this —
+          its live damage concentrates in the no-edges half (omega_same_pw_no), while the
+          with-edges half has been near breakeven. Shown grayed with both live records so the
+          demotion stays honest and testable; if the with-edges cell turns clearly positive at
+          ~25 bets, the demotion rule gets refined. */}
+      {(() => {
+        const excl = bets.filter(x => demoted(x) && x.bet.pen_whip === true)
+        if (!excl.length) return null
+        return (
+          <div style={{ marginTop: 14, padding: '12px 18px', borderRadius: 8, border: '1px dashed #f85149', opacity: 0.85 }}>
+            <div className="mono" style={{ fontSize: 10, color: '#f85149', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
+              title={`These hold both pitching edges but the Omega formula fires the same side, and the shipped co-fire demotion (validated in backtest 7/7 folds and −26.5% live overall) outranks the edges. The honest split it hides: co-fired WITHOUT the edges ${chip('omega_same_pw_no', '−30% (16)')} carries all the damage, co-fired WITH them ${chip('omega_same_pw_yes', '+8.9% (8)')} has been near breakeven — but that cell is single-digit bets, and an 8-bet cell does not overrule a validated rule. It updates live; if it is clearly positive at ~25 bets the demotion gets refined to spare these.`}>
+              excluded — Ω-co-fired despite PEN+WHIP ✓ ({excl.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— co-fired with edges: {chip('omega_same_pw_yes', '+8.9% (8)')} · without: {chip('omega_same_pw_no', '−30% (16)')} · the validated demotion wins until the with-edges cell earns ~25 bets — hover</span>
+            </div>
+            {excl.map(x => betRow(x, '#8b949e', `co-fired · ${chip('omega_same_pw_yes', '')}`))}
+          </div>
+        )
+      })()}
+
       {section(`⭐ golden contrarian — take AGAINST the model (${nGold})`, '#ffd700',
         `— model fades a both-edge team · live ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}${pwfDog ? ` · DOG wing ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''} · WATCH signal: small flat stakes only, re-judged at 100 games`,
         golden.map(r => (
