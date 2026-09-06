@@ -2684,6 +2684,17 @@ def _compute_today_response(date: str = None):
                     }
                 except Exception:
                     pass
+            # ... and for EVERY game, not just bets (2026-09-06, second revision): the frozen
+            # bet vectors alone are selection-biased -- only games that fired are captured, so
+            # they cannot measure the systemic favorite tilt on unselected games. This per-game
+            # snapshot makes one full slate the decisive diagnostic dataset.
+            try:
+                model_e_features_out = {
+                    c: (None if pd.isna(row[c].iloc[0]) else round(float(row[c].iloc[0]), 6))
+                    for c in model_e.MODEL_E_FEATURE_COLUMNS
+                }
+            except Exception:
+                model_e_features_out = None
             reason = _generate_reason(
                 prediction["home_win_prob"] >= 0.5, season_stats_out, recent_form_out, any_long_layoff,
                 team_stats_out,
@@ -2948,6 +2959,7 @@ def _compute_today_response(date: str = None):
             "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
             "pen_whip_team": pen_whip_team_out, "bullpen_lean": bullpen_lean_out,
+            "model_e_features": model_e_features_out,
             "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,
