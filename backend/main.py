@@ -2586,6 +2586,16 @@ def _compute_today_response(date: str = None):
                 except Exception:
                     model_f5_prob = None
                     model_f5_bet_out = None
+            # THIN-OPPONENT rule (2026-09-07, roster-churn fix -- see model_e.THIN_OPP_IP):
+            # a favorite bet against a starter with under 40 season IP (or none) must clear
+            # the 6-pt bar; below it, the bet is suppressed entirely. Validated on two
+            # non-overlapping forward windows; blocked bets ran -29.2% in the discovery era.
+            if (model_e_bet_out is not None and model_e_bet_out.get("type") == "favorite"
+                    and (model_e_bet_out.get("edge") or 0) < model_e.HEAVY_FAV_MIN_EDGE):
+                _opp_ss = (season_stats_out or {}).get("away" if model_e_bet_out.get("side_is_home") else "home") or {}
+                _opp_ip = _opp_ss.get("ip")
+                if _opp_ip is None or float(_opp_ip) < model_e.THIN_OPP_IP:
+                    model_e_bet_out = None
             # F5-value status frozen ON the Model E bet at bet time -- true/false/null, exactly
             # the frontend's f5Confirms rule (BetBoard.jsx): does the F5 model beat the F5 market
             # by >= 2 pts on the bet's side? Stored here because it CANNOT be reconstructed at

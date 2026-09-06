@@ -687,6 +687,16 @@ def get_daily_profit() -> dict:
         if (eb.get("type") == "favorite" and (eb.get("market_prob") or 0) >= model_e.HEAVY_FAV_MARKET_PROB
                 and edge < model_e.HEAVY_FAV_MIN_EDGE):
             continue
+        # thin-opponent rule (2026-09-07): favorites vs a sub-40-IP starter need 6 pts too
+        if eb.get("type") == "favorite" and edge < model_e.HEAVY_FAV_MIN_EDGE:
+            try:
+                _ss = json.loads(r["season_stats_json"]) if pd.notna(r.get("season_stats_json")) else None
+            except (TypeError, ValueError):
+                _ss = None
+            if _ss is not None:
+                _oip = ((_ss.get("away" if eb.get("side_is_home") else "home") or {}).get("ip"))
+                if _oip is None or float(_oip) < model_e.THIN_OPP_IP:
+                    continue
         if pd.notna(r.get("model_e_baseball_prob")) and pd.notna(r.get("market_home_prob")):
             op = model_e.compute_omega_prob(float(r["model_e_baseball_prob"]), float(r["market_home_prob"]))
             if op is not None:
@@ -1208,6 +1218,16 @@ def get_model_e_track_record() -> dict:
         if (eb.get("type") == "favorite" and (eb.get("market_prob") or 0) >= model_e.HEAVY_FAV_MARKET_PROB
                 and edge < model_e.HEAVY_FAV_MIN_EDGE):
             continue
+        # thin-opponent rule (2026-09-07): favorites vs a sub-40-IP starter need 6 pts too
+        if eb.get("type") == "favorite" and edge < model_e.HEAVY_FAV_MIN_EDGE:
+            try:
+                _ss = json.loads(r["season_stats_json"]) if pd.notna(r.get("season_stats_json")) else None
+            except (TypeError, ValueError):
+                _ss = None
+            if _ss is not None:
+                _oip = ((_ss.get("away" if eb.get("side_is_home") else "home") or {}).get("ip"))
+                if _oip is None or float(_oip) < model_e.THIN_OPP_IP:
+                    continue
         cofired = False
         if pd.notna(r.get("model_e_baseball_prob")) and pd.notna(r.get("market_home_prob")):
             op = model_e.compute_omega_prob(float(r["model_e_baseball_prob"]), float(r["market_home_prob"]))

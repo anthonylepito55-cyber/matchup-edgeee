@@ -100,6 +100,17 @@ FAVORITE_THRESHOLD = 0.03
 # not cure -- revisit when the feature-vector join names the skewed feature (~2026-09-20).
 HEAVY_FAV_MARKET_PROB = 0.60
 HEAVY_FAV_MIN_EDGE = 0.06
+# THIN-OPPONENT rule (2026-09-07, the roster-churn fix): a FAVORITE bet whose opposing
+# starter has under this many season innings (or no data) must also clear HEAVY_FAV_MIN_EDGE.
+# Mechanism: with a thin/absent opponent track record the model's read on that side is a
+# league-average guess, so its favorite edge is partly fiction (the SF@NYM / Pecko / Jobe
+# failure class; the ablation session showed September's favorite overshoot flows through
+# roster-built baseball features). Validated on TWO non-overlapping forward windows
+# (_thin_opponent_validation.py): discovery (E-era 8/20+) -5.8% -> -4.6%, blocked 5 bets
+# running -29.2%; untouched validation (A-era 7/10-8/19) +11.8% -> +12.2%. The full-skip
+# variant over-corrected and was rejected. Enforced in main.py (needs the opposing starter's
+# season IP, which lives with the game payload, not in this module's inputs).
+THIN_OPP_IP = 40.0
 KELLY_FRACTION = 0.25       # quarter-Kelly: backtest edges routinely halve live; full Kelly on a halved edge over-bets ~2x
 BANKROLL_UNITS = 100.0      # stakes are expressed in units of a 100-unit bankroll
 MAX_STAKE_UNITS = 5.0       # hard cap regardless of what Kelly says -- a single MLB game is never worth more
