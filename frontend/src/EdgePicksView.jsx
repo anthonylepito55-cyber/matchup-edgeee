@@ -21,6 +21,11 @@ export default function EdgePicksView({ games }) {
   }
   const pwf = e && e.pen_whip_fade
   const pwfDog = pwf && pwf.dog
+  // 2026 season-replay numbers (walk-forward OOF, Mar 25 - Aug 18, close - 3.5% vig; zero
+  // overlap with the live record) -- shown in parentheses next to every live ROI so both
+  // samples are always visible together. Static: the window is closed.
+  const R26 = { pen_whip_yes: '+17.8% (198)', pen_whip_no: '+8.3% (406)', omega_same: '+7.7% (205)', fade: '+4.2% (116)', fade_dog: '+5.8% (62)' }
+  const r26 = k => (R26[k] ? ` (26 retro ${R26[k]})` : '')
 
   const dv = (h, a) => {
     if (h == null || a == null) return null
@@ -91,12 +96,12 @@ export default function EdgePicksView({ games }) {
       </div>
 
       {section(`★ slip — PEN+WHIP ✓ (${pwYes.length}) · full stake`, '#3fb950',
-        `— our side holds both pitching edges · live ${chip('pen_whip_yes', '+21.0% (55)')} · season replay +17.8% (198) — the one signal positive in both samples`,
-        pwYes.map(x => betRow(x, '#3fb950', `PEN+WHIP ✓ ${chip('pen_whip_yes', '')}`)))}
+        `— our side holds both pitching edges · live ${chip('pen_whip_yes', '+21.0% (55)')}${r26('pen_whip_yes')} — the one signal positive in both samples`,
+        pwYes.map(x => betRow(x, '#3fb950', `✓ live ${chip('pen_whip_yes', '')}${r26('pen_whip_yes')}`)))}
 
       {section(`slip — PEN+WHIP ✗ (${pwRest.length}) · standard stake`, '#58a6ff',
-        `— still validated menu bets (season replay +8.3% without the edges); live ${chip('pen_whip_no', '−9.7% (63)')} — the samples disagree on these, so take them at listed size and let the record decide`,
-        pwRest.map(x => betRow(x, '#58a6ff', `PEN+WHIP ✗ ${chip('pen_whip_no', '')}`)))}
+        `— still validated menu bets · live ${chip('pen_whip_no', '−9.7% (63)')}${r26('pen_whip_no')} — the samples disagree on these, so take them at listed size and let the record decide`,
+        pwRest.map(x => betRow(x, '#58a6ff', `✗ live ${chip('pen_whip_no', '')}${r26('pen_whip_no')}`)))}
 
       {(() => {
         const excl = bets.filter(x => demoted(x))
@@ -105,7 +110,7 @@ export default function EdgePicksView({ games }) {
           <div style={{ marginTop: 14, padding: '12px 18px', borderRadius: 8, border: '1px dashed #f85149', opacity: 0.85 }}>
             <div className="mono" style={{ fontSize: 10, color: '#f85149', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
               title={`The Ω-co-fire demotion is the one exclusion that passed BOTH validation styles: +3.1% vs +14.2% for E-alone in the fold-tested backtest (7/7 folds, two geometries) AND −26.5% live (omega_same). Its pen+whip split: with edges ${chip('omega_same_pw_yes', '−3.2% (9)')}, without ${chip('omega_same_pw_no', '−34.5% (17)')} — if the with-edges cell is clearly positive at ~25 bets the demotion gets refined.`}>
-              excluded — Ω-co-fired ({excl.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— the validated demotion (fold-tested + {chip('omega_same', '−26.5% (27)')} live) · shown so nothing is hidden — hover</span>
+              excluded — Ω-co-fired ({excl.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— the validated demotion · live {chip('omega_same', '−26.5% (27)')}{r26('omega_same')} · shown so nothing is hidden — hover</span>
             </div>
             {excl.map(x => betRow(x, '#8b949e', x.bet.pen_whip === true ? `co-fired · has edges ${chip('omega_same_pw_yes', '')}` : `co-fired ${chip('omega_same_pw_no', '')}`))}
           </div>
@@ -113,7 +118,7 @@ export default function EdgePicksView({ games }) {
       })()}
 
       {section(`⭐ golden contrarian — take AGAINST the model (${golden.length})`, '#ffd700',
-        `— model fades a both-edge team · live ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}${pwfDog ? ` · DOG wing ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''} · season replay a milder +4.2% — WATCH signal, small flat stakes only, re-judged at 100 games`,
+        `— model fades a both-edge team · live ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}${r26('fade')}${pwfDog ? ` · DOG wing ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})${r26('fade_dog')}` : ''} — WATCH signal, small flat stakes only, re-judged at 100 games`,
         golden.map(r => (
           <div key={`epg-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 220px 90px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)', borderLeft: '3px solid #ffd700', background: r.isDog ? 'rgba(255,215,0,0.12)' : 'rgba(255,215,0,0.05)' }}>
             <span>
