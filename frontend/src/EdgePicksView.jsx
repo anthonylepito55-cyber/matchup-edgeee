@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 
-// EDGE PICKS tab (user call 9/6): every pick from the three live-positive structures on one
-// page, so taking them is one glance instead of reading chips across the profit tab.
-//   1. ★ winning-profile menu bets — E alone (+26.5% live/30) or 1-2 models agreeing WITH
-//      both pitching edges (+29.5%/33)
-//   2. other PEN+WHIP ✓ menu bets (+21.0%/55 overall) — the breakeven-cell ones, trim-sized
-//   3. ⭐ golden contrarian — the model fades a both-edge team (27-19/+17.3%; DOG wing +32.4%)
-// All records shown are LIVE and update as bets settle. HONESTY: these are the best-supported
-// live structures, not proven edges — every cell still sits inside a ±25-70pt noise band, and
-// the combined record needs ~200+ bets to separate from luck. Co-fired/demoted bets never
-// appear here even when their profile looks good.
+// EDGE PICKS tab, v2 (2026-09-06). v1 grouped bets by the agreement-profile grid — that grid
+// FAILED its out-of-sample test the same day it shipped (discovered on live 8/20+ bets, it
+// SHUFFLED on the untouched Mar-Aug season: E-alone +26.5% live but −9.1% retro, consensus+
+// edges −0.9% live but +25.5% retro; the profile-weighted portfolio made +7.2% vs +12.0% for
+// the plain slip). So v2 is the plain validated slip, organized by the ONE signal that points
+// the same way in BOTH samples — PEN+WHIP (✓ +21.0% live / +17.8% retro vs ✗ −9.7% / +8.3%)
+// — plus the golden fade watch signal (+17.3% live / +4.2% retro, unstaked) and the co-fire
+// demotion (validated in fold tests AND live). Profile badges live on as information on the
+// bet-for-profit tab; they no longer size anything.
 export default function EdgePicksView({ games }) {
   const [e, setE] = useState(null)
   useEffect(() => {
@@ -33,16 +32,8 @@ export default function EdgePicksView({ games }) {
   const bets = (games || []).filter(g => g.model_e_bet && g.model_e_bet.stake_units != null)
     .map(g => ({ g, bet: g.model_e_bet }))
   const demoted = x => x.bet.omega_cofired
-  const profileOf = x => {
-    const b = x.bet
-    if (b.ours_avail !== 3 || b.ours_agree == null) return null
-    if (b.ours_agree === 0) return 'e_alone'
-    if (b.pen_whip == null) return null
-    if (b.ours_agree === 3) return b.pen_whip ? 'consensus_pw' : 'consensus_nopw'
-    return b.pen_whip ? 'agree_pw' : 'agree_nopw'
-  }
-  const winners = bets.filter(x => !demoted(x) && ['e_alone', 'agree_pw'].includes(profileOf(x)))
-  const pwOnly = bets.filter(x => !demoted(x) && !winners.includes(x) && x.bet.pen_whip === true)
+  const pwYes = bets.filter(x => !demoted(x) && x.bet.pen_whip === true)
+  const pwRest = bets.filter(x => !demoted(x) && x.bet.pen_whip !== true)
   const golden = (games || []).map(g => {
     const t = g.pen_whip_team
     const p = g.prediction && g.prediction.home_win_prob
@@ -88,46 +79,41 @@ export default function EdgePicksView({ games }) {
     </div>
   )
 
-  const nWin = winners.length, nPw = pwOnly.length, nGold = golden.length
   return (
     <div>
       <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '16px 0 4px', lineHeight: 1.5 }}>
-        <b style={{ color: 'var(--amber)' }}>EDGE PICKS</b> — every pick from the three structures that are live-positive on real settled bets,
-        gathered on one page. These are the best-SUPPORTED patterns, not proven edges: each record below is real and updates as
-        bets settle, but all still sit inside their noise bands (~±25-70 pts) and need 200+ bets to separate from luck.
-        Stakes shown are the menu&apos;s quarter-Kelly units (1u = 1% of bankroll). Ω-co-fired bets never appear here.
+        <b style={{ color: 'var(--amber)' }}>EDGE PICKS</b> — the validated slip (every menu bet except the Ω-co-fired demotions), organized by
+        the one signal that held up in BOTH the live record and the out-of-sample season replay: <b>PEN+WHIP</b>. The agreement-profile
+        grid that briefly organized this page failed its out-of-sample test on 9/6 (cells shuffled sign on the untouched Mar–Aug season;
+        the profile-weighted portfolio made +7.2% vs +12.0% for the plain slip) — profile badges remain on the bet-for-profit tab as
+        information, but nothing here sizes by them anymore. Stakes are the menu&apos;s quarter-Kelly (1u = 1% of bankroll). Bet at the listed
+        books, favorites early — never Kalshi (book price was better on 96 of 96 logged bets).
       </div>
 
-      {section(`★ winning-profile bets (${nWin})`, '#3fb950',
-        `— E alone ${chip('profile_e_alone', '+26.5% (30)')} or 1-2 models agreeing + both pitching edges ${chip('profile_agree_pw', '+29.5% (33)')} · full menu stake`,
-        winners.map(x => betRow(x, '#3fb950', profileOf(x) === 'e_alone' ? `E ALONE ${chip('profile_e_alone', '')}` : `AGREE+EDGES ${chip('profile_agree_pw', '')}`)))}
+      {section(`★ slip — PEN+WHIP ✓ (${pwYes.length}) · full stake`, '#3fb950',
+        `— our side holds both pitching edges · live ${chip('pen_whip_yes', '+21.0% (55)')} · season replay +17.8% (198) — the one signal positive in both samples`,
+        pwYes.map(x => betRow(x, '#3fb950', `PEN+WHIP ✓ ${chip('pen_whip_yes', '')}`)))}
 
-      {section(`PEN+WHIP ✓, breakeven profile (${nPw})`, 'var(--amber)',
-        `— both pitching edges (${chip('pen_whip_yes', '+21.0% (55)')} overall) but full model consensus caps it (${chip('profile_consensus_pw', '-0.9% (9)')}) · trim to ~half size`,
-        pwOnly.map(x => betRow(x, '#ffb627', `PEN+WHIP ✓ ${chip('profile_consensus_pw', '')}`)))}
+      {section(`slip — PEN+WHIP ✗ (${pwRest.length}) · standard stake`, '#58a6ff',
+        `— still validated menu bets (season replay +8.3% without the edges); live ${chip('pen_whip_no', '−9.7% (63)')} — the samples disagree on these, so take them at listed size and let the record decide`,
+        pwRest.map(x => betRow(x, '#58a6ff', `PEN+WHIP ✗ ${chip('pen_whip_no', '')}`)))}
 
-      {/* Excluded-but-close (user challenge 9/6, "shouldn't PIT be under pen+whip"): Ω-co-fired
-          bets that DO hold both pitching edges. The shipped co-fire demotion outranks this —
-          its live damage concentrates in the no-edges half (omega_same_pw_no), while the
-          with-edges half has been near breakeven. Shown grayed with both live records so the
-          demotion stays honest and testable; if the with-edges cell turns clearly positive at
-          ~25 bets, the demotion rule gets refined. */}
       {(() => {
-        const excl = bets.filter(x => demoted(x) && x.bet.pen_whip === true)
+        const excl = bets.filter(x => demoted(x))
         if (!excl.length) return null
         return (
           <div style={{ marginTop: 14, padding: '12px 18px', borderRadius: 8, border: '1px dashed #f85149', opacity: 0.85 }}>
             <div className="mono" style={{ fontSize: 10, color: '#f85149', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
-              title={`These hold both pitching edges but the Omega formula fires the same side, and the shipped co-fire demotion (validated in backtest 7/7 folds and −26.5% live overall) outranks the edges. The honest split it hides: co-fired WITHOUT the edges ${chip('omega_same_pw_no', '−30% (16)')} carries all the damage, co-fired WITH them ${chip('omega_same_pw_yes', '+8.9% (8)')} has been near breakeven — but that cell is single-digit bets, and an 8-bet cell does not overrule a validated rule. It updates live; if it is clearly positive at ~25 bets the demotion gets refined to spare these.`}>
-              excluded — Ω-co-fired despite PEN+WHIP ✓ ({excl.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— co-fired with edges: {chip('omega_same_pw_yes', '+8.9% (8)')} · without: {chip('omega_same_pw_no', '−30% (16)')} · the validated demotion wins until the with-edges cell earns ~25 bets — hover</span>
+              title={`The Ω-co-fire demotion is the one exclusion that passed BOTH validation styles: +3.1% vs +14.2% for E-alone in the fold-tested backtest (7/7 folds, two geometries) AND −26.5% live (omega_same). Its pen+whip split: with edges ${chip('omega_same_pw_yes', '−3.2% (9)')}, without ${chip('omega_same_pw_no', '−34.5% (17)')} — if the with-edges cell is clearly positive at ~25 bets the demotion gets refined.`}>
+              excluded — Ω-co-fired ({excl.length}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— the validated demotion (fold-tested + {chip('omega_same', '−26.5% (27)')} live) · shown so nothing is hidden — hover</span>
             </div>
-            {excl.map(x => betRow(x, '#8b949e', `co-fired · ${chip('omega_same_pw_yes', '')}`))}
+            {excl.map(x => betRow(x, '#8b949e', x.bet.pen_whip === true ? `co-fired · has edges ${chip('omega_same_pw_yes', '')}` : `co-fired ${chip('omega_same_pw_no', '')}`))}
           </div>
         )
       })()}
 
-      {section(`⭐ golden contrarian — take AGAINST the model (${nGold})`, '#ffd700',
-        `— model fades a both-edge team · live ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}${pwfDog ? ` · DOG wing ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''} · WATCH signal: small flat stakes only, re-judged at 100 games`,
+      {section(`⭐ golden contrarian — take AGAINST the model (${golden.length})`, '#ffd700',
+        `— model fades a both-edge team · live ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}${pwfDog ? ` · DOG wing ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''} · season replay a milder +4.2% — WATCH signal, small flat stakes only, re-judged at 100 games`,
         golden.map(r => (
           <div key={`epg-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 220px 90px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)', borderLeft: '3px solid #ffd700', background: r.isDog ? 'rgba(255,215,0,0.12)' : 'rgba(255,215,0,0.05)' }}>
             <span>
@@ -143,9 +129,11 @@ export default function EdgePicksView({ games }) {
         )))}
 
       <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 10, lineHeight: 1.5 }}>
-        Not shown here on purpose: losing/breakeven-profile menu bets without the pitching edges, Ω-co-fired bets, F5 (suspended),
-        shades, and Kalshi placements (its ~7% fee made the book price better on 96 of 96 logged bets — place these at the listed
-        sportsbooks). The full slate with every chip stays on the bet-for-profit tab; this page is the short list.
+        Also not here, still by the record: F5 (suspended, −19.5% live), unflipped-dog shades (−15% live), Kalshi placements, and any
+        bet the menu didn&apos;t fire. The full slate with every chip stays on the bet-for-profit tab; this page is the action list.
+        Honesty ledger for this page itself: v1 (profile-grouped) lived one day before its own out-of-sample test killed it — the
+        badges that organized it are now commentary, not sizing. Signals earn stakes here only by being positive in BOTH the live
+        log and an untouched sample; today that list is: the menu, the co-fire demotion, and PEN+WHIP.
       </div>
     </div>
   )
