@@ -124,6 +124,20 @@ export default function ProfitView({ games, date, marketAge }) {
   useEffect(() => { try { localStorage.setItem('me_bankroll', String(bank || 0)) } catch {} }, [bank])
   const usd = u => (u == null || !bank ? '' : `$${Math.round((u * bank) / 100).toLocaleString()}`)
 
+  // 2026 SEASON-REPLAY numbers (user ask 9/6: retro ROI in parentheses next to every live
+  // chip). Source: walk-forward OOF replay, 2026-03-25 -> 08-18, current menu, close - 3.5%
+  // vig -- ZERO overlap with the live record (live starts 8/20), so live-vs-retro DISAGREEMENT
+  // on a chip is honest information: the signal did not replicate out-of-sample. Static by
+  // nature (the window is closed); rerun _edge_picks_2026_backtest.py after any menu change.
+  const R26 = {
+    pen_whip_yes: '+17.8% (198)', pen_whip_no: '+8.3% (406)',
+    profile_e_alone: '−9.1% (57)', profile_agree_pw: '+3.9% (77)', profile_agree_nopw: '+11.2% (146)',
+    profile_consensus_pw: '+25.5% (88)', profile_consensus_nopw: '+4.8% (158)',
+    dog_a: '+12.4% (153)', dog_b: '+14.8% (99)', favs: '+11.1% (364)',
+    omega_same: '+7.7% (205)', fade: '+4.2% (116)', fade_dog: '+5.8% (62)',
+  }
+  const r26 = k => R26[k] ? ` (26 retro ${R26[k]})` : ''
+
   // Model E (full-game moneyline) only -- F5 stays on the today tab and its own panel.
   const slip = (games || []).filter(g => g.model_e_bet && g.model_e_bet.stake_units != null)
     .map(g => ({ g, bet: g.model_e_bet, market: 'Full game ML' }))
@@ -405,7 +419,7 @@ export default function ProfitView({ games, date, marketAge }) {
                       title={pw
                         ? `PEN+WHIP ✓: our side has BOTH the better starter WHIP and the better bullpen (by FIP) as of this morning. Live record of both-edge bets: ${roiTxt || 'n/a'} flat ROI${agg ? ` on ${agg.n} settled bets, hit ${(100 * agg.hit_rate).toFixed(0)}%` : ''} — essentially all of Model E's live profit has come from this group, and the full-sample association points the same way (both-edge teams win 57.5% vs the market's expected 55.9%). Noise bands still overlap between the groups, so this is information, not a gate.`
                         : `PEN+WHIP ✗: our side does NOT have both pitching edges (starter WHIP + bullpen FIP). Live record of these bets: ${roiTxt || 'n/a'} flat ROI${agg ? ` on ${agg.n} settled bets, hit ${(100 * agg.hit_rate).toFixed(0)}%` : ''} — underwater so far, while both-edge bets carry the profit. Small samples, overlapping noise bands: a caution flag, not a filter.`}>
-                      {' '}· PEN+WHIP {pw ? '✓' : '✗'}{roiTxt ? ` ${roiTxt}` : ''}{agg ? ` (${agg.n})` : ''}
+                      {' '}· PEN+WHIP {pw ? '✓' : '✗'}{roiTxt ? ` ${roiTxt}` : ''}{agg ? ` (${agg.n})` : ''}{r26(pw ? 'pen_whip_yes' : 'pen_whip_no')}
                     </span>
                   })()}{(() => {
                     // GOLDEN warning (9/5): this bet is INTO a team holding both pitching
@@ -454,7 +468,7 @@ export default function ProfitView({ games, date, marketAge }) {
                     const col = good ? '#3fb950' : breakeven ? 'var(--amber)' : '#f85149'
                     return <span style={{ color: col, fontWeight: 700 }}
                       title={`PROFILE: ${label}. The live two-factor grid (how many of our other models fire the same side × whether our side holds both pitching edges), all cells real settled bets at logged prices: E alone +26.5% (30) — money with or without the pitching edges · 1-2 agree WITH both edges +29.5% (33, 75.8% hit) · 1-2 agree WITHOUT −26.8% (33) · full consensus with edges −0.9% (9) · full consensus without −25.2% (13). This bet sits in the '${label}' cell: ${roiTxt2 || 'n/a'}${a ? ` on ${a.n} bets, hit ${(100 * a.hit_rate).toFixed(0)}%` : ''}. Cells are ±35-70 pts each — the coherence across cells is the evidence, and this chip updates live as bets settle. A watch signal made visible, not a staking rule.`}>
-                      {' '}· {good ? '★ WINNING PROFILE' : breakeven ? 'profile ≈ breakeven' : '▼ LOSING PROFILE'} {roiTxt2}{a ? ` (${a.n})` : ''}
+                      {' '}· {good ? '★ WINNING PROFILE' : breakeven ? 'profile ≈ breakeven' : '▼ LOSING PROFILE'} {roiTxt2}{a ? ` (${a.n})` : ''}{r26(key)}
                     </span>
                   })()}{(() => {
                     // Historical ROI of this bet's CLASS -- class averages from the measured
@@ -494,7 +508,7 @@ export default function ProfitView({ games, date, marketAge }) {
                       const tiny = src.n < 15
                       const roiTxt = `${src.flat_roi_pct > 0 ? '+' : ''}${Number(src.flat_roi_pct).toFixed(1)}%`
                       return <span style={{ color: tiny ? '#8b949e' : '#ffb627', fontWeight: tiny ? 400 : 700 }}
-                        title={`LIVE ${useLv ? 'record of this class' : `record of ALL ${bet.type === 'underdog' ? 'underdog' : 'favorite'} bets (this exact class has no settled live bets yet)`}: ${roiTxt} flat ROI on ${src.n} real graded bets${src.hit_rate != null ? `, hit ${(100 * src.hit_rate).toFixed(0)}%` : ''} — a ±${noise}-point noise band at this sample size${tiny ? ', which makes this number statistically MEANINGLESS — it is shown only so you can watch it grow up' : ', so treat the sign loosely and the digits not at all'}. Updates automatically as bets settle. Backtest reference for this class: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}).`}> · live {roiTxt} ({src.n}{label}{tiny ? ' · noise' : ''})</span>
+                        title={`LIVE ${useLv ? 'record of this class' : `record of ALL ${bet.type === 'underdog' ? 'underdog' : 'favorite'} bets (this exact class has no settled live bets yet)`}: ${roiTxt} flat ROI on ${src.n} real graded bets${src.hit_rate != null ? `, hit ${(100 * src.hit_rate).toFixed(0)}%` : ''} — a ±${noise}-point noise band at this sample size${tiny ? ', which makes this number statistically MEANINGLESS — it is shown only so you can watch it grow up' : ', so treat the sign loosely and the digits not at all'}. Updates automatically as bets settle. Backtest reference for this class: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}).`}> · live {roiTxt} ({src.n}{label}{tiny ? ' · noise' : ''}){r26(key === 'dog_a' ? 'dog_a' : key === 'dog_b' ? 'dog_b' : 'favs')}</span>
                     }
                     const col = cr.roi >= 15 ? '#3fb950' : cr.roi >= 8 ? 'var(--text-secondary)' : '#f85149'
                     return <span style={{ color: col, fontWeight: 700 }} title={`No live bets exist for this class or type yet — the backtest figure is shown as the only available number: ${cr.roi > 0 ? '+' : ''}${cr.roi}% on ${cr.n} bets (${cr.win}), flat stakes at fair de-vigged prices. The chip switches to the live record automatically as soon as real bets settle.`}> · class {cr.roi > 0 ? '+' : ''}{cr.roi}% (backtest)</span>
@@ -648,7 +662,7 @@ export default function ProfitView({ games, date, marketAge }) {
             <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 8, border: `1px solid ${gold}`, background: 'rgba(255,215,0,0.06)' }}>
               <div className="mono" style={{ fontSize: 10, color: gold, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
                 title={`The model is fading a team that holds BOTH pitching edges (better starter WHIP and better bullpen FIP). Live forward record of taking those teams AGAINST our own model, since 7/10 at the de-vigged close minus 3.5% vig: ${pwf ? `${pwf.wins}-${pwf.n - pwf.wins} (${(100 * pwf.hit_rate).toFixed(1)}%), ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}% ROI` : '27-19, +17.3%'} — positive in both halves of the window. The model has these teams under 50% and has measurably underrated this combo (~8 pts in conflicts). HONESTY: ±29-pt noise band at this sample; this is a watch signal shown at your request, not a validated rule — it gets re-judged at 100 live games, and it is never in the risk total.`}>
-                ⭐ pen+whip contrarian — take the OPPOSITE team ({rows.length} game{rows.length === 1 ? '' : 's'}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— model fades a both-edge team · live taking them anyway: {pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}{pwfDog ? ` · when it's a DOG: ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''} · watch signal, not in the risk total — hover</span>
+                ⭐ pen+whip contrarian — take the OPPOSITE team ({rows.length} game{rows.length === 1 ? '' : 's'}) <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— model fades a both-edge team · live taking them anyway: {pwf ? `${pwf.wins}-${pwf.n - pwf.wins} · ${pwf.flat_roi_pct > 0 ? '+' : ''}${pwf.flat_roi_pct.toFixed(1)}%` : '27-19 · +17.3%'}{pwfDog ? ` · when it's a DOG: ${pwfDog.flat_roi_pct > 0 ? '+' : ''}${pwfDog.flat_roi_pct.toFixed(1)}% (${pwfDog.n})` : ''}{r26('fade')}{r26('fade_dog') ? ` · dog${r26('fade_dog')}` : ''} · watch signal, not in the risk total — hover</span>
               </div>
               {rows.map(r => (
                 <div key={`pwfade-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)', background: r.isDog ? 'rgba(255,215,0,0.16)' : 'rgba(255,215,0,0.08)', borderLeft: `3px solid ${gold}` }}>
