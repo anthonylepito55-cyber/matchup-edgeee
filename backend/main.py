@@ -2420,6 +2420,7 @@ def _compute_today_response(date: str = None):
             # doesn't have), not a proven accuracy edge.
             model_c_prob = None
             model_a_bet_out = None
+            dog_shade23_out = None
             if model_c_trained:
                 try:
                     # row above was built with the default FEATURE_COLUMNS (Model A/B's set),
@@ -2735,6 +2736,44 @@ def _compute_today_response(date: str = None):
                     model_a_bet_out["shadow"] = True
             except Exception:
                 model_a_bet_out = None
+            # 2-3pt DOG-SHADE tracker (2026-09-07, user pre-registration): unflipped games
+            # where E shades the DOG by 2-3 pts (e.g. market fav 58%, model 56%). Live it is a
+            # two-window-positive ISLAND (+6.1%/+9.5%) with NEGATIVE neighbors (1-2pt -2.4%,
+            # 3-5pt -16.4%) -- likely noise, tracked flat-1u to find out. Checkpoint ~75
+            # settled. Shadow only: never staked, never in any risk total.
+            try:
+                if model_e_prob is not None and live_odds_out:
+                    _smkt = devig_home_prob(live_odds_out["home"], live_odds_out["away"])
+                    if _smkt is not None:
+                        _sfav_home = _smkt >= 0.5
+                        _spf = model_e_prob if _sfav_home else 1 - model_e_prob
+                        _smf = _smkt if _sfav_home else 1 - _smkt
+                        _shade = _smf - _spf
+                        if _spf >= 0.5 and 0.02 <= _shade < 0.03:
+                            _sh = not _sfav_home
+                            _price = _book = _bestdec = None
+                            for _bk, _pr in (live_odds_out.get("books") or {}).items():
+                                _am = (_pr or {}).get("home" if _sh else "away")
+                                _d = model_e.american_to_decimal(_am)
+                                if _d and (_bestdec is None or _d > _bestdec):
+                                    _bestdec, _price, _book = _d, _am, _bk
+                            if _price is None:
+                                _price = live_odds_out.get("home" if _sh else "away")
+                                _book = live_odds_out.get("bookmaker")
+                            _prev = (prediction_log_module.get_logged_dog_shade23(resolved_date, g.get("game_pk"))
+                                     if g.get("game_pk") else None) or {}
+                            if _price is not None:
+                                dog_shade23_out = {
+                                    "side": g["home_team_abbr"] if _sh else g["away_team_abbr"],
+                                    "side_is_home": bool(_sh), "type": "dog_shade_23",
+                                    "model_prob": round(1 - _spf, 4), "market_prob": round(1 - _smf, 4),
+                                    "shade_pts": round(100 * _shade, 2), "best_price": _price, "best_book": _book,
+                                    "stake_units": 1.0, "shadow": True,
+                                    "first_seen_at": _prev.get("first_seen_at") or datetime.now(timezone.utc).isoformat(),
+                                    "first_seen_price": _prev.get("first_seen_price") or _price,
+                                }
+            except Exception:
+                dog_shade23_out = None
             # Display-only "why" breakdown from the separate hand-weighted rating system (see
             # rating_system.py) — NOT what drives the model's own win-prob above (that backtested
             # worse than the trained model, see the plan doc), just a transparent, category-by-
@@ -2933,6 +2972,8 @@ def _compute_today_response(date: str = None):
                     model_e_bet_out = frozen["model_e_bet"]
                 if frozen.get("model_a_bet"):
                     model_a_bet_out = frozen["model_a_bet"]
+                if frozen.get("dog_shade23"):
+                    dog_shade23_out = frozen["dog_shade23"]
                 if frozen.get("model_e_baseball_prob") is not None:
                     model_e_baseball_prob = frozen["model_e_baseball_prob"]
                 if frozen.get("model_e_shade"):
@@ -2998,6 +3039,7 @@ def _compute_today_response(date: str = None):
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
             "pen_whip_team": pen_whip_team_out, "bullpen_lean": bullpen_lean_out,
             "model_e_features": model_e_features_out, "model_a_bet": model_a_bet_out,
+            "dog_shade23": dog_shade23_out,
             "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,

@@ -551,6 +551,14 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
         <ModelEBetBadge bet={game.model_e_bet} />
         <ModelEBetBadge bet={game.model_f5_bet} label="F5" />
         <ModelEBetBadge bet={game.model_a_bet} label="MODEL A" />
+        {game.dog_shade23 && (
+          <span className="mono" title={`TRACKED EXPERIMENT (pre-registered 9/7): Model E shades the dog by ${game.dog_shade23.shade_pts} pts without flipping (model ${(100 * game.dog_shade23.model_prob).toFixed(1)}% vs market ${(100 * game.dog_shade23.market_prob).toFixed(1)}% on ${game.dog_shade23.side}). Live this 2-3pt band is a two-window-positive ISLAND (+6.1% / +9.5%) whose NEIGHBORS are negative (1-2pt −2.4%, 3-5pt −16.4%) — likely noise, being tracked flat-1u to find out. Checkpoint ~75 settled: still positive and still an island → watch signal; otherwise it dies publicly. Shadow only — not a pick, not in any risk total.`} style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#2dd4bf',
+            border: '1px dashed #2dd4bf', borderRadius: 4, padding: '2px 6px', marginLeft: 6, opacity: 0.85,
+          }}>
+            SHADE 2-3: {game.dog_shade23.side} {game.dog_shade23.best_price > 0 ? '+' : ''}{game.dog_shade23.best_price} · tracked
+          </span>
+        )}
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
         <PitcherLink id={game.away_pitcher_id} name={game.away_pitcher_name} onSelect={onSelectPitcher} />
