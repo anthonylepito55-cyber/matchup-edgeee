@@ -2671,6 +2671,19 @@ def _compute_today_response(date: str = None):
                             _agree += 1
                 model_e_bet_out["ours_agree"] = int(_agree)
                 model_e_bet_out["ours_avail"] = int(_avail)
+                # FULL FEATURE SNAPSHOT frozen on the bet (2026-09-06, heavy-fav skew
+                # investigation): the live pipeline runs ~2.7 pts more favorite-bullish than
+                # the replay pipeline and the cause is some serving-vs-build market-feature
+                # mismatch we cannot pin down until the odds backfill reaches these dates.
+                # Freezing the exact serving-time feature vector makes the diagnosis a single
+                # same-game join once the build catches up (~2 weeks). 27 floats per bet.
+                try:
+                    model_e_bet_out["features"] = {
+                        c: (None if pd.isna(row[c].iloc[0]) else round(float(row[c].iloc[0]), 6))
+                        for c in model_e.MODEL_E_FEATURE_COLUMNS
+                    }
+                except Exception:
+                    pass
             reason = _generate_reason(
                 prediction["home_win_prob"] >= 0.5, season_stats_out, recent_form_out, any_long_layoff,
                 team_stats_out,

@@ -70,6 +70,13 @@ export default function EdgePicksView({ games }) {
     </div>
   )
 
+  // HEAVY-FAVORITE half-size rule (9/6, under investigation): the live pipeline generates
+  // 3+pt favorite edges on big favorites ~9x more often than the replay pipeline did, the
+  // cause is an unresolved serving-feature mismatch, and live -150+ favorites run −7.3%.
+  // Until the feature-vector instrumentation identifies the skew, heavy favorites are
+  // flagged for half stake.
+  const heavyFav = bet => bet.type === 'favorite' && bet.best_price != null && bet.best_price <= -150
+
   const betRow = ({ g, bet }, color, tag) => (
     <div key={`ep-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 220px 90px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '7px 6px', borderBottom: '1px solid var(--line)', borderLeft: `3px solid ${color}`, background: 'rgba(255,255,255,0.02)' }}>
       <span>
@@ -77,9 +84,10 @@ export default function EdgePicksView({ games }) {
         <b style={{ color }}>{bet.side} {bet.best_price > 0 ? '+' : ''}{bet.best_price}</b>
         {bet.best_book ? <span style={{ color: 'var(--text-tertiary)' }}> @ {bet.best_book}</span> : null}
         <span style={{ color: 'var(--text-tertiary)' }}> · {bet.type}{bet.dog_grade ? ` ${bet.dog_grade}` : ''}</span>
+        {heavyFav(bet) ? <b style={{ color: '#f85149' }} title="HEAVY FAVORITE (-150 or shorter), HALF SIZE while under investigation: the live pipeline produces big-favorite edges ~9x more often than the replay pipeline ever did (9/6 diagnostic: live model sits +0.9 pts ABOVE the market on favorites vs −1.8 below under replay conditions — an unresolved serving-feature mismatch, not model drift). Live -150+ favorites run −7.3% (40). Every bet now freezes its full feature vector so the skewed feature identifies itself once the odds backfill catches up (~2 weeks); until then, take these at HALF the listed stake."> · ⚠ HEAVY — half size</b> : null}
       </span>
       <span style={{ color, fontWeight: 700 }}>{tag}</span>
-      <span style={{ fontWeight: 700 }}>{bet.stake_units}u</span>
+      <span style={{ fontWeight: heavyFav(bet) ? 400 : 700, textDecoration: heavyFav(bet) ? 'line-through' : 'none' }}>{bet.stake_units}u{heavyFav(bet) ? <b style={{ color: '#f85149', textDecoration: 'none' }}> → {(bet.stake_units / 2).toFixed(1)}u</b> : null}</span>
       <span style={{ color: 'var(--text-tertiary)' }}>{time(g)}</span>
     </div>
   )
