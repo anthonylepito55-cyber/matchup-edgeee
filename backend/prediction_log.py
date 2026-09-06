@@ -683,6 +683,10 @@ def get_daily_profit() -> dict:
             continue
         if eb.get("type") == "underdog" and edge < 0.06:
             continue
+        # heavy-favorite containment (2026-09-06): 60%+ favorites need a 6-pt edge
+        if (eb.get("type") == "favorite" and (eb.get("market_prob") or 0) >= model_e.HEAVY_FAV_MARKET_PROB
+                and edge < model_e.HEAVY_FAV_MIN_EDGE):
+            continue
         if pd.notna(r.get("model_e_baseball_prob")) and pd.notna(r.get("market_home_prob")):
             op = model_e.compute_omega_prob(float(r["model_e_baseball_prob"]), float(r["market_home_prob"]))
             if op is not None:
@@ -1199,6 +1203,10 @@ def get_model_e_track_record() -> dict:
         if eb.get("type") == "favorite" and edge < 0.03:
             continue
         if eb.get("type") == "underdog" and edge < 0.06:
+            continue
+        # heavy-favorite containment (2026-09-06): 60%+ favorites need a 6-pt edge
+        if (eb.get("type") == "favorite" and (eb.get("market_prob") or 0) >= model_e.HEAVY_FAV_MARKET_PROB
+                and edge < model_e.HEAVY_FAV_MIN_EDGE):
             continue
         cofired = False
         if pd.notna(r.get("model_e_baseball_prob")) and pd.notna(r.get("market_home_prob")):
