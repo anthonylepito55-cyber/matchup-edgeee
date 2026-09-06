@@ -550,6 +550,7 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
         <ValueBetBadge valueBet={game.value_bet} />
         <ModelEBetBadge bet={game.model_e_bet} />
         <ModelEBetBadge bet={game.model_f5_bet} label="F5" />
+        <ModelEBetBadge bet={game.model_a_bet} label="MODEL A" />
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
         <PitcherLink id={game.away_pitcher_id} name={game.away_pitcher_name} onSelect={onSelectPitcher} />
@@ -1206,12 +1207,14 @@ export function ModelEBetBadge({ bet, label = 'MODEL E' }) {
     + ` — best price ${price}${bet.best_book ? ` (${bet.best_book})` : ''}, fair ${bet.fair_price > 0 ? '+' : ''}${bet.fair_price}`
     + `, EV ${bet.ev_pct > 0 ? '+' : ''}${bet.ev_pct}%, quarter-Kelly stake ${bet.stake_units}u`
     + (bet.first_seen_price != null && bet.first_seen_price !== bet.best_price ? ` (first seen ${bet.first_seen_price > 0 ? '+' : ''}${bet.first_seen_price})` : '')
+    + (bet.shadow ? '. SHADOW: the pre-registered Model A vs Model E head-to-head — same menu, same rules, logged and settled like E but never on the slip. If A is still clearly ahead at ~150 post-rule bets each (~early October), the slip engine gets re-litigated with real evidence.' : '')
   return (
     <span className="mono" title={tooltip} style={{
       fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color,
-      border: `1px solid ${color}`, borderRadius: 4, padding: '2px 6px', marginLeft: 6,
+      border: `1px ${bet.shadow ? 'dashed' : 'solid'} ${color}`, borderRadius: 4, padding: '2px 6px', marginLeft: 6,
+      opacity: bet.shadow ? 0.75 : 1,
     }}>
-      {label}{bet.strength === 'strong' ? ' ★' : ''}: {bet.side} {price} · {bet.stake_units}u
+      {label}{bet.strength === 'strong' ? ' ★' : ''}: {bet.side} {price} · {bet.stake_units}u{bet.shadow ? ' · shadow' : ''}
     </span>
   )
 }

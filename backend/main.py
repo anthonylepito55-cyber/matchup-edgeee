@@ -2419,6 +2419,7 @@ def _compute_today_response(date: str = None):
             # served for its architecture (continuous polling, the single-book-leak guards Model B
             # doesn't have), not a proven accuracy edge.
             model_c_prob = None
+            model_a_bet_out = None
             if model_c_trained:
                 try:
                     # row above was built with the default FEATURE_COLUMNS (Model A/B's set),
@@ -2709,6 +2710,31 @@ def _compute_today_response(date: str = None):
                 prediction["home_win_prob"] >= 0.5, season_stats_out, recent_form_out, any_long_layoff,
                 team_stats_out,
             )
+            # MODEL A SHADOW BET (2026-09-07, the pre-registered A-vs-E head-to-head): the
+            # site model's final number through the IDENTICAL menu (thresholds + heavy bar,
+            # inside compute_bet) plus the thin-opponent rule, with real first-seen/best-price
+            # bookkeeping, logged and settled like Model E. Never on the slip -- a shadow.
+            try:
+                model_a_bet_out = model_e.compute_bet(
+                    prediction["home_win_prob"],
+                    devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
+                    g["home_team_abbr"], g["away_team_abbr"],
+                    book_prices=(live_odds_out or {}).get("books"), live_odds=live_odds_out,
+                    previous_bet=(
+                        prediction_log_module.get_logged_model_a_bet(resolved_date, g.get("game_pk"))
+                        if g.get("game_pk") else None
+                    ),
+                )
+                if (model_a_bet_out is not None and model_a_bet_out.get("type") == "favorite"
+                        and (model_a_bet_out.get("edge") or 0) < model_e.HEAVY_FAV_MIN_EDGE):
+                    _aopp = (season_stats_out or {}).get("away" if model_a_bet_out.get("side_is_home") else "home") or {}
+                    _aip = _aopp.get("ip")
+                    if _aip is None or float(_aip) < model_e.THIN_OPP_IP:
+                        model_a_bet_out = None
+                if model_a_bet_out is not None:
+                    model_a_bet_out["shadow"] = True
+            except Exception:
+                model_a_bet_out = None
             # Display-only "why" breakdown from the separate hand-weighted rating system (see
             # rating_system.py) — NOT what drives the model's own win-prob above (that backtested
             # worse than the trained model, see the plan doc), just a transparent, category-by-
@@ -2905,6 +2931,8 @@ def _compute_today_response(date: str = None):
                     model_e_prob = frozen["model_e_prob"]
                 if frozen.get("model_e_bet"):
                     model_e_bet_out = frozen["model_e_bet"]
+                if frozen.get("model_a_bet"):
+                    model_a_bet_out = frozen["model_a_bet"]
                 if frozen.get("model_e_baseball_prob") is not None:
                     model_e_baseball_prob = frozen["model_e_baseball_prob"]
                 if frozen.get("model_e_shade"):
@@ -2969,7 +2997,7 @@ def _compute_today_response(date: str = None):
             "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
             "pen_whip_team": pen_whip_team_out, "bullpen_lean": bullpen_lean_out,
-            "model_e_features": model_e_features_out,
+            "model_e_features": model_e_features_out, "model_a_bet": model_a_bet_out,
             "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,
             "market_blind": market_blind,

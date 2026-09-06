@@ -63,6 +63,7 @@ LOG_COLUMNS = [
     "value_bet_json",         # {side, type, model_prob, market_prob} from main._compute_value_bet, or None -- frozen for the same reason market_model_prob is (recomputing live for a decided game would use the live_odds line at request time, not the price actually offered pre-game)
     "model_e_prob",           # Model E's calibrated probability (see model_e.py) -- comparison/betting only, never drives the primary prediction
     "model_e_bet_json",       # model_e.compute_bet output (side/type/best price/stake/first-seen price), frozen like value_bet_json; graded by get_model_e_track_record
+    "model_a_bet_json",       # MODEL A shadow bet (2026-09-07): site model through the identical menu+rules; the pre-registered A-vs-E head-to-head
     "model_e_baseball_prob",  # Model E's market-blind leg (same 13 factors, no market) -- comparison vs Model A only, never bets
     "model_e_shade_json",     # model_e.compute_shade_bet -- UNPROVEN dog-shade signal, logged separately so the forward record can settle it; never part of the validated slip
     "model_omega_bet_json",   # Omega SHADOW bettor (model_e.compute_omega_prob + compute_bet) -- Jacob's market-anchored model graded through the identical pipeline as Model E, logged/settled separately so E-vs-Omega has one shared scoreboard; never on the slip
@@ -219,6 +220,7 @@ def log_predictions(date: str, games: list[dict]):
             "value_bet_json": _j("value_bet"),
             "model_e_prob": g.get("model_e_prob"),
             "model_e_bet_json": _j("model_e_bet"),
+            "model_a_bet_json": _j("model_a_bet"),
             "model_e_baseball_prob": g.get("model_e_baseball_prob"),
             "model_e_shade_json": _j("model_e_shade"),
             "model_omega_bet_json": _j("model_omega_bet"),
@@ -464,6 +466,7 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "value_bet": _load_json("value_bet_json"),
         "model_e_prob": r.get("model_e_prob") if pd.notna(r.get("model_e_prob")) else None,
         "model_e_bet": _load_json("model_e_bet_json"),
+        "model_a_bet": _load_json("model_a_bet_json"),
         "model_e_baseball_prob": r.get("model_e_baseball_prob") if pd.notna(r.get("model_e_baseball_prob")) else None,
         "model_e_shade": _load_json("model_e_shade_json"),
         "model_omega_bet": _load_json("model_omega_bet_json"),
@@ -818,6 +821,23 @@ def _records_json_safe(df: pd.DataFrame) -> list[dict]:
     return df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
 
+def get_logged_model_a_bet(date: str, game_pk: int) -> dict | None:
+    """Same contract as get_logged_model_e_bet, for the Model A shadow bet."""
+    log = _read_log()
+    if log.empty or "model_a_bet_json" not in log.columns:
+        return None
+    row = log[(log["date"] == date) & (log["game_pk"] == game_pk)]
+    if row.empty:
+        return None
+    val = row.iloc[0].get("model_a_bet_json")
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    try:
+        return json.loads(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def get_logged_model_e_bet(date: str, game_pk: int) -> dict | None:
     """The model_e_bet dict currently frozen for this game (pre-game rows keep updating, so
     this is 'the latest', not 'the first') -- main.py passes it back into model_e.compute_bet as
@@ -986,6 +1006,33 @@ def get_model_e_track_record() -> dict:
                  "roi_pct": round(100 * float(odf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
                  "flat_roi_pct": round(100 * float(odf["flat"].dropna().mean()), 2) if odf["flat"].notna().any() else None,
                  "avg_clv_pts": round(100 * float(odf["clv"].dropna().mean()), 2) if odf["clv"].notna().any() else None}
+    # MODEL A SHADOW record (2026-09-07, the pre-registered A-vs-E head-to-head): the site
+    # model's number through the IDENTICAL menu + rules, logged with real first-seen/best
+    # prices, graded here exactly like Omega's shadow. Checkpoint: ~150 post-rule bets each.
+    model_a_rows = []
+    if "model_a_bet_json" in log.columns:
+        for _, r in log[(log["settled"] == True) & log["model_a_bet_json"].notna()].iterrows():  # noqa: E712
+            try:
+                ab = json.loads(r["model_a_bet_json"])
+            except (TypeError, ValueError):
+                continue
+            if not ab or r["home_won"] is None or pd.isna(r["home_won"]):
+                continue
+            g = model_e.grade_bet(ab, bool(r["home_won"]))
+            dec = model_e.american_to_decimal(ab.get("best_price"))
+            model_a_rows.append({"won": g["won"], "profit_units": g["profit_units"], "stake_units": ab.get("stake_units"),
+                                 "flat": ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None,
+                                 "market_prob": ab.get("market_prob"), "clv": g.get("clv")})
+    model_a_shadow = None
+    if model_a_rows:
+        adf = pd.DataFrame(model_a_rows)
+        staked = float(adf["stake_units"].fillna(0).sum())
+        model_a_shadow = {"n": int(len(adf)), "hit_rate": round(float(adf["won"].mean()), 4),
+                          "market_implied": round(float(adf["market_prob"].mean()), 4),
+                          "units_staked": round(staked, 2), "units_profit": round(float(adf["profit_units"].fillna(0).sum()), 2),
+                          "roi_pct": round(100 * float(adf["profit_units"].fillna(0).sum()) / staked, 2) if staked else None,
+                          "flat_roi_pct": round(100 * float(adf["flat"].dropna().mean()), 2) if adf["flat"].notna().any() else None,
+                          "avg_clv_pts": round(100 * float(adf["clv"].dropna().mean()), 2) if adf["clv"].notna().any() else None}
     # Jacob's BOOK record -- his kept picks (proxied live from the clone) graded through the
     # same code path as everything else here. His stakes, our neutral settlement.
     book_rows = []
@@ -1251,7 +1298,8 @@ def get_model_e_track_record() -> dict:
     return {"total": int(len(df)), "by_type": by_type, "by_class": by_class, "recent": recent,
             "since": str(df["date"].min()),
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
-            "jacob_book": jacob_book, "by_signal": by_signal, "current_rules": current_rules,
+            "jacob_book": jacob_book, "model_a_shadow": model_a_shadow,
+            "by_signal": by_signal, "current_rules": current_rules,
             "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean}
 
 
