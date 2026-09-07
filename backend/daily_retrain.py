@@ -45,6 +45,14 @@ MAE_TOLERANCE = 0.01
 # MAE_TOLERANCE above was sized off strikeouts' own observed noise floor, not guessed blind.
 IP_MAE_TOLERANCE = 0.05
 ER_MAE_TOLERANCE = 0.05
+# MARKET-COLLAPSE TRIPWIRE (2026-09-07). The gate above only ever examined Model A, so the
+# Sep 4 and Sep 6 runs deployed models whose market-aware AUC had collapsed from ~0.607 to
+# ~0.585 -- exactly Model A's level, meaning the market features contributed NOTHING (root
+# cause: the odds backfill lags ~2.5 weeks, so recent training rows carry zero market
+# features and the eval window slid into that blind zone). A healthy B-over-A gap runs
+# ~0.015-0.02; the collapsed runs measured 0.0009 and 0.0017. If B cannot beat A by at least
+# this margin, the market data is broken and the candidate must not ship.
+MIN_MARKET_GAP = 0.005
 
 
 def _git(*args, check=True):
@@ -74,6 +82,17 @@ def _passes_gate(old: dict, new: dict) -> tuple[bool, list[str]]:
             reasons.append(f"win-prob AUC regressed: {old_wp['auc']:.4f} -> {new_wp['auc']:.4f}")
         if new_wp["brier"] > old_wp["brier"] + BRIER_TOLERANCE:
             reasons.append(f"win-prob Brier regressed: {old_wp['brier']:.4f} -> {new_wp['brier']:.4f}")
+
+    # market-collapse tripwire + B's own regression check -- see MIN_MARKET_GAP's comment
+    old_b, new_b = old.get("win_prob_b"), new.get("win_prob_b")
+    if old_b and new_b and new_b["auc"] < old_b["auc"] - 3 * AUC_TOLERANCE:
+        reasons.append(f"market model (B) AUC regressed hard: {old_b['auc']:.4f} -> {new_b['auc']:.4f}")
+    if new_b and new_wp and (new_b["auc"] - new_wp["auc"]) < MIN_MARKET_GAP:
+        reasons.append(
+            f"MARKET COLLAPSE: B AUC {new_b['auc']:.4f} within noise of A {new_wp['auc']:.4f} "
+            f"(gap {new_b['auc'] - new_wp['auc']:+.4f} < {MIN_MARKET_GAP}) -- market features are "
+            "contributing nothing (odds backfill gap or feed corruption); refusing to deploy"
+        )
 
     old_k, new_k = old.get("strikeout_a"), new.get("strikeout_a")
     if old_k and new_k:
