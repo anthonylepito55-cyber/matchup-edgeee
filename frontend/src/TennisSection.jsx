@@ -57,7 +57,7 @@ function PriceEdgeScanner({ scan }) {
   return (
     <div style={{ margin: '14px 0', padding: '12px 18px', borderRadius: 8, border: `1px solid ${gold}55`, background: `linear-gradient(180deg, ${gold}0d, var(--panel))` }}>
       <div className="mono" style={{ fontSize: 10, color: gold, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-        Cross-book price scanner <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— pre-registered experiment · a bettable book ≥2pts better than the sharp (Pinnacle/Circa) de-vigged consensus · ATP · WTA · Challenger · ITF</span>
+        Cross-book price scanner <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— pre-registered experiment · a bettable venue ≥2pts better than the sharp (Pinnacle/Circa) de-vigged consensus · ATP · WTA · Challenger · ITF · includes Kalshi + Polymarket (★ = bettable where you live; Kalshi edges shown net of its ~0.07·p·(1−p) trading fee)</span>
       </div>
       {scan ? (
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>
@@ -81,7 +81,7 @@ function PriceEdgeScanner({ scan }) {
               </span>
               <span style={{ whiteSpace: 'nowrap' }}>
                 <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{e.side_player}</span>
-                <span style={{ color: 'var(--text-secondary)' }}> {fmtPrice(e.price)} @ {e.book}</span>
+                <span style={{ color: 'var(--text-secondary)' }}> {fmtPrice(e.price)} @ {e.user_bettable ? '★ ' : ''}{e.book}</span>
                 <span style={{ color: 'var(--edge-pos)', fontWeight: 700 }}> +{(100 * e.edge).toFixed(1)}pt</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}> vs fair {(100 * e.fair_prob).toFixed(0)}%</span>
                 {e.fair_move != null && Math.abs(e.fair_move) >= 0.005 && (

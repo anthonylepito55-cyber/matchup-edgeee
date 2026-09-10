@@ -34,10 +34,23 @@ from odds_fetcher import OPTICODDS_API_KEY, OPTICODDS_BASE_URL
 
 SCAN_LEAGUES = ["atp", "wta", "atp_challenger", "itf_men", "itf_women"]
 SHARP_BOOKS = ["Pinnacle", "Circa Sports"]
-BETTABLE_BOOKS = ["FanDuel", "DraftKings", "BetMGM", "Caesars", "BetRivers", "bet365"]
+# Kalshi + Polymarket (USA) added 2026-09-09: the two venues the user can actually bet.
+# "Polymarket (USA)" specifically -- the plain "Polymarket" feed showed degenerate two-sided
+# quotes (e.g. -2043 both sides) in the MLB side's direct test (see odds_fetcher.py).
+BETTABLE_BOOKS = ["Kalshi", "Polymarket (USA)", "FanDuel", "DraftKings", "BetMGM", "Caesars",
+                  "BetRivers", "bet365"]
+USER_BETTABLE = {"Kalshi", "Polymarket (USA)"}  # venues available where the user lives
+
+# Kalshi charges a taker fee of ~0.07 * p * (1-p) per contract -- an edge there must clear
+# the fee to be real, so Kalshi implied costs are inflated by it before edge is computed.
+KALSHI_FEE_RATE = 0.07
 
 MIN_EDGE = 0.02        # flag when a book's price implies >= 2pts less than the sharp fair prob
 MIN_FAIR_PROB = 0.25   # no extreme-longshot flags -- de-vig error concentrates there
+# A book's own two-sided implied sum outside this range means a stale or degenerate quote
+# (sum < ~0.93 is a within-book "arb" that is almost always dead data; > 1.30 is trash
+# pricing) -- both sides must be quoted and sane before a side can be flagged.
+BOOK_SUM_RANGE = (0.93, 1.30)
 MAX_FIXTURES = 150     # per-scan cap, main tours first
 FIXTURE_BATCH = 5
 CHECKPOINT_N = 75      # settled flags before the record earns a verdict
@@ -187,14 +200,22 @@ def scan(date: str = None, force_refresh: bool = False) -> dict:
         for side, player, fair in ((1, f["player_1"], fair1), (2, f["player_2"], 1 - fair1)):
             if fair < MIN_FAIR_PROB:
                 continue
+            opponent = f["player_2"] if side == 1 else f["player_1"]
             best = None
             for book in BETTABLE_BOOKS:
-                d = _decimal(by_book.get(book, {}).get(player))
-                if d is None:
-                    continue
+                q = by_book.get(book, {})
+                d = _decimal(q.get(player))
+                d_opp = _decimal(q.get(opponent))
+                if d is None or d_opp is None:
+                    continue  # one-sided quote: can't sanity-check it, don't trust it
+                pair_sum = 1 / d + 1 / d_opp
+                if not (BOOK_SUM_RANGE[0] <= pair_sum <= BOOK_SUM_RANGE[1]):
+                    continue  # stale/degenerate quote (see BOOK_SUM_RANGE note)
                 implied = 1 / d
+                if book == "Kalshi":
+                    implied = implied + KALSHI_FEE_RATE * implied * (1 - implied)
                 if best is None or implied < best["implied"]:
-                    best = {"book": book, "price": by_book[book][player], "decimal": round(d, 3),
+                    best = {"book": book, "price": q[player], "decimal": round(d, 3),
                             "implied": implied}
             if best is None:
                 continue
@@ -207,6 +228,7 @@ def scan(date: str = None, force_refresh: bool = False) -> dict:
                     "price": best["price"], "decimal": best["decimal"],
                     "implied": round(best["implied"], 4), "fair_prob": round(fair, 4),
                     "edge": round(edge, 4), "n_sharp": n_sharp,
+                    "user_bettable": best["book"] in USER_BETTABLE,
                 })
     edges.sort(key=lambda e: -e["edge"])
     _log_edges(edges, date)
