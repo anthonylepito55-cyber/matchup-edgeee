@@ -39,6 +39,76 @@ function TennisTrackRecord() {
   )
 }
 
+// Cross-book price-edge scanner (2026-09-09): the 2026 backtests showed every public stat
+// is already in the price — the one path that needs no model is a bettable book lagging the
+// sharp consensus (Pinnacle/Circa de-vigged). The backend scans ATP/WTA/Challenger/ITF and
+// flags any bettable side priced ≥2pts better than sharp fair (longshots under 25% fair
+// excluded — de-vig math is least trustworthy there). Every flag is frozen at first serve
+// into a flat-1u forward record with CLV vs the closing sharp fair. Checkpoint: 75 settled.
+const SCAN_LEAGUE_LABEL = { atp: 'ATP', wta: 'WTA', atp_challenger: 'CHALLENGER', itf_men: 'ITF M', itf_women: 'ITF W' }
+
+function PriceEdgeScanner({ scan }) {
+  const [rec, setRec] = useState(null)
+  useEffect(() => {
+    fetch('/api/tennis/scanner-record').then(x => x.json()).then(setRec).catch(() => {})
+  }, [])
+  const gold = '#e3b341'
+  const edges = scan?.edges ?? []
+  return (
+    <div style={{ margin: '14px 0', padding: '12px 18px', borderRadius: 8, border: `1px solid ${gold}55`, background: `linear-gradient(180deg, ${gold}0d, var(--panel))` }}>
+      <div className="mono" style={{ fontSize: 10, color: gold, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+        Cross-book price scanner <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— pre-registered experiment · a bettable book ≥2pts better than the sharp (Pinnacle/Circa) de-vigged consensus · ATP · WTA · Challenger · ITF</span>
+      </div>
+      {scan ? (
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>
+          scanned {scan.scanned} matches · {scan.priced} priced by a sharp book · {edges.length} flag{edges.length === 1 ? '' : 's'}
+          {edges.length === 0 && <span style={{ color: 'var(--text-tertiary)' }}> — no book is lagging the sharp consensus right now (a typical price runs ~3–4pts worse than fair; that gap is the vig)</span>}
+        </div>
+      ) : (
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>scan unavailable — appears with today's slate.</div>
+      )}
+      {edges.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+          {edges.map((e, i) => (
+            <div key={`${e.fixture_id}_${e.side}`} className="mono" style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap',
+              padding: '8px 12px', borderRadius: 6, border: `1px solid ${gold}44`, background: `${gold}0a`, fontSize: 11,
+            }}>
+              <span>
+                <span style={{ color: gold, fontWeight: 700, fontSize: 9, letterSpacing: '0.05em' }}>{SCAN_LEAGUE_LABEL[e.league] || e.league}</span>
+                <span style={{ color: 'var(--text-secondary)' }}> {e.player_1} vs {e.player_2}</span>
+                <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}> · {e.tournament}</span>
+              </span>
+              <span style={{ whiteSpace: 'nowrap' }}>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{e.side_player}</span>
+                <span style={{ color: 'var(--text-secondary)' }}> {fmtPrice(e.price)} @ {e.book}</span>
+                <span style={{ color: 'var(--edge-pos)', fontWeight: 700 }}> +{(100 * e.edge).toFixed(1)}pt</span>
+                <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}> vs fair {(100 * e.fair_prob).toFixed(0)}%</span>
+                {e.fair_move != null && Math.abs(e.fair_move) >= 0.005 && (
+                  <span style={{ color: e.fair_move > 0 ? 'var(--edge-pos)' : 'var(--edge-neg)', fontSize: 10 }}>
+                    {' '}· fair {e.fair_move > 0 ? '↑' : '↓'}{Math.abs(100 * e.fair_move).toFixed(1)} since first seen
+                  </span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 8, lineHeight: 1.5 }}>
+        {rec?.overall ? (
+          <>
+            record: {rec.overall.n} settled of {rec.total_flagged} flagged · win {(100 * rec.overall.win_rate).toFixed(0)}% (fair promised {(100 * rec.overall.avg_fair_promised).toFixed(0)}%) ·
+            flat ROI {rec.overall.flat_roi_pct > 0 ? '+' : ''}{rec.overall.flat_roi_pct}% · CLV {rec.overall.avg_clv_pt > 0 ? '+' : ''}{rec.overall.avg_clv_pt}pt · beat close {rec.overall.beat_close_pct}%
+          </>
+        ) : (
+          <>record: {rec?.total_flagged ?? 0} flagged · {rec?.settled ?? 0} settled — starts empty, grows as flags settle.</>
+        )}
+        {!rec?.proven && <span style={{ color: '#f85149', fontWeight: 700 }}> · SHADOW ONLY — flat 1u, judged at {rec?.checkpoint_n ?? 75} settled; prices move fast, CLV is the health metric. Do not bet this yet.</span>}
+      </div>
+    </div>
+  )
+}
+
 export default function TennisSection() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -78,11 +148,14 @@ export default function TennisSection() {
         fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5,
       }}>
         Built from free historical match data (surface record, Elo, opponent quality, head-to-head,
-        rest days) — no serve/return stats yet, so this is a rougher edge than the MLB side. Backtested
-        against the market and does not beat it; treat these as a second opinion, not a sharp line.
+        rest days). Backtested against the market and does not beat it — serve/return stats were also
+        tested (two held-out seasons) and turned out fully priced in as well. Treat predictions as a
+        second opinion; the price scanner below is the only tennis signal being forward-tested as a bet.
       </div>
 
       <TennisTrackRecord />
+
+      <PriceEdgeScanner scan={data?.price_scan} />
 
       {error && (
         <div style={{

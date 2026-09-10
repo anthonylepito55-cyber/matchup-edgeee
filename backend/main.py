@@ -91,6 +91,7 @@ from tennis_data import (
 from tennis_features import get_or_compute_state, build_live_matchup_features, features_to_row as tennis_features_to_row
 import tennis_model
 import tennis_log
+import tennis_scanner
 
 app = FastAPI(title="MLB Pitcher Matchup Predictor")
 
@@ -1605,12 +1606,27 @@ def tennis_today(date: str = None):
     except Exception as e:
         print(f"[tennis log] logging/settlement failed: {e}")
 
-    return {"date": date, "matches": results}
+    # Cross-book price-edge scan (2026-09-09): sharp-consensus fair prices vs bettable-book
+    # prices across ATP/WTA/Challenger/ITF. Flags are logged as a pre-registered flat-1u
+    # forward experiment (frozen at first serve, checkpoint 75 settled) -- see tennis_scanner.py.
+    price_scan = None
+    try:
+        price_scan = tennis_scanner.scan(date)
+        tennis_scanner.settle()
+    except Exception as e:
+        print(f"[tennis scanner] scan/settlement failed: {e}")
+
+    return {"date": date, "matches": results, "price_scan": price_scan}
 
 
 @app.get("/api/tennis/track-record")
 def tennis_track_record():
     return tennis_log.get_tennis_track_record()
+
+
+@app.get("/api/tennis/scanner-record")
+def tennis_scanner_record():
+    return tennis_scanner.get_scanner_track_record()
 
 
 @app.get("/api/pitcher/{pitcher_id}")
