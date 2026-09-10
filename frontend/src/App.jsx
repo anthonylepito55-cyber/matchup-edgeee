@@ -548,9 +548,9 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
           </span>
         )}
         <ValueBetBadge valueBet={game.value_bet} />
-        <ModelEBetBadge bet={game.model_e_bet} />
+        <ModelEBetBadge bet={game.model_e_bet} liveOdds={game.live_odds} />
         <ModelEBetBadge bet={game.model_f5_bet} label="F5" />
-        <ModelEBetBadge bet={game.model_a_bet} label="MODEL A" />
+        <ModelEBetBadge bet={game.model_a_bet} label="MODEL A" liveOdds={game.live_odds} />
         {game.dog_shade23 && (
           <span className="mono" title={`TRACKED EXPERIMENT (pre-registered 9/7): Model E shades the dog by ${game.dog_shade23.shade_pts} pts without flipping (model ${(100 * game.dog_shade23.model_prob).toFixed(1)}% vs market ${(100 * game.dog_shade23.market_prob).toFixed(1)}% on ${game.dog_shade23.side}). Live this 2-3pt band is a two-window-positive ISLAND (+6.1% / +9.5%) whose NEIGHBORS are negative (1-2pt −2.4%, 3-5pt −16.4%) — likely noise, being tracked flat-1u to find out. Checkpoint ~75 settled: still positive and still an island → watch signal; otherwise it dies publicly. Shadow only — not a pick, not in any risk total.`} style={{
             fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#2dd4bf',
@@ -1214,10 +1214,31 @@ const VALUE_BET_STYLES = {
 // a probability gap; this one is a priced, sized bet -- best book price for the side, quarter-Kelly
 // stake in units of a 100u bankroll, expected value at that price. Only rendered when Model E
 // actually has a qualifying, positive-EV bet for the game.
-export function ModelEBetBadge({ bet, label = 'MODEL E' }) {
+export function ModelEBetBadge({ bet, label = 'MODEL E', liveOdds = null }) {
   if (!bet || bet.stake_units == null) return null
   const color = bet.type === 'underdog' ? '#3fb950' : '#58a6ff'
   const price = bet.best_price > 0 ? `+${bet.best_price}` : `${bet.best_price}`
+  // Kalshi/Polymarket chips (2026-09-10): the two venues the user can actually bet, so every
+  // pick badge shows its price + EV there. EV = model prob vs effective cost (Kalshi's
+  // ~7%*p*(1-p) trading fee included; Polymarket has none). Display-only — never part of
+  // best_price or the logged record's basis.
+  const venueChips = []
+  if (liveOdds && bet.model_prob != null) {
+    for (const [key, vlabel, feeRate, posColor] of [['kalshi', 'K', 0.07, '#a371f7'], ['polymarket', 'P', 0, '#2dd4bf']]) {
+      const v = liveOdds[key]
+      const c = v ? (bet.side_is_home ? v.home_cents : v.away_cents) : null
+      if (c == null) continue
+      const cp = c / 100
+      const fee = feeRate * cp * (1 - cp)
+      const ev = (bet.model_prob / (cp + fee) - 1) * 100
+      venueChips.push(
+        <span key={key} className="mono" style={{ fontSize: 9, marginLeft: 4, color: ev > 0 ? posColor : 'var(--text-tertiary)', fontWeight: ev > 0 ? 700 : 400 }}
+          title={`${vlabel === 'K' ? 'Kalshi' : 'Polymarket'} ${c}¢${feeRate ? ` + ~${(fee * 100).toFixed(1)}¢ fee` : ' (no fee)'} → EV ${ev > 0 ? '+' : ''}${ev.toFixed(1)}% vs the model's ${(bet.model_prob * 100).toFixed(0)}%. Bet there only while positive.`}>
+          {vlabel} {c}¢ {ev > 0 ? '+' : ''}{ev.toFixed(1)}%
+        </span>
+      )
+    }
+  }
   const who = label === 'MODEL E' ? 'Model E' : `${label} model`
   const tooltip = `${who} ${(bet.model_prob * 100).toFixed(0)}% vs market ${(bet.market_prob * 100).toFixed(0)}% on ${bet.side}`
     + ` — best price ${price}${bet.best_book ? ` (${bet.best_book})` : ''}, fair ${bet.fair_price > 0 ? '+' : ''}${bet.fair_price}`
@@ -1230,7 +1251,7 @@ export function ModelEBetBadge({ bet, label = 'MODEL E' }) {
       border: `1px ${bet.shadow ? 'dashed' : 'solid'} ${color}`, borderRadius: 4, padding: '2px 6px', marginLeft: 6,
       opacity: bet.shadow ? 0.75 : 1,
     }}>
-      {label}{bet.strength === 'strong' ? ' ★' : ''}: {bet.side} {price} · {bet.stake_units}u{bet.shadow ? ' · shadow' : ''}
+      {label}{bet.strength === 'strong' ? ' ★' : ''}: {bet.side} {price} · {bet.stake_units}u{bet.shadow ? ' · shadow' : ''}{venueChips}
     </span>
   )
 }

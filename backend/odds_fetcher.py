@@ -1300,15 +1300,18 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
                     f.setdefault("odds", []).extend(ex["odds"])
         except requests.exceptions.RequestException:
             pass
-        # Third panel: Kalshi (2026-08-24, user bets there). A prediction-market contract, not a
-        # bookmaker -- parsed into its own "kalshi" key below, NEVER folded into "books" (the
-        # sportsbook best-price shop), because Kalshi adds a ~7%*p*(1-p) trading fee the quoted
-        # price doesn't include. Same never-blocks-the-primary contract as panel 2.
+        # Third panel: Kalshi + Polymarket (2026-08-24, Polymarket added 2026-09-10 -- the two
+        # venues the user can actually bet). Prediction-market contracts, not bookmakers --
+        # parsed into their own "kalshi"/"polymarket" keys below, NEVER folded into "books"
+        # (the sportsbook best-price shop): Kalshi adds a ~7%*p*(1-p) trading fee the quoted
+        # price doesn't include, and neither may enter model_e's best_price basis mid-record.
+        # "Polymarket (USA)" specifically -- the plain "Polymarket" feed showed degenerate
+        # both-sides-identical extremes in a direct test (PREDICTION_MARKET_BOOKS docstring).
         try:
             odds_resp3 = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
                 "league": "mlb",
                 "market": "moneyline",
-                "sportsbook": ["Kalshi"],
+                "sportsbook": ["Kalshi", "Polymarket (USA)"],
                 "is_main": "true",
                 "fixture_id": batch,
             }, headers=headers, timeout=20)
@@ -1369,25 +1372,29 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
                 # actually feeds predictions), but still a real, misleading bug on its own.
                 norm_home = _OPTICODDS_TEAM_NAME_FIX.get(home_team, home_team)
                 norm_away = _OPTICODDS_TEAM_NAME_FIX.get(away_team, away_team)
-                # Kalshi: separated from the sportsbook shop (see panel-3 comment above). The
-                # contract price IS the probability (65c = 65%), so no devig -- but keep the
-                # identical-price guard plus a two-sided-sum sanity window: prediction-market rows
-                # through OpticOdds have shown corrupt both-sides-identical extremes before
-                # (PREDICTION_MARKET_BOOKS docstring), and a pair not summing near 1.0 +/- spread
-                # is that artifact, not a real market.
-                kal = by_book.pop("Kalshi", None)
-                kalshi = None
-                if kal and home_team in kal and away_team in kal and kal[home_team] != kal[away_team]:
+                # Kalshi/Polymarket: separated from the sportsbook shop (see panel-3 comment
+                # above). The contract price IS the probability (65c = 65%), so no devig -- but
+                # keep the identical-price guard plus a two-sided-sum sanity window:
+                # prediction-market rows through OpticOdds have shown corrupt
+                # both-sides-identical extremes before (PREDICTION_MARKET_BOOKS docstring), and
+                # a pair not summing near 1.0 +/- spread is that artifact, not a real market.
+                def _pm_panel(book_name):
+                    pm = by_book.pop(book_name, None)
+                    if not (pm and home_team in pm and away_team in pm and pm[home_team] != pm[away_team]):
+                        return None
                     def _ap(o):
                         try:
                             o = float(o)
                         except (TypeError, ValueError):
                             return None
                         return 100.0 / (o + 100.0) if o > 0 else (-o) / ((-o) + 100.0)
-                    hp, ap = _ap(kal[home_team]), _ap(kal[away_team])
+                    hp, ap = _ap(pm[home_team]), _ap(pm[away_team])
                     if hp and ap and 0.90 <= hp + ap <= 1.12:
-                        kalshi = {"home_prob": round(hp, 4), "away_prob": round(ap, 4),
-                                  "home_cents": int(round(hp * 100)), "away_cents": int(round(ap * 100))}
+                        return {"home_prob": round(hp, 4), "away_prob": round(ap, 4),
+                                "home_cents": int(round(hp * 100)), "away_cents": int(round(ap * 100))}
+                    return None
+                kalshi = _pm_panel("Kalshi")
+                polymarket = _pm_panel("Polymarket (USA)")
                 # "books": EVERY preferred book's raw two-sided price for this fixture (same
                 # identical-price guard as above), not just the first one -- Model E's betting
                 # layer shops the best available price per side across these (see
@@ -1404,6 +1411,7 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
                     "bookmaker": book,
                     "books": books,
                     "kalshi": kalshi,
+                    "polymarket": polymarket,
                 }
                 break
 

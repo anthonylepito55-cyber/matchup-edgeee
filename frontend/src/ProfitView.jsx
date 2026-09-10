@@ -76,23 +76,31 @@ const shadePriceNote = mp => {
   return { label: '+300 and up', color: '#f85149', title: 'worst of all: -53.6% (small sample). Model overrates long dogs badly' }
 }
 
-// Kalshi chip, shared by every bet section. EV = model probability vs (contract price + Kalshi's
-// ~7% * p * (1-p) per-contract trading fee). Purple + bold when positive; the rule everywhere is
-// the same: bet a row on Kalshi only while this number is positive.
+// Venue chips (Kalshi + Polymarket — the two venues the user can bet), shared by every bet
+// section. EV = model probability vs effective contract cost: Kalshi adds its ~7% * p * (1-p)
+// per-contract trading fee, Polymarket has no trading fee. Purple (Kalshi) / teal (Polymarket)
+// + bold when positive; the rule everywhere is the same: bet a row at a venue only while its
+// number is positive.
 const kalshiChip = (g, sideIsHome, modelProb, compact = false) => {
-  const k = g && g.live_odds && g.live_odds.kalshi
-  if (!k || modelProb == null) return null
-  const c = sideIsHome ? k.home_cents : k.away_cents
-  if (c == null) return null
-  const cp = c / 100
-  const fee = 0.07 * cp * (1 - cp)
-  const ev = (modelProb / (cp + fee) - 1) * 100
-  return (
-    <span className="mono" style={{ color: ev > 0 ? '#a371f7' : 'var(--text-tertiary)', fontWeight: ev > 0 ? 700 : 400, fontSize: compact ? 9 : 11 }}
-      title={`Kalshi ${c}¢ + ~${(fee * 100).toFixed(1)}¢ trading fee → effective ${((cp + fee) * 100).toFixed(1)}¢. EV compares the model's probability to that effective cost. Bet on Kalshi only while this is positive.`}>
-      {' '}· Kalshi {c}¢ <b>{ev > 0 ? '+' : ''}{ev.toFixed(1)}%</b>
-    </span>
-  )
+  if (modelProb == null || !g || !g.live_odds) return null
+  const chips = []
+  for (const [key, label, feeRate, posColor] of [['kalshi', 'Kalshi', 0.07, '#a371f7'], ['polymarket', 'Poly', 0, '#2dd4bf']]) {
+    const k = g.live_odds[key]
+    const c = k ? (sideIsHome ? k.home_cents : k.away_cents) : null
+    if (c == null) continue
+    const cp = c / 100
+    const fee = feeRate * cp * (1 - cp)
+    const ev = (modelProb / (cp + fee) - 1) * 100
+    chips.push(
+      <span key={key} className="mono" style={{ color: ev > 0 ? posColor : 'var(--text-tertiary)', fontWeight: ev > 0 ? 700 : 400, fontSize: compact ? 9 : 11 }}
+        title={feeRate > 0
+          ? `${label} ${c}¢ + ~${(fee * 100).toFixed(1)}¢ trading fee → effective ${((cp + fee) * 100).toFixed(1)}¢. EV compares the model's probability to that effective cost. Bet on ${label} only while this is positive.`
+          : `Polymarket ${c}¢ (no trading fee). EV compares the model's probability to the contract price. Bet there only while this is positive.`}>
+        {' '}· {label} {c}¢ <b>{ev > 0 ? '+' : ''}{ev.toFixed(1)}%</b>
+      </span>
+    )
+  }
+  return chips.length ? <>{chips}</> : null
 }
 
 export default function ProfitView({ games, date, marketAge }) {

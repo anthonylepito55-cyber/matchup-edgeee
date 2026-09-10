@@ -2034,9 +2034,11 @@ def _compute_today_response(date: str = None):
             # every preferred book's raw two-sided price -- model_e.compute_bet shops the best one;
             # frozen into live_odds_json with the rest so a graded bet's price is auditable
             "books": odds_entry.get("books") or {},
-            # Kalshi contract prices (own key, never in the "books" shop) -- the user bets there,
-            # so ProfitView shows each bet's Kalshi cents + EV after Kalshi's trading fee.
+            # Kalshi/Polymarket contract prices (own keys, never in the "books" shop) -- the
+            # user bets at these two venues, so the cards show each bet's cents + EV there
+            # (Kalshi net of its ~7%*p*(1-p) trading fee; Polymarket has no trading fee).
             "kalshi": odds_entry.get("kalshi"),
+            "polymarket": odds_entry.get("polymarket"),
         } if odds_entry else None
         # First-5-innings ("1st Half") market for the same fixture -- see odds_fetcher.get_f5_odds
         f5_entry = f5_odds.get((g.get("game_time_utc"), g["away_team"], g["home_team"])) if f5_odds else None
