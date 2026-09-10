@@ -369,7 +369,9 @@ function BetFilterToggle({ mode, onChange, counts }) {
   )
 }
 
-function TeamChip({ abbr, color, onSelect }) {
+function TeamChip({ abbr, color, onSelect, betGreen = false }) {
+  const baseTitle = onSelect ? `View ${abbr}'s team snapshot` : undefined
+  const greenTitle = 'A-BET — all three green-light conditions met: slip pick fired, PEN+WHIP backing lit, and positive EV at Kalshi/Polymarket (fee-adjusted). Bet at the stated quarter-Kelly stake.'
   return (
     <span
       onClick={onSelect ? () => onSelect({ abbr, color }) : undefined}
@@ -378,10 +380,10 @@ function TeamChip({ abbr, color, onSelect }) {
         cursor: onSelect ? 'pointer' : 'default',
         textDecoration: onSelect ? 'underline' : 'none', textDecorationStyle: 'dotted', textUnderlineOffset: 3,
       }}
-      title={onSelect ? `View ${abbr}'s team snapshot` : undefined}
+      title={betGreen ? (baseTitle ? `${greenTitle}\n${baseTitle}` : greenTitle) : baseTitle}
     >
       <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-      {abbr}
+      <span style={betGreen ? { color: '#3fb950', fontWeight: 700 } : undefined}>{abbr}</span>
     </span>
   )
 }
@@ -521,6 +523,26 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
   // pitching-matchup underdog here, and that's the point of the app.
   const favoredIsHome = modelHomeProb != null ? modelHomeProb >= 0.5 : null
   const favoredTeam = favoredIsHome == null ? null : (favoredIsHome ? game.home_team_abbr : game.away_team_abbr)
+
+  // A-BET green light (2026-09-10, user's betting rules made visual): the slip's Model E pick
+  // (non-shadow) + PEN+WHIP backing lit + positive EV at a venue the user can actually bet
+  // (Kalshi net of its ~7%*p*(1-p) fee, or Polymarket, no fee). All three true -> that side's
+  // team name renders green on the card. Display logic only — no record or stake math changes.
+  const _eBet = game.model_e_bet
+  const _venuePositive = (() => {
+    if (!_eBet || _eBet.model_prob == null || !game.live_odds) return false
+    for (const [key, feeRate] of [['kalshi', 0.07], ['polymarket', 0]]) {
+      const v = game.live_odds[key]
+      const c = v ? (_eBet.side_is_home ? v.home_cents : v.away_cents) : null
+      if (c == null) continue
+      const cp = c / 100
+      if (_eBet.model_prob / (cp + feeRate * cp * (1 - cp)) - 1 > 0) return true
+    }
+    return false
+  })()
+  const aBetSide = (_eBet && _eBet.stake_units != null && !_eBet.shadow && _eBet.pen_whip === true && _venuePositive)
+    ? (_eBet.side_is_home ? game.home_team_abbr : game.away_team_abbr)
+    : null
   const favoredProb = favoredIsHome == null ? null : (favoredIsHome ? modelHomeProb : 1 - modelHomeProb)
   const favoredColor = favoredIsHome == null ? 'var(--amber)' : (favoredIsHome ? homeColor : awayColor)
 
@@ -535,9 +557,9 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <TeamChip abbr={game.away_team_abbr} color={awayColor} onSelect={onSelectTeam} />
+          <TeamChip abbr={game.away_team_abbr} color={awayColor} onSelect={onSelectTeam} betGreen={aBetSide === game.away_team_abbr} />
           <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>@</span>
-          <TeamChip abbr={game.home_team_abbr} color={homeColor} onSelect={onSelectTeam} />
+          <TeamChip abbr={game.home_team_abbr} color={homeColor} onSelect={onSelectTeam} betGreen={aBetSide === game.home_team_abbr} />
         </div>
         {highConviction && (
           <span className="mono top-pick-badge" style={{
