@@ -409,7 +409,7 @@ export function OpenerBadge({ flag }) {
   const ip = flag.ip_per_start != null ? `${Number(flag.ip_per_start).toFixed(1)} IP/start recently` : 'short outings'
   return (
     <span className="mono" title={unresolved
-      ? `OPENER: this pitcher has been going 1-2 innings (${ip}) and no consistent bulk reliever could be identified behind them — the model's numbers for this side are built on a pitcher who will likely hand off early to arms it can't see. Treat this game's prediction with heavy skepticism; the safest action is no bet.`
+      ? `OPENER: this pitcher has been going 1-2 innings (${ip}) and no consistent bulk reliever could be identified behind them — the model's numbers for this side are built on a pitcher who will likely hand off early to arms it can't see. Treat this game's prediction with heavy skepticism; the safest action is no bet.${flag.recent_bulk && flag.recent_bulk.length ? ` Who has actually pitched bulk after their recent opens (rotating, no stable pattern): ${flag.recent_bulk.map(b => `${b.name} (${b.ip} IP, ${b.date})`).join('; ')}.` : ''}`
       : `OPENER (handled): this pitcher opens, and the card's win-probability numbers are driven by ${flag.bulk_pitcher || 'the usual bulk reliever'}'s stats instead of the opener's own short-stint line. Strikeout props still refer to the announced pitcher.`}
       style={{
         fontSize: 8, fontWeight: 700, letterSpacing: '0.05em', color,

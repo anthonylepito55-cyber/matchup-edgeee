@@ -43,7 +43,7 @@ from data_collection import (
     get_batter_expected_stats, get_batter_exitvelo_barrels, get_batter_percentile_ranks,
     get_batted_ball_profile, get_batter_team_map,
     get_recent_il_activations, days_since_il_return,
-    get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern,
+    get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern, get_recent_bulk_arms,
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
     get_team_recent_batting_and_bullpen,
     get_team_roster, get_espn_probable_pitchers,
@@ -2237,16 +2237,26 @@ def _compute_today_response(date: str = None):
         # cases for display, and is logged so opener-game bets can be split out later.
         # Display/logging only: prediction math is unchanged (substitution + confidence
         # override above already handle that side).
-        opener_flags_out = {
-            side: {
-                "is_opener": bool(sub or _is_opener(recent_form_out[side])),
+        opener_flags_out = {}
+        for side, sub, bulk in (("home", home_substituted, home_bulk_name),
+                                ("away", away_substituted, away_bulk_name)):
+            is_op = bool(sub or _is_opener(recent_form_out[side]))
+            flag = {
+                "is_opener": is_op,
                 "substituted": bool(sub),
                 "bulk_pitcher": bulk,
                 "ip_per_start": (recent_form_out[side] or {}).get("ip_per_start"),
             }
-            for side, sub, bulk in (("home", home_substituted, home_bulk_name),
-                                    ("away", away_substituted, away_bulk_name))
-        }
+            if is_op and not sub:
+                # No single bulk arm qualified as a pattern -- show WHO has actually followed
+                # this opener recently anyway (user ask 2026-09-12), so the badge can name the
+                # candidates even when the data won't support substituting one of them.
+                try:
+                    flag["recent_bulk"] = get_recent_bulk_arms(
+                        g[f"{side}_pitcher_id"], g[f"{side}_team_abbr"], season)
+                except Exception:
+                    flag["recent_bulk"] = []
+            opener_flags_out[side] = flag
         season_stats_out = _season_stats_for_matchup(
             season_stats, prior_season_stats, effective_home_id, effective_away_id
         ) if model_trained else None

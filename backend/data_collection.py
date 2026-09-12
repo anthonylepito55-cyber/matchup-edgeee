@@ -1260,7 +1260,7 @@ def get_bulk_reliever_pattern(pitcher_id: int, team_abbr: str, season: int, n: i
         if not team_id:
             return pd.DataFrame()
 
-        bulk_pitchers = []
+        rows = []
         for date in dates:
             try:
                 resp = requests.get(f"{MLB_STATS_API}/schedule", params={
@@ -1279,7 +1279,7 @@ def get_bulk_reliever_pattern(pitcher_id: int, team_abbr: str, season: int, n: i
                         break
                 if team_side is None:
                     continue
-                best_pid, best_ip = None, -1.0
+                best_pid, best_ip, best_name = None, -1.0, None
                 for pid in team_side.get("pitchers", []):
                     if pid == pitcher_id:
                         continue
@@ -1287,13 +1287,16 @@ def get_bulk_reliever_pattern(pitcher_id: int, team_abbr: str, season: int, n: i
                     ip = _parse_ip(p.get("stats", {}).get("pitching", {}).get("inningsPitched", "0.0"))
                     if ip > best_ip:
                         best_ip, best_pid = ip, pid
+                        best_name = p.get("person", {}).get("fullName")
                 if best_pid is not None:
-                    bulk_pitchers.append(best_pid)
+                    rows.append({"bulk_pitcher_id": best_pid, "bulk_name": best_name,
+                                 "date": date, "ip": best_ip})
             except (requests.exceptions.RequestException, KeyError, IndexError):
                 continue
-        return pd.DataFrame({"bulk_pitcher_id": bulk_pitchers})
+        return pd.DataFrame(rows)
 
-    df = _load_or_fetch(f"bulk_reliever_{pitcher_id}_{season}", fetch, force_refresh, max_age_hours=12)
+    # v2 cache: rows now carry name/date/ip for display (get_recent_bulk_arms), not just ids
+    df = _load_or_fetch(f"bulk_reliever_v2_{pitcher_id}_{season}", fetch, force_refresh, max_age_hours=12)
     if df is None or df.empty:
         return None
     counts = df["bulk_pitcher_id"].value_counts()
@@ -1302,7 +1305,30 @@ def get_bulk_reliever_pattern(pitcher_id: int, team_abbr: str, season: int, n: i
     top_pid, top_count = counts.index[0], counts.iloc[0]
     if top_count / len(df) >= BULK_RELIEVER_MAJORITY:
         return int(top_pid)
+    # Recency rule (2026-09-12): the SAME arm threw the bulk in both of the last two opener
+    # starts -- a current pattern even when the season-long sample is mixed (teams change
+    # their bulk plan mid-season; confirmed on Sean Newcomb/CWS, where Jose Urquidy bulked
+    # consecutive starts inside an otherwise rotating season sample).
+    if len(df) >= 2:
+        last_two = df.sort_values("date")["bulk_pitcher_id"].tail(2).tolist()
+        if last_two[0] == last_two[1]:
+            return int(last_two[0])
     return None
+
+
+def get_recent_bulk_arms(pitcher_id: int, team_abbr: str, season: int, k: int = 3,
+                         force_refresh: bool = False) -> list[dict]:
+    """The last k bulk arms who actually followed this opener's starts, newest first --
+    display-only context for the opener badge when no single arm qualifies as a pattern
+    (get_bulk_reliever_pattern -> None). Reads the same cached per-start sample."""
+    get_bulk_reliever_pattern(pitcher_id, team_abbr, season, force_refresh=force_refresh)  # ensure cache
+    df = _load_or_fetch(f"bulk_reliever_v2_{pitcher_id}_{season}", lambda: pd.DataFrame(), False,
+                        max_age_hours=12)
+    if df is None or df.empty or "bulk_name" not in df.columns:
+        return []
+    out = df.sort_values("date", ascending=False).head(k)
+    return [{"name": r.bulk_name, "date": r.date, "ip": round(float(r.ip), 1)}
+            for r in out.itertuples(index=False) if r.bulk_name]
 
 
 def get_pitcher_info(pitcher_id: int, force_refresh: bool = False) -> dict:
