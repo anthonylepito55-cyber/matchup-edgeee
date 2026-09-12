@@ -44,6 +44,7 @@ from data_collection import (
     get_batted_ball_profile, get_batter_team_map,
     get_recent_il_activations, days_since_il_return,
     get_pitcher_season_log, get_pitcher_info, get_bulk_reliever_pattern, get_recent_bulk_arms,
+    get_espn_probables,
     get_pitcher_vs_team_history, get_team_recent_batting_form, RECENT_TEAM_BATTING_GAMES_30D,
     get_team_recent_batting_and_bullpen,
     get_team_roster, get_espn_probable_pitchers,
@@ -2023,6 +2024,23 @@ def _compute_today_response(date: str = None):
                 recent_team_batting_30d[t] = _rb30_f[t].result()
                 recent_batting_bullpen_3[t] = _rbb3_f[t].result()
                 team_travel[t] = _tt_f[t].result()
+    # Second-source probable check (2026-09-12): ESPN's scoreboard probables, fetched once per
+    # slate. ESPN/books often carry a club's announced pitching change before the MLB Stats API
+    # updates (proven live: Castillo listed by ESPN/PrizePicks while the Stats API still said
+    # Newcomb hours before first pitch). Display/flag only -- never swaps model inputs.
+    try:
+        espn_probables = get_espn_probables(resolved_date)
+    except Exception:
+        espn_probables = {}
+
+    def _same_pitcher(a: str, b: str) -> bool:
+        import unicodedata
+        def norm(x):
+            x = unicodedata.normalize("NFKD", x or "").encode("ascii", "ignore").decode()
+            parts = x.strip().lower().split()
+            return (parts[-1] + "|" + parts[0][0]) if len(parts) >= 2 else x.strip().lower()
+        return norm(a) == norm(b)
+
     batter_hands = {}
     results = []
     for g in games:
@@ -2257,6 +2275,17 @@ def _compute_today_response(date: str = None):
                 except Exception:
                     flag["recent_bulk"] = []
             opener_flags_out[side] = flag
+        # ESPN-vs-MLB probable comparison for the card (see espn_probables above): agree=False
+        # means the two sources name DIFFERENT starters -- the card is priced on a pitcher a
+        # second source says isn't pitching, the strongest possible do-not-bet signal short of
+        # a confirmed scratch.
+        probable_check_out = {}
+        for side in ("home", "away"):
+            espn_name = espn_probables.get(g[f"{side}_team_abbr"])
+            mlb_name = g.get(f"{side}_pitcher_name")
+            if espn_name and mlb_name:
+                probable_check_out[side] = {"mlb": mlb_name, "espn": espn_name,
+                                            "agree": _same_pitcher(mlb_name, espn_name)}
         season_stats_out = _season_stats_for_matchup(
             season_stats, prior_season_stats, effective_home_id, effective_away_id
         ) if model_trained else None
@@ -3117,6 +3146,7 @@ def _compute_today_response(date: str = None):
             "er_predictions": er_predictions, "pitcher_warnings": pitcher_warnings,
             "data_quality": data_quality, "prediction_frozen": prediction_frozen,
             "opener_affected": any_opener, "opener_flags": opener_flags_out,
+            "probable_check": probable_check_out,
             "h2h": h2h_out, "team_stats": team_stats_out,
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,

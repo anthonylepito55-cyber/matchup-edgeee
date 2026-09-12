@@ -95,7 +95,13 @@ export default function App() {
     const f = g.opener_flags && g.opener_flags[s]
     return f && f.is_opener && !f.substituted
   })
-  const convictionOf = g => (g.prediction && !g.opener_affected && !hasUnresolvedOpener(g)) ? Math.abs(g.prediction.home_win_prob - 0.5) : -1
+  // Starter disputed (2026-09-12): ESPN and the MLB Stats API name different probables —
+  // the card may be priced on a pitcher who isn't starting. Never a top pick, always unsure.
+  const hasStarterDispute = g => ['home', 'away'].some(s => {
+    const c = g.probable_check && g.probable_check[s]
+    return c && c.agree === false
+  })
+  const convictionOf = g => (g.prediction && !g.opener_affected && !hasUnresolvedOpener(g) && !hasStarterDispute(g)) ? Math.abs(g.prediction.home_win_prob - 0.5) : -1
 
   // "Unsure" = any reason not to trust this pick at face value: no prediction yet, an opener
   // in play (substituted or not), an active pitcher_warnings caveat (thin sample, long layoff,
@@ -106,6 +112,7 @@ export default function App() {
     !g.prediction ||
     g.opener_affected ||
     hasUnresolvedOpener(g) ||
+    hasStarterDispute(g) ||
     (g.pitcher_warnings && g.pitcher_warnings.length > 0) ||
     (g.data_quality && !g.data_quality.complete) ||
     convictionOf(g) < SURE_CONVICTION_THRESHOLD
@@ -421,6 +428,24 @@ export function OpenerBadge({ flag }) {
   )
 }
 
+// Starter-dispute badge (2026-09-12): ESPN's scoreboard probables cross-checked against the
+// MLB Stats API probable the card is priced on. Disagreement = the strongest do-not-bet
+// signal short of a confirmed scratch — proven live on Luis Castillo (ESPN/PrizePicks had
+// him while the official feed still said Newcomb hours before first pitch).
+export function StarterDisputeBadge({ check }) {
+  if (!check || check.agree !== false) return null
+  return (
+    <span className="mono" title={`STARTER DISPUTED: the card is priced on ${check.mlb} (MLB Stats API), but ESPN lists ${check.espn} as the probable. When two sources disagree about who's pitching, every number on this side of the card is suspect — do not bet this game until the starter is confirmed (lineups post ~1h before first pitch).`}
+      style={{
+        fontSize: 8, fontWeight: 700, letterSpacing: '0.05em', color: '#f85149',
+        border: '1px solid #f85149', borderRadius: 3, padding: '1px 4px', marginLeft: 5,
+        verticalAlign: 'middle', background: 'rgba(248,81,73,0.08)',
+      }}>
+      ⚠ ESPN: {check.espn}
+    </span>
+  )
+}
+
 function PitcherLink({ id, name, onSelect }) {
   if (!name) return <span>TBD</span>
   if (!id || !onSelect) return <span>{name}</span>
@@ -626,9 +651,11 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
         <PitcherLink id={game.away_pitcher_id} name={game.away_pitcher_name} onSelect={onSelectPitcher} />
         <OpenerBadge flag={game.opener_flags?.away} />
+        <StarterDisputeBadge check={game.probable_check?.away} />
         <span style={{ color: 'var(--text-tertiary)' }}> vs </span>
         <PitcherLink id={game.home_pitcher_id} name={game.home_pitcher_name} onSelect={onSelectPitcher} />
         <OpenerBadge flag={game.opener_flags?.home} />
+        <StarterDisputeBadge check={game.probable_check?.home} />
       </div>
 
       {game.pitcher_warnings && <PitcherWarnings warnings={game.pitcher_warnings} />}

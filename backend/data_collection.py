@@ -1316,6 +1316,41 @@ def get_bulk_reliever_pattern(pitcher_id: int, team_abbr: str, season: int, n: i
     return None
 
 
+# ESPN -> MLB abbreviation differences (everything else matches the MLB Stats API convention)
+_ESPN_ABBR_FIX = {"CHW": "CWS", "ARI": "AZ", "WSN": "WSH"}
+
+
+def get_espn_probables(date: str, force_refresh: bool = False) -> dict:
+    """{mlb_team_abbr: probable pitcher full name} from ESPN's public scoreboard JSON for the
+    date (2026-09-12, user ask): a SECOND, independent source of probable starters. ESPN/books
+    often carry a club's announced change before the MLB Stats API probable updates -- proven
+    live on Luis Castillo (ESPN/PrizePicks: Castillo; Stats API: still Newcomb, an opener,
+    hours before first pitch). Used only to CHECK the Stats API probables and flag
+    disagreement on the card -- never to silently swap the model's inputs (an unverified
+    scrape must not drive predictions).
+    Cached ~30 min; {} on any failure (the check just doesn't render)."""
+    def fetch():
+        resp = requests.get(
+            "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
+            params={"dates": date.replace("-", "")}, timeout=15)
+        resp.raise_for_status()
+        rows = []
+        for e in resp.json().get("events", []):
+            comp = (e.get("competitions") or [{}])[0]
+            for c in comp.get("competitors", []):
+                abbr = ((c.get("team") or {}).get("abbreviation") or "").upper()
+                probs = c.get("probables") or []
+                name = ((probs[0].get("athlete") or {}).get("displayName")) if probs else None
+                if abbr and name:
+                    rows.append({"team": _ESPN_ABBR_FIX.get(abbr, abbr), "name": name})
+        return pd.DataFrame(rows)
+
+    df = _load_or_fetch(f"espn_probables_{date}", fetch, force_refresh, max_age_hours=0.5)
+    if df is None or df.empty:
+        return {}
+    return dict(zip(df["team"], df["name"]))
+
+
 def get_recent_bulk_arms(pitcher_id: int, team_abbr: str, season: int, k: int = 3,
                          force_refresh: bool = False) -> list[dict]:
     """The last k bulk arms who actually followed this opener's starts, newest first --
