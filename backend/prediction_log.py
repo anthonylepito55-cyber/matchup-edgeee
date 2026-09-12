@@ -68,6 +68,7 @@ LOG_COLUMNS = [
     "fav_sub3_json",          # tracked experiment (2026-09-07): sub-bar 1-3pt favorite edge, flat 1u shadow; FAILED two-window test (-23.5%/+29.6%) at pre-registration, tracked to settle it
     "model_e_baseball_prob",  # Model E's market-blind leg (same 13 factors, no market) -- comparison vs Model A only, never bets
     "model_e_shade_json",     # model_e.compute_shade_bet -- UNPROVEN dog-shade signal, logged separately so the forward record can settle it; never part of the validated slip
+    "opener_flags_json",      # per-side opener detection (2026-09-12): {home/away: {is_opener, substituted, bulk_pitcher, ip_per_start}} -- frozen so opener-game bets can be split out of the record later
     "model_omega_bet_json",   # Omega SHADOW bettor (model_e.compute_omega_prob + compute_bet) -- Jacob's market-anchored model graded through the identical pipeline as Model E, logged/settled separately so E-vs-Omega has one shared scoreboard; never on the slip
     "model_omega_prob",       # Omega's own probability at freeze time -- displayed under Model E on the game card, frozen like every other model prob
     "jacob_book_bet_json",    # Jacob's live BOOK pick for this game (proxied from the clone on :8080, kept picks only), frozen pre-game and settled through Model E's grading so his card's certification claims finally face neutral grading
@@ -227,6 +228,7 @@ def log_predictions(date: str, games: list[dict]):
             "fav_sub3_json": _j("fav_sub3"),
             "model_e_baseball_prob": g.get("model_e_baseball_prob"),
             "model_e_shade_json": _j("model_e_shade"),
+            "opener_flags_json": _j("opener_flags"),
             "model_omega_bet_json": _j("model_omega_bet"),
             "model_omega_prob": g.get("model_omega_prob"),
             "jacob_book_bet_json": _j("jacob_book_bet"),

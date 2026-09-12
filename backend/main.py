@@ -2230,6 +2230,23 @@ def _compute_today_response(date: str = None):
             (not home_substituted and _is_opener(recent_form_out["home"])) or
             (not away_substituted and _is_opener(recent_form_out["away"]))
         )
+        # Visible per-side opener flags (2026-09-12, user ask "make the site flag openers",
+        # after Spencer Miles served with opener_affected=False): opener_affected only reports
+        # a SUCCESSFUL substitution, so an opener with no identifiable bulk reliever — the case
+        # where the card's numbers are least trustworthy — showed nothing. This surfaces both
+        # cases for display, and is logged so opener-game bets can be split out later.
+        # Display/logging only: prediction math is unchanged (substitution + confidence
+        # override above already handle that side).
+        opener_flags_out = {
+            side: {
+                "is_opener": bool(sub or _is_opener(recent_form_out[side])),
+                "substituted": bool(sub),
+                "bulk_pitcher": bulk,
+                "ip_per_start": (recent_form_out[side] or {}).get("ip_per_start"),
+            }
+            for side, sub, bulk in (("home", home_substituted, home_bulk_name),
+                                    ("away", away_substituted, away_bulk_name))
+        }
         season_stats_out = _season_stats_for_matchup(
             season_stats, prior_season_stats, effective_home_id, effective_away_id
         ) if model_trained else None
@@ -3089,7 +3106,8 @@ def _compute_today_response(date: str = None):
             "strikeout_predictions": strikeout_predictions, "ip_predictions": ip_predictions,
             "er_predictions": er_predictions, "pitcher_warnings": pitcher_warnings,
             "data_quality": data_quality, "prediction_frozen": prediction_frozen,
-            "opener_affected": any_opener, "h2h": h2h_out, "team_stats": team_stats_out,
+            "opener_affected": any_opener, "opener_flags": opener_flags_out,
+            "h2h": h2h_out, "team_stats": team_stats_out,
             "lineup_breakdown": lineup_breakdown_out, "rating_breakdown": rating_out,
             "feature_breakdown": feature_breakdown_out,
             "market_model_prob": market_model_prob, "model_c_prob": model_c_prob, "value_bet": value_bet_out,

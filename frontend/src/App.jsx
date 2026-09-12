@@ -88,15 +88,24 @@ export default function App() {
   // after 1-2 innings to a bulk/relief arm the model can't see at all — never trustworthy
   // enough to surface as a "top pick" or sort to the top of confidence mode, no matter how
   // decisive the raw number looks.
-  const convictionOf = g => (g.prediction && !g.opener_affected) ? Math.abs(g.prediction.home_win_prob - 0.5) : -1
+  // Unresolved opener (2026-09-12): an opener with NO identified bulk reliever — the card's
+  // numbers are built on a 1-2 inning pitcher's line. opener_affected only covers the
+  // substituted case, so this is checked separately (Spencer Miles slipped through it).
+  const hasUnresolvedOpener = g => ['home', 'away'].some(s => {
+    const f = g.opener_flags && g.opener_flags[s]
+    return f && f.is_opener && !f.substituted
+  })
+  const convictionOf = g => (g.prediction && !g.opener_affected && !hasUnresolvedOpener(g)) ? Math.abs(g.prediction.home_win_prob - 0.5) : -1
 
   // "Unsure" = any reason not to trust this pick at face value: no prediction yet, an opener
-  // in play, an active pitcher_warnings caveat (thin sample, long layoff, IL return, prior-season
-  // blend, rain risk...), incomplete underlying data, or just too close to a coin flip to act on
-  // even with clean data. Everything else is "sure" — a real, uncaveated stat edge.
+  // in play (substituted or not), an active pitcher_warnings caveat (thin sample, long layoff,
+  // IL return, prior-season blend, rain risk...), incomplete underlying data, or just too close
+  // to a coin flip to act on even with clean data. Everything else is "sure" — a real,
+  // uncaveated stat edge.
   const isUnsure = g => (
     !g.prediction ||
     g.opener_affected ||
+    hasUnresolvedOpener(g) ||
     (g.pitcher_warnings && g.pitcher_warnings.length > 0) ||
     (g.data_quality && !g.data_quality.complete) ||
     convictionOf(g) < SURE_CONVICTION_THRESHOLD
@@ -388,6 +397,30 @@ function TeamChip({ abbr, color, onSelect, betGreen = false }) {
   )
 }
 
+// Opener flag (2026-09-12, user ask after Spencer Miles — 5 straight 1-2 IP outings — served
+// with no warning): the backend now sends per-side opener_flags for BOTH cases. Substituted
+// (a bulk reliever's stats drive the card — informational, amber) and UNRESOLVED (the card's
+// numbers are built on a 1-2 inning pitcher with no visible bulk arm — red, the do-not-trust
+// case). Detection: recent starts averaging under 3 IP over a real sample.
+export function OpenerBadge({ flag }) {
+  if (!flag || !flag.is_opener) return null
+  const unresolved = !flag.substituted
+  const color = unresolved ? '#f85149' : 'var(--amber)'
+  const ip = flag.ip_per_start != null ? `${Number(flag.ip_per_start).toFixed(1)} IP/start recently` : 'short outings'
+  return (
+    <span className="mono" title={unresolved
+      ? `OPENER: this pitcher has been going 1-2 innings (${ip}) and no consistent bulk reliever could be identified behind them — the model's numbers for this side are built on a pitcher who will likely hand off early to arms it can't see. Treat this game's prediction with heavy skepticism; the safest action is no bet.`
+      : `OPENER (handled): this pitcher opens, and the card's win-probability numbers are driven by ${flag.bulk_pitcher || 'the usual bulk reliever'}'s stats instead of the opener's own short-stint line. Strikeout props still refer to the announced pitcher.`}
+      style={{
+        fontSize: 8, fontWeight: 700, letterSpacing: '0.05em', color,
+        border: `1px ${unresolved ? 'solid' : 'dashed'} ${color}`, borderRadius: 3, padding: '1px 4px', marginLeft: 5,
+        verticalAlign: 'middle',
+      }}>
+      {unresolved ? '⚠ OPENER' : `OPENER → ${flag.bulk_pitcher ? flag.bulk_pitcher.split(' ').slice(-1)[0].toUpperCase() : 'BULK'}`}
+    </span>
+  )
+}
+
 function PitcherLink({ id, name, onSelect }) {
   if (!name) return <span>TBD</span>
   if (!id || !onSelect) return <span>{name}</span>
@@ -592,8 +625,10 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
         <PitcherLink id={game.away_pitcher_id} name={game.away_pitcher_name} onSelect={onSelectPitcher} />
+        <OpenerBadge flag={game.opener_flags?.away} />
         <span style={{ color: 'var(--text-tertiary)' }}> vs </span>
         <PitcherLink id={game.home_pitcher_id} name={game.home_pitcher_name} onSelect={onSelectPitcher} />
+        <OpenerBadge flag={game.opener_flags?.home} />
       </div>
 
       {game.pitcher_warnings && <PitcherWarnings warnings={game.pitcher_warnings} />}
