@@ -336,19 +336,29 @@ export default function ProfitView({ games, date, marketAge }) {
               // own models has been a warning, isolation has been E's best class. ours_avail
               // guards slates where a model's number was missing.
               const eAlone = bet.ours_agree === 0 && bet.ours_avail === 3
-              const isRed = (bet.type === 'favorite' && f5c === false) || bet.omega_cofired
+              // Opener red-out (user ask 9/15): an UNRESOLVED opener anywhere in the game makes
+              // the whole row red — the model may be pricing a 1-2 inning pitcher as a full
+              // starter, its least trustworthy configuration. The walk-forward study (29
+              // one-opener games) found opener games perfectly priced by the market and
+              // negative to bet from EITHER side; the model's edge claims here are suspect.
+              const openerGame = ['home', 'away'].some(s => {
+                const f = g.opener_flags && g.opener_flags[s]
+                return f && f.is_opener && !f.substituted
+              })
+              const isRed = (bet.type === 'favorite' && f5c === false) || bet.omega_cofired || openerGame
               return (
                 <div key={`${market}-${g.game_pk}`} className="mono" style={{
                   display: 'grid', gridTemplateColumns: '60px 110px 1fr 150px 70px 90px 110px', gap: 10, alignItems: 'center',
                   fontSize: 12, padding: '8px 6px', borderBottom: '1px solid var(--line)',
-                  background: topDog ? 'rgba(63,185,80,0.10)' : isRed ? 'rgba(248,81,73,0.08)' : eAlone ? 'rgba(163,113,247,0.10)' : 'transparent',
-                  borderLeft: `3px solid ${topDog ? '#3fb950' : isRed ? '#f85149' : eAlone ? '#a371f7' : 'transparent'}`,
+                  background: topDog && !openerGame ? 'rgba(63,185,80,0.10)' : isRed ? 'rgba(248,81,73,0.08)' : eAlone ? 'rgba(163,113,247,0.10)' : 'transparent',
+                  borderLeft: `3px solid ${topDog && !openerGame ? '#3fb950' : isRed ? '#f85149' : eAlone ? '#a371f7' : 'transparent'}`,
                 }}>
                   <span style={{ color: tcolor, fontWeight: 700, fontSize: 10 }} title={tier === 'LOW' ? 'no other model corroborates this side — unproven (+6.9% on the full 2,111-bet replay, CI -5.4% to +19.1%); shown, not excluded' : ''}>{tier}</span>
                   <span style={{ color: 'var(--text-tertiary)' }}>{market}</span>
                   <span>
                     <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr} — </span>
                     <span style={{ color: scolor, fontWeight: 700 }}>{bet.side} {bet.best_price > 0 ? '+' : ''}{bet.best_price}</span>
+                    {openerGame ? <span style={{ color: '#f85149', fontWeight: 700, fontSize: 10 }} title="⚠ OPENER GAME: one side's 'starter' has been going 1-2 innings with no identified bulk arm — the model may be pricing a pitcher who hands off after the 1st. Live study (29 one-opener games): the market prices openers perfectly and betting either side lost (−6.7% on / −4.2% against). The model's edge claim here is its least trustworthy kind — size down or skip."> · ⚠ OPENER</span> : null}
                     {bet.best_book ? <span style={{ color: 'var(--text-tertiary)' }}> @ {bet.best_book}</span> : null}
                     <span style={{ color: 'var(--text-tertiary)' }}> · {bet.type}{bet.dog_grade ? ` ${bet.dog_grade}` : ''}{bet.strength === 'strong' ? ' ★' : ''}</span>
                     {topDog ? <span style={{ color: '#3fb950', fontWeight: 700 }} title="grade-A underdog flip: the best-performing group in every window tested (+37.9% on the last 1,000 games, +21-35% on the full sample)"> ◆ TOP</span> : null}
