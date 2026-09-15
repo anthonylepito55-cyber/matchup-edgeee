@@ -428,6 +428,31 @@ export function OpenerBadge({ flag }) {
   )
 }
 
+// Edge-configuration badge (2026-09-15, user ask): on BIG starter-WHIP gaps (>0.143, same cut
+// as the bullpen board), mark whether the starter edge and bullpen edge STACK on one team or
+// SPLIT across both. Live log since 7/10 (flat 1u at frozen close): stacked team 63.3% winners,
+// +6.6% flat, positive in BOTH halves; split games 50.9% coin flip with BOTH sides losing
+// (starter −5.2% / pen −2.5%). Informational — the profitable expressions remain the validated
+// menu (green names / PEN+WHIP); the split marker is a "structurally unbettable" warning.
+export function EdgeConfigBadge({ cfg, away, home }) {
+  if (!cfg) return null
+  const teamOf = s => (s === 'home' ? home : away)
+  if (cfg.type === 'split') {
+    return (
+      <span className="mono" title={`SPLIT EDGES: ${teamOf(cfg.starter_team)} has the big starter-WHIP edge, ${teamOf(cfg.pen_team)} has the better bullpen. Live since 7/10: these games are a coin flip (starter side won 50.9% of 108) and flat-betting EITHER side lost (starter −5.2%, pen −2.5%) — the market prices the argument and charges vig on both doors. Structurally unbettable; treat any lean here as entertainment.`}
+        style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#8b949e', border: '1px dashed #8b949e', borderRadius: 4, padding: '2px 6px', marginLeft: 6, opacity: 0.9 }}>
+        ⚔ SPLIT EDGES
+      </span>
+    )
+  }
+  return (
+    <span className="mono" title={`STACKED EDGES: ${teamOf(cfg.starter_team)} holds BOTH the big starter-WHIP edge and the better bullpen. Live since 7/10: the stacked team won 63.3% of 158 at +6.6% flat, positive in both halves of the sample (+4.6% / +8.5%) — the same both-edges structure behind PEN+WHIP and the golden panel. HONESTY: as favorites they returned just +1.7% (the market prices them); the big ROI lives in the rare stacked underdogs (+52.6% on only 15 — noise-sized). Informational, not a pick: the bettable versions are the validated menu bets.`}
+      style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#e3b341', border: '1px solid #e3b341', borderRadius: 4, padding: '2px 6px', marginLeft: 6 }}>
+      ≡ STACKED: {teamOf(cfg.starter_team)}
+    </span>
+  )
+}
+
 // Starter-dispute badge (2026-09-12): ESPN's scoreboard probables cross-checked against the
 // MLB Stats API probable the card is priced on. Disagreement = the strongest do-not-bet
 // signal short of a confirmed scratch — proven live on Luis Castillo (ESPN/PrizePicks had
@@ -631,6 +656,7 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
         <ModelEBetBadge bet={game.model_e_bet} liveOdds={game.live_odds} />
         <ModelEBetBadge bet={game.model_f5_bet} label="F5" />
         <ModelEBetBadge bet={game.model_a_bet} label="MODEL A" liveOdds={game.live_odds} />
+        <EdgeConfigBadge cfg={game.edge_config} away={game.away_team_abbr} home={game.home_team_abbr} />
         {game.dog_shade23 && (
           <span className="mono" title={`TRACKED EXPERIMENT (pre-registered 9/7): Model E shades the dog by ${game.dog_shade23.shade_pts} pts without flipping (model ${(100 * game.dog_shade23.model_prob).toFixed(1)}% vs market ${(100 * game.dog_shade23.market_prob).toFixed(1)}% on ${game.dog_shade23.side}). Live this 2-3pt band is a two-window-positive ISLAND (+6.1% / +9.5%) whose NEIGHBORS are negative (1-2pt −2.4%, 3-5pt −16.4%) — likely noise, being tracked flat-1u to find out. Checkpoint ~75 settled: still positive and still an island → watch signal; otherwise it dies publicly. Shadow only — not a pick, not in any risk total.`} style={{
             fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#2dd4bf',

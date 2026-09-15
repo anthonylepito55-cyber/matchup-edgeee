@@ -2731,6 +2731,21 @@ def _compute_today_response(date: str = None):
                 else:
                     _bucket = "big_gap"
                 bullpen_lean_out = {"team": "home" if _b > 0 else "away", "bucket": _bucket}
+            # Edge configuration on BIG starter gaps (2026-09-15, user ask after the BOS@TEX
+            # deGrom-vs-Boston-pen card): when |whip_diff| clears the big-gap cut (0.143, same
+            # threshold as the bullpen buckets above), mark whether the starter edge and the
+            # bullpen edge STACK on one team or SPLIT across the two. Live log since 7/10,
+            # flat 1u at the frozen close: stacked team won 63.3% / +6.6% flat, positive in
+            # BOTH halves (+4.6 / +8.5); split games are a 50.9% coin flip with BOTH sides
+            # negative (starter -5.2% / pen -2.5% on 108). Display-only markers.
+            edge_config_out = None
+            if _w is not None and _b is not None and pd.notna(_w) and pd.notna(_b) and _b != 0 and abs(_w) > 0.143:
+                _starter_team = "home" if _w > 0 else "away"
+                _pen_team = "home" if _b > 0 else "away"
+                edge_config_out = {
+                    "type": "stacked" if _starter_team == _pen_team else "split",
+                    "starter_team": _starter_team, "pen_team": _pen_team,
+                }
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])
@@ -3154,6 +3169,7 @@ def _compute_today_response(date: str = None):
             "model_e_prob": model_e_prob, "model_e_bet": model_e_bet_out, "model_e_baseball_prob": model_e_baseball_prob, "model_e_shade": model_e_shade_out,
             "model_omega_bet": model_omega_bet_out, "model_omega_prob": model_omega_prob,
             "pen_whip_team": pen_whip_team_out, "bullpen_lean": bullpen_lean_out,
+            "edge_config": edge_config_out,
             "model_e_features": model_e_features_out, "model_a_bet": model_a_bet_out,
             "dog_shade23": dog_shade23_out, "fav_sub3": fav_sub3_out,
             "jacob_book_bet": jacob_book_bet_out,
