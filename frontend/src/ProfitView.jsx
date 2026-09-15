@@ -729,22 +729,43 @@ export default function ProfitView({ games, date, marketAge }) {
                 const B = BUCKETS[r.bucket]
                 const a = bl[r.bucket]
                 const roiTxt = a && a.flat_roi_pct != null ? `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})` : '—'
-                const col = B.dim ? 'var(--text-tertiary)' : blue
+                // Edge-configuration annotation (user ask 9/15): does the starter edge STACK
+                // with this pen lean or SPLIT against it? Split configs are NEGATIVE live
+                // (big-gap split: both sides lose, -5.2/-2.5 on 108; even+split: the pen lean
+                // itself -15.1% on 46) -> the whole row reds out. Stacked configs are the
+                // positive ones (big: 63.3%/+6.6% both windows; even: 58.7%/+12.4%).
+                const ec = r.g.edge_config
+                const neg = ec && (ec.type === 'split' || ec.type === 'micro_split')
+                const ECFG = {
+                  split: { lbl: '⚔ split edges', c: '#f85149', tip: 'The BIG starter edge belongs to the OTHER team — live these split games are a coin flip and flat-betting either side lost (starter −5.2% / pen −2.5% on 108). This pen lean is red because its configuration is a proven money-loser.' },
+                  micro_split: { lbl: '⚔ even+split', c: '#f85149', tip: 'Starters nearly even, but the slight starter edge is on the OTHER team — live, this pen lean lost −15.1% on 46 (the slightly-better-starter side won). Red = negative configuration.' },
+                  stacked: { lbl: '≡ stacked', c: '#e3b341', tip: 'This team holds the BIG starter edge AND the better pen — live 63.3% winners, +6.6% flat on 158, positive in both halves. The strongest board configuration (same structure as PEN+WHIP).' },
+                  micro_stacked: { lbl: '≡ even+edges', c: '#2563eb', tip: 'Starters nearly even and this team still holds BOTH the slight starter edge and the better pen — live 58.7% winners, +12.4% flat on 63 (single window, ±25pt noise). Dark blue = the aligned nearly-even configuration.' },
+                }[ec && ec.type] || null
+                const openerSides = ['home', 'away'].filter(s => {
+                  const f = r.g.opener_flags && r.g.opener_flags[s]
+                  return f && f.is_opener && !f.substituted
+                })
+                const col = neg ? '#f85149' : (B.dim ? 'var(--text-tertiary)' : blue)
                 return (
-                  <div key={`blean-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 240px 130px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)', background: B.dim ? 'transparent' : 'rgba(88,166,255,0.08)', borderLeft: `3px solid ${B.dim ? 'transparent' : blue}` }}>
+                  <div key={`blean-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 240px 130px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)', background: neg ? 'rgba(248,81,73,0.06)' : (B.dim ? 'transparent' : 'rgba(88,166,255,0.08)'), borderLeft: `3px solid ${neg ? '#f85149' : (B.dim ? 'transparent' : blue)}` }}>
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span>
                       <b style={{ color: col }}>{r.abbr}</b>
                       <span style={{ color: 'var(--text-tertiary)' }}> better pen</span>
+                      {ECFG && <span style={{ color: ECFG.c, fontWeight: 700, fontSize: 10, marginLeft: 6 }} title={ECFG.tip}>{ECFG.lbl}</span>}
+                      {openerSides.map(s => (
+                        <span key={s} style={{ color: '#f85149', fontSize: 10, marginLeft: 6 }} title={`${s === 'home' ? r.g.home_pitcher_name : r.g.away_pitcher_name} is an OPENER (recent starts 1-2 IP, no stable bulk arm) — this row's 'starter closeness' is a trust-weighted stat for a pitcher who will not pitch the bulk of the game. Distrust the bucket label here.`}>⚠ opener</span>
+                      ))}
                     </span>
                     <span style={{ color: col }}>{B.label}</span>
-                    <span style={{ color: B.dim ? '#f85149' : col, fontWeight: 700 }} title={`LIVE forward record of flat-betting the better-bullpen team in the '${B.label}' bucket since 7/10, at the de-vigged close minus 3.5% vig${a ? `: ${(100 * a.hit_rate).toFixed(1)}% win on ${a.n} games` : ''}. Updates as games settle. Inside its noise band — information, not a rule.`}>live {roiTxt}</span>
+                    <span style={{ color: neg ? '#f85149' : (B.dim ? '#f85149' : col), fontWeight: 700 }} title={`LIVE forward record of flat-betting the better-bullpen team in the '${B.label}' bucket since 7/10, at the de-vigged close minus 3.5% vig${a ? `: ${(100 * a.hit_rate).toFixed(1)}% win on ${a.n} games` : ''}. Updates as games settle. Inside its noise band — information, not a rule.${neg ? ' NOTE: this specific game’s edge CONFIGURATION is the negative one (see the red marker) — the bucket average does not apply cleanly here.' : ''}`}>live {roiTxt}</span>
                     <span style={{ color: 'var(--text-tertiary)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status}`}</span>
                   </div>
                 )
               })}
               <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                blue = the bucket's live record is positive so far · gray rows (starters nearly even) are the NEGATIVE bucket — shown so the whole picture stays honest. All buckets are inside their noise bands; the profitable version of the bullpen signal is the model-confirmed one (PEN+WHIP ✓ on the slip).
+                blue = the bucket's live record is positive so far · <span style={{ color: '#f85149' }}>red rows = negative CONFIGURATION</span> (the starter edge points at the other team — split games lose from both sides live) · <span style={{ color: '#e3b341' }}>≡ stacked</span> / <span style={{ color: '#2563eb' }}>≡ even+edges</span> = the aligned configs (63.3%/+6.6% and 58.7%/+12.4% live) · ⚠ opener = the "starter" won't pitch bulk, distrust the bucket label. All slices inside noise bands; the profitable version of the bullpen signal is still the model-confirmed one (PEN+WHIP ✓ on the slip).
               </div>
             </div>
           )

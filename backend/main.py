@@ -2771,13 +2771,24 @@ def _compute_today_response(date: str = None):
             # BOTH halves (+4.6 / +8.5); split games are a 50.9% coin flip with BOTH sides
             # negative (starter -5.2% / pen -2.5% on 108). Display-only markers.
             edge_config_out = None
-            if _w is not None and _b is not None and pd.notna(_w) and pd.notna(_b) and _b != 0 and abs(_w) > 0.143:
+            if _w is not None and _b is not None and pd.notna(_w) and pd.notna(_b) and _b != 0 and _w != 0:
                 _starter_team = "home" if _w > 0 else "away"
                 _pen_team = "home" if _b > 0 else "away"
-                edge_config_out = {
-                    "type": "stacked" if _starter_team == _pen_team else "split",
-                    "starter_team": _starter_team, "pen_team": _pen_team,
-                }
+                if abs(_w) > 0.143:
+                    edge_config_out = {
+                        "type": "stacked" if _starter_team == _pen_team else "split",
+                        "starter_team": _starter_team, "pen_team": _pen_team,
+                    }
+                elif abs(_w) <= 0.059:
+                    # Nearly-even starters (2026-09-15, user ask): micro_stacked when the same
+                    # team still holds both the slight starter edge and the better pen (live:
+                    # 58.7% / +12.4% on 63 -- dark blue); micro_split when they point at
+                    # different teams (pen lean LOST -15.1% on 46 -- red). Single-window
+                    # slices, ±25-30pt noise; informational markers, never picks.
+                    edge_config_out = {
+                        "type": "micro_stacked" if _starter_team == _pen_team else "micro_split",
+                        "starter_team": _starter_team, "pen_team": _pen_team,
+                    }
             any_long_layoff = any(
                 (rest_days.get(pid) or 0) >= LONG_LAYOFF_DAYS
                 for pid in (g["home_pitcher_id"], g["away_pitcher_id"])

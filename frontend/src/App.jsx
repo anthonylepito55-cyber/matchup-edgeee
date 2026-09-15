@@ -438,10 +438,27 @@ export function EdgeConfigBadge({ cfg, away, home }) {
   if (!cfg) return null
   const teamOf = s => (s === 'home' ? home : away)
   if (cfg.type === 'split') {
+    // negative config -> red (user ask 2026-09-15 "red out all the negative roi ones")
     return (
       <span className="mono" title={`SPLIT EDGES: ${teamOf(cfg.starter_team)} has the big starter-WHIP edge, ${teamOf(cfg.pen_team)} has the better bullpen. Live since 7/10: these games are a coin flip (starter side won 50.9% of 108) and flat-betting EITHER side lost (starter −5.2%, pen −2.5%) — the market prices the argument and charges vig on both doors. Structurally unbettable; treat any lean here as entertainment.`}
-        style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#8b949e', border: '1px dashed #8b949e', borderRadius: 4, padding: '2px 6px', marginLeft: 6, opacity: 0.9 }}>
+        style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#f85149', border: '1px dashed #f85149', borderRadius: 4, padding: '2px 6px', marginLeft: 6, opacity: 0.9 }}>
         ⚔ SPLIT EDGES
+      </span>
+    )
+  }
+  if (cfg.type === 'micro_split') {
+    return (
+      <span className="mono" title={`EVEN STARTERS, SPLIT EDGES: starters are (trust-weighted) nearly even, but the slight starter edge (${teamOf(cfg.starter_team)}) and the better bullpen (${teamOf(cfg.pen_team)}) point at different teams. Live since 7/10: betting the pen team here LOST −15.1% on 46 (the slightly-better-starter side won 52.2%) — even a tiny starter edge has beaten a bullpen edge head-to-head. Single-window slice, ±30pt noise. Red = negative config, no lean.`}
+        style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#f85149', border: '1px dashed #f85149', borderRadius: 4, padding: '2px 6px', marginLeft: 6, opacity: 0.9 }}>
+        ⚔ EVEN+SPLIT
+      </span>
+    )
+  }
+  if (cfg.type === 'micro_stacked') {
+    return (
+      <span className="mono" title={`EVEN STARTERS, BOTH EDGES: starters are (trust-weighted) nearly even, and ${teamOf(cfg.starter_team)} still holds BOTH the slight starter edge and the better bullpen. Live since 7/10: that team won 58.7% at +12.4% flat on 63 games. Single-window slice, ±25pt noise — an informational lean marker, not a pick; the bettable versions remain the validated menu bets.`}
+        style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#2563eb', border: '1px solid #2563eb', borderRadius: 4, padding: '2px 6px', marginLeft: 6 }}>
+        ≡ EVEN+EDGES: {teamOf(cfg.starter_team)}
       </span>
     )
   }
