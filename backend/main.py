@@ -188,7 +188,11 @@ async def _background_refresh_loop():
                 # passes buy nothing.
                 await loop.run_in_executor(None, get_moneyline_odds, resolved_date, True)
                 await loop.run_in_executor(None, get_f5_odds, resolved_date, True)
-                _TODAY_RESPONSE_CACHE.pop(resolved_date, None)   # force a real recompute
+                # Expire in place (NOT pop): the stale slate must stay servable so visitors
+                # never block on the recompute -- see today()'s stale-while-revalidate.
+                _c = _TODAY_RESPONSE_CACHE.get(resolved_date)
+                if _c:
+                    _TODAY_RESPONSE_CACHE[resolved_date] = (0.0, _c[1])
         except Exception as e:
             print(f"[background refresh] odds force-refresh failed: {e}")
         try:
@@ -1843,6 +1847,21 @@ def history_for_date(date: str):
 _TODAY_RESPONSE_CACHE = {}  # resolved_date -> (computed_at_monotonic, response_dict)
 _TODAY_CACHE_TTL_SECONDS = 90
 _today_compute_lock = threading.Lock()
+_today_refresh_inflight = set()  # dates with a background recompute already running
+
+
+def _recompute_today_async(cache_key: str, date: str):
+    try:
+        with _today_compute_lock:
+            cached = _TODAY_RESPONSE_CACHE.get(cache_key)
+            if cached and (time.monotonic() - cached[0]) < _TODAY_CACHE_TTL_SECONDS:
+                return  # another thread refreshed it while we waited on the lock
+            result = _compute_today_response(date)
+            _TODAY_RESPONSE_CACHE[cache_key] = (time.monotonic(), result)
+    except Exception as e:
+        print(f"[today stale-refresh] background recompute failed: {e}")
+    finally:
+        _today_refresh_inflight.discard(cache_key)
 
 
 @app.get("/api/today")
@@ -1852,9 +1871,22 @@ def today(date: str = None):
     # stacking up and exhausting Railway resources -- the direct cause of repeated 502s. Cache
     # the whole response by resolved date and serialize recompute behind a lock so at most one
     # real computation runs per TTL window, regardless of how many requests arrive concurrently.
+    #
+    # Stale-while-revalidate (2026-09-15, user ask "faster if possible"): an EXPIRED cache no
+    # longer blocks the visitor for the full multi-minute recompute -- they get the stale slate
+    # instantly while ONE background thread recomputes; the next request picks up the fresh
+    # copy. A visitor only ever waits on the cold path (no cached slate at all, e.g. right
+    # after a restart). Freeze/logging discipline is untouched: log_predictions runs inside
+    # every real recompute exactly as before, at the same overall cadence.
     cache_key = date or todays_date_et()
     cached = _TODAY_RESPONSE_CACHE.get(cache_key)
     if cached and (time.monotonic() - cached[0]) < _TODAY_CACHE_TTL_SECONDS:
+        return cached[1]
+    if cached:
+        if cache_key not in _today_refresh_inflight:
+            _today_refresh_inflight.add(cache_key)
+            threading.Thread(target=_recompute_today_async, args=(cache_key, date),
+                             daemon=True).start()
         return cached[1]
 
     with _today_compute_lock:
