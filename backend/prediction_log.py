@@ -250,7 +250,17 @@ def log_predictions(date: str, games: list[dict]):
 
         key = (date, game_pk)
         if key in existing_by_key:
-            updates[existing_by_key[key]] = row
+            # STICKY UPSERT (2026-09-17, user report "bets are disappearing"): books pull
+            # their lines in the minutes before first pitch, and a refresh landing in that
+            # window used to OVERWRITE a good logged row (odds, market prob, computed bets)
+            # with a market-less husk -- destroying the frozen record it existed to keep.
+            # A new snapshot without a market may never replace one that has a market.
+            _idx = existing_by_key[key]
+            _new_mkt = row.get("market_home_prob")
+            _old_mkt = log.at[_idx, "market_home_prob"] if "market_home_prob" in log.columns else None
+            if (_new_mkt is None or (isinstance(_new_mkt, float) and pd.isna(_new_mkt))) and pd.notna(_old_mkt):
+                continue
+            updates[_idx] = row
         else:
             new_rows.append({
                 **row,
