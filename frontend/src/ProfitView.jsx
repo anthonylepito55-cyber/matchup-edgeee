@@ -614,21 +614,39 @@ export default function ProfitView({ games, date, marketAge }) {
                 }
               }
             }
-            return { g, reason, detail }
+            // HEAVY-DISLIKE FOLLOW rows (user call 9/17, dark silver): heavy market favorite
+            // (>=60%) that model E sits 3+ pts below -- the pre-registered follow-the-favorite
+            // tracker (heavy_dislike_follow, checkpoint 50 post-registration). Highlight only;
+            // the tracker's tooltip carries the honesty caveats and running record.
+            let heavyDislike = null
+            if (p != null && mkt != null) {
+              const fh = mkt >= 0.5
+              const mkf = fh ? mkt : 1 - mkt
+              const epf = fh ? p : 1 - p
+              if (mkf >= 0.60 && epf - mkf <= -0.03) {
+                heavyDislike = { fav: fh ? g.home_team_abbr : g.away_team_abbr, gap: (mkf - epf) * 100 }
+              }
+            }
+            return { g, reason, detail, heavyDislike }
           })
+          const hdf = e && e.heavy_dislike_follow
+          const hdfTxt = hdf ? `reg ${hdf.at_registration ? `${hdf.at_registration.flat_roi_pct > 0 ? '+' : ''}${hdf.at_registration.flat_roi_pct}% (${hdf.at_registration.n})` : '—'} · post-reg ${hdf.post_registration ? `${hdf.post_registration.flat_roi_pct > 0 ? '+' : ''}${hdf.post_registration.flat_roi_pct}% (${hdf.post_registration.n})` : '0 settled yet'}` : 'accruing'
           return (
             <div style={{ marginTop: 14 }}>
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', paddingBottom: 4, borderBottom: '1px solid var(--line)' }}
                 title="Every remaining game on the slate, shown with the reason the bet menu passed. A game with no row in the slip is a deliberate pass, not a missing game: most edges are too small to beat the vig, and the menu's profit comes from only betting the few that clear the validated bars.">
                 rest of the slate — no bet ({rows.length} game{rows.length === 1 ? '' : 's'})
               </div>
-              {rows.map(({ g, reason, detail }) => {
+              {rows.map(({ g, reason, detail, heavyDislike }) => {
                 const live = g.status && !['Scheduled', 'Pre-Game', 'Warmup'].includes(g.status)
+                const silver = '#b7bdc6'
                 return (
-                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)' }}>
+                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: heavyDislike ? 'rgba(183,189,198,0.10)' : 'transparent', borderLeft: `3px solid ${heavyDislike ? silver : 'transparent'}` }}>
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr}</span>
                       {g.model_e_prob != null ? <span> · model {(g.model_e_prob * 100).toFixed(1)}% home</span> : null}
+                      {heavyDislike ? <span style={{ color: silver, fontWeight: 700, marginLeft: 6 }}
+                        title={`HEAVY-DISLIKE FOLLOW tracker (pre-registered 2026-09-17): ${heavyDislike.fav} is a heavy market favorite (60%+) that model E sits ${heavyDislike.gap.toFixed(1)} pts BELOW — the tracker follows ${heavyDislike.fav} (against our own model), flat 1u shadow. Found-in-sample: 15-2 / +32.9% on 17 — a ~2σ cell riding a favorites hot streak, whose mechanism would require the MARKET to be underpriced too; that's why it counts from zero. Running record: ${hdfTxt}. Checkpoint 50 post-registration; if it survives, the fix is heavy-fav calibration inside the model, not a betting rule. Not staked, not in the risk total.`}>⬢ HD-FOLLOW: {heavyDislike.fav}</span> : null}
                     </span>
                     <span title={detail}>{reason}</span>
                     <span>{live ? `${g.status}` : (g.game_time_utc ? new Date(g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game')}</span>

@@ -1250,6 +1250,7 @@ def get_model_e_track_record() -> dict:
     # the golden panel shows it, nothing stakes it; pre-registered re-judgment at 100 games.
     fade_rows = []
     starter_split_rows = []  # (won, pnl, date) -- see STARTER-SIDE FADE below
+    heavy_dislike_rows = []  # (won, pnl, date) -- see HEAVY-DISLIKE FOLLOW below
     if pw_feats is not None:
         settled_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
                           & log["market_home_prob"].notna() & log["model_home_win_prob"].notna()]
@@ -1267,6 +1268,26 @@ def get_model_e_track_record() -> dict:
             # slightly-better-STARTER team at the de-vigged close minus 3.5% vig. At
             # registration the found-in-sample record was +7.1% on 46 (0.5 sigma -- noise-
             # grade); judged ONLY on post-registration games, checkpoint 50 settled.
+            # HEAVY-DISLIKE FOLLOW tracker (PRE-REGISTERED 2026-09-17, user ask): heavy market
+            # favorite (>=60%) that model E sits 3+ pts BELOW -- follow the FAVORITE (i.e.
+            # against our own model), flat 1u at the de-vigged close minus 3.5% vig. At
+            # registration the found-in-sample cell was 15-2 / +32.9% on 17 (a ~2-sigma,
+            # sliced-this-minute cell riding a favorites hot streak; its mechanism requires the
+            # MARKET to be underpriced too, which contradicts everything else measured). If the
+            # post-registration record holds up at checkpoint 50, the real fix is inside the
+            # model (heavy-fav calibration), not a counter-rule.
+            _ep = r.get("model_e_prob")
+            if pd.notna(_ep):
+                _mkh = float(r["market_home_prob"])
+                if 0 < _mkh < 1:
+                    _fh = _mkh >= 0.5
+                    _mkf = _mkh if _fh else 1 - _mkh
+                    _epf = float(_ep) if _fh else 1 - float(_ep)
+                    if _mkf >= 0.60 and (_epf - _mkf) <= -0.03:
+                        _fwon = bool(r["home_won"]) if _fh else not bool(r["home_won"])
+                        _fdec = (1.0 / _mkf) * (1 - 0.035)
+                        heavy_dislike_rows.append((_fwon, (_fdec - 1.0) if _fwon else -1.0,
+                                                   str(r.get("date"))))
             if _w != 0 and _b != 0 and abs(_w) <= 0.059 and (_w > 0) != (_b > 0):
                 _st_home = _w > 0
                 _mk_st = float(r["market_home_prob"]) if _st_home else 1 - float(r["market_home_prob"])
@@ -1316,6 +1337,21 @@ def get_model_e_track_record() -> dict:
             "registered": _REG, "checkpoint_n": 50,
             "at_registration": _ss_agg([x for x in starter_split_rows if x[2] < _REG]),
             "post_registration": _ss_agg([x for x in starter_split_rows if x[2] >= _REG]),
+        }
+    heavy_dislike_follow = None
+    if heavy_dislike_rows:
+        _REG_HD = "2026-09-17"
+        def _hd_agg(rows):
+            if not rows:
+                return None
+            n = len(rows)
+            wins = sum(1 for w, _, _ in rows if w)
+            return {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
+                    "flat_roi_pct": round(100 * sum(x for _, x, _ in rows) / n, 2)}
+        heavy_dislike_follow = {
+            "registered": _REG_HD, "checkpoint_n": 50,
+            "at_registration": _hd_agg([x for x in heavy_dislike_rows if x[2] < _REG_HD]),
+            "post_registration": _hd_agg([x for x in heavy_dislike_rows if x[2] >= _REG_HD]),
         }
     # Bullpen-lean live record (2026-09-05, the blue panel): over ALL settled games, a flat
     # bet on the better-bullpen team at the frozen de-vigged consensus minus 3.5% vig,
@@ -1416,7 +1452,8 @@ def get_model_e_track_record() -> dict:
             "fav_sub3": fav_sub3,
             "by_signal": by_signal, "current_rules": current_rules,
             "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean,
-            "starter_split_fade": starter_split_fade, "jacob_ledger": jacob_ledger}
+            "starter_split_fade": starter_split_fade, "jacob_ledger": jacob_ledger,
+            "heavy_dislike_follow": heavy_dislike_follow}
 
 
 # ============================================================================================
