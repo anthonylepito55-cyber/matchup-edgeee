@@ -2090,6 +2090,17 @@ def _compute_today_response(date: str = None):
             "kalshi": odds_entry.get("kalshi"),
             "polymarket": odds_entry.get("polymarket"),
         } if odds_entry else None
+        # Sticky market (2026-09-17, user report "bets are disappearing because the market
+        # price gets removed"): books routinely PULL their lines in the minutes before first
+        # pitch, so a refresh in that window found no odds, every market-dependent computation
+        # (Model E bet, venue EVs, band markers) silently died, and live bets vanished off the
+        # slip. Pre-game, if the fetch has no line but the log holds the last-seen one, serve
+        # THAT (marked stale) -- prices freeze at their last real sighting instead of
+        # evaporating. Started games get the frozen line via the restore block below.
+        if live_odds_out is None and g.get("game_pk") and g.get("status") in PRE_GAME_STATUSES:
+            _lg_odds = (get_logged_prediction(resolved_date, g["game_pk"]) or {}).get("live_odds")
+            if _lg_odds and _lg_odds.get("home") is not None and _lg_odds.get("away") is not None:
+                live_odds_out = {**_lg_odds, "stale": True}
         # First-5-innings ("1st Half") market for the same fixture -- see odds_fetcher.get_f5_odds
         f5_entry = f5_odds.get((g.get("game_time_utc"), g["away_team"], g["home_team"])) if f5_odds else None
         f5_odds_out = {k: f5_entry.get(k) for k in ("home", "away", "bookmaker", "books", "home_prob")} if f5_entry else None
@@ -3112,6 +3123,11 @@ def _compute_today_response(date: str = None):
             lineup_breakdown_out = None
             frozen = get_logged_prediction(resolved_date, g.get("game_pk")) if g.get("game_pk") else None
             if frozen:
+                # Market price frozen at first pitch (2026-09-17): a started game's card shows
+                # the last PRE-GAME line from the log, never an in-play price and never "no
+                # market" just because the books pulled the game off the board at start.
+                if frozen.get("live_odds") and frozen["live_odds"].get("home") is not None:
+                    live_odds_out = {**frozen["live_odds"], "frozen": True}
                 prediction = {k: frozen[k] for k in ("home_win_prob", "away_win_prob", "model_home_win_prob", "overridden")}
                 reason = frozen.get("reason") or "Original reasoning wasn't captured for this game."
                 if frozen.get("recent_form"):
