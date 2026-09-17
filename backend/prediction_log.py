@@ -1266,6 +1266,26 @@ def get_model_e_track_record() -> dict:
         settled_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
                           & log["market_home_prob"].notna() & log["model_home_win_prob"].notna()]
         for _, r in settled_all.iterrows():
+            # HEAVY/MID-DISLIKE FOLLOW collection moved ABOVE the pw_feats gates (2026-09-17
+            # placement fix, caught live on MIL@PIT): these trackers need only the frozen
+            # market + E prob, but sitting below the training-parquet join meant fresh games
+            # couldn't count until the nightly rebuild added their feature rows -- a 1-day lag
+            # plus a pointless WHIP-data dependency.
+            _ep = r.get("model_e_prob")
+            if pd.notna(_ep) and pd.notna(r.get("market_home_prob")):
+                _mkh = float(r["market_home_prob"])
+                if 0 < _mkh < 1:
+                    _fh = _mkh >= 0.5
+                    _mkf = _mkh if _fh else 1 - _mkh
+                    _epf = float(_ep) if _fh else 1 - float(_ep)
+                    if (_epf - _mkf) <= -0.03 and _mkf >= 0.55:
+                        _fwon = bool(r["home_won"]) if _fh else not bool(r["home_won"])
+                        _fdec = (1.0 / _mkf) * (1 - 0.035)
+                        _row = (_fwon, (_fdec - 1.0) if _fwon else -1.0, str(r.get("date")))
+                        if _mkf >= 0.60:
+                            heavy_dislike_rows.append(_row)
+                        else:
+                            mid_dislike_rows.append(_row)
             gpk = r.get("game_pk")
             if pd.isna(gpk) or gpk not in pw_feats.index:
                 continue
@@ -1279,34 +1299,6 @@ def get_model_e_track_record() -> dict:
             # slightly-better-STARTER team at the de-vigged close minus 3.5% vig. At
             # registration the found-in-sample record was +7.1% on 46 (0.5 sigma -- noise-
             # grade); judged ONLY on post-registration games, checkpoint 50 settled.
-            # HEAVY-DISLIKE FOLLOW tracker (PRE-REGISTERED 2026-09-17, user ask): heavy market
-            # favorite (>=60%) that model E sits 3+ pts BELOW -- follow the FAVORITE (i.e.
-            # against our own model), flat 1u at the de-vigged close minus 3.5% vig. At
-            # registration the found-in-sample cell was 15-2 / +32.9% on 17 (a ~2-sigma,
-            # sliced-this-minute cell riding a favorites hot streak; its mechanism requires the
-            # MARKET to be underpriced too, which contradicts everything else measured). If the
-            # post-registration record holds up at checkpoint 50, the real fix is inside the
-            # model (heavy-fav calibration), not a counter-rule.
-            _ep = r.get("model_e_prob")
-            if pd.notna(_ep):
-                _mkh = float(r["market_home_prob"])
-                if 0 < _mkh < 1:
-                    _fh = _mkh >= 0.5
-                    _mkf = _mkh if _fh else 1 - _mkh
-                    _epf = float(_ep) if _fh else 1 - float(_ep)
-                    if (_epf - _mkf) <= -0.03 and _mkf >= 0.55:
-                        _fwon = bool(r["home_won"]) if _fh else not bool(r["home_won"])
-                        _fdec = (1.0 / _mkf) * (1 - 0.035)
-                        _row = (_fwon, (_fdec - 1.0) if _fwon else -1.0, str(r.get("date")))
-                        if _mkf >= 0.60:
-                            heavy_dislike_rows.append(_row)
-                        else:
-                            # MID-DISLIKE FOLLOW (PRE-REGISTERED 2026-09-17, same day, own
-                            # clock): 55-60% favorites the model sits 3+ below. At registration
-                            # 18-8 / +16.9% (both 13-game halves positive) -- but the 50-55
-                            # band INVERTS (-25.6%), so the mechanism is unproven; two
-                            # independent band-clocks either replicate it or bury it.
-                            mid_dislike_rows.append(_row)
             if _w != 0 and _b != 0 and abs(_w) <= 0.059 and (_w > 0) != (_b > 0):
                 _st_home = _w > 0
                 _mk_st = float(r["market_home_prob"]) if _st_home else 1 - float(r["market_home_prob"])
