@@ -623,14 +623,15 @@ export default function ProfitView({ games, date, marketAge }) {
               const fh = mkt >= 0.5
               const mkf = fh ? mkt : 1 - mkt
               const epf = fh ? p : 1 - p
-              if (mkf >= 0.60 && epf - mkf <= -0.03) {
-                heavyDislike = { fav: fh ? g.home_team_abbr : g.away_team_abbr, gap: (mkf - epf) * 100 }
+              if (epf - mkf <= -0.03 && mkf >= 0.55) {
+                heavyDislike = { fav: fh ? g.home_team_abbr : g.away_team_abbr, gap: (mkf - epf) * 100,
+                                 band: mkf >= 0.60 ? 'heavy' : 'mid' }
               }
             }
             return { g, reason, detail, heavyDislike }
           })
-          const hdf = e && e.heavy_dislike_follow
-          const hdfTxt = hdf ? `reg ${hdf.at_registration ? `${hdf.at_registration.flat_roi_pct > 0 ? '+' : ''}${hdf.at_registration.flat_roi_pct}% (${hdf.at_registration.n})` : '—'} · post-reg ${hdf.post_registration ? `${hdf.post_registration.flat_roi_pct > 0 ? '+' : ''}${hdf.post_registration.flat_roi_pct}% (${hdf.post_registration.n})` : '0 settled yet'}` : 'accruing'
+          const trkTxt = t => t ? `reg ${t.at_registration ? `${t.at_registration.flat_roi_pct > 0 ? '+' : ''}${t.at_registration.flat_roi_pct}% (${t.at_registration.n})` : '—'} · post-reg ${t.post_registration ? `${t.post_registration.flat_roi_pct > 0 ? '+' : ''}${t.post_registration.flat_roi_pct}% (${t.post_registration.n})` : '0 settled yet'}` : 'accruing'
+          const followTrk = { heavy: { name: 'HD-FOLLOW', t: e && e.heavy_dislike_follow }, mid: { name: 'MID-FOLLOW', t: e && e.mid_dislike_follow } }
           return (
             <div style={{ marginTop: 14 }}>
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', paddingBottom: 4, borderBottom: '1px solid var(--line)' }}
@@ -639,14 +640,15 @@ export default function ProfitView({ games, date, marketAge }) {
               </div>
               {rows.map(({ g, reason, detail, heavyDislike }) => {
                 const live = g.status && !['Scheduled', 'Pre-Game', 'Warmup'].includes(g.status)
-                const silver = '#b7bdc6'
+                const limeC = '#a3e635'
+                const trk = heavyDislike ? followTrk[heavyDislike.band] : null
                 return (
-                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: heavyDislike ? 'rgba(183,189,198,0.10)' : 'transparent', borderLeft: `3px solid ${heavyDislike ? silver : 'transparent'}` }}>
+                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: heavyDislike ? 'rgba(163,230,53,0.08)' : 'transparent', borderLeft: `3px solid ${heavyDislike ? limeC : 'transparent'}` }}>
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr}</span>
                       {g.model_e_prob != null ? <span> · model {(g.model_e_prob * 100).toFixed(1)}% home</span> : null}
-                      {heavyDislike ? <span style={{ color: silver, fontWeight: 700, marginLeft: 6 }}
-                        title={`HEAVY-DISLIKE FOLLOW tracker (pre-registered 2026-09-17): ${heavyDislike.fav} is a heavy market favorite (60%+) that model E sits ${heavyDislike.gap.toFixed(1)} pts BELOW — the tracker follows ${heavyDislike.fav} (against our own model), flat 1u shadow. Found-in-sample: 15-2 / +32.9% on 17 — a ~2σ cell riding a favorites hot streak, whose mechanism would require the MARKET to be underpriced too; that's why it counts from zero. Running record: ${hdfTxt}. Checkpoint 50 post-registration; if it survives, the fix is heavy-fav calibration inside the model, not a betting rule. Not staked, not in the risk total.`}>⬢ HD-FOLLOW: {heavyDislike.fav}</span> : null}
+                      {heavyDislike ? <span style={{ color: limeC, fontWeight: 700, marginLeft: 6 }}
+                        title={`${heavyDislike.band === 'heavy' ? 'HEAVY' : 'MID'}-DISLIKE FOLLOW tracker (pre-registered 2026-09-17): ${heavyDislike.fav} is a ${heavyDislike.band === 'heavy' ? '60%+' : '55-60%'} market favorite that model E sits ${heavyDislike.gap.toFixed(1)} pts BELOW — the tracker follows ${heavyDislike.fav} (against our own model), flat 1u shadow at the frozen close. Running record (live, updates as games settle): ${trkTxt(trk && trk.t)}. HONESTY: both bands were found by slicing this week (heavy 15-4/+18.7%, mid 18-8/+16.9% at registration), the 50-55 band INVERTS to −25.6% so the mechanism is unproven, and the post-registration count is the only number that decides anything — checkpoint 50 each. Not staked, not in the risk total; if both clocks survive, the fix is favorite calibration inside the model, not a betting rule.`}>⬢ {trk ? trk.name : ''}: {heavyDislike.fav}</span> : null}
                     </span>
                     <span title={detail}>{reason}</span>
                     <span>{live ? `${g.status}` : (g.game_time_utc ? new Date(g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game')}</span>
