@@ -1241,6 +1241,7 @@ def get_model_e_track_record() -> dict:
         "omega_same_pw_no": _agg_sig([x for x in sig_rows if x["o_same"] and x["pen_whip"] is False]),
     }
     # PEN+WHIP FADE record (2026-09-05, the golden-contrarian signal): over ALL settled games
+    # (jacob-ledger helper defined below, near the bottom of this module)
     # (not just E bets), how has the both-edge team done when the site's frozen prediction had
     # them UNDER 50%? Graded as a flat bet on the both-edge team at the frozen de-vigged
     # consensus minus 3.5% vig. Live-forward only: frozen model prob + frozen market from the
@@ -1300,6 +1301,7 @@ def get_model_e_track_record() -> dict:
         # vs -12.1% for unflipped dogs without both edges). Tiny sample, ±40-pt band.
         dog_rows = [x for x in fade_rows if x[2]]
         pen_whip_fade["dog"] = _fade_agg(dog_rows) if dog_rows else None
+    jacob_ledger = _get_jacob_class_ledger()
     starter_split_fade = None
     if starter_split_rows:
         _REG = "2026-09-17"
@@ -1414,7 +1416,7 @@ def get_model_e_track_record() -> dict:
             "fav_sub3": fav_sub3,
             "by_signal": by_signal, "current_rules": current_rules,
             "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean,
-            "starter_split_fade": starter_split_fade}
+            "starter_split_fade": starter_split_fade, "jacob_ledger": jacob_ledger}
 
 
 # ============================================================================================
@@ -1545,3 +1547,55 @@ def get_opening_market_prob(date: str, game_pk: int):
     except (TypeError, ValueError):
         return None
     return None if math.isnan(val) else val
+
+
+# --- Jacob's clone ledger (2026-09-17, user ask "re-snapshot his log so it updates") --------
+# His full app clone runs on this same box (/home/ec2-user/mlb-predictor-clone, own service on
+# :8080, own pipeline/log). Instead of a daily snapshot, this reads his clone's prediction log
+# directly and grades his VALUE flags per class, flat 1u at each flag's own frozen de-vigged
+# market prob minus 3.5% vig -- the LIVE version of the 9/4 hand-snapshot that used to be
+# hardcoded in App.jsx. Cached 1h (his log settles on his own timers). Returns None off-box.
+JACOB_CLONE_LOG_PATH = "/home/ec2-user/mlb-predictor-clone/backend/data_cache/prediction_log.parquet"
+_JACOB_LEDGER_CACHE = {"ts": 0.0, "data": None}
+
+
+def _get_jacob_class_ledger():
+    if time.time() - _JACOB_LEDGER_CACHE["ts"] < 3600:
+        return _JACOB_LEDGER_CACHE["data"]
+    data = None
+    try:
+        if os.path.exists(JACOB_CLONE_LOG_PATH):
+            jdf = pd.read_parquet(JACOB_CLONE_LOG_PATH)
+            need = {"settled", "home_won", "value_bet_json", "home_team_abbr", "date"}
+            if need.issubset(jdf.columns):
+                per = {}
+                latest = None
+                s = jdf[(jdf["settled"] == True) & jdf["home_won"].notna() & jdf["value_bet_json"].notna()]  # noqa: E712
+                for _, r in s.iterrows():
+                    try:
+                        vb = json.loads(r["value_bet_json"])
+                    except (TypeError, ValueError):
+                        continue
+                    if not vb or vb.get("market_prob") in (None, 0):
+                        continue
+                    mk = float(vb["market_prob"])
+                    if not (0 < mk < 1):
+                        continue
+                    side_is_home = vb.get("side") == r["home_team_abbr"]
+                    won = bool(r["home_won"]) if side_is_home else not bool(r["home_won"])
+                    dec = (1.0 / mk) * (1 - 0.035)
+                    b = per.setdefault(vb.get("type") or "?", {"n": 0, "wins": 0, "pnl": 0.0})
+                    b["n"] += 1
+                    b["wins"] += int(won)
+                    b["pnl"] += (dec - 1.0) if won else -1.0
+                    d = str(r["date"])
+                    latest = d if latest is None or d > latest else latest
+                data = {"as_of": latest, "source": "clone log, read live",
+                        "classes": {k: {"n": v["n"], "hit_rate": round(v["wins"] / v["n"], 4),
+                                        "flat_roi_pct": round(100 * v["pnl"] / v["n"], 2)}
+                                    for k, v in per.items() if v["n"]}}
+    except Exception:
+        data = None
+    _JACOB_LEDGER_CACHE["ts"] = time.time()
+    _JACOB_LEDGER_CACHE["data"] = data
+    return data

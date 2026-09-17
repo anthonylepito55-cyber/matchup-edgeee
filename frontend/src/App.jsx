@@ -1,5 +1,15 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import ProbabilityBar from './ProbabilityBar.jsx'
+
+// Live Jacob-ledger feed (2026-09-17): his class records are computed server-side from his
+// clone's own prediction log (same box, read hourly) and served on the E track record. One
+// fetch per page load; the Ω line's class chips read window.__jacobLedger and fall back to
+// the labeled 9/4 snapshot until it lands.
+if (typeof window !== 'undefined' && window.__jacobLedger === undefined) {
+  window.__jacobLedger = null
+  fetch('/api/model-e-track-record').then(r => r.json())
+    .then(d => { window.__jacobLedger = d.jacob_ledger || null }).catch(() => {})
+}
 import ModelStatus from './ModelStatus.jsx'
 import TrackRecord from './TrackRecord.jsx'
 import UserTrackRecord from './UserTrackRecord.jsx'
@@ -795,8 +805,10 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
               {(() => {
                 // Classify this game the way JACOB'S PAGE bets (old 2-pt VALUE rules, incl. the
                 // dog_value pattern this app retired), and color it by his REAL LEDGER for that
-                // class (9/4 snapshot from the clone's own log): favorites +1.6% (n=117, purple),
-                // dog flips +14.4% (n=38, green), dog_value −28% (n=50, red).
+                // class. LIVE since 2026-09-17: the backend reads his clone's own prediction log
+                // (same box) each hour and serves per-class records via /api/model-e-track-record
+                // .jacob_ledger; the constants below are the labeled 9/4 snapshot, used only as a
+                // fallback until the live fetch lands.
                 const lo = game.live_odds
                 if (!lo || lo.home == null || lo.away == null) return null
                 const dec = p => (p > 0 ? 1 + p / 100 : 1 + 100 / Math.abs(p))
@@ -807,13 +819,19 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
                 const pFav = favHome ? p : 1 - p
                 const mFav = favHome ? mktHome : 1 - mktHome
                 let cls = null
-                if (pFav - mFav >= 0.02) cls = { name: 'favorite', c: '#d2a8ff', roi: '+1.6%', n: 117, hit: '59.8%' }
-                else if (1 - pFav >= 0.52 && (1 - pFav) - (1 - mFav) >= 0.02) cls = { name: 'dog flip', c: '#3fb950', roi: '+14.4%', n: 38, hit: '55.3%' }
-                else if ((1 - pFav) - (1 - mFav) >= 0.02) cls = { name: 'dog_value', c: '#f85149', roi: '−28%', n: 50, hit: '30.0%' }
+                if (pFav - mFav >= 0.02) cls = { name: 'favorite', key: 'favorite', c: '#d2a8ff', roi: '+1.6%', n: 117, hit: '59.8%' }
+                else if (1 - pFav >= 0.52 && (1 - pFav) - (1 - mFav) >= 0.02) cls = { name: 'dog flip', key: 'underdog', c: '#3fb950', roi: '+14.4%', n: 38, hit: '55.3%' }
+                else if ((1 - pFav) - (1 - mFav) >= 0.02) cls = { name: 'dog_value', key: 'dog_value', c: '#f85149', roi: '−28%', n: 50, hit: '30.0%' }
                 if (!cls) return <span style={{ color: 'var(--text-tertiary)', marginLeft: 8 }}>· no flag on his rules</span>
+                const liveLedger = window.__jacobLedger
+                const lv = liveLedger && liveLedger.classes && liveLedger.classes[cls.key]
+                const roiTxt = lv ? `${lv.flat_roi_pct > 0 ? '+' : ''}${lv.flat_roi_pct}%` : cls.roi
+                const nTxt = lv ? lv.n : cls.n
+                const hitTxt = lv ? `${(100 * lv.hit_rate).toFixed(1)}%` : cls.hit
+                const srcTxt = lv ? `LIVE from his clone's own prediction log (read hourly, through ${liveLedger.as_of})` : '9/4 snapshot of the clone’s log (live feed loading…)'
                 return <span style={{ marginLeft: 8, background: `${cls.c}1f`, border: `1px solid ${cls.c}`, borderRadius: 4, padding: '0px 5px', color: cls.c, fontWeight: 700 }}
-                  title={`On Jacob's page this game would be a ${cls.name.toUpperCase()} flag under his 2-pt VALUE rules. His REAL ledger for that class (9/4 snapshot from the clone's own prediction log, Jul 10 - Sep 5, flat stakes at the frozen line): ${cls.n} bets, hit ${cls.hit}, ROI ${cls.roi}. Compare with the Model E line above — the two profitable classes on his page are the same two patterns E's validated menu bets, while dog_value is the pattern this app retired after three negative tests.`}>
-                  {cls.name} · his ledger {cls.roi} ({cls.n})
+                  title={`On Jacob's page this game would be a ${cls.name.toUpperCase()} flag under his 2-pt VALUE rules. His REAL ledger for that class (${srcTxt}, flat stakes at each flag's frozen line): ${nTxt} bets, hit ${hitTxt}, ROI ${roiTxt}. Compare with the Model E line above — the profitable classes on his page are the same patterns as E's validated menu bets, while dog_value is the pattern this app retired after three negative tests.`}>
+                  {cls.name} · his ledger {roiTxt} ({nTxt})
                 </span>
               })()}
               {game.model_omega_bet && game.model_omega_bet.stake_units != null && (
