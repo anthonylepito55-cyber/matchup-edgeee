@@ -746,19 +746,29 @@ export default function ProfitView({ games, date, marketAge }) {
                 // positive ones (big: 63.3%/+6.6% both windows; even: 58.7%/+12.4%).
                 const ec = r.g.edge_config
                 const neg = ec && (ec.type === 'split' || ec.type === 'micro_split')
+                // even+split rows (user call 9/17): lime highlight + name the STARTER side as
+                // the tracked fade — the slightly-better-starter team ran +7.1% on 46 at
+                // registration (0.5σ, noise-grade), now a PRE-REGISTERED tracker (starter_
+                // split_fade, checkpoint 50 post-registration). Shown as a tracked lean at the
+                // user's request — shadow guidance, never staked, never in the risk total.
+                const ssf = e && e.starter_split_fade
+                const fadeTeam = ec && ec.type === 'micro_split'
+                  ? (ec.starter_team === 'home' ? r.g.home_team_abbr : r.g.away_team_abbr) : null
+                const ssfTxt = ssf ? `reg +${ssf.at_registration ? ssf.at_registration.flat_roi_pct : '?'}% (${ssf.at_registration ? ssf.at_registration.n : 0})${ssf.post_registration ? ` · post-reg ${ssf.post_registration.flat_roi_pct > 0 ? '+' : ''}${ssf.post_registration.flat_roi_pct}% (${ssf.post_registration.n})` : ' · post-reg 0'}` : ''
                 const ECFG = {
                   split: { lbl: '⚔ split edges', c: '#f85149', tip: 'The BIG starter edge belongs to the OTHER team — live these split games are a coin flip and flat-betting either side lost (starter −5.2% / pen −2.5% on 108). This pen lean is red because its configuration is a proven money-loser.' },
-                  micro_split: { lbl: '⚔ even+split', c: '#f85149', tip: 'Starters nearly even, but the slight starter edge is on the OTHER team — live, this pen lean lost −15.1% on 46 (the slightly-better-starter side won). Red = negative configuration.' },
+                  micro_split: { lbl: `⚔ even+split → take ${fadeTeam || 'the starter side'}`, c: '#a3e635', tip: `TRACKED FADE (pre-registered 2026-09-17): starters nearly even but the slight starter edge is on ${fadeTeam || 'the other team'}, not the pen team. Betting the pen lean here lost −15.1% on 46; the STARTER side (${fadeTeam || '?'}) returned +7.1% on those same 46 — a 0.5σ, noise-grade cell, which is why it is a TRACKER, not a rule: judged only on post-registration games, checkpoint 50 settled (${ssfTxt}). Shadow guidance at your request — flat 1u max if you play it, never in the risk total, and it dies publicly if the post-registration record goes negative.` },
                   stacked: { lbl: '≡ stacked', c: '#e3b341', tip: 'This team holds the BIG starter edge AND the better pen — live 63.3% winners, +6.6% flat on 158, positive in both halves. The strongest board configuration (same structure as PEN+WHIP).' },
                   micro_stacked: { lbl: '≡ even+edges', c: '#2563eb', tip: 'Starters nearly even and this team still holds BOTH the slight starter edge and the better pen — live 58.7% winners, +12.4% flat on 63 (single window, ±25pt noise). Dark blue = the aligned nearly-even configuration.' },
                 }[ec && ec.type] || null
+                const lime = ec && ec.type === 'micro_split'
                 const openerSides = ['home', 'away'].filter(s => {
                   const f = r.g.opener_flags && r.g.opener_flags[s]
                   return f && f.is_opener && !f.substituted
                 })
-                const col = neg ? '#f85149' : (B.dim ? 'var(--text-tertiary)' : blue)
+                const col = lime ? '#a3e635' : neg ? '#f85149' : (B.dim ? 'var(--text-tertiary)' : blue)
                 return (
-                  <div key={`blean-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 240px 130px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)', background: neg ? 'rgba(248,81,73,0.06)' : (B.dim ? 'transparent' : 'rgba(88,166,255,0.08)'), borderLeft: `3px solid ${neg ? '#f85149' : (B.dim ? 'transparent' : blue)}` }}>
+                  <div key={`blean-${r.g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 240px 130px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)', background: lime ? 'rgba(163,230,53,0.08)' : neg ? 'rgba(248,81,73,0.06)' : (B.dim ? 'transparent' : 'rgba(88,166,255,0.08)'), borderLeft: `3px solid ${lime ? '#a3e635' : neg ? '#f85149' : (B.dim ? 'transparent' : blue)}` }}>
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span>
                       <b style={{ color: col }}>{r.abbr}</b>
@@ -775,7 +785,7 @@ export default function ProfitView({ games, date, marketAge }) {
                 )
               })}
               <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                blue = the bucket's live record is positive so far · <span style={{ color: '#f85149' }}>red rows = negative CONFIGURATION</span> (the starter edge points at the other team — split games lose from both sides live) · <span style={{ color: '#e3b341' }}>≡ stacked</span> / <span style={{ color: '#2563eb' }}>≡ even+edges</span> = the aligned configs (63.3%/+6.6% and 58.7%/+12.4% live) · ⚠ opener = the "starter" won't pitch bulk, distrust the bucket label. All slices inside noise bands; the profitable version of the bullpen signal is still the model-confirmed one (PEN+WHIP ✓ on the slip).
+                blue = the bucket's live record is positive so far · <span style={{ color: '#f85149' }}>red rows = negative CONFIGURATION</span> (big-gap split: both sides lose live) · <span style={{ color: '#a3e635' }}>lime rows = even+split TRACKED FADE</span> — take the named starter-side team, flat 1u max (pre-registered 9/17: +7.1% (46) at registration, 0.5σ noise-grade; judged only on post-registration games, checkpoint 50 — hover the marker for the running count) · <span style={{ color: '#e3b341' }}>≡ stacked</span> / <span style={{ color: '#2563eb' }}>≡ even+edges</span> = the aligned configs (63.3%/+6.6% and 58.7%/+12.4% live) · ⚠ opener = the "starter" won't pitch bulk, distrust the bucket label. All slices inside noise bands; the profitable version of the bullpen signal is still the model-confirmed one (PEN+WHIP ✓ on the slip).
               </div>
             </div>
           )

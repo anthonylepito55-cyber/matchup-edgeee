@@ -1248,6 +1248,7 @@ def get_model_e_track_record() -> dict:
     # 27-19 (58.7%), +17.3%, positive in both halves of the 7/10->9/4 window. Watch signal --
     # the golden panel shows it, nothing stakes it; pre-registered re-judgment at 100 games.
     fade_rows = []
+    starter_split_rows = []  # (won, pnl, date) -- see STARTER-SIDE FADE below
     if pw_feats is not None:
         settled_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
                           & log["market_home_prob"].notna() & log["model_home_win_prob"].notna()]
@@ -1259,6 +1260,20 @@ def get_model_e_track_record() -> dict:
             _b = pw_feats.loc[gpk, "bullpen_fip_diff"]
             if pd.isna(_w) or pd.isna(_b):
                 continue
+            # STARTER-SIDE FADE tracker (PRE-REGISTERED 2026-09-17, user ask): in even+split
+            # games (trust-weighted starters nearly even, |whip_diff| <= 0.059, but the slight
+            # starter edge and the better pen point at DIFFERENT teams), flat 1u on the
+            # slightly-better-STARTER team at the de-vigged close minus 3.5% vig. At
+            # registration the found-in-sample record was +7.1% on 46 (0.5 sigma -- noise-
+            # grade); judged ONLY on post-registration games, checkpoint 50 settled.
+            if _w != 0 and _b != 0 and abs(_w) <= 0.059 and (_w > 0) != (_b > 0):
+                _st_home = _w > 0
+                _mk_st = float(r["market_home_prob"]) if _st_home else 1 - float(r["market_home_prob"])
+                if 0 < _mk_st < 1:
+                    _st_won = bool(r["home_won"]) if _st_home else not bool(r["home_won"])
+                    _st_dec = (1.0 / _mk_st) * (1 - 0.035)
+                    starter_split_rows.append((_st_won, (_st_dec - 1.0) if _st_won else -1.0,
+                                               str(r.get("date"))))
             pw_home = bool(_w > 0 and _b > 0)
             pw_away = bool(_w < 0 and _b < 0)
             if not (pw_home or pw_away):
@@ -1285,6 +1300,21 @@ def get_model_e_track_record() -> dict:
         # vs -12.1% for unflipped dogs without both edges). Tiny sample, ±40-pt band.
         dog_rows = [x for x in fade_rows if x[2]]
         pen_whip_fade["dog"] = _fade_agg(dog_rows) if dog_rows else None
+    starter_split_fade = None
+    if starter_split_rows:
+        _REG = "2026-09-17"
+        def _ss_agg(rows):
+            if not rows:
+                return None
+            n = len(rows)
+            wins = sum(1 for w, _, _ in rows if w)
+            return {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
+                    "flat_roi_pct": round(100 * sum(x for _, x, _ in rows) / n, 2)}
+        starter_split_fade = {
+            "registered": _REG, "checkpoint_n": 50,
+            "at_registration": _ss_agg([x for x in starter_split_rows if x[2] < _REG]),
+            "post_registration": _ss_agg([x for x in starter_split_rows if x[2] >= _REG]),
+        }
     # Bullpen-lean live record (2026-09-05, the blue panel): over ALL settled games, a flat
     # bet on the better-bullpen team at the frozen de-vigged consensus minus 3.5% vig,
     # bucketed by starter-WHIP closeness. Thresholds frozen at the 7/10->9/4 quantiles
@@ -1383,7 +1413,8 @@ def get_model_e_track_record() -> dict:
             "jacob_book": jacob_book, "model_a_shadow": model_a_shadow, "dog_shade23": dog_shade23,
             "fav_sub3": fav_sub3,
             "by_signal": by_signal, "current_rules": current_rules,
-            "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean}
+            "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean,
+            "starter_split_fade": starter_split_fade}
 
 
 # ============================================================================================
