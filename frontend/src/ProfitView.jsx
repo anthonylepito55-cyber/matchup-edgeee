@@ -318,8 +318,8 @@ export default function ProfitView({ games, date, marketAge }) {
             {[...mainSlip, ...(weakFavs.length ? [{ divider: true }] : []), ...weakFavs].map((item) => {
               if (item.divider) return (
                 <div key="weak-divider" className="mono" style={{ fontSize: 10, color: '#f85149', fontWeight: 700, padding: '12px 6px 4px', borderBottom: '1px solid var(--line)', textTransform: 'uppercase', letterSpacing: '0.06em' }}
-                  title="Two demoted classes, both measured: (1) favorites the F5 model does not back — +1.8% ROI full-sample on 336 bets, the weakest still-positive class; (2) Ω-co-fired bets (filter shipped 9/4) — E bets the Omega formula also fires on the same side, +3.1% vs +14.2% for E-alone in backtest, reproduced in 7 of 7 folds across two independent fold geometries, and −20.6% on the 25 live co-fired bets. Kept visible and still logged/settled so the classes stay measured, but excluded from the recommended slip and the headline risk total. Each row's chips show which reason applies (red F5 ✗, or 'Ω fires too').">
-                  ⚠ demoted — F5-less favorites (+1.8%) &amp; Ω-co-fired (−20.6% live) ({weakFavs.length}, {weakUnits.toFixed(2)}u{bank ? ` = ${usd(weakUnits)}` : ''}) · not in the risk total
+                  title={`Two demoted classes, both measured: (1) favorites the F5 model does not back — +1.8% ROI full-sample on 336 bets at the 9/3 decision, the weakest still-positive class; (2) Ω-co-fired bets (filter shipped 9/4 on +3.1% vs +14.2% backtest, 7/7 folds) — LIVE co-fired record now: ${e && e.by_signal && e.by_signal.omega_same ? `${e.by_signal.omega_same.flat_roi_pct > 0 ? '+' : ''}${e.by_signal.omega_same.flat_roi_pct}% on ${e.by_signal.omega_same.n} (updates as games settle)` : 'accruing'}. Kept visible and still logged/settled so the classes stay measured, but excluded from the recommended slip and the headline risk total. Each row's chips show which reason applies (red F5 ✗, or 'Ω fires too').`}>
+                  ⚠ demoted — F5-less favorites &amp; Ω-co-fired ({e && e.by_signal && e.by_signal.omega_same ? `${e.by_signal.omega_same.flat_roi_pct > 0 ? '+' : ''}${e.by_signal.omega_same.flat_roi_pct}% live (${e.by_signal.omega_same.n})` : 'live accruing'}) ({weakFavs.length}, {weakUnits.toFixed(2)}u{bank ? ` = ${usd(weakUnits)}` : ''}) · not in the risk total
                 </div>
               )
               const { g, bet, market } = item
@@ -449,7 +449,13 @@ export default function ProfitView({ games, date, marketAge }) {
                     if (!oppBoth) return null
                     const oppAbbr = t === 'home' ? g.home_team_abbr : g.away_team_abbr
                     return <span style={{ color: '#ffd700', fontWeight: 700 }}
-                      title={`GOLDEN WARNING: this bet is AGAINST ${oppAbbr}, who holds BOTH pitching edges (better starter WHIP and better bullpen FIP). Live forward: our bets into both-edge teams are 4-7 (−21.5% ROI), while taking those teams against the model is 27-19 (+17.3%). Small samples on both sides — but this is the first bet to size down or skip, and the golden panel below shows the contrarian side.`}> · ⭐ vs both-edge {oppAbbr}</span>
+                      title={(() => {
+                        const ig = e && e.by_signal && e.by_signal.into_golden
+                        const pwf2 = e && e.pen_whip_fade
+                        const igTxt = ig ? `${Math.round(ig.n * ig.hit_rate)}-${ig.n - Math.round(ig.n * ig.hit_rate)} (${ig.flat_roi_pct > 0 ? '+' : ''}${ig.flat_roi_pct}% ROI, n=${ig.n})` : 'accruing'
+                        const pfTxt = pwf2 ? `${pwf2.wins}-${pwf2.n - pwf2.wins} (${pwf2.flat_roi_pct > 0 ? '+' : ''}${pwf2.flat_roi_pct}%)` : 'accruing'
+                        return `GOLDEN WARNING: this bet is AGAINST ${oppAbbr}, who holds BOTH pitching edges (better starter WHIP and better bullpen FIP). LIVE record (updates as games settle): our bets into both-edge teams are ${igTxt}, while taking those teams against the model is ${pfTxt}. Small samples on both sides — but this is the first bet to size down or skip, and the golden panel below shows the contrarian side.`
+                      })()}> · ⭐ vs both-edge {oppAbbr}</span>
                   })()}{(() => {
                     // E-ALONE / consensus chip (purple marking, user call 9/5). Chip on every
                     // bet with a full 3-model read; purple bold when E stands alone.
@@ -551,7 +557,7 @@ export default function ProfitView({ games, date, marketAge }) {
                       <span
                         style={{ color: hard ? '#f85149' : m < 0 ? '#8b949e' : '#3fb950', fontWeight: hard ? 700 : 400 }}
                         title={hard
-                          ? 'WARNING: the market has moved 4+ points AGAINST this side since we first saw it. Pooled, those bets returned -44% (n=103) and the other side won 71%. On disjoint windows the direction held but the size did not (-56% early on 75 bets, -12% late on 28, CI straddling zero) — so this warns, it does not remove the bet. Treat as a reason to pass or size down.'
+                          ? `WARNING: the market has moved 4+ points AGAINST this side since we first saw it. LIVE record of 4+pt adverse movers on settled E bets: ${e && e.by_signal && e.by_signal.line_hard_against ? `${e.by_signal.line_hard_against.flat_roi_pct > 0 ? '+' : ''}${e.by_signal.line_hard_against.flat_roi_pct}% on ${e.by_signal.line_hard_against.n} (rare — updates as they settle)` : 'none settled yet'}. The founding study (Jul 10–Sep 4, opening-line metric, both models pooled): −44% on 103 with the other side winning 71%, direction stable across windows but size not. Warns, does not remove the bet — a reason to pass or size down, and to check the starter badges for news.`
                           : `market has moved ${m > 0 ? 'toward' : 'against'} this side by ${Math.abs(m).toFixed(1)} pts since we first saw it (opened ${(lm.opening_prob * 100).toFixed(1)}%, now ${(lm.current_prob * 100).toFixed(1)}%). Mild moves carry no reliable signal.`}>
                         {' '}· line {m > 0 ? '+' : ''}{m.toFixed(1)} pts{hard ? ' ⚠ MOVED AGAINST' : ''}
                       </span>

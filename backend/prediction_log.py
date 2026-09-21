@@ -1186,12 +1186,15 @@ def get_model_e_track_record() -> dict:
                                          str(r["home_team_abbr"]), str(r["away_team_abbr"]))
                 o_same = bool(ob and ob.get("side_is_home") == eb.get("side_is_home"))
         pw = eb.get("pen_whip")
-        if pw is None and pw_feats is not None and pd.notna(r.get("game_pk")) and r["game_pk"] in pw_feats.index:
+        into_golden = None  # bet is INTO a both-edge opponent -- live feed for the golden-star tooltip
+        if pw_feats is not None and pd.notna(r.get("game_pk")) and r["game_pk"] in pw_feats.index:
             _w = pw_feats.loc[r["game_pk"], "whip_diff"]
             _b = pw_feats.loc[r["game_pk"], "bullpen_fip_diff"]
             if pd.notna(_w) and pd.notna(_b):
                 _sh = bool(eb.get("side_is_home"))
-                pw = bool(((_w > 0) if _sh else (_w < 0)) and ((_b > 0) if _sh else (_b < 0)))
+                if pw is None:
+                    pw = bool(((_w > 0) if _sh else (_w < 0)) and ((_b > 0) if _sh else (_b < 0)))
+                into_golden = bool(((_w < 0) if _sh else (_w > 0)) and ((_b < 0) if _sh else (_b > 0)))
         # E-ALONE count (2026-09-05): how many of our other models (A, C, h13) fire the same
         # side through the same menu, retro-computed from the frozen log probs. Only counted
         # when all three probs were logged, so the buckets stay comparable.
@@ -1210,7 +1213,7 @@ def get_model_e_track_record() -> dict:
             if _avail == 3:
                 n_agree = _cnt
         sig_rows.append({"flat": flat, "won": g["won"], "move": move, "o_same": o_same, "pen_whip": pw,
-                         "n_agree": n_agree})
+                         "n_agree": n_agree, "into_golden": into_golden})
 
     def _agg_sig(rows):
         v = [x["flat"] for x in rows if x["flat"] is not None]
@@ -1225,6 +1228,10 @@ def get_model_e_track_record() -> dict:
         "line_against": _agg_sig([x for x in sig_rows if x["move"] is not None and x["move"] < -0.005]),
         "e_alone": _agg_sig([x for x in sig_rows if not x["o_same"]]),
         "omega_same": _agg_sig([x for x in sig_rows if x["o_same"]]),
+        # live feeds for warning tooltips (2026-09-21, user ask -- no frozen record claims):
+        # bets INTO a both-edge opponent (the golden-star cell) and hard 4+pt adverse movers
+        "into_golden": _agg_sig([x for x in sig_rows if x["into_golden"] is True]),
+        "line_hard_against": _agg_sig([x for x in sig_rows if x["move"] is not None and x["move"] <= -0.04]),
         # PEN+WHIP split (added 9/4): bet side has BOTH better starter WHIP and better bullpen
         "pen_whip_yes": _agg_sig([x for x in sig_rows if x["pen_whip"] is True]),
         "pen_whip_no": _agg_sig([x for x in sig_rows if x["pen_whip"] is False]),
