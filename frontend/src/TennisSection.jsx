@@ -53,7 +53,16 @@ function PriceEdgeScanner({ scan }) {
     fetch('/api/tennis/scanner-record').then(x => x.json()).then(setRec).catch(() => {})
   }, [])
   const gold = '#e3b341'
-  const edges = scan?.edges ?? []
+  // Soft ponds first (user call 9/21): Challenger/ITF flags have carried the record
+  // (challenger +28.8% at checkpoint pass), so they sort to the top, tour flags after,
+  // best edge first within each tier. Each league tag carries its own LIVE record chip.
+  const SOFT = { atp_challenger: 0, itf_men: 0, itf_women: 0, utr_men: 0, utr_women: 0 }
+  const edges = [...(scan?.edges ?? [])].sort((a, b) =>
+    ((a.league in SOFT ? 0 : 1) - (b.league in SOFT ? 0 : 1)) || (b.edge - a.edge))
+  const leagueRec = lg => {
+    const r = rec && rec.by_league && rec.by_league[lg]
+    return r ? ` ${r.flat_roi_pct > 0 ? '+' : ''}${r.flat_roi_pct.toFixed(1)}% (${r.n})` : ''
+  }
   return (
     <div style={{ margin: '14px 0', padding: '12px 18px', borderRadius: 8, border: `1px solid ${gold}55`, background: `linear-gradient(180deg, ${gold}0d, var(--panel))` }}>
       <div className="mono" style={{ fontSize: 10, color: gold, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
@@ -75,7 +84,10 @@ function PriceEdgeScanner({ scan }) {
               padding: '8px 12px', borderRadius: 6, border: `1px solid ${gold}44`, background: `${gold}0a`, fontSize: 11,
             }}>
               <span>
-                <span style={{ color: gold, fontWeight: 700, fontSize: 9, letterSpacing: '0.05em' }}>{SCAN_LEAGUE_LABEL[e.league] || e.league}</span>
+                <span style={{ color: gold, fontWeight: 700, fontSize: 9, letterSpacing: '0.05em' }}
+                  title={`This league's live scanner record (flat 1u at flag prices, updates as flags settle):${leagueRec(e.league) || ' accruing'}`}>
+                  {SCAN_LEAGUE_LABEL[e.league] || e.league}<span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>{leagueRec(e.league)}</span>
+                </span>
                 <span style={{ color: 'var(--text-secondary)' }}> {e.player_1} vs {e.player_2}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}> · {e.tournament}</span>
               </span>
@@ -104,6 +116,7 @@ function PriceEdgeScanner({ scan }) {
           <>record: {rec?.total_flagged ?? 0} flagged · {rec?.settled ?? 0} settled — starts empty, grows as flags settle.</>
         )}
         {!rec?.proven && <span style={{ color: '#f85149', fontWeight: 700 }}> · SHADOW ONLY — flat 1u, judged at {rec?.checkpoint_n ?? 75} settled; prices move fast, CLV is the health metric. Do not bet this yet.</span>}
+        {rec?.proven && <span style={{ color: 'var(--edge-pos)', fontWeight: 700 }}> · ✓ PASSED its pre-registered checkpoint ({rec.checkpoint_n} settled) on the named health metric — CLV {rec.overall.avg_clv_pt > 0 ? '+' : ''}{rec.overall.avg_clv_pt}pt, beat the close {rec.overall.beat_close_pct}% of the time. Small flat stakes (0.5–1u) are now defensible on ★ venue flags only; sportsbook flags stay shadow. Record keeps running.</span>}
       </div>
     </div>
   )
@@ -153,9 +166,11 @@ export default function TennisSection() {
         second opinion; the price scanner below is the only tennis signal being forward-tested as a bet.
       </div>
 
-      <TennisTrackRecord />
-
+      {/* Scanner first (user call 9/21, after it passed its 75-flag checkpoint): the flags —
+          soft ponds foremost — are the tab's one validated signal; the model panels follow. */}
       <PriceEdgeScanner scan={data?.price_scan} />
+
+      <TennisTrackRecord />
 
       {error && (
         <div style={{
