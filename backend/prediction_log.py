@@ -1324,13 +1324,16 @@ def get_model_e_track_record() -> dict:
             # couldn't count until the nightly rebuild added their feature rows -- a 1-day lag
             # plus a pointless WHIP-data dependency.
             _ep = r.get("model_e_prob")
-            if pd.notna(_ep) and pd.notna(r.get("market_home_prob")):
+            if pd.notna(r.get("market_home_prob")):
                 _mkh = float(r["market_home_prob"])
                 if 0 < _mkh < 1:
                     _fh = _mkh >= 0.5
                     _mkf = _mkh if _fh else 1 - _mkh
-                    _epf = float(_ep) if _fh else 1 - float(_ep)
-                    if (_epf - _mkf) <= -0.03 and _mkf >= 0.55:
+                    # E-dependent bands need model_e_prob; the A-selectivity block below does
+                    # NOT (user ask 2026-09-22: full live window 7/10 -> now, not just the era
+                    # where E's prob was logged) -- so only these are gated on _ep.
+                    _epf = (float(_ep) if _fh else 1 - float(_ep)) if pd.notna(_ep) else None
+                    if _epf is not None and (_epf - _mkf) <= -0.03 and _mkf >= 0.55:
                         _fwon = bool(r["home_won"]) if _fh else not bool(r["home_won"])
                         _fdec = (1.0 / _mkf) * (1 - 0.035)
                         _row = (_fwon, (_fdec - 1.0) if _fwon else -1.0, str(r.get("date")))
@@ -1373,7 +1376,7 @@ def get_model_e_track_record() -> dict:
                     # the model likes the DOG by 0-3 pts. Season-scale OOF backtest: -8.1% on
                     # 235, negative in BOTH halves -- a documented loser, tracked live so its
                     # dark-green rows carry a current number, never a pick.
-                    if _mkf <= 0.58 and -0.03 < (_epf - _mkf) < 0:
+                    if _epf is not None and _mkf <= 0.58 and -0.03 < (_epf - _mkf) < 0:
                         _dwon = (not bool(r["home_won"])) if _fh else bool(r["home_won"])
                         _ddec = (1.0 / (1 - _mkf)) * (1 - 0.035)
                         close_dog03_rows.append((_dwon, (_ddec - 1.0) if _dwon else -1.0))
