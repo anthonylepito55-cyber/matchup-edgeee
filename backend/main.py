@@ -2910,6 +2910,10 @@ def _compute_today_response(date: str = None):
                         (_xrow["recent_bb9_diff"] + _xrow["recent_h9_diff"]) / 9.0
                         if pd.notna(_xrow["recent_bb9_diff"].iloc[0]) and pd.notna(_xrow["recent_h9_diff"].iloc[0])
                         else float("nan"))
+                    # computed in feats but not part of the serving row's FEATURE_COLUMNS --
+                    # inject directly (missing column = silent KeyError = no X at all, caught live 9/22)
+                    _v30 = feats.get("recent_team_batting_30d_diff")
+                    _xrow["recent_team_batting_30d_diff"] = float(_v30) if _v30 is not None and pd.notna(_v30) else float("nan")
                     model_x_prob = model_module.predict_proba_ensemble(
                         _xrow, model_path=MODEL_X_PATH, feature_columns=MODEL_X_FEATURE_COLUMNS
                     )["home_win_prob"]
