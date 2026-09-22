@@ -190,7 +190,7 @@ export default function ProfitView({ games, date, marketAge }) {
       {(() => {
         const bs = (e && e.by_signal) || {}
         const chipOf = (label, agg, extra) => agg && agg.n > 0 && agg.flat_roi_pct != null
-          ? { t: label, roi: agg.flat_roi_pct, n: agg.n, extra: extra || '' } : null
+          ? { t: label, roi: agg.flat_roi_pct, n: agg.n, extra: (extra || '') + (agg.recent_roi_pct != null ? ` · rec ${agg.recent_roi_pct > 0 ? '+' : ''}${agg.recent_roi_pct}%` : '') } : null
         const scored = mainSlip.map(({ g, bet }) => {
           const sigs = []
           // class signal from the LIVE by_class/by_type record (same source as the yellow chips)
@@ -773,7 +773,9 @@ export default function ProfitView({ games, date, marketAge }) {
           if (!rows.length) return null
           const chip = k => {
             const a = bl[k]
-            return a && a.flat_roi_pct != null ? `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})` : '—'
+            if (!a || a.flat_roi_pct == null) return '—'
+            const rec = a.recent_roi_pct != null ? ` · rec ${a.recent_roi_pct > 0 ? '+' : ''}${a.recent_roi_pct}%` : ''
+            return `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})${rec}`
           }
           return (
             <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 8, border: `1px solid ${blue}`, background: 'rgba(88,166,255,0.05)' }}>
@@ -986,7 +988,7 @@ export default function ProfitView({ games, date, marketAge }) {
               const pink = '#f472b6'
               // LIVE buckets (2026-09-22, user catch — these chips were frozen 9/6 numbers):
               const AS = (e && e.a_selectivity) || {}
-              const fmtC = c => c ? `${(100 * c.hit_rate).toFixed(1)}% win / ${c.flat_roi_pct > 0 ? '+' : ''}${c.flat_roi_pct}% (${c.n})` : 'accruing'
+              const fmtC = c => c ? `${(100 * c.hit_rate).toFixed(1)}% win / ${c.flat_roi_pct > 0 ? '+' : ''}${c.flat_roi_pct}% (${c.n})${c.recent_roi_pct != null ? ` · rec ${c.recent_roi_pct > 0 ? '+' : ''}${c.recent_roi_pct}%` : ''}` : 'accruing'
               return (
               <div key={`asel-${r.g.game_pk}`} className="mono" title={hot6 ? `BIG MODEL A EDGE (${(r.edge * 100).toFixed(1)} pts). LIVE record of A's clean ${hot8 ? '8' : '6'}+ point edges (all settled games, de-vigged close minus 3.5% vig, updates as games settle): ${fmtC(hot8 ? AS.edge8 : AS.edge6)}. Noise bands still ±20-25 pts at these samples. Informational: not in the risk total.` : ''} style={{
                 display: 'grid', gridTemplateColumns: '110px 1fr 150px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)',
@@ -1010,7 +1012,7 @@ export default function ProfitView({ games, date, marketAge }) {
               <div className="mono" style={{ fontSize: 9, color: '#f472b6', marginTop: 4 }}>
                 {(() => {
                   const AS2 = (e && e.a_selectivity) || {}
-                  const f = c => c ? `${c.flat_roi_pct > 0 ? '+' : ''}${c.flat_roi_pct}% (${c.n})` : '…'
+                  const f = c => c ? `${c.flat_roi_pct > 0 ? '+' : ''}${c.flat_roi_pct}% (${c.n})${c.recent_roi_pct != null ? ` rec ${c.recent_roi_pct > 0 ? '+' : ''}${c.recent_roi_pct}%` : ''}` : '…'
                   return <>pink = big clean A edge · LIVE: 6+ pts {f(AS2.edge6)} · 8+ pts {f(AS2.edge8)} · flips w/ company {f(AS2.flips_company)} vs ALONE {f(AS2.flips_alone)} · all settled games at close−vig, updates nightly — hover a row</>
                 })()}
               </div>

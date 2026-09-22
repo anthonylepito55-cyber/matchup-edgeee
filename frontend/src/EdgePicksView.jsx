@@ -17,7 +17,9 @@ export default function EdgePicksView({ games }) {
   const bs = (e && e.by_signal) || {}
   const chip = (key, fallback) => {
     const a = bs[key]
-    return a && a.flat_roi_pct != null ? `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})` : fallback
+    if (!a || a.flat_roi_pct == null) return fallback
+    const rec = a.recent_roi_pct != null ? ` · rec ${a.recent_roi_pct > 0 ? '+' : ''}${a.recent_roi_pct}%` : ''
+    return `${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})${rec}`
   }
   const pwf = e && e.pen_whip_fade
   const pwfDog = pwf && pwf.dog

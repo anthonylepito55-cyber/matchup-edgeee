@@ -143,6 +143,17 @@ def _write_parquet_atomic(df: pd.DataFrame, path: str):
             time.sleep(0.2 * (attempt + 1))
 
 
+def _recent_half_roi(flat_vals):
+    """Chronological RECENT-HALF flat ROI (2026-09-22 user mandate: every live chip shows its
+    recent half so a hot early stretch can't impersonate a current edge). Input is a list of
+    flat pnl values in (insertion ~= chronological) order; None until 6 graded values."""
+    v = [x for x in flat_vals if x is not None and not (isinstance(x, float) and pd.isna(x))]
+    if len(v) < 6:
+        return None
+    h = len(v) // 2
+    return round(100 * sum(v[h:]) / (len(v) - h), 2)
+
+
 def _read_log() -> pd.DataFrame:
     return _read_parquet_log(LOG_PATH, LOG_COLUMNS)
 
@@ -967,6 +978,9 @@ def get_model_e_track_record() -> dict:
         flat = sub["flat_profit"].dropna()
         clv = sub["clv"].dropna()
         return {
+            # recent_roi_pct everywhere (2026-09-22 user mandate): every live cell carries its
+            # chronological RECENT HALF so a hot early stretch can't impersonate a current edge
+            "recent_roi_pct": _recent_half_roi(list(sub["flat_profit"])),
             "n": int(len(sub)), "wins": int(sub["won"].sum()), "hit_rate": round(sub["won"].mean(), 4),
             "market_implied": round(sub["market_prob"].mean(), 4),
             "edge_pts": round(sub["won"].mean() - sub["market_prob"].mean(), 4),
@@ -1003,6 +1017,7 @@ def get_model_e_track_record() -> dict:
             "hit_rate": round(float(sub["won"].mean()), 4),
             "units_profit": round(float(sub["profit_units"].fillna(0).sum()), 2),
             "flat_roi_pct": round(100 * float(flat.mean()), 2) if len(flat) else None,
+            "recent_roi_pct": _recent_half_roi(list(sub["flat_profit"])),
         }
     # market-blind leg vs Model A: pick accuracy on the same settled games (both frozen pre-game)
     leg = log[(log["settled"] == True) & log["model_e_baseball_prob"].notna() & log["model_home_win_prob"].notna() & log["home_won"].notna()]  # noqa: E712
@@ -1147,7 +1162,8 @@ def get_model_e_track_record() -> dict:
     if shade23_rows:
         s23 = pd.DataFrame(shade23_rows)
         dog_shade23 = {"n": int(len(s23)), "hit_rate": round(float(s23["won"].mean()), 4),
-                       "flat_roi_pct": round(100 * float(s23["flat"].dropna().mean()), 2) if s23["flat"].notna().any() else None}
+                       "flat_roi_pct": round(100 * float(s23["flat"].dropna().mean()), 2) if s23["flat"].notna().any() else None,
+                       "recent_roi_pct": _recent_half_roi(list(s23["flat"]))}
     # sub-bar favorite tracker (2026-09-07): entered its trial having FAILED the two-window
     # test (-23.5% window 1 / +29.6% window 2) -- tracked at the user's request so the live
     # log can finish the argument. Checkpoint ~75 settled.
@@ -1167,7 +1183,8 @@ def get_model_e_track_record() -> dict:
     if favsub_rows:
         f3 = pd.DataFrame(favsub_rows)
         fav_sub3 = {"n": int(len(f3)), "hit_rate": round(float(f3["won"].mean()), 4),
-                    "flat_roi_pct": round(100 * float(f3["flat"].dropna().mean()), 2) if f3["flat"].notna().any() else None}
+                    "flat_roi_pct": round(100 * float(f3["flat"].dropna().mean()), 2) if f3["flat"].notna().any() else None,
+                    "recent_roi_pct": _recent_half_roi(list(f3["flat"]))}
     # Jacob's BOOK record -- his kept picks (proxied live from the clone) graded through the
     # same code path as everything else here. His stakes, our neutral settlement.
     book_rows = []
@@ -1263,7 +1280,8 @@ def get_model_e_track_record() -> dict:
         if not v:
             return None
         return {"n": len(rows), "flat_roi_pct": round(100 * sum(v) / len(v), 2),
-                "hit_rate": round(sum(1 for x in rows if x["won"]) / len(rows), 4)}
+                "hit_rate": round(sum(1 for x in rows if x["won"]) / len(rows), 4),
+                "recent_roi_pct": _recent_half_roi(v)}
 
     by_signal = {
         "line_toward": _agg_sig([x for x in sig_rows if x["move"] is not None and x["move"] > 0.005]),
@@ -1427,7 +1445,8 @@ def get_model_e_track_record() -> dict:
             n = len(rows)
             wins = sum(1 for w, _, _ in rows if w)
             return {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
-                    "flat_roi_pct": round(100 * sum(x for _, x, _ in rows) / n, 2)}
+                    "flat_roi_pct": round(100 * sum(x for _, x, _ in rows) / n, 2),
+                    "recent_roi_pct": _recent_half_roi([x for _, x, _ in rows])}
         pen_whip_fade = _fade_agg(fade_rows)
         # the DOG wing (2026-09-05): the both-edge team is ALSO the market underdog -- the
         # strongest cell in the unflipped-dog study (60% win / +29.5% on 25 at ship time,
@@ -1518,7 +1537,8 @@ def get_model_e_track_record() -> dict:
             n = len(v)
             wins = sum(1 for w, _ in v if w)
             bullpen_lean[k] = {"n": n, "hit_rate": round(wins / n, 4),
-                               "flat_roi_pct": round(100 * sum(x for _, x in v) / n, 2)}
+                               "flat_roi_pct": round(100 * sum(x for _, x in v) / n, 2),
+                               "recent_roi_pct": _recent_half_roi([x for _, x in v])}
         else:
             bullpen_lean[k] = None
     # LIVE record of the CURRENT rules, retro-applied to every settled bet: post-9/4 thresholds
@@ -1586,7 +1606,8 @@ def get_model_e_track_record() -> dict:
             "a_selectivity": (lambda rows: {
                 k: ({"n": len(v), "wins": sum(1 for x in v if x["won"]),
                      "hit_rate": round(sum(1 for x in v if x["won"]) / len(v), 4),
-                     "flat_roi_pct": round(100 * sum(x["pnl"] for x in v) / len(v), 2)} if v else None)
+                     "flat_roi_pct": round(100 * sum(x["pnl"] for x in v) / len(v), 2),
+                     "recent_roi_pct": _recent_half_roi([x["pnl"] for x in v])} if v else None)
                 for k, v in {
                     "edge6": [x for x in rows if x["edge"] >= 0.06],
                     "edge8": [x for x in rows if x["edge"] >= 0.08],
