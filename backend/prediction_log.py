@@ -1385,7 +1385,8 @@ def get_model_e_track_record() -> dict:
                     if _epf is not None and _mkf <= 0.58 and -0.03 < (_epf - _mkf) < 0:
                         _dwon = (not bool(r["home_won"])) if _fh else bool(r["home_won"])
                         _ddec = (1.0 / (1 - _mkf)) * (1 - 0.035)
-                        close_dog03_rows.append((_dwon, (_ddec - 1.0) if _dwon else -1.0))
+                        close_dog03_rows.append((_dwon, (_ddec - 1.0) if _dwon else -1.0,
+                                                 str(r.get("date"))))
             gpk = r.get("game_pk")
             if pd.isna(gpk) or gpk not in pw_feats.index:
                 continue
@@ -1594,11 +1595,17 @@ def get_model_e_track_record() -> dict:
                     "flips_alone": [x for x in rows if x["type"] == "flip" and x["company"] is False],
                     "flips_company": [x for x in rows if x["type"] == "flip" and x["company"] is True],
                 }.items()})(a_sel_rows) if a_sel_rows else None,
-            "close_dog03": ({"n": len(close_dog03_rows),
-                             "wins": sum(1 for w, _ in close_dog03_rows if w),
-                             "hit_rate": round(sum(1 for w, _ in close_dog03_rows if w) / len(close_dog03_rows), 4),
-                             "flat_roi_pct": round(100 * sum(p for _, p in close_dog03_rows) / len(close_dog03_rows), 2)}
-                            if close_dog03_rows else None)}
+            "close_dog03": ((lambda rows: {
+                "n": len(rows),
+                "wins": sum(1 for w, _, _ in rows if w),
+                "hit_rate": round(sum(1 for w, _, _ in rows if w) / len(rows), 4),
+                "flat_roi_pct": round(100 * sum(p for _, p, _ in rows) / len(rows), 2),
+                # chronological halves -- the anti-seesaw display (user ask 2026-09-22): the
+                # pooled number and its RECENT half shown together, so a hot early stretch
+                # can never impersonate a current edge.
+                "half1_roi_pct": round(100 * sum(p for _, p, _ in rows[:len(rows)//2]) / max(len(rows)//2, 1), 2),
+                "half2_roi_pct": round(100 * sum(p for _, p, _ in rows[len(rows)//2:]) / max(len(rows) - len(rows)//2, 1), 2),
+            })(sorted(close_dog03_rows, key=lambda x: x[2])) if close_dog03_rows else None)}
 
 
 # ============================================================================================
