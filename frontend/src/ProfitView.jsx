@@ -633,6 +633,7 @@ export default function ProfitView({ games, date, marketAge }) {
             // tracker (heavy_dislike_follow, checkpoint 50 post-registration). Highlight only;
             // the tracker's tooltip carries the honesty caveats and running record.
             let heavyDislike = null
+            let closeDog = null
             if (p != null && mkt != null) {
               const fh = mkt >= 0.5
               const mkf = fh ? mkt : 1 - mkt
@@ -641,8 +642,14 @@ export default function ProfitView({ games, date, marketAge }) {
                 heavyDislike = { fav: fh ? g.home_team_abbr : g.away_team_abbr, gap: (mkf - epf) * 100,
                                  band: mkf >= 0.60 ? 'heavy' : 'mid' }
               }
+              // CLOSE-DOG 0-3 (user call 9/22, dark green): close game (fav <= 58%), model
+              // likes the DOG by 0-3 pts — the DOCUMENTED LOSING band (OOF season backtest
+              // −8.1% on 235, negative in both halves). Marked so it can be watched, not bet.
+              if (mkf <= 0.58 && epf - mkf > -0.03 && epf - mkf < 0) {
+                closeDog = { dog: fh ? g.away_team_abbr : g.home_team_abbr, lean: (mkf - epf) * 100 }
+              }
             }
-            return { g, reason, detail, heavyDislike }
+            return { g, reason, detail, heavyDislike, closeDog }
           })
           const trkTxt = t => t ? `reg ${t.at_registration ? `${t.at_registration.flat_roi_pct > 0 ? '+' : ''}${t.at_registration.flat_roi_pct}% (${t.at_registration.n})` : '—'} · post-reg ${t.post_registration ? `${t.post_registration.flat_roi_pct > 0 ? '+' : ''}${t.post_registration.flat_roi_pct}% (${t.post_registration.n})` : '0 settled yet'}` : 'accruing'
           const followTrk = { heavy: { name: 'HD-FOLLOW', t: e && e.heavy_dislike_follow }, mid: { name: 'MID-FOLLOW', t: e && e.mid_dislike_follow } }
@@ -652,16 +659,20 @@ export default function ProfitView({ games, date, marketAge }) {
                 title="Every remaining game on the slate, shown with the reason the bet menu passed. A game with no row in the slip is a deliberate pass, not a missing game: most edges are too small to beat the vig, and the menu's profit comes from only betting the few that clear the validated bars.">
                 rest of the slate — no bet ({rows.length} game{rows.length === 1 ? '' : 's'})
               </div>
-              {rows.map(({ g, reason, detail, heavyDislike }) => {
+              {rows.map(({ g, reason, detail, heavyDislike, closeDog }) => {
                 const live = g.status && !['Scheduled', 'Pre-Game', 'Warmup'].includes(g.status)
                 const limeC = '#a3e635'
+                const dkGreen = '#14532d'
                 const trk = heavyDislike ? followTrk[heavyDislike.band] : null
+                const cd = e && e.close_dog03
+                const cdTxt = cd ? `live ${cd.flat_roi_pct > 0 ? '+' : ''}${cd.flat_roi_pct}% (${cd.n})` : 'live accruing'
                 return (
-                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: heavyDislike ? 'rgba(163,230,53,0.08)' : 'transparent', borderLeft: `3px solid ${heavyDislike ? limeC : 'transparent'}` }}>
+                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: heavyDislike ? 'rgba(163,230,53,0.08)' : closeDog ? 'rgba(20,83,45,0.35)' : 'transparent', borderLeft: `3px solid ${heavyDislike ? limeC : closeDog ? dkGreen : 'transparent'}` }}>
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr}</span>
                       {g.model_e_prob != null ? <span> · model {(g.model_e_prob * 100).toFixed(1)}% home</span> : null}
                       {(g.model_x_bet && g.model_a_bet && g.model_x_bet.side === g.model_a_bet.side) ? <span style={{ color: '#b0703c', fontWeight: 700, marginLeft: 6 }} title={`X+A AGREE (no slip bet on this game): the recency-only Model X shadow and Model A shadow both fire ${g.model_x_bet.side}. Live registered record: ${(e && e.xa_agree && e.xa_agree.n) ? `${e.xa_agree.flat_roi_pct > 0 ? '+' : ''}${e.xa_agree.flat_roi_pct}% (${e.xa_agree.n})` : '0 settled yet'} (checkpoint 50). Shadows only, never staked.`}>⬛ X+A: {g.model_x_bet.side}</span> : null}
+                      {closeDog ? <span style={{ color: '#4ade80', fontWeight: 700, marginLeft: 6 }} title={`CLOSE-DOG 0-3 BAND: close game (favorite <= 58%) where the model likes the dog ${closeDog.dog} by ${closeDog.lean.toFixed(1)} pts WITHOUT flipping — the DOCUMENTED LOSING band. Season-scale OOF backtest: −8.1% on 235, negative in BOTH halves; forward record ${cdTxt} (updates as games settle; its early +21% pooled was a July stretch whose recent half converged to the backtest). Dark green = watch it lose without you, never a pick.`}>▼ 0-3 DOG: {closeDog.dog} · {cdTxt}</span> : null}
                       {heavyDislike ? <span style={{ color: limeC, fontWeight: 700, marginLeft: 6 }}
                         title={`${heavyDislike.band === 'heavy' ? 'HEAVY' : 'MID'}-DISLIKE FOLLOW tracker (pre-registered 2026-09-17): ${heavyDislike.fav} is a ${heavyDislike.band === 'heavy' ? '60%+' : '55-60%'} market favorite that model E sits ${heavyDislike.gap.toFixed(1)} pts BELOW — the tracker follows ${heavyDislike.fav} (against our own model), flat 1u shadow at the frozen close. HONESTY: both bands were found by slicing this week, the 50-55 band INVERTS to −25.6% so the mechanism is unproven, and the post-registration count is the only number that decides anything — checkpoint 50 each. Not staked, not in the risk total; if both clocks survive, the fix is favorite calibration inside the model, not a betting rule.`}>⬢ {trk ? trk.name : ''}: {heavyDislike.fav} <span style={{ fontWeight: 400, opacity: 0.9 }}>· live {trkTxt(trk && trk.t)}</span></span> : null}
                     </span>

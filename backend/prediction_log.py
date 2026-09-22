@@ -1312,6 +1312,7 @@ def get_model_e_track_record() -> dict:
     starter_split_rows = []  # (won, pnl, date) -- see STARTER-SIDE FADE below
     heavy_dislike_rows = []  # (won, pnl, date) -- see HEAVY-DISLIKE FOLLOW below
     mid_dislike_rows = []    # (won, pnl, date) -- 55-60% band, see MID-DISLIKE FOLLOW below
+    close_dog03_rows = []    # (won, pnl) -- close-game 0-3pt dog band, documented loser, see below
     if pw_feats is not None:
         settled_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
                           & log["market_home_prob"].notna() & log["model_home_win_prob"].notna()]
@@ -1336,6 +1337,14 @@ def get_model_e_track_record() -> dict:
                             heavy_dislike_rows.append(_row)
                         else:
                             mid_dislike_rows.append(_row)
+                    # CLOSE-DOG 0-3 band (2026-09-22, user ask): close game (fav <= 58%) where
+                    # the model likes the DOG by 0-3 pts. Season-scale OOF backtest: -8.1% on
+                    # 235, negative in BOTH halves -- a documented loser, tracked live so its
+                    # dark-green rows carry a current number, never a pick.
+                    if _mkf <= 0.58 and -0.03 < (_epf - _mkf) < 0:
+                        _dwon = (not bool(r["home_won"])) if _fh else bool(r["home_won"])
+                        _ddec = (1.0 / (1 - _mkf)) * (1 - 0.035)
+                        close_dog03_rows.append((_dwon, (_ddec - 1.0) if _dwon else -1.0))
             gpk = r.get("game_pk")
             if pd.isna(gpk) or gpk not in pw_feats.index:
                 continue
@@ -1531,7 +1540,12 @@ def get_model_e_track_record() -> dict:
             "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean,
             "starter_split_fade": starter_split_fade, "jacob_ledger": jacob_ledger,
             "heavy_dislike_follow": heavy_dislike_follow,
-            "mid_dislike_follow": mid_dislike_follow}
+            "mid_dislike_follow": mid_dislike_follow,
+            "close_dog03": ({"n": len(close_dog03_rows),
+                             "wins": sum(1 for w, _ in close_dog03_rows if w),
+                             "hit_rate": round(sum(1 for w, _ in close_dog03_rows if w) / len(close_dog03_rows), 4),
+                             "flat_roi_pct": round(100 * sum(p for _, p in close_dog03_rows) / len(close_dog03_rows), 2)}
+                            if close_dog03_rows else None)}
 
 
 # ============================================================================================
