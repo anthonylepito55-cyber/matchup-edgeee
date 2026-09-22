@@ -94,6 +94,15 @@ import tennis_model
 import tennis_log
 import tennis_scanner
 
+# MODEL X (2026-09-22, user ask): recency-only shadow model. Columns mirror the audition
+# script exactly; recent_whip_diff is derived at serve time from its H9+BB9 components.
+MODEL_X_PATH = os.path.join(os.path.dirname(__file__), "model_artifacts", "model_x.joblib")
+MODEL_X_FEATURE_COLUMNS = [
+    "recent_whip_diff", "recent_fip_diff", "recent_k9_diff", "recent_bb9_diff", "recent_hr9_diff",
+    "recent_ip_per_start_diff", "velo_trend_diff", "fip_trend_diff",
+    "recent_team_batting_diff", "recent_team_batting_30d_diff", "bullpen_fatigue_diff",
+]
+
 app = FastAPI(title="MLB Pitcher Matchup Predictor")
 
 app.add_middleware(
@@ -1914,6 +1923,9 @@ def _compute_today_response(date: str = None):
     # single model -- load_model() would raise trying to read obj["model"] on an ensemble's
     # {"models": [...]} shape, so this needs load_model_ensemble()'s own presence check.
     model_c_trained = model_module.load_model_ensemble(model_module.MODEL_C_PATH)[0] is not None
+    # MODEL X (2026-09-22): recency-only shadow -- see the serving block below for the full
+    # pedigree. Static artifact; presence-checked like the others.
+    _MODEL_X_TRAINED = model_module.load_model_ensemble(MODEL_X_PATH)[0] is not None
     # Model E (model_e.py): comparison/betting only, same "never drives the primary prediction" status as B/C.
     model_e_trained = model_e.is_trained()
     model_f5_trained = model_f5.is_trained()
@@ -2537,6 +2549,8 @@ def _compute_today_response(date: str = None):
             # doesn't have), not a proven accuracy edge.
             model_c_prob = None
             model_a_bet_out = None
+            model_x_prob = None
+            model_x_bet_out = None
             dog_shade23_out = None
             fav_sub3_out = None
             if model_c_trained:
@@ -2880,6 +2894,38 @@ def _compute_today_response(date: str = None):
                     model_a_bet_out["shadow"] = True
             except Exception:
                 model_a_bet_out = None
+            # MODEL X SHADOW (2026-09-22, user ask): recency-only model -- recent starter form
+            # (incl. derived recent WHIP), 7-game team batting, trends, bullpen fatigue. The
+            # replay audition: AUC 0.519, menu ROI -12.6%/+22.8% across windows (FAILS
+            # stability alone) -- but X agreeing with Model A replayed +23.6% on 23, so X is
+            # served/logged as a shadow purely to give the X+A-agree cell a real forward count
+            # (registered 2026-09-22, checkpoint 50). Static artifact trained 2026-09-22 (not
+            # in the nightly retrain); never staked, never in any risk total.
+            model_x_prob = None
+            model_x_bet_out = None
+            try:
+                if _MODEL_X_TRAINED:
+                    _xrow = row.copy()
+                    _xrow["recent_whip_diff"] = (
+                        (_xrow["recent_bb9_diff"] + _xrow["recent_h9_diff"]) / 9.0
+                        if pd.notna(_xrow["recent_bb9_diff"].iloc[0]) and pd.notna(_xrow["recent_h9_diff"].iloc[0])
+                        else float("nan"))
+                    model_x_prob = model_module.predict_proba_ensemble(
+                        _xrow, model_path=MODEL_X_PATH, feature_columns=MODEL_X_FEATURE_COLUMNS
+                    )["home_win_prob"]
+                    model_x_bet_out = model_e.compute_bet(
+                        model_x_prob,
+                        devig_home_prob(live_odds_out["home"], live_odds_out["away"]) if live_odds_out else None,
+                        g["home_team_abbr"], g["away_team_abbr"],
+                        book_prices=(live_odds_out or {}).get("books"), live_odds=live_odds_out,
+                        previous_bet=((get_logged_prediction(resolved_date, g.get("game_pk")) or {}).get("model_x_bet")
+                                      if g.get("game_pk") else None),
+                    )
+                    if model_x_bet_out is not None:
+                        model_x_bet_out["shadow"] = True
+            except Exception:
+                model_x_prob = None
+                model_x_bet_out = None
             # 2-3pt DOG-SHADE tracker (2026-09-07, user pre-registration): unflipped games
             # where E shades the DOG by 2-3 pts (e.g. market fav 58%, model 56%). Live it is a
             # two-window-positive ISLAND (+6.1%/+9.5%) with NEGATIVE neighbors (1-2pt -2.4%,
@@ -3156,6 +3202,10 @@ def _compute_today_response(date: str = None):
                     model_e_prob = frozen["model_e_prob"]
                 if frozen.get("model_e_bet"):
                     model_e_bet_out = frozen["model_e_bet"]
+                if frozen.get("model_x_bet"):
+                    model_x_bet_out = frozen["model_x_bet"]
+                if frozen.get("model_x_prob") is not None:
+                    model_x_prob = frozen["model_x_prob"]
                 if frozen.get("model_a_bet"):
                     model_a_bet_out = frozen["model_a_bet"]
                 if frozen.get("dog_shade23"):
@@ -3230,6 +3280,7 @@ def _compute_today_response(date: str = None):
             "pen_whip_team": pen_whip_team_out, "bullpen_lean": bullpen_lean_out,
             "edge_config": edge_config_out,
             "model_e_features": model_e_features_out, "model_a_bet": model_a_bet_out,
+            "model_x_prob": model_x_prob, "model_x_bet": model_x_bet_out,
             "dog_shade23": dog_shade23_out, "fav_sub3": fav_sub3_out,
             "jacob_book_bet": jacob_book_bet_out,
             "model_e_explain": model_e_explain, "line_move": line_move_out,

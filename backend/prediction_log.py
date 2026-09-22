@@ -64,6 +64,8 @@ LOG_COLUMNS = [
     "model_e_prob",           # Model E's calibrated probability (see model_e.py) -- comparison/betting only, never drives the primary prediction
     "model_e_bet_json",       # model_e.compute_bet output (side/type/best price/stake/first-seen price), frozen like value_bet_json; graded by get_model_e_track_record
     "model_a_bet_json",       # MODEL A shadow bet (2026-09-07): site model through the identical menu+rules; the pre-registered A-vs-E head-to-head
+    "model_x_prob",           # MODEL X (2026-09-22): recency-only shadow's probability at freeze
+    "model_x_bet_json",       # MODEL X shadow bet -- exists to give the X+A-agree cell (replayed +23.6%/23) a real forward count; registered 2026-09-22, checkpoint 50
     "dog_shade23_json",       # tracked experiment (2026-09-07): unflipped 2-3pt dog shade, flat 1u shadow; two-window-positive island, checkpoint ~75 bets
     "fav_sub3_json",          # tracked experiment (2026-09-07): sub-bar 1-3pt favorite edge, flat 1u shadow; FAILED two-window test (-23.5%/+29.6%) at pre-registration, tracked to settle it
     "model_e_baseball_prob",  # Model E's market-blind leg (same 13 factors, no market) -- comparison vs Model A only, never bets
@@ -224,6 +226,8 @@ def log_predictions(date: str, games: list[dict]):
             "model_e_prob": g.get("model_e_prob"),
             "model_e_bet_json": _j("model_e_bet"),
             "model_a_bet_json": _j("model_a_bet"),
+            "model_x_prob": g.get("model_x_prob"),
+            "model_x_bet_json": _j("model_x_bet"),
             "dog_shade23_json": _j("dog_shade23"),
             "fav_sub3_json": _j("fav_sub3"),
             "model_e_baseball_prob": g.get("model_e_baseball_prob"),
@@ -483,6 +487,9 @@ def get_logged_prediction(date: str, game_pk: int) -> dict | None:
         "model_e_prob": r.get("model_e_prob") if pd.notna(r.get("model_e_prob")) else None,
         "model_e_bet": _load_json("model_e_bet_json"),
         "model_a_bet": _load_json("model_a_bet_json"),
+        "model_x_bet": _load_json("model_x_bet_json"),
+        "model_x_prob": (lambda _v: float(_v) if _v is not None and pd.notna(_v) else None)(
+            r.get("model_x_prob") if hasattr(r, "get") else None),
         "dog_shade23": _load_json("dog_shade23_json"),
         "fav_sub3": _load_json("fav_sub3_json"),
         "model_e_baseball_prob": r.get("model_e_baseball_prob") if pd.notna(r.get("model_e_baseball_prob")) else None,
@@ -1075,6 +1082,42 @@ def get_model_e_track_record() -> dict:
             model_a_rows.append({"won": g["won"], "profit_units": g["profit_units"], "stake_units": ab.get("stake_units"),
                                  "flat": ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None,
                                  "market_prob": ab.get("market_prob"), "clv": g.get("clv")})
+    # MODEL X SHADOW + X+A-AGREE record (2026-09-22, user ask): X is the recency-only model
+    # (replay audition: FAILS alone, AUC 0.519 with window-flipping ROI; +23.6%/23 when
+    # agreeing with A). Logged frozen like the A shadow; the AGREE cell is the registered
+    # experiment -- all its games are post-registration by construction, checkpoint 50.
+    model_x_rows, xa_rows = [], []
+    if "model_x_bet_json" in log.columns:
+        for _, r in log[(log["settled"] == True) & log["model_x_bet_json"].notna()].iterrows():  # noqa: E712
+            try:
+                xb = json.loads(r["model_x_bet_json"])
+            except (TypeError, ValueError):
+                continue
+            if not xb or r["home_won"] is None or pd.isna(r["home_won"]):
+                continue
+            g = model_e.grade_bet(xb, bool(r["home_won"]))
+            dec = model_e.american_to_decimal(xb.get("best_price"))
+            flat = ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None
+            model_x_rows.append({"won": g["won"], "flat": flat})
+            ab2 = None
+            if pd.notna(r.get("model_a_bet_json")):
+                try:
+                    ab2 = json.loads(r["model_a_bet_json"])
+                except (TypeError, ValueError):
+                    ab2 = None
+            if ab2 and ab2.get("side_is_home") == xb.get("side_is_home"):
+                xa_rows.append({"won": g["won"], "flat": flat})
+    model_x_shadow = None
+    if model_x_rows:
+        xdf = pd.DataFrame(model_x_rows)
+        model_x_shadow = {"n": int(len(xdf)), "hit_rate": round(float(xdf["won"].mean()), 4),
+                          "flat_roi_pct": round(100 * float(xdf["flat"].dropna().mean()), 2) if xdf["flat"].notna().any() else None}
+    xa_agree = {"registered": "2026-09-22", "checkpoint_n": 50, "n": 0, "flat_roi_pct": None}
+    if xa_rows:
+        xadf = pd.DataFrame(xa_rows)
+        xa_agree = {"registered": "2026-09-22", "checkpoint_n": 50, "n": int(len(xadf)),
+                    "wins": int(xadf["won"].sum()), "hit_rate": round(float(xadf["won"].mean()), 4),
+                    "flat_roi_pct": round(100 * float(xadf["flat"].dropna().mean()), 2) if xadf["flat"].notna().any() else None}
     model_a_shadow = None
     if model_a_rows:
         adf = pd.DataFrame(model_a_rows)
@@ -1482,6 +1525,7 @@ def get_model_e_track_record() -> dict:
             "since": str(df["date"].min()),
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
             "jacob_book": jacob_book, "model_a_shadow": model_a_shadow, "dog_shade23": dog_shade23,
+            "model_x_shadow": model_x_shadow, "xa_agree": xa_agree,
             "fav_sub3": fav_sub3,
             "by_signal": by_signal, "current_rules": current_rules,
             "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean,

@@ -346,12 +346,19 @@ export default function ProfitView({ games, date, marketAge }) {
                 return f && f.is_opener && !f.substituted
               })
               const isRed = (bet.type === 'favorite' && f5c === false) || bet.omega_cofired || openerGame
+              // X+A AGREE (2026-09-22, user ask, brown): the recency-only Model X shadow and the
+              // Model A shadow fire the SAME side. Replay audition +23.6% on 23 (design-time,
+              // dated); the live count is the registered experiment (xa_agree, checkpoint 50).
+              const xaAgree = !!(g.model_x_bet && g.model_a_bet && g.model_x_bet.side === g.model_a_bet.side)
+              const xa = e && e.xa_agree
+              const xaTxt = xa && xa.n ? `${xa.flat_roi_pct > 0 ? '+' : ''}${xa.flat_roi_pct}% (${xa.n})` : '0 settled yet'
+              const brown = '#b0703c'
               return (
                 <div key={`${market}-${g.game_pk}`} className="mono" style={{
                   display: 'grid', gridTemplateColumns: '60px 110px 1fr 150px 70px 90px 110px', gap: 10, alignItems: 'center',
                   fontSize: 12, padding: '8px 6px', borderBottom: '1px solid var(--line)',
-                  background: topDog && !openerGame ? 'rgba(63,185,80,0.10)' : isRed ? 'rgba(248,81,73,0.08)' : eAlone ? 'rgba(163,113,247,0.10)' : 'transparent',
-                  borderLeft: `3px solid ${topDog && !openerGame ? '#3fb950' : isRed ? '#f85149' : eAlone ? '#a371f7' : 'transparent'}`,
+                  background: isRed ? 'rgba(248,81,73,0.08)' : xaAgree ? 'rgba(176,112,60,0.12)' : topDog ? 'rgba(63,185,80,0.10)' : eAlone ? 'rgba(163,113,247,0.10)' : 'transparent',
+                  borderLeft: `3px solid ${isRed ? '#f85149' : xaAgree ? brown : topDog ? '#3fb950' : eAlone ? '#a371f7' : 'transparent'}`,
                 }}>
                   <span style={{ color: tcolor, fontWeight: 700, fontSize: 10 }} title={tier === 'LOW' ? 'no other model corroborates this side — unproven (+6.9% on the full 2,111-bet replay, CI -5.4% to +19.1%); shown, not excluded' : ''}>{tier}</span>
                   <span style={{ color: 'var(--text-tertiary)' }}>{market}</span>
@@ -359,6 +366,7 @@ export default function ProfitView({ games, date, marketAge }) {
                     <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr} — </span>
                     <span style={{ color: scolor, fontWeight: 700 }}>{bet.side} {bet.best_price > 0 ? '+' : ''}{bet.best_price}</span>
                     {openerGame ? <span style={{ color: '#f85149', fontWeight: 700, fontSize: 10 }} title="⚠ OPENER GAME: one side's 'starter' has been going 1-2 innings with no identified bulk arm — the model may be pricing a pitcher who hands off after the 1st. Live study (29 one-opener games): the market prices openers perfectly and betting either side lost (−6.7% on / −4.2% against). The model's edge claim here is its least trustworthy kind — size down or skip."> · ⚠ OPENER</span> : null}
+                    {xaAgree ? <span style={{ color: brown, fontWeight: 700, fontSize: 10 }} title={`X+A AGREE: the recency-only Model X shadow (7-day batting, last-5-start pitcher form, trends) and the Model A shadow both fire ${g.model_x_bet.side} through the identical menu. Replay audition (design-time, 9/22): +23.6% on 23 — noise-grade until proven. LIVE registered record (checkpoint 50, updates as games settle): ${xaTxt}. Shadows only — this chip never adds stake; treat as corroboration on a bet you were taking anyway.`}> · ⬛ X+A · live {xaTxt}</span> : null}
                     {bet.best_book ? <span style={{ color: 'var(--text-tertiary)' }}> @ {bet.best_book}</span> : null}
                     <span style={{ color: 'var(--text-tertiary)' }}> · {bet.type}{bet.dog_grade ? ` ${bet.dog_grade}` : ''}{bet.strength === 'strong' ? ' ★' : ''}</span>
                     {topDog ? <span style={{ color: '#3fb950', fontWeight: 700 }} title="grade-A underdog flip: the best-performing group in every window tested (+37.9% on the last 1,000 games, +21-35% on the full sample)"> ◆ TOP</span> : null}
@@ -653,6 +661,7 @@ export default function ProfitView({ games, date, marketAge }) {
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr}</span>
                       {g.model_e_prob != null ? <span> · model {(g.model_e_prob * 100).toFixed(1)}% home</span> : null}
+                      {(g.model_x_bet && g.model_a_bet && g.model_x_bet.side === g.model_a_bet.side) ? <span style={{ color: '#b0703c', fontWeight: 700, marginLeft: 6 }} title={`X+A AGREE (no slip bet on this game): the recency-only Model X shadow and Model A shadow both fire ${g.model_x_bet.side}. Live registered record: ${(e && e.xa_agree && e.xa_agree.n) ? `${e.xa_agree.flat_roi_pct > 0 ? '+' : ''}${e.xa_agree.flat_roi_pct}% (${e.xa_agree.n})` : '0 settled yet'} (checkpoint 50). Shadows only, never staked.`}>⬛ X+A: {g.model_x_bet.side}</span> : null}
                       {heavyDislike ? <span style={{ color: limeC, fontWeight: 700, marginLeft: 6 }}
                         title={`${heavyDislike.band === 'heavy' ? 'HEAVY' : 'MID'}-DISLIKE FOLLOW tracker (pre-registered 2026-09-17): ${heavyDislike.fav} is a ${heavyDislike.band === 'heavy' ? '60%+' : '55-60%'} market favorite that model E sits ${heavyDislike.gap.toFixed(1)} pts BELOW — the tracker follows ${heavyDislike.fav} (against our own model), flat 1u shadow at the frozen close. HONESTY: both bands were found by slicing this week, the 50-55 band INVERTS to −25.6% so the mechanism is unproven, and the post-registration count is the only number that decides anything — checkpoint 50 each. Not staked, not in the risk total; if both clocks survive, the fix is favorite calibration inside the model, not a betting rule.`}>⬢ {trk ? trk.name : ''}: {heavyDislike.fav} <span style={{ fontWeight: 400, opacity: 0.9 }}>· live {trkTxt(trk && trk.t)}</span></span> : null}
                     </span>
