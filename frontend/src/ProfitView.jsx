@@ -634,6 +634,7 @@ export default function ProfitView({ games, date, marketAge }) {
             // the tracker's tooltip carries the honesty caveats and running record.
             let heavyDislike = null
             let closeDog = null
+            let bbDog = null
             if (p != null && mkt != null) {
               const fh = mkt >= 0.5
               const mkf = fh ? mkt : 1 - mkt
@@ -645,14 +646,8 @@ export default function ProfitView({ games, date, marketAge }) {
               // BLOCKED-BAND DOG (user call 9/22, cyan): heavy favorite (>=60%) the model
               // likes by 3-6 pts -- the blocked band whose favorites run -21%/-25% rec. The
               // registered tracker takes the DOG (reg 13-14/+28.0%, rec +34.6%); checkpoint 50.
-              let bbDog = null
-              if (p != null && mkt != null) {
-                const fh2 = mkt >= 0.5
-                const mkf2 = fh2 ? mkt : 1 - mkt
-                const epf2 = fh2 ? p : 1 - p
-                if (mkf2 >= 0.60 && epf2 - mkf2 >= 0.03 && epf2 - mkf2 < 0.06) {
-                  bbDog = { dog: fh2 ? g.away_team_abbr : g.home_team_abbr, edge: (epf2 - mkf2) * 100 }
-                }
+              if (mkf >= 0.60 && epf - mkf >= 0.03 && epf - mkf < 0.06) {
+                bbDog = { dog: fh ? g.away_team_abbr : g.home_team_abbr, edge: (epf - mkf) * 100 }
               }
               // CLOSE-DOG 0-3 (user call 9/22, dark green): close game (fav <= 58%), model
               // likes the DOG by 0-3 pts — the DOCUMENTED LOSING band (OOF season backtest
