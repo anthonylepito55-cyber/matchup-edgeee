@@ -1330,7 +1330,8 @@ def get_model_e_track_record() -> dict:
     starter_split_rows = []  # (won, pnl, date) -- see STARTER-SIDE FADE below
     heavy_dislike_rows = []  # (won, pnl, date) -- see HEAVY-DISLIKE FOLLOW below
     mid_dislike_rows = []    # (won, pnl, date) -- 55-60% band, see MID-DISLIKE FOLLOW below
-    close_dog03_rows = []    # (won, pnl) -- close-game 0-3pt dog band, documented loser, see below
+    close_dog03_rows = []    # (won, pnl, date) -- close-game 0-3pt dog band, documented loser, see below
+    fav_edge03_rows = []     # (won, pnl) -- favorites the model likes by 0-3pt, take-the-fav marker
     a_sel_rows = []          # Model A clean side-picks -- live pink-panel buckets, see below
     blocked_band_dog_rows = []  # (won, pnl, date) -- dogs vs the 3-6pt heavy blocked band, see below
     if pw_feats is not None:
@@ -1418,6 +1419,13 @@ def get_model_e_track_record() -> dict:
                         _ddec = (1.0 / (1 - _mkf)) * (1 - 0.035)
                         close_dog03_rows.append((_dwon, (_ddec - 1.0) if _dwon else -1.0,
                                                  str(r.get("date"))))
+                    # FAV 0-3 band (2026-09-22, user ask): any favorite the model likes by 0-3
+                    # pts -- under the 3pt bar, so a "no bet" game. Take the FAVORITE. Live at
+                    # marking: +11.8% on 76 (rec +1.0%). Watch/context marker, not a slip pick.
+                    if _epf is not None and 0 <= (_epf - _mkf) < 0.03:
+                        _fw = bool(r["home_won"]) if _fh else not bool(r["home_won"])
+                        _fd = (1.0 / _mkf) * (1 - 0.035)
+                        fav_edge03_rows.append((_fw, (_fd - 1.0) if _fw else -1.0))
             gpk = r.get("game_pk")
             if pd.isna(gpk) or gpk not in pw_feats.index:
                 continue
@@ -1656,7 +1664,13 @@ def get_model_e_track_record() -> dict:
                 # can never impersonate a current edge.
                 "half1_roi_pct": round(100 * sum(p for _, p, _ in rows[:len(rows)//2]) / max(len(rows)//2, 1), 2),
                 "half2_roi_pct": round(100 * sum(p for _, p, _ in rows[len(rows)//2:]) / max(len(rows) - len(rows)//2, 1), 2),
-            })(sorted(close_dog03_rows, key=lambda x: x[2])) if close_dog03_rows else None)}
+            })(sorted(close_dog03_rows, key=lambda x: x[2])) if close_dog03_rows else None),
+            "fav_edge03": ({"n": len(fav_edge03_rows),
+                            "wins": sum(1 for w, _ in fav_edge03_rows if w),
+                            "hit_rate": round(sum(1 for w, _ in fav_edge03_rows if w) / len(fav_edge03_rows), 4),
+                            "flat_roi_pct": round(100 * sum(p for _, p in fav_edge03_rows) / len(fav_edge03_rows), 2),
+                            "recent_roi_pct": _recent_half_roi([p for _, p in fav_edge03_rows])}
+                           if fav_edge03_rows else None)}
 
 
 # ============================================================================================

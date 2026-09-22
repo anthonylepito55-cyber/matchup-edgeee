@@ -635,6 +635,7 @@ export default function ProfitView({ games, date, marketAge }) {
             let heavyDislike = null
             let closeDog = null
             let bbDog = null
+            let favEdge = null
             if (p != null && mkt != null) {
               const fh = mkt >= 0.5
               const mkf = fh ? mkt : 1 - mkt
@@ -642,6 +643,11 @@ export default function ProfitView({ games, date, marketAge }) {
               if (epf - mkf <= -0.03 && mkf >= 0.55) {
                 heavyDislike = { fav: fh ? g.home_team_abbr : g.away_team_abbr, gap: (mkf - epf) * 100,
                                  band: mkf >= 0.60 ? 'heavy' : 'mid' }
+              }
+              // FAV 0-3 band (user call 9/22, dark purple): favorite the model likes by 0-3 pts,
+              // under the 3pt bar (a no-bet game). Take-the-favorite marker; live +11.8% (76).
+              if (epf - mkf >= 0 && epf - mkf < 0.03) {
+                favEdge = { fav: fh ? g.home_team_abbr : g.away_team_abbr, edge: (epf - mkf) * 100 }
               }
               // BLOCKED-BAND DOG (user call 9/22, cyan): heavy favorite (>=60%) the model
               // likes by 3-6 pts -- the blocked band whose favorites run -21%/-25% rec. The
@@ -656,7 +662,7 @@ export default function ProfitView({ games, date, marketAge }) {
                 closeDog = { dog: fh ? g.away_team_abbr : g.home_team_abbr, lean: (mkf - epf) * 100 }
               }
             }
-            return { g, reason, detail, heavyDislike, closeDog, bbDog }
+            return { g, reason, detail, heavyDislike, closeDog, bbDog, favEdge }
           })
           const trkTxt = t => t ? `reg ${t.at_registration ? `${t.at_registration.flat_roi_pct > 0 ? '+' : ''}${t.at_registration.flat_roi_pct}% (${t.at_registration.n})` : '—'} · post-reg ${t.post_registration ? `${t.post_registration.flat_roi_pct > 0 ? '+' : ''}${t.post_registration.flat_roi_pct}% (${t.post_registration.n})` : '0 settled yet'}` : 'accruing'
           const followTrk = { heavy: { name: 'HD-FOLLOW', t: e && e.heavy_dislike_follow }, mid: { name: 'MID-FOLLOW', t: e && e.mid_dislike_follow } }
@@ -666,23 +672,27 @@ export default function ProfitView({ games, date, marketAge }) {
                 title="Every remaining game on the slate, shown with the reason the bet menu passed. A game with no row in the slip is a deliberate pass, not a missing game: most edges are too small to beat the vig, and the menu's profit comes from only betting the few that clear the validated bars.">
                 rest of the slate — no bet ({rows.length} game{rows.length === 1 ? '' : 's'})
               </div>
-              {rows.map(({ g, reason, detail, heavyDislike, closeDog, bbDog }) => {
+              {rows.map(({ g, reason, detail, heavyDislike, closeDog, bbDog, favEdge }) => {
                 const live = g.status && !['Scheduled', 'Pre-Game', 'Warmup'].includes(g.status)
                 const limeC = '#a3e635'
                 const dkGreen = '#14532d'
                 const cyan = '#22d3ee'
+                const dkPurple = '#581c87'
                 const trk = heavyDislike ? followTrk[heavyDislike.band] : null
                 const cd = e && e.close_dog03
                 const cdTxt = cd ? `live ${cd.flat_roi_pct > 0 ? '+' : ''}${cd.flat_roi_pct}% (${cd.n}) · recent half ${cd.half2_roi_pct > 0 ? '+' : ''}${cd.half2_roi_pct}%` : 'live accruing'
                 const bb = e && e.blocked_band_dog
                 const bbTxt = bb ? `reg ${bb.at_registration ? `${bb.at_registration.flat_roi_pct > 0 ? '+' : ''}${bb.at_registration.flat_roi_pct}% (${bb.at_registration.n})` : '—'} · post-reg ${bb.post_registration ? `${bb.post_registration.flat_roi_pct > 0 ? '+' : ''}${bb.post_registration.flat_roi_pct}% (${bb.post_registration.n})` : '0 settled yet'}` : 'accruing'
+                const fe = e && e.fav_edge03
+                const feTxt = fe ? `live ${fe.flat_roi_pct > 0 ? '+' : ''}${fe.flat_roi_pct}% (${fe.n})${fe.recent_roi_pct != null ? ` · rec ${fe.recent_roi_pct > 0 ? '+' : ''}${fe.recent_roi_pct}%` : ''}` : 'live accruing'
                 return (
-                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: bbDog ? 'rgba(34,211,238,0.10)' : heavyDislike ? 'rgba(163,230,53,0.08)' : closeDog ? 'rgba(20,83,45,0.35)' : 'transparent', borderLeft: `3px solid ${bbDog ? cyan : heavyDislike ? limeC : closeDog ? dkGreen : 'transparent'}` }}>
+                  <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: bbDog ? 'rgba(34,211,238,0.10)' : heavyDislike ? 'rgba(163,230,53,0.08)' : closeDog ? 'rgba(20,83,45,0.35)' : favEdge ? 'rgba(88,28,135,0.30)' : 'transparent', borderLeft: `3px solid ${bbDog ? cyan : heavyDislike ? limeC : closeDog ? dkGreen : favEdge ? dkPurple : 'transparent'}` }}>
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr}</span>
                       {g.model_e_prob != null ? <span> · model {(g.model_e_prob * 100).toFixed(1)}% home</span> : null}
                       {(g.model_x_bet && g.model_a_bet && g.model_x_bet.side === g.model_a_bet.side) ? <span style={{ color: '#b0703c', fontWeight: 700, marginLeft: 6 }} title={`X+A AGREE (no slip bet on this game): the recency-only Model X shadow and Model A shadow both fire ${g.model_x_bet.side}. Live registered record: ${(e && e.xa_agree && e.xa_agree.n) ? `${e.xa_agree.flat_roi_pct > 0 ? '+' : ''}${e.xa_agree.flat_roi_pct}% (${e.xa_agree.n})` : '0 settled yet'} (checkpoint 50). Shadows only, never staked.`}>⬛ X+A: {g.model_x_bet.side}</span> : null}
                       {bbDog ? <span style={{ color: '#22d3ee', fontWeight: 700, marginLeft: 6 }} title={`BLOCKED-BAND DOG tracker (pre-registered 2026-09-22): the favorite here is priced 60%+ and model E likes it by ${bbDog.edge.toFixed(1)} pts — the BLOCKED 3-6 band, whose favorites run −21% live (−25% recent). The tracker takes the DOG ${bbDog.dog}, flat 1u at the frozen close. At registration: 13-14, +28.0% flat, recent half +34.6% — the arithmetic mirror of a validated block, and the third clock on the heavy-favorite miscalibration hypothesis (with HD/MID-FOLLOW). Running record: ${bbTxt}. Checkpoint 50 post-registration; if the clocks agree, the fix is model calibration, not a rule. Marked as a take at the user's call — flat 1u max.`}>⬢ BB-DOG: take {bbDog.dog} · {bbTxt}</span> : null}
+                      {favEdge ? <span style={{ color: '#c084fc', fontWeight: 700, marginLeft: 6 }} title={`FAV 0-3 BAND: the model likes the favorite ${favEdge.fav} by ${favEdge.edge.toFixed(1)} pts — UNDER the 3-pt bar, so this is a no-bet game (not on the slip). Take-the-favorite context marker: ${feTxt}. HONESTY: +11.8% pooled but the recent half has cooled toward breakeven, and it's below the validated threshold — a fine team to PICK, a marginal one to STAKE.`}>◆ FAV 0-3: {favEdge.fav} · {feTxt}</span> : null}
                       {closeDog ? <span style={{ color: '#4ade80', fontWeight: 700, marginLeft: 6 }} title={`CLOSE-DOG 0-3 BAND: close game (favorite <= 58%) where the model likes the dog ${closeDog.dog} by ${closeDog.lean.toFixed(1)} pts WITHOUT flipping. LIVE record with its chronological halves shown so a hot early stretch can't impersonate a current edge: ${cdTxt}${cd ? ` (first half ${cd.half1_roi_pct > 0 ? '+' : ''}${cd.half1_roi_pct}%)` : ''}. For context only: season-scale OOF backtest −8.1% on 235, negative both halves. Watch-band, never a pick while the recent half is red.`}>▼ 0-3 DOG: {closeDog.dog} · {cdTxt}</span> : null}
                       {heavyDislike ? <span style={{ color: limeC, fontWeight: 700, marginLeft: 6 }}
                         title={`${heavyDislike.band === 'heavy' ? 'HEAVY' : 'MID'}-DISLIKE FOLLOW tracker (pre-registered 2026-09-17): ${heavyDislike.fav} is a ${heavyDislike.band === 'heavy' ? '60%+' : '55-60%'} market favorite that model E sits ${heavyDislike.gap.toFixed(1)} pts BELOW — the tracker follows ${heavyDislike.fav} (against our own model), flat 1u shadow at the frozen close. HONESTY: both bands were found by slicing this week, the 50-55 band INVERTS to −25.6% so the mechanism is unproven, and the post-registration count is the only number that decides anything — checkpoint 50 each. Not staked, not in the risk total; if both clocks survive, the fix is favorite calibration inside the model, not a betting rule.`}>⬢ {trk ? trk.name : ''}: {heavyDislike.fav} <span style={{ fontWeight: 400, opacity: 0.9 }}>· live {trkTxt(trk && trk.t)}</span></span> : null}
