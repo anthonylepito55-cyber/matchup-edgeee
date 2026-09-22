@@ -1362,14 +1362,20 @@ def get_model_e_track_record() -> dict:
                             _apnl = ((1.0 / _mks) * (1 - 0.035) - 1.0) if _awon else -1.0
                             _company = None
                             if _a_type == "flip":
-                                _company = False
+                                _navail = 0
+                                _any = False
                                 for _c2 in ("model_e_prob", "model_c_prob", "model_e_baseball_prob"):
                                     _p2 = r.get(_c2)
                                     if pd.notna(_p2):
+                                        _navail += 1
                                         _p2f = float(_p2) if _fh else 1 - float(_p2)
                                         if _p2f < 0.5:
-                                            _company = True
-                                            break
+                                            _any = True
+                                # "alone" requires the siblings to have actually been there to
+                                # decline -- rows from before their probs were logged stay None
+                                # (unknown), not "alone" (bug caught 2026-09-22: old-era flips
+                                # were all misclassified alone, inflating that cell).
+                                _company = _any if _navail >= 2 else None
                             a_sel_rows.append({"type": _a_type, "edge": _aedge, "won": _awon,
                                                "pnl": _apnl, "company": _company})
                     # CLOSE-DOG 0-3 band (2026-09-22, user ask): close game (fav <= 58%) where
