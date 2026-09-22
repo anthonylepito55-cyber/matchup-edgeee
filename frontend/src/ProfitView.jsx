@@ -984,8 +984,11 @@ export default function ProfitView({ games, date, marketAge }) {
               const hot8 = r.edge >= 0.08
               const hot6 = r.edge >= 0.06
               const pink = '#f472b6'
+              // LIVE buckets (2026-09-22, user catch — these chips were frozen 9/6 numbers):
+              const AS = (e && e.a_selectivity) || {}
+              const fmtC = c => c ? `${(100 * c.hit_rate).toFixed(1)}% win / ${c.flat_roi_pct > 0 ? '+' : ''}${c.flat_roi_pct}% (${c.n})` : 'accruing'
               return (
-              <div key={`asel-${r.g.game_pk}`} className="mono" title={hot6 ? `BIG MODEL A EDGE (${(r.edge * 100).toFixed(1)} pts). Live record of A's clean ${hot8 ? '8' : '6'}+ point edges since 7/10: ${hot8 ? '59.4% win / +20.6% ROI on 64 games' : '58.5% win / +15.9% ROI on 94 games'} — graded at the de-vigged close minus 3.5% vig. Bigger A edges have been monotonically better (every-game −4.6% → 6+ +15.9% → 8+ +20.6%), but the noise band is still ±21-25 pts at this sample. Informational: not in the risk total.` : ''} style={{
+              <div key={`asel-${r.g.game_pk}`} className="mono" title={hot6 ? `BIG MODEL A EDGE (${(r.edge * 100).toFixed(1)} pts). LIVE record of A's clean ${hot8 ? '8' : '6'}+ point edges (all settled games, de-vigged close minus 3.5% vig, updates as games settle): ${fmtC(hot8 ? AS.edge8 : AS.edge6)}. Noise bands still ±20-25 pts at these samples. Informational: not in the risk total.` : ''} style={{
                 display: 'grid', gridTemplateColumns: '110px 1fr 150px 110px', gap: 10, alignItems: 'center', fontSize: 12, padding: '6px 6px', borderBottom: '1px solid var(--line)',
                 background: hot8 ? 'rgba(244,113,181,0.18)' : hot6 ? 'rgba(244,113,181,0.10)' : 'transparent',
                 borderLeft: `3px solid ${hot6 ? pink : 'transparent'}`,
@@ -993,13 +996,10 @@ export default function ProfitView({ games, date, marketAge }) {
                 <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>{r.type}{hot8 ? ' · 8+ PTS' : hot6 ? ' · 6+ PTS' : ''}</span>
                 <span><span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span><b style={{ color: hot6 ? pink : '#58a6ff' }}>{r.side}</b></span>
                 <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>A {(r.pSide * 100).toFixed(1)}% vs {(r.mSide * 100).toFixed(1)}% (+{(r.edge * 100).toFixed(1)} pts)
-                  {/* Type-specific LIVE ROI on pink rows (user ask 9/4): A's big-edge profit is
-                      almost entirely dog flips — live since 7/10 at close−vig: dog flips +33.3%
-                      (n=40, 62.5% win), favorites with 6+ pts just +1.9% (n=39). */}
                   {hot6 ? <span title={r.type === 'dog flip'
-                    ? 'LIVE record of Model A dog flips (menu-qualifying, since 7/10, at the de-vigged close minus 3.5% vig): 62.5% win, +33.3% ROI on 40 games — where nearly all of A’s big-edge profit lives. ±32-pt noise band at n=40: strong, not settled.'
-                    : 'LIVE record of Model A favorites with 6+ pts of edge (since 7/10, close minus vig): 59.0% win but only +1.9% ROI on 39 games — A’s big edges pay on DOG FLIPS (+33.3%), while its big favorite edges have been roughly breakeven so far.'}>
-                    {' '}· {r.type === 'dog flip' ? 'dog flips +33.3% (40)' : 'big favs +1.9% (39)'}
+                    ? `LIVE Model A dog-flip record (all settled, close minus vig, updates nightly): ${fmtC(AS.dog_flips)}. THE DECOMPOSITION THAT DECIDES: flips WITH company (another model also flips) ${fmtC(AS.flips_company)} vs flips ALONE ${fmtC(AS.flips_alone)} — the pooled number is carried by the with-company wing; a lone A flip is its worst class. Check whether any other model flips this game before trusting this chip.`
+                    : `LIVE Model A big-favorite record (6+ pts, all settled, close minus vig): ${fmtC(AS.big_favs)} — A's big edges have paid on dog flips, not favorites.`}>
+                    {' '}· {r.type === 'dog flip' ? `dog flips ${AS.dog_flips ? (AS.dog_flips.flat_roi_pct > 0 ? '+' : '') + AS.dog_flips.flat_roi_pct + '% (' + AS.dog_flips.n + ')' : '…'}` : `big favs ${AS.big_favs ? (AS.big_favs.flat_roi_pct > 0 ? '+' : '') + AS.big_favs.flat_roi_pct + '% (' + AS.big_favs.n + ')' : '…'}`}
                   </span> : null}
                 </span>
                 <span style={{ color: ['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? 'var(--text-tertiary)' : 'var(--amber)' }}>{['Scheduled', 'Pre-Game', 'Warmup'].includes(r.g.status) ? (r.g.game_time_utc ? new Date(r.g.game_time_utc).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'pre-game') : `${r.g.status} (frozen)`}</span>
@@ -1008,7 +1008,11 @@ export default function ProfitView({ games, date, marketAge }) {
             })}
             {rows.some(r => r.edge >= 0.06) ? (
               <div className="mono" style={{ fontSize: 9, color: '#f472b6', marginTop: 4 }}>
-                pink = big clean A edge · live since 7/10: 6+ pts +15.9% ROI (94) · 8+ pts +20.6% (64) · clean side-picks only, at close minus vig — hover a row
+                {(() => {
+                  const AS2 = (e && e.a_selectivity) || {}
+                  const f = c => c ? `${c.flat_roi_pct > 0 ? '+' : ''}${c.flat_roi_pct}% (${c.n})` : '…'
+                  return <>pink = big clean A edge · LIVE: 6+ pts {f(AS2.edge6)} · 8+ pts {f(AS2.edge8)} · flips w/ company {f(AS2.flips_company)} vs ALONE {f(AS2.flips_alone)} · all settled games at close−vig, updates nightly — hover a row</>
+                })()}
               </div>
             ) : null}
           </div>

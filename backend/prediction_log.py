@@ -1313,6 +1313,7 @@ def get_model_e_track_record() -> dict:
     heavy_dislike_rows = []  # (won, pnl, date) -- see HEAVY-DISLIKE FOLLOW below
     mid_dislike_rows = []    # (won, pnl, date) -- 55-60% band, see MID-DISLIKE FOLLOW below
     close_dog03_rows = []    # (won, pnl) -- close-game 0-3pt dog band, documented loser, see below
+    a_sel_rows = []          # Model A clean side-picks -- live pink-panel buckets, see below
     if pw_feats is not None:
         settled_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
                           & log["market_home_prob"].notna() & log["model_home_win_prob"].notna()]
@@ -1337,6 +1338,37 @@ def get_model_e_track_record() -> dict:
                             heavy_dislike_rows.append(_row)
                         else:
                             mid_dislike_rows.append(_row)
+                    # A-SELECTIVITY live buckets (2026-09-22, user catch -- the pink panel's
+                    # chips were frozen 9/6 numbers despite the no-frozen mandate): Model A's
+                    # clean side-picks (favorite agreement >=3pt, or true dog flip >=6pt),
+                    # flat at the de-vigged close minus vig, bucketed by edge size and -- the
+                    # decomposition that matters -- flips ALONE vs flips WITH company.
+                    _ap2 = r.get("model_home_win_prob")
+                    if pd.notna(_ap2):
+                        _apf = float(_ap2) if _fh else 1 - float(_ap2)
+                        _a_type = None
+                        if _apf < 0.48 and (1 - _apf) - (1 - _mkf) >= 0.06:
+                            _a_type = "flip"
+                        elif _apf - _mkf >= 0.03:
+                            _a_type = "fav"
+                        if _a_type:
+                            _aedge = ((1 - _apf) - (1 - _mkf)) if _a_type == "flip" else (_apf - _mkf)
+                            _sideh = (not _fh) if _a_type == "flip" else _fh
+                            _mks = (1 - _mkf) if _a_type == "flip" else _mkf
+                            _awon = bool(r["home_won"]) if _sideh else not bool(r["home_won"])
+                            _apnl = ((1.0 / _mks) * (1 - 0.035) - 1.0) if _awon else -1.0
+                            _company = None
+                            if _a_type == "flip":
+                                _company = False
+                                for _c2 in ("model_e_prob", "model_c_prob", "model_e_baseball_prob"):
+                                    _p2 = r.get(_c2)
+                                    if pd.notna(_p2):
+                                        _p2f = float(_p2) if _fh else 1 - float(_p2)
+                                        if _p2f < 0.5:
+                                            _company = True
+                                            break
+                            a_sel_rows.append({"type": _a_type, "edge": _aedge, "won": _awon,
+                                               "pnl": _apnl, "company": _company})
                     # CLOSE-DOG 0-3 band (2026-09-22, user ask): close game (fav <= 58%) where
                     # the model likes the DOG by 0-3 pts. Season-scale OOF backtest: -8.1% on
                     # 235, negative in BOTH halves -- a documented loser, tracked live so its
@@ -1541,6 +1573,18 @@ def get_model_e_track_record() -> dict:
             "starter_split_fade": starter_split_fade, "jacob_ledger": jacob_ledger,
             "heavy_dislike_follow": heavy_dislike_follow,
             "mid_dislike_follow": mid_dislike_follow,
+            "a_selectivity": (lambda rows: {
+                k: ({"n": len(v), "wins": sum(1 for x in v if x["won"]),
+                     "hit_rate": round(sum(1 for x in v if x["won"]) / len(v), 4),
+                     "flat_roi_pct": round(100 * sum(x["pnl"] for x in v) / len(v), 2)} if v else None)
+                for k, v in {
+                    "edge6": [x for x in rows if x["edge"] >= 0.06],
+                    "edge8": [x for x in rows if x["edge"] >= 0.08],
+                    "dog_flips": [x for x in rows if x["type"] == "flip"],
+                    "big_favs": [x for x in rows if x["type"] == "fav" and x["edge"] >= 0.06],
+                    "flips_alone": [x for x in rows if x["type"] == "flip" and x["company"] is False],
+                    "flips_company": [x for x in rows if x["type"] == "flip" and x["company"] is True],
+                }.items()})(a_sel_rows) if a_sel_rows else None,
             "close_dog03": ({"n": len(close_dog03_rows),
                              "wins": sum(1 for w, _ in close_dog03_rows if w),
                              "hit_rate": round(sum(1 for w, _ in close_dog03_rows if w) / len(close_dog03_rows), 4),
