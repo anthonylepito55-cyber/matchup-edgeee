@@ -1332,6 +1332,7 @@ def get_model_e_track_record() -> dict:
     mid_dislike_rows = []    # (won, pnl, date) -- 55-60% band, see MID-DISLIKE FOLLOW below
     close_dog03_rows = []    # (won, pnl) -- close-game 0-3pt dog band, documented loser, see below
     a_sel_rows = []          # Model A clean side-picks -- live pink-panel buckets, see below
+    blocked_band_dog_rows = []  # (won, pnl, date) -- dogs vs the 3-6pt heavy blocked band, see below
     if pw_feats is not None:
         settled_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
                           & log["market_home_prob"].notna() & log["model_home_win_prob"].notna()]
@@ -1359,6 +1360,18 @@ def get_model_e_track_record() -> dict:
                             heavy_dislike_rows.append(_row)
                         else:
                             mid_dislike_rows.append(_row)
+                    # BLOCKED-BAND DOG tracker (PRE-REGISTERED 2026-09-22, user ask): heavy
+                    # favorite (>=60%) that model E likes by 3-6 pts -- the BLOCKED band whose
+                    # favorites run -21%/-25% rec live -- take the DOG flat 1u at the frozen
+                    # close. At registration: 13-14, +28.0% flat, rec half +34.6% (the mirror
+                    # of a validated block; third clock on the heavy-fav miscalibration
+                    # hypothesis alongside HD/MID-FOLLOW). Checkpoint 50 post-registration;
+                    # if the clocks agree, the ending is a model calibration fix, not a rule.
+                    if _epf is not None and _mkf >= 0.60 and 0.03 <= (_epf - _mkf) < 0.06:
+                        _bdwon = (not bool(r["home_won"])) if _fh else bool(r["home_won"])
+                        _bddec = (1.0 / (1 - _mkf)) * (1 - 0.035)
+                        blocked_band_dog_rows.append((_bdwon, (_bddec - 1.0) if _bdwon else -1.0,
+                                                      str(r.get("date"))))
                     # A-SELECTIVITY live buckets (2026-09-22, user catch -- the pink panel's
                     # chips were frozen 9/6 numbers despite the no-frozen mandate): Model A's
                     # clean side-picks (favorite agreement >=3pt, or true dog flip >=6pt),
@@ -1484,6 +1497,22 @@ def get_model_e_track_record() -> dict:
             "at_registration": _hd_agg([x for x in heavy_dislike_rows if x[2] < _REG_HD]),
             "post_registration": _hd_agg([x for x in heavy_dislike_rows if x[2] >= _REG_HD]),
         }
+    blocked_band_dog = None
+    if blocked_band_dog_rows:
+        _REG_BB = "2026-09-22"
+        def _bb_agg(rows):
+            if not rows:
+                return None
+            n = len(rows)
+            wins = sum(1 for w, _, _ in rows if w)
+            return {"n": n, "wins": wins, "hit_rate": round(wins / n, 4),
+                    "flat_roi_pct": round(100 * sum(x for _, x, _ in rows) / n, 2),
+                    "recent_roi_pct": _recent_half_roi([x for _, x, _ in rows])}
+        blocked_band_dog = {
+            "registered": _REG_BB, "checkpoint_n": 50,
+            "at_registration": _bb_agg([x for x in blocked_band_dog_rows if x[2] < _REG_BB]),
+            "post_registration": _bb_agg([x for x in blocked_band_dog_rows if x[2] >= _REG_BB]),
+        }
     mid_dislike_follow = None
     if mid_dislike_rows:
         _REG_MD = "2026-09-17"
@@ -1603,6 +1632,7 @@ def get_model_e_track_record() -> dict:
             "starter_split_fade": starter_split_fade, "jacob_ledger": jacob_ledger,
             "heavy_dislike_follow": heavy_dislike_follow,
             "mid_dislike_follow": mid_dislike_follow,
+            "blocked_band_dog": blocked_band_dog,
             "a_selectivity": (lambda rows: {
                 k: ({"n": len(v), "wins": sum(1 for x in v if x["won"]),
                      "hit_rate": round(sum(1 for x in v if x["won"]) / len(v), 4),
