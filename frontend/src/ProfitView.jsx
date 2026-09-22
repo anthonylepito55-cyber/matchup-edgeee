@@ -948,10 +948,20 @@ export default function ProfitView({ games, date, marketAge }) {
             marginTop: 12, padding: '14px 18px', borderRadius: 8, border: '1px dashed #58a6ff',
             background: 'linear-gradient(180deg, var(--panel-raised), var(--panel))',
           }}>
-            <div className="mono" style={{ fontSize: 10, color: '#58a6ff', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
-              title="Model A (the baseball-only primary) pushed through the EXACT same bet menu as Model E (favorite >= 3 pts, dog flip >= 6 pts). Live record when graded this way: +18.0% ROI, +39u on 76 bets since July 10 — the best of every model on the page. The honesty: A's big-sample walk-forward backtest measured only +1.9%, and forced to bet EVERY game it loses (−2.1% on 363), so the +18% is its selective bets during a hot stretch, not a proven edge. Shown as information, never in the risk total; if it still leads at 300+ bets, the menu decision gets re-litigated with real ammunition.">
-              Model A selectivity {rows.length ? `(${rows.length} game${rows.length === 1 ? '' : 's'} today)` : ''} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— the +18% live streak (76 bets) · backtest says +1.9% · informational, not in the risk total — hover for the full story</span>
-            </div>
+            {(() => {
+              // LIVE record (2026-09-22 fix, user report "selectivity has not been updating"):
+              // the +18%/76 was a Sep-6 retro study frozen into this header; the A-SHADOW
+              // (frozen forward bets since 9/7) is the live version and now leads. The retro
+              // study stays as a dated citation in the tooltip.
+              const as_ = e && e.model_a_shadow
+              const liveTxt = as_ && as_.n ? `${as_.flat_roi_pct > 0 ? '+' : ''}${as_.flat_roi_pct}% flat (${as_.n} frozen bets since 9/7${as_.roi_pct != null ? `, Kelly ${as_.roi_pct > 0 ? '+' : ''}${as_.roi_pct}%` : ''})` : 'accruing'
+              return (
+                <div className="mono" style={{ fontSize: 10, color: '#58a6ff', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
+                  title={`Model A (the baseball-only primary) pushed through the EXACT same bet menu as Model E (favorite >= 3 pts, dog flip >= 6 pts). LIVE forward record (the A-shadow: frozen pre-game since 9/7, updates as games settle): ${liveTxt}. Dated context: a retro grading of A-through-the-menu measured +18.0% on 76 (Jul 10 - Sep 6, computed 9/6 — a hot-stretch number, not a validated edge), while A's big-sample walk-forward backtest measured only +1.9% (and forced to bet EVERY game it loses −2.1% on 363). Shown as information, never in the risk total; the A-vs-E race is judged at ~150 shadow bets each.`}>
+                  Model A selectivity {rows.length ? `(${rows.length} game${rows.length === 1 ? '' : 's'} today)` : ''} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— live {liveTxt} · (retro study 9/6: +18.0% (76) · backtest +1.9%) · informational, not in the risk total — hover</span>
+                </div>
+              )
+            })()}
             {rows.length === 0 ? (
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>no games clear Model A&apos;s menu today.</div>
             ) : rows.map(r => {
