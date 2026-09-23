@@ -983,8 +983,12 @@ export default function ProfitView({ games, date, marketAge }) {
           if (type === 'dog flip') {
             const sibs = [g.model_e_prob, g.model_c_prob, g.model_e_baseball_prob]
             const avail = sibs.filter(x => x != null)
+            // STRICT: a sibling is "company" only if it also FLIPS the game to A's dog side
+            // (>= 52% on that dog, the menu flip floor) -- not merely leaning it by a hair.
+            // A 51% lean is noise, not agreement (bug caught 2026-09-22: C at 51.25% on LAA
+            // wrongly counted as company and kept a lone flip glowing).
             company = avail.length >= 2
-              ? avail.some(x => (sideIsHome ? x >= 0.5 : x < 0.5))
+              ? avail.some(x => (sideIsHome ? x >= 0.52 : x <= 0.48))
               : null
           }
           return type ? { g, type, side, pSide, mSide, edge: pSide - mSide, company } : null

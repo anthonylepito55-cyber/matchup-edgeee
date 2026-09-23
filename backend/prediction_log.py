@@ -1400,8 +1400,11 @@ def get_model_e_track_record() -> dict:
                                     _p2 = r.get(_c2)
                                     if pd.notna(_p2):
                                         _navail += 1
+                                        # STRICT: sibling counts only if it also FLIPS to the
+                                        # dog side (dog prob >= 0.52, the menu floor) -- a bare
+                                        # >50% lean is noise, not agreement (fix 2026-09-22).
                                         _p2f = float(_p2) if _fh else 1 - float(_p2)
-                                        if _p2f < 0.5:
+                                        if _p2f <= 0.48:
                                             _any = True
                                 # "alone" requires the siblings to have actually been there to
                                 # decline -- rows from before their probs were logged stay None
