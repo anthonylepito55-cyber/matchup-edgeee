@@ -1127,12 +1127,22 @@ def get_model_e_track_record() -> dict:
     # positive, walk-forward) as the headline number, plus the LIVE record of settled E bets
     # that fall in that cell (shown gray -- "how it's doing live"). Backtest constants are
     # fixed citations; live numbers recompute per settled game.
+    # DATED 2026-season OOF backtest citations (both-halves positive, walk-forward). "group"
+    # sorts them into dog / favorite families in the tab. "primary" = eligible to be a game's
+    # headline cell (highest backtest wins); the rest are corroboration filters shown as cards.
     BACKTEST = {
-        "dog_flip6":   {"label": "Dog flips ≥6pt", "roi": 13.4, "n": 252, "halves": "+15.4 / +11.3"},
-        "fav3":        {"label": "Favorites ≥3pt", "roi": 11.1, "n": 364, "halves": "+14.6 / +7.6"},
-        "slim_fav36":  {"label": "Slim favorites 3–6pt", "roi": 11.4, "n": 195, "halves": "+8.8 / +14.0"},
-        "heavy_fav6":  {"label": "Heavy favorites ≥6pt", "roi": 17.8, "n": 25, "halves": "live-validated"},
-        "fav8":        {"label": "Favorites ≥8pt", "roi": 8.0, "n": 63, "halves": "+13.0 / +3.2"},
+        "heavy_fav6":  {"label": "Heavy favorites ≥6pt", "roi": 17.8, "n": 25, "halves": "live-validated", "group": "fav", "primary": True},
+        "dog_flipB":   {"label": "Dog flips grade-B (52–55%)", "roi": 14.8, "n": 99, "halves": "+4.5 / +24.9", "group": "dog", "primary": True},
+        "dog_flip6":   {"label": "Dog flips ≥6pt (all)", "roi": 13.4, "n": 252, "halves": "+15.4 / +11.3", "group": "dog", "primary": True},
+        "flip_dog4048":{"label": "Flip, dog priced 40–48%", "roi": 13.2, "n": 187, "halves": "+17.5 / +8.9", "group": "dog", "primary": False},
+        "dog_flipA":   {"label": "Dog flips grade-A (≥55%)", "roi": 12.4, "n": 153, "halves": "+21.7 / +3.2", "group": "dog", "primary": True},
+        "slim_fav36":  {"label": "Slim favorites 3–6pt", "roi": 11.4, "n": 195, "halves": "+8.8 / +14.0", "group": "fav", "primary": True},
+        "fav3":        {"label": "Favorites ≥3pt (core)", "roi": 11.1, "n": 364, "halves": "+14.6 / +7.6", "group": "fav", "primary": True},
+        "fav3_h13":    {"label": "Fav 3+ & h13 agrees", "roi": 10.9, "n": 363, "halves": "+14.2 / +7.6", "group": "fav", "primary": False},
+        "fav3_B":      {"label": "Fav 3+ & Model B agrees", "roi": 10.7, "n": 362, "halves": "+14.2 / +7.2", "group": "fav", "primary": False},
+        "flip_A_agree":{"label": "Flip + Model A also flips", "roi": 10.3, "n": 181, "halves": "+15.8 / +4.8", "group": "dog", "primary": False},
+        "flip_AH13":   {"label": "Flip + A & h13 both flip", "roi": 9.9, "n": 174, "halves": "+14.8 / +5.0", "group": "dog", "primary": False},
+        "fav8":        {"label": "Favorites ≥8pt", "roi": 8.0, "n": 63, "halves": "+13.0 / +3.2", "group": "fav", "primary": True},
     }
     bt_live = {k: [] for k in BACKTEST}
     for _, r in log[(log["settled"] == True) & log["model_e_bet_json"].notna()].iterrows():  # noqa: E712
@@ -1150,8 +1160,26 @@ def get_model_e_track_record() -> dict:
         edge = eb.get("edge") or 0
         mktp = eb.get("market_prob") or 0
         typ = eb.get("type")
+        sh = bool(eb.get("side_is_home"))
+        # sibling probs ON THE BET SIDE (for agreement filters)
+        def _side(col):
+            v = r.get(col)
+            if pd.isna(v):
+                return None
+            return float(v) if sh else 1 - float(v)
+        a_side, h13_side, b_side = _side("model_home_win_prob"), _side("model_e_baseball_prob"), _side("market_model_prob")
         if typ == "underdog" and edge >= 0.06:
             bt_live["dog_flip6"].append(flat)
+            if eb.get("dog_grade") == "A":
+                bt_live["dog_flipA"].append(flat)
+            elif eb.get("dog_grade") == "B":
+                bt_live["dog_flipB"].append(flat)
+            if 0.40 <= mktp < 0.48:
+                bt_live["flip_dog4048"].append(flat)
+            if a_side is not None and a_side >= 0.52:
+                bt_live["flip_A_agree"].append(flat)
+                if h13_side is not None and h13_side >= 0.52:
+                    bt_live["flip_AH13"].append(flat)
         if typ == "favorite" and edge >= 0.03:
             bt_live["fav3"].append(flat)
             if edge >= 0.08:
@@ -1160,6 +1188,10 @@ def get_model_e_track_record() -> dict:
                 bt_live["heavy_fav6"].append(flat)
             if mktp < 0.60 and edge < 0.06:
                 bt_live["slim_fav36"].append(flat)
+            if h13_side is not None and h13_side >= 0.5:
+                bt_live["fav3_h13"].append(flat)
+            if b_side is not None and b_side >= 0.5:
+                bt_live["fav3_B"].append(flat)
     backtest_menu = {k: {**BACKTEST[k],
                          "live_roi_pct": round(100 * sum(v) / len(v), 2) if v else None,
                          "live_n": len(v)} for k, v in bt_live.items()}
