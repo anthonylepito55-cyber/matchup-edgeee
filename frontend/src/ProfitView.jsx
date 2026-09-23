@@ -969,14 +969,30 @@ export default function ProfitView({ games, date, marketAge }) {
           const favHome = m >= 0.5
           const pFav = favHome ? p : 1 - p
           const mFav = favHome ? m : 1 - m
-          let type = null, side = null, pSide = null, mSide = null
+          let type = null, side = null, pSide = null, mSide = null, sideIsHome = null
           if (pFav < 0.48 && (1 - pFav) - (1 - mFav) >= 0.06) {
-            type = 'dog flip'; side = favHome ? g.away_team_abbr : g.home_team_abbr; pSide = 1 - pFav; mSide = 1 - mFav
+            type = 'dog flip'; sideIsHome = !favHome; side = favHome ? g.away_team_abbr : g.home_team_abbr; pSide = 1 - pFav; mSide = 1 - mFav
           } else if (pFav - mFav >= 0.03) {
-            type = 'favorite'; side = favHome ? g.home_team_abbr : g.away_team_abbr; pSide = pFav; mSide = mFav
+            type = 'favorite'; sideIsHome = favHome; side = favHome ? g.home_team_abbr : g.away_team_abbr; pSide = pFav; mSide = mFav
           }
-          return type ? { g, type, side, pSide, mSide, edge: pSide - mSide } : null
-        }).filter(Boolean).sort((a, b2) => b2.edge - a.edge)
+          // Company check (user call 9/22): does another model (E, C, h13) also flip to A's
+          // dog side? A's +26.8% dog-flip ROI lives ENTIRELY in flips WITH company; a lone A
+          // flip is the unproven/negative wing. Compute it so lone flips can be de-emphasized
+          // and never mistaken for the best play. Only meaningful for dog flips.
+          let company = null
+          if (type === 'dog flip') {
+            const sibs = [g.model_e_prob, g.model_c_prob, g.model_e_baseball_prob]
+            const avail = sibs.filter(x => x != null)
+            company = avail.length >= 2
+              ? avail.some(x => (sideIsHome ? x >= 0.5 : x < 0.5))
+              : null
+          }
+          return type ? { g, type, side, pSide, mSide, edge: pSide - mSide, company } : null
+        }).filter(Boolean).sort((a, b2) => {
+          // lone dog flips sink below companioned ones regardless of raw edge
+          const rank = x => (x.type === 'dog flip' && x.company === false) ? 1 : 0
+          return (rank(a) - rank(b2)) || (b2.edge - a.edge)
+        })
         return (
           <div style={{
             marginTop: 12, padding: '14px 18px', borderRadius: 8, border: '1px dashed #58a6ff',
@@ -1004,8 +1020,11 @@ export default function ProfitView({ games, date, marketAge }) {
               // leans measured −10.4% and stay excluded): edge ≥ 6 pts → 58.5% win / +15.9%
               // ROI (n=94); edge ≥ 8 pts → 59.4% / +20.6% (n=64). Noise ±21-25 pts at these
               // sizes — the monotonic ordering (bigger edge → better ROI) is the sturdy part.
-              const hot8 = r.edge >= 0.08
-              const hot6 = r.edge >= 0.06
+              // A lone dog flip (no other model on A's side) is the unproven/negative wing —
+              // strip its pink glow so it can never be mistaken for the +26.8% companioned cell.
+              const loneFlip = r.type === 'dog flip' && r.company === false
+              const hot8 = r.edge >= 0.08 && !loneFlip
+              const hot6 = r.edge >= 0.06 && !loneFlip
               const pink = '#f472b6'
               // LIVE buckets (2026-09-22, user catch — these chips were frozen 9/6 numbers):
               const AS = (e && e.a_selectivity) || {}
@@ -1016,8 +1035,9 @@ export default function ProfitView({ games, date, marketAge }) {
                 background: hot8 ? 'rgba(244,113,181,0.18)' : hot6 ? 'rgba(244,113,181,0.10)' : 'transparent',
                 borderLeft: `3px solid ${hot6 ? pink : 'transparent'}`,
               }}>
-                <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>{r.type}{hot8 ? ' · 8+ PTS' : hot6 ? ' · 6+ PTS' : ''}</span>
-                <span><span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span><b style={{ color: hot6 ? pink : '#58a6ff' }}>{r.side}</b></span>
+                <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>{r.type}{hot8 ? ' · 8+ PTS' : hot6 ? ' · 6+ PTS' : ''}{loneFlip ? ' · LONE' : ''}</span>
+                <span><span style={{ color: 'var(--text-secondary)' }}>{r.g.away_team_abbr}@{r.g.home_team_abbr} — </span><b style={{ color: hot6 ? pink : '#58a6ff' }}>{r.side}</b>
+                  {loneFlip ? <span style={{ color: '#8b949e', fontWeight: 700, fontSize: 10, marginLeft: 6 }} title={`LONE FLIP — Model A flips to ${r.side} but NO other model (E, C, h13) is on that side. A's +26.8% dog-flip ROI lives entirely in flips WITH company (${fmtC(AS.flips_company)}); lone flips are the unproven/negative wing (2-5 on the little live data there is). De-emphasized so it isn't mistaken for A's best play. Not a bet — the A-shadow logs it.`}>⚠ lone flip — not A&apos;s best play</span> : null}</span>
                 <span style={{ color: hot6 ? pink : 'var(--text-tertiary)', fontWeight: hot6 ? 700 : 400 }}>A {(r.pSide * 100).toFixed(1)}% vs {(r.mSide * 100).toFixed(1)}% (+{(r.edge * 100).toFixed(1)} pts)
                   {hot6 ? <span title={r.type === 'dog flip'
                     ? `LIVE Model A dog-flip record (all settled, close minus vig, updates nightly): ${fmtC(AS.dog_flips)}. THE DECOMPOSITION THAT DECIDES: flips WITH company (another model also flips) ${fmtC(AS.flips_company)} vs flips ALONE ${fmtC(AS.flips_alone)} — the pooled number is carried by the with-company wing; a lone A flip is its worst class. Check whether any other model flips this game before trusting this chip.`
