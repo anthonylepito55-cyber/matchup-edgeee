@@ -18,6 +18,7 @@ import ModelETrackRecord from './ModelETrackRecord.jsx'
 import ModelF5TrackRecord from './ModelF5TrackRecord.jsx'
 import BetBoard from './BetBoard.jsx'
 import ProfitView from './ProfitView.jsx'
+import BacktestView from './BacktestView.jsx'
 import DailyProfitView from './DailyProfitView.jsx'
 import EdgePicksView from './EdgePicksView.jsx'
 import StrikeoutTrackRecord from './StrikeoutTrackRecord.jsx'
@@ -147,7 +148,7 @@ export default function App() {
         {sport === 'mlb' ? (
           <>
             <ViewToggle view={view} onChange={setView} />
-            {view !== 'profit' && view !== 'daily' && view !== 'edge' && (
+            {view !== 'profit' && view !== 'daily' && view !== 'edge' && view !== 'backtested' && (
               <>
                 <BetBoard games={games} date={data?.date} />
                 <ModelStatus />
@@ -162,6 +163,8 @@ export default function App() {
 
             {view === 'profit' ? (
               <ProfitView games={games} date={data?.date} marketAge={data?.market_age_seconds} />
+            ) : view === 'backtested' ? (
+              <BacktestView games={games} />
             ) : view === 'edge' ? (
               <EdgePicksView games={games} />
             ) : view === 'daily' ? (
@@ -312,6 +315,7 @@ function ViewToggle({ view, onChange }) {
   const options = [
     { key: 'today', label: 'today' },
     { key: 'profit', label: 'bet for profit' },
+    { key: 'backtested', label: 'bet for backtested' },
     { key: 'edge', label: '★ edge picks' },
     { key: 'daily', label: 'daily profit' },
     { key: 'history', label: 'previous day' },

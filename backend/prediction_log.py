@@ -1122,6 +1122,47 @@ def get_model_e_track_record() -> dict:
                     ab2 = None
             if ab2 and ab2.get("side_is_home") == xb.get("side_is_home"):
                 xa_rows.append({"won": g["won"], "flat": flat})
+    # BACKTESTED MENU cells (2026-09-23, user ask -- the "bet for backtested" tab): the five
+    # validated bet types, each with its DATED 2026-season OOF backtest ROI (both-halves
+    # positive, walk-forward) as the headline number, plus the LIVE record of settled E bets
+    # that fall in that cell (shown gray -- "how it's doing live"). Backtest constants are
+    # fixed citations; live numbers recompute per settled game.
+    BACKTEST = {
+        "dog_flip6":   {"label": "Dog flips ≥6pt", "roi": 13.4, "n": 252, "halves": "+15.4 / +11.3"},
+        "fav3":        {"label": "Favorites ≥3pt", "roi": 11.1, "n": 364, "halves": "+14.6 / +7.6"},
+        "slim_fav36":  {"label": "Slim favorites 3–6pt", "roi": 11.4, "n": 195, "halves": "+8.8 / +14.0"},
+        "heavy_fav6":  {"label": "Heavy favorites ≥6pt", "roi": 17.8, "n": 25, "halves": "live-validated"},
+        "fav8":        {"label": "Favorites ≥8pt", "roi": 8.0, "n": 63, "halves": "+13.0 / +3.2"},
+    }
+    bt_live = {k: [] for k in BACKTEST}
+    for _, r in log[(log["settled"] == True) & log["model_e_bet_json"].notna()].iterrows():  # noqa: E712
+        try:
+            eb = json.loads(r["model_e_bet_json"])
+        except (TypeError, ValueError):
+            continue
+        if not eb or r["home_won"] is None or pd.isna(r["home_won"]):
+            continue
+        g = model_e.grade_bet(eb, bool(r["home_won"]))
+        dec = model_e.american_to_decimal(eb.get("best_price"))
+        flat = ((dec - 1.0) if g["won"] else -1.0) if dec is not None else None
+        if flat is None:
+            continue
+        edge = eb.get("edge") or 0
+        mktp = eb.get("market_prob") or 0
+        typ = eb.get("type")
+        if typ == "underdog" and edge >= 0.06:
+            bt_live["dog_flip6"].append(flat)
+        if typ == "favorite" and edge >= 0.03:
+            bt_live["fav3"].append(flat)
+            if edge >= 0.08:
+                bt_live["fav8"].append(flat)
+            if mktp >= 0.60 and edge >= 0.06:
+                bt_live["heavy_fav6"].append(flat)
+            if mktp < 0.60 and edge < 0.06:
+                bt_live["slim_fav36"].append(flat)
+    backtest_menu = {k: {**BACKTEST[k],
+                         "live_roi_pct": round(100 * sum(v) / len(v), 2) if v else None,
+                         "live_n": len(v)} for k, v in bt_live.items()}
     model_x_shadow = None
     if model_x_rows:
         xdf = pd.DataFrame(model_x_rows)
@@ -1637,6 +1678,7 @@ def get_model_e_track_record() -> dict:
             "validation": model_e.load_validation(), "baseball_leg": baseball_leg, "shade": shade, "omega": omega,
             "jacob_book": jacob_book, "model_a_shadow": model_a_shadow, "dog_shade23": dog_shade23,
             "model_x_shadow": model_x_shadow, "xa_agree": xa_agree,
+            "backtest_menu": backtest_menu,
             "fav_sub3": fav_sub3,
             "by_signal": by_signal, "current_rules": current_rules,
             "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean,
