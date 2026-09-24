@@ -139,11 +139,11 @@ BACKGROUND_REFRESH_SECONDS = 3600  # the IDLE cadence — keeps strikeout/moneyl
 # window the odds caches are force-refreshed first so today() doesn't just re-read a 5-minute-old
 # price. Added 2026-08-22 after the frozen Model E bets were found to be only as fresh as an
 # hourly loop allowed.
-REFRESH_IMMINENT_SECONDS = 60      # a game starts within 20 min -> re-price every minute
-REFRESH_SOON_SECONDS = 180         # within 2 hours -> every 3 minutes
+REFRESH_IMMINENT_SECONDS = 45      # a game starts within 40 min -> re-price every 45s (force odds)
+REFRESH_SOON_SECONDS = 120         # within 2 hours -> every 2 minutes (force odds)
 REFRESH_TODAY_SECONDS = 900        # games later today -> every 15 minutes
-IMMINENT_WINDOW = 20 * 60
-SOON_WINDOW = 2 * 3600
+IMMINENT_WINDOW = 40 * 60          # widened 20->40 min: the dog / BB-DOG betting window is often
+SOON_WINDOW = 2 * 3600             # 30-90 min pre-game, so re-price the line fastest across all of it
 
 
 def _seconds_to_next_first_pitch(resolved_date: str):
@@ -1854,7 +1854,8 @@ def history_for_date(date: str):
 
 
 _TODAY_RESPONSE_CACHE = {}  # resolved_date -> (computed_at_monotonic, response_dict)
-_TODAY_CACHE_TTL_SECONDS = 90
+_TODAY_CACHE_TTL_SECONDS = 45  # was 90 -- serve stale-while-revalidate for at most 45s so the
+# dog / BB-DOG marker edges (line-sensitive 3-6pt bands) refresh close to real time before games.
 _today_compute_lock = threading.Lock()
 _today_refresh_inflight = set()  # dates with a background recompute already running
 

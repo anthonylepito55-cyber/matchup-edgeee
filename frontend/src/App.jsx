@@ -51,7 +51,8 @@ export default function App() {
   const [sport, setSport] = useState('mlb') // 'mlb' | 'tennis'
   const [view, setView] = useState('today') // 'today' | 'history' (MLB only)
 
-  const AUTO_REFRESH_MS = 60000 // 1 minute — lines/odds and value-bet flags can move quickly, and
+  const AUTO_REFRESH_MS = 30000 // 30s — dog / BB-DOG marker edges are line-sensitive (3-6pt band);
+  // polling every 30s (was 60s) so the board catches a line move before a bet goes in. lines/odds and value-bet flags can move quickly, and
   // the previous behavior (fetch once on page load, never again) meant a tab left open all
   // afternoon kept showing stale data with no way to see updates short of a manual reload.
 
