@@ -1143,6 +1143,13 @@ def get_model_e_track_record() -> dict:
         "flip_A_agree":{"label": "Flip + Model A also flips", "roi": 10.3, "n": 181, "halves": "+15.8 / +4.8", "group": "dog", "primary": False},
         "flip_AH13":   {"label": "Flip + A & h13 both flip", "roi": 9.9, "n": 174, "halves": "+14.8 / +5.0", "group": "dog", "primary": False},
         "fav8":        {"label": "Favorites ≥8pt", "roi": 8.0, "n": 63, "halves": "+13.0 / +3.2", "group": "fav", "primary": True},
+        # TWO-SEASON validated (2026 +16.4% / 2025 +13.5%, both halves each) -- discovered
+        # 2026-09-24: a 55-60% favorite the model DISLIKES by 3+ pts; take the DOG. The model
+        # correctly flags overrated mid-favorites. Not a standard slip bet (E fires nothing on
+        # a disliked favorite), so its live record scans ALL settled games, not just slip rows.
+        "mid_dislike_dog": {"label": "Mid-fav model dislikes → DOG", "roi": 15.0, "n": 486,
+                            "halves": "2026 +16.4 / 2025 +13.5", "group": "dog", "primary": True,
+                            "two_season": True},
     }
     bt_live = {k: [] for k in BACKTEST}
     for _, r in log[(log["settled"] == True) & log["model_e_bet_json"].notna()].iterrows():  # noqa: E712
@@ -1192,9 +1199,26 @@ def get_model_e_track_record() -> dict:
                 bt_live["fav3_h13"].append(flat)
             if b_side is not None and b_side >= 0.5:
                 bt_live["fav3_B"].append(flat)
+    # mid_dislike_dog LIVE record scans ALL settled games (not slip bets): 55-60% fav the
+    # model dislikes by 3+, graded on the DOG at the frozen de-vigged close minus vig.
+    mdd = []
+    _sall = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
+                & log["market_home_prob"].notna() & log["model_e_prob"].notna()]
+    for _, r in _sall.iterrows():
+        mk = float(r["market_home_prob"])
+        if not (0.02 < mk < 0.98):
+            continue
+        fh = mk >= 0.5
+        mkf = mk if fh else 1 - mk
+        epf = float(r["model_e_prob"]) if fh else 1 - float(r["model_e_prob"])
+        if 0.55 <= mkf < 0.60 and (epf - mkf) <= -0.03:
+            dwon = (not bool(r["home_won"])) if fh else bool(r["home_won"])
+            mdd.append((1.0 / (1 - mkf)) * (1 - 0.035) - 1.0 if dwon else -1.0)
+    bt_live["mid_dislike_dog"] = mdd
     backtest_menu = {k: {**BACKTEST[k],
                          "live_roi_pct": round(100 * sum(v) / len(v), 2) if v else None,
-                         "live_n": len(v)} for k, v in bt_live.items()}
+                         "live_n": len(v),
+                         "recent_roi_pct": _recent_half_roi(v)} for k, v in bt_live.items()}
     model_x_shadow = None
     if model_x_rows:
         xdf = pd.DataFrame(model_x_rows)

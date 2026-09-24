@@ -47,9 +47,28 @@ export default function BacktestView({ games }) {
   const green = '#3fb950'
   const gray = '#8b949e'
 
+  const dv2 = (h, a) => {
+    if (h == null || a == null) return null
+    const dd = p => (p > 0 ? 1 + p / 100 : 1 + 100 / Math.abs(p))
+    const ih = 1 / dd(h), ia = 1 / dd(a)
+    return ih / (ih + ia)
+  }
   const picks = (games || []).map(g => {
     const cls = classify(g, bt)
-    return cls ? { g, bet: g.model_e_bet, cell: cls.cell, tags: cls.tags } : null
+    if (cls) return { g, bet: g.model_e_bet, cell: cls.cell, tags: cls.tags }
+    // MID-dislike -> DOG: a validated cell that is NOT a slip bet (E dislikes the fav), so it
+    // won't come through classify(). Detect it directly and build a synthetic dog pick.
+    const e = g.model_e_prob
+    const m = g.live_odds ? dv2(g.live_odds.home, g.live_odds.away) : null
+    if (e != null && m != null) {
+      const fh = m >= 0.5, mkf = fh ? m : 1 - m, epf = fh ? e : 1 - e
+      if (mkf >= 0.55 && mkf < 0.60 && (epf - mkf) <= -0.03) {
+        const dogAbbr = fh ? g.away_team_abbr : g.home_team_abbr
+        const dogPrice = fh ? (g.live_odds && g.live_odds.away) : (g.live_odds && g.live_odds.home)
+        return { g, bet: { side: dogAbbr, best_price: dogPrice, stake_units: 1, synthetic: true }, cell: 'mid_dislike_dog', tags: [] }
+      }
+    }
+    return null
   }).filter(Boolean).sort((a, b) => (bt ? (bt[b.cell]?.roi || 0) - (bt[a.cell]?.roi || 0) : 0))
 
   return (
