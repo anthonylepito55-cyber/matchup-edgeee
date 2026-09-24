@@ -692,14 +692,16 @@ export default function ProfitView({ games, date, marketAge }) {
                 const midValid = heavyDislike && heavyDislike.band === 'mid'
                 const mdd = e && e.backtest_menu && e.backtest_menu.mid_dislike_dog
                 const anyMarker = bbDog || heavyDislike || closeDog || favEdge
-                const rowGreen = midValid
+                // green rows = two-season backtest-validated: MID-dislike->dog, and BB-DOG
+                // (weakly: 2026 +4.4 / 2025 +7.7, both seasons +).
+                const rowGreen = midValid || bbDog
                 return (
                   <div key={`nobet-${g.game_pk}`} className="mono" style={{ display: 'grid', gridTemplateColumns: '1fr 260px 110px', gap: 10, alignItems: 'center', fontSize: 11, padding: '6px 6px', borderBottom: '1px solid var(--line)', color: 'var(--text-tertiary)', background: rowGreen ? 'rgba(63,185,80,0.12)' : anyMarker ? 'rgba(139,148,158,0.10)' : 'transparent', borderLeft: `3px solid ${rowGreen ? '#3fb950' : anyMarker ? '#8b949e' : 'transparent'}` }}>
                     <span>
                       <span style={{ color: 'var(--text-secondary)' }}>{g.away_team_abbr}@{g.home_team_abbr}</span>
                       {g.model_e_prob != null ? <span> · model {(g.model_e_prob * 100).toFixed(1)}% home</span> : null}
                       {(g.model_x_bet && g.model_a_bet && g.model_x_bet.side === g.model_a_bet.side) ? <span style={{ color: '#b0703c', fontWeight: 700, marginLeft: 6 }} title={`X+A AGREE (no slip bet on this game): the recency-only Model X shadow and Model A shadow both fire ${g.model_x_bet.side}. Live registered record: ${(e && e.xa_agree && e.xa_agree.n) ? `${e.xa_agree.flat_roi_pct > 0 ? '+' : ''}${e.xa_agree.flat_roi_pct}% (${e.xa_agree.n})` : '0 settled yet'} (checkpoint 50). Shadows only, never staked.`}>⬛ X+A: {g.model_x_bet.side}</span> : null}
-                      {bbDog ? <span style={{ color: '#8b949e', fontWeight: 700, marginLeft: 6 }} title={`BLOCKED-BAND DOG (grey = unproven watch band): 60%+ fav the model likes by ${bbDog.edge.toFixed(1)} pts, tracker takes the DOG ${bbDog.dog}. Live-sliced this week, no cross-season backtest support. Running record: ${bbTxt}. Watch only, flat 1u max — not a validated pick.`}>◦ BB-DOG watch: {bbDog.dog} · {bbTxt}</span> : null}
+                      {bbDog ? <span style={{ color: '#3fb950', fontWeight: 700, marginLeft: 6 }} title={`BB-DOG → take the DOG (two-season backtest-validated, WEAKLY): 60%+ fav the model likes by ${bbDog.edge.toFixed(1)} pts, take the DOG ${bbDog.dog}. Backtest 2026 +4.4% (n20) / 2025 +7.7% (n93) — positive both seasons but thin, so a small edge not a strong one. Live: ${bbTxt}. Flat 1u.`}>≡ TAKE DOG: {bbDog.dog} <span style={{ fontWeight: 400, opacity: 0.9 }}>· 2yr +4-8% · {bbTxt}</span></span> : null}
                       {favEdge ? <span style={{ color: '#8b949e', fontWeight: 700, marginLeft: 6 }} title={`FAV 0-3 (grey = under the bar, no bet): model likes the favorite ${favEdge.fav} by ${favEdge.edge.toFixed(1)} pts. Context: ${feTxt}. A fine team to PICK, not a bet.`}>◦ FAV 0-3: {favEdge.fav} · {feTxt}</span> : null}
                       {closeDog ? <span style={{ color: '#8b949e', fontWeight: 700, marginLeft: 6 }} title={`0-3 DOG (grey = DOCUMENTED LOSER): close game, model likes the dog ${closeDog.dog} by ${closeDog.lean.toFixed(1)} pts. Backtest −8.1% on 235, negative both halves. Live ${cdTxt}. Never a pick — shown so you can watch it lose without you.`}>◦ 0-3 DOG (loser): {closeDog.dog} · {cdTxt}</span> : null}
                       {heavyDislike && heavyDislike.band === 'mid' ? <span style={{ color: '#3fb950', fontWeight: 700, marginLeft: 6 }}
