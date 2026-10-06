@@ -43,7 +43,8 @@ from odds_fetcher import OPTICODDS_API_KEY, OPTICODDS_BASE_URL
 KAGGLE_ATP_DATASET = "dissfya/atp-tennis-2000-2023daily-pull"
 KAGGLE_WTA_DATASET = "dissfya/wta-tennis-2007-2023-daily-update"
 
-TENNIS_LEAGUES = ["atp", "wta"]
+TENNIS_LEAGUES = ["atp", "wta", "atp_challenger"]  # challengers added 2026-09-26 (user: "we're
+# missing a ton") -- cards get TennisRatio context + SR-DOG/SOS flags; no model prediction there.
 
 HISTORY_CACHE_MAX_AGE_HOURS = 20  # source dataset updates ~daily
 FIXTURE_BATCH_SIZE = 5
@@ -245,21 +246,55 @@ def match_player_name(live_full_name: str, name_index: dict) -> str | None:
     return name_index.get(key)
 
 
-def _get_active_tennis_fixture_ids(date: str) -> list:
-    """Fixture ids for scheduled ATP/WTA singles matches on the given date."""
+def _fetch_tennis_fixtures(date: str, leagues: list = None, sportsbooks: list = None) -> list:
+    """Paginated /fixtures for the date window. /fixtures/active silently dropped roughly HALF
+    the slate (19 vs 37 singles measured 2026-09-26) -- the same defect the MLB side fixed on
+    2026-09-04 by migrating to the paginated endpoint; tennis was still on the broken one.
+    `sportsbooks` (2026-10-02): the default /fixtures (no book filter) only returns fixtures
+    the main books price -- it was dropping ~30 of 70 ITF games that ONLY Polymarket prices.
+    Passing sportsbooks runs ADDITIONAL per-book fixture pulls and merges them in by id."""
     if not OPTICODDS_API_KEY:
         return []
     headers = {"X-Api-Key": OPTICODDS_API_KEY}
-    start_after = date
-    start_before = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-    try:
-        resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
-            "league": TENNIS_LEAGUES, "start_date_after": start_after, "start_date_before": start_before,
-        }, headers=headers, timeout=15)
-        resp.raise_for_status()
-        fixtures = resp.json().get("data", [])
-    except requests.exceptions.RequestException:
-        return []
+    # 48h window (2026-09-28 fix): the old [date, date+1) UTC window went EMPTY every US
+    # evening -- late US matches and Europe/Asia's next morning sit on the next UTC date.
+    # The board filters to unplayed/live anyway, so the wider pull just keeps it stocked.
+    start_before = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
+    _lgs = leagues or TENNIS_LEAGUES
+
+    def _cursor_pull(extra):
+        # CURSOR pagination (2026-09-28 fix): no total_pages key -> follow {cursor, has_more}.
+        rows, cursor = [], None
+        while True:
+            params = {"league": _lgs, "start_date_after": date, "start_date_before": start_before}
+            params.update(extra)
+            if cursor:
+                params["cursor"] = cursor
+            try:
+                resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures", params=params,
+                                    headers=headers, timeout=15)
+                resp.raise_for_status()
+                j = resp.json()
+            except requests.exceptions.RequestException:
+                break
+            data = j.get("data", [])
+            rows += data
+            cursor = j.get("cursor")
+            if not data or not j.get("has_more") or not cursor or len(rows) > 3000:
+                break
+        return rows
+
+    by_id = {f["id"]: f for f in _cursor_pull({}) if f.get("id")}
+    for bk in (sportsbooks or []):
+        for f in _cursor_pull({"sportsbook": bk}):
+            if f.get("id"):
+                by_id.setdefault(f["id"], f)
+    return list(by_id.values())
+
+
+def _get_active_tennis_fixture_ids(date: str, leagues: list = None, sportsbooks: list = None) -> list:
+    """Fixture ids for scheduled ATP/WTA singles matches on the given date."""
+    fixtures = _fetch_tennis_fixtures(date, leagues, sportsbooks)
     # Doubles fixtures have >1 competitor per side — singles-only for this model.
     return [
         f["id"] for f in fixtures
@@ -268,7 +303,7 @@ def _get_active_tennis_fixture_ids(date: str) -> list:
     ]
 
 
-def get_tennis_today_matches(date: str = None) -> list[dict]:
+def get_tennis_today_matches(date: str = None, leagues: list = None, sportsbooks: list = None) -> list[dict]:
     """
     Today's (or a given date's) scheduled/live ATP+WTA singles matches from
     OpticOdds — fixture metadata only, no odds (see get_tennis_moneyline_odds
@@ -276,19 +311,7 @@ def get_tennis_today_matches(date: str = None) -> list[dict]:
     "start_time_utc", "status"}.
     """
     date = date or todays_date_et()
-    if not OPTICODDS_API_KEY:
-        return []
-    headers = {"X-Api-Key": OPTICODDS_API_KEY}
-    start_after = date
-    start_before = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-    try:
-        resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
-            "league": TENNIS_LEAGUES, "start_date_after": start_after, "start_date_before": start_before,
-        }, headers=headers, timeout=15)
-        resp.raise_for_status()
-        fixtures = resp.json().get("data", [])
-    except requests.exceptions.RequestException:
-        return []
+    fixtures = _fetch_tennis_fixtures(date, leagues, sportsbooks)
 
     matches = []
     for f in fixtures:
@@ -308,7 +331,24 @@ def get_tennis_today_matches(date: str = None) -> list[dict]:
     return matches
 
 
-def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
+def _valid_two_way(o1, o2) -> bool:
+    """Reject impossible AMERICAN two-way lines (2026-10-05): both-negative (two favorites)
+    or an implied-prob overround outside a real book's ~[0.80, 1.25]. Guards against
+    OpticOdds's Polymarket-USA mirror returning garbage like -337/-5212 (175% book)."""
+    try:
+        a, b = float(o1), float(o2)
+    except (TypeError, ValueError):
+        return False
+    if a < 0 and b < 0:
+        return False
+    i1 = 1.0 / ((1 + a / 100.0) if a > 0 else (1 + 100.0 / abs(a)))
+    i2 = 1.0 / ((1 + b / 100.0) if b > 0 else (1 + 100.0 / abs(b)))
+    s = i1 + i2
+    return 0.80 <= s <= 1.25
+
+
+def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False, leagues: list = None,
+                              sportsbooks: list = None) -> dict:
     """
     {fixture_id: {"player_1": american_odds, "player_2": american_odds,
     "bookmaker": title}} for scheduled ATP/WTA singles matches — same
@@ -319,7 +359,12 @@ def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False) -> 
     if not OPTICODDS_API_KEY:
         return {}
     date = date or todays_date_et()
-    cache_path = os.path.join(CACHE_DIR, f"tennis_odds_{date}.json")
+    # books to try, in preference order (2026-10-02): ITF passes Polymarket/Kalshi so the
+    # ~30 ITF games only those venues price still get a line (else they'd show no odds).
+    books = list(sportsbooks) + [b for b in PREFERRED_SPORTSBOOKS if b not in sportsbooks] \
+        if sportsbooks else list(PREFERRED_SPORTSBOOKS)
+    _tag = "" if not leagues else "_" + "-".join(sorted(leagues))
+    cache_path = os.path.join(CACHE_DIR, f"tennis_odds_{date}{_tag}.json")
     if not force_refresh and os.path.exists(cache_path):
         import time as _time
         if (_time.time() - os.path.getmtime(cache_path)) / 60 < 15:
@@ -328,38 +373,42 @@ def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False) -> 
                 return json.load(f)
 
     headers = {"X-Api-Key": OPTICODDS_API_KEY}
-    fixture_ids = _get_active_tennis_fixture_ids(date)
+    fixture_ids = _get_active_tennis_fixture_ids(date, leagues, sportsbooks)
     if not fixture_ids:
         return {}
 
     odds_by_fixture = {}
+    # OpticOdds caps 5 sportsbooks per odds request -> query in chunks of 5 books.
     for i in range(0, len(fixture_ids), FIXTURE_BATCH_SIZE):
         batch = fixture_ids[i:i + FIXTURE_BATCH_SIZE]
-        try:
-            resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
-                "league": TENNIS_LEAGUES, "market": "moneyline",
-                "sportsbook": PREFERRED_SPORTSBOOKS, "is_main": "true", "fixture_id": batch,
-            }, headers=headers, timeout=20)
-            resp.raise_for_status()
-            fixtures = resp.json().get("data", [])
-        except requests.exceptions.RequestException:
-            continue
-
-        for fixture in fixtures:
-            fid = fixture.get("id")
-            home_name = fixture.get("home_team_display")
-            away_name = fixture.get("away_team_display")
-            by_book = {}
-            for o in fixture.get("odds") or []:
-                if o.get("market_id") != "moneyline":
-                    continue
-                by_book.setdefault(o.get("sportsbook"), {})[o.get("name")] = o.get("price")
-            for book in PREFERRED_SPORTSBOOKS:
-                prices = by_book.get(book, {})
-                if home_name in prices and away_name in prices:
-                    odds_by_fixture[fid] = {
-                        "player_1": prices[home_name], "player_2": prices[away_name], "bookmaker": book,
-                    }
+        by_book_all = {}
+        for bi in range(0, len(books), 5):
+            bchunk = books[bi:bi + 5]
+            try:
+                resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/odds", params={
+                    "league": (leagues or TENNIS_LEAGUES), "market": "moneyline",
+                    "sportsbook": bchunk, "is_main": "true", "fixture_id": batch,
+                }, headers=headers, timeout=20)
+                resp.raise_for_status()
+                fixtures = resp.json().get("data", [])
+            except requests.exceptions.RequestException:
+                continue
+            for fixture in fixtures:
+                fid = fixture.get("id")
+                e = by_book_all.setdefault(fid, {"home": fixture.get("home_team_display"),
+                                                 "away": fixture.get("away_team_display"), "bb": {}})
+                for o in fixture.get("odds") or []:
+                    if o.get("market_id") != "moneyline":
+                        continue
+                    e["bb"].setdefault(o.get("sportsbook"), {})[o.get("name")] = o.get("price")
+        for fid, e in by_book_all.items():
+            for book in books:
+                prices = e["bb"].get(book, {})
+                if e["home"] in prices and e["away"] in prices:
+                    p1, p2 = prices[e["home"]], prices[e["away"]]
+                    if not _valid_two_way(p1, p2):
+                        continue  # corrupt line (e.g. Polymarket-USA mirror -337/-5212) -> try next book
+                    odds_by_fixture[fid] = {"player_1": p1, "player_2": p2, "bookmaker": book}
                     break
 
     import json

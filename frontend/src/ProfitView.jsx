@@ -477,8 +477,19 @@ export default function ProfitView({ games, date, marketAge }) {
                       return a ? `${k} agree ${a.flat_roi_pct > 0 ? '+' : ''}${a.flat_roi_pct.toFixed(1)}% (${a.n})` : `${k} agree —`
                     }).join(' · ')
                     return <span style={{ color: alone ? '#a371f7' : bet.ours_agree === 3 ? '#f85149' : 'var(--text-tertiary)', fontWeight: alone || bet.ours_agree === 3 ? 700 : 400 }}
-                      title={`How many of OUR other models (A, C, h13) would fire the SAME side through the same bet menu. The live gradient is monotonically INVERSE — isolation has been E's best class, consensus its worst: ${grad}. Why: A/C/h13 share mostly the same baseball ingredients, so triple agreement is one opinion photocopied — and a market refusing to move against ALL of them usually knows something. E alone means the edge comes from the market-microstructure features only E has. Cells are ±30-40 pts each; the clean 4-step gradient is the sturdy part.`}>
+                      title={`How many of OUR other models (A, C, h13) would fire the SAME side through the same bet menu. Live-window gradient (UNSTABLE — the production-recipe walk-forward flattens these buckets (0/3 +0.2, 1/3 +5.2, 2/3 +7.3, 3/3 -2.0, all inside noise) while live showed the opposite ordering; treat the ordering as noise): ${grad}. Why the story was tempting: A/C/h13 share mostly the same baseball ingredients, so triple agreement is one opinion photocopied — and a market refusing to move against ALL of them usually knows something. E alone means the edge comes from the market-microstructure features only E has. Cells are ±30-40 pts each; NO ordering survived out-of-sample (2026-09-27 check).`}>
                       {' '}· {alone ? 'E ALONE' : `ours ${bet.ours_agree}/3`}{roiTxt ? ` ${roiTxt}` : ''}{agg ? ` (${agg.n})` : ''}
+                    </span>
+                  })()}{(() => {
+                    // FADE-WATCH chip (registered 2026-09-27, user call): fading 1-2/3-agree
+                    // bets. Live +6.0% (126) was refuted by the 2026 OOF (-17.6% on 203) --
+                    // grey documented-mirage watch; post-reg record accumulates in public.
+                    if (bet.ours_avail !== 3 || (bet.ours_agree !== 1 && bet.ours_agree !== 2)) return null
+                    const fw = e && e.by_signal && e.by_signal.mid_agree_fade
+                    if (!fw) return null
+                    return <span style={{ color: '#8b949e', fontSize: 10 }}
+                      title={`FADE-WATCH (registered ${fw.registered}): taking the OTHER team on 1-2/3-agreement bets. At registration the live window showed +6.0% (126) -- but the full-season production-recipe walk-forward says -14.3% (369), and the agreement buckets reorder completely out-of-sample. Registered as a documented-mirage watch: expected to lose; judged at ${fw.checkpoint} post-reg settles.`}>
+                      {' '}· fade-watch {fw.n ? `${fw.flat_roi_pct > 0 ? '+' : ''}${fw.flat_roi_pct}% (${fw.n}/${fw.checkpoint})` : `0/${fw.checkpoint}`}
                     </span>
                   })()}{(() => {
                     // PROFILE badge (user call 9/5, "all the positive ones i want it made

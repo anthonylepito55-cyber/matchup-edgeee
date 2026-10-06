@@ -1133,16 +1133,16 @@ def get_model_e_track_record() -> dict:
     BACKTEST = {
         "heavy_fav6":  {"label": "Heavy favorites ≥6pt", "roi": 17.8, "n": 25, "halves": "live-validated", "group": "fav", "primary": True},
         "dog_flipB":   {"label": "Dog flips grade-B (52–55%)", "roi": 14.8, "n": 99, "halves": "+4.5 / +24.9", "group": "dog", "primary": True},
-        "dog_flip6":   {"label": "Dog flips ≥6pt (all)", "roi": 13.4, "n": 252, "halves": "+15.4 / +11.3", "group": "dog", "primary": True},
+        "dog_flip6":   {"label": "Dog flips ≥5pt (all)", "roi": 4.8, "n": 282, "halves": "2026 +4.8 · 2025 +16.7 (production recipe)", "group": "dog", "primary": True, "two_season": True},
         "flip_dog4048":{"label": "Flip, dog priced 40–48%", "roi": 13.2, "n": 187, "halves": "+17.5 / +8.9", "group": "dog", "primary": False},
-        "dog_flipA":   {"label": "Dog flips grade-A (≥55%)", "roi": 12.4, "n": 153, "halves": "+21.7 / +3.2", "group": "dog", "primary": True},
+        "dog_flipA":   {"label": "Dog flips grade-A (≥55%)", "roi": 8.6, "n": 173, "halves": "2026 +8.6 · 2025 +25.9", "group": "dog", "primary": True, "two_season": True},
         "slim_fav36":  {"label": "Slim favorites 3–6pt", "roi": 11.4, "n": 195, "halves": "+8.8 / +14.0", "group": "fav", "primary": True},
         "fav3":        {"label": "Favorites ≥3pt (core)", "roi": 11.1, "n": 364, "halves": "+14.6 / +7.6", "group": "fav", "primary": True},
         "fav3_h13":    {"label": "Fav 3+ & h13 agrees", "roi": 10.9, "n": 363, "halves": "+14.2 / +7.6", "group": "fav", "primary": False},
         "fav3_B":      {"label": "Fav 3+ & Model B agrees", "roi": 10.7, "n": 362, "halves": "+14.2 / +7.2", "group": "fav", "primary": False},
         "flip_A_agree":{"label": "Flip + Model A also flips", "roi": 10.3, "n": 181, "halves": "+15.8 / +4.8", "group": "dog", "primary": False},
         "flip_AH13":   {"label": "Flip + A & h13 both flip", "roi": 9.9, "n": 174, "halves": "+14.8 / +5.0", "group": "dog", "primary": False},
-        "fav8":        {"label": "Favorites ≥8pt", "roi": 8.0, "n": 63, "halves": "+13.0 / +3.2", "group": "fav", "primary": True},
+        "fav8":        {"label": "Favorites ≥8pt", "roi": 7.8, "n": 135, "halves": "2026 +7.8 · 2025 +17.7", "group": "fav", "primary": True, "two_season": True},
         # TWO-SEASON validated (2026 +16.4% / 2025 +13.5%, both halves each) -- discovered
         # 2026-09-24: a 55-60% favorite the model DISLIKES by 3+ pts; take the DOG. The model
         # correctly flags overrated mid-favorites. Not a standard slip bet (E fires nothing on
@@ -1175,7 +1175,7 @@ def get_model_e_track_record() -> dict:
                 return None
             return float(v) if sh else 1 - float(v)
         a_side, h13_side, b_side = _side("model_home_win_prob"), _side("model_e_baseball_prob"), _side("market_model_prob")
-        if typ == "underdog" and edge >= 0.06:
+        if typ == "underdog" and edge >= 0.05:  # bar moved 6->5 with the menu (2026-09-27)
             bt_live["dog_flip6"].append(flat)
             if eb.get("dog_grade") == "A":
                 bt_live["dog_flipA"].append(flat)
@@ -1369,8 +1369,26 @@ def get_model_e_track_record() -> dict:
                     _cnt += 1
             if _avail == 3:
                 n_agree = _cnt
+        # FADE side flat pnl (opposite team, best frozen book price) -- for the registered
+        # mid-agreement fade WATCH (2026-09-27): live +6.0% (126) but 2026 OOF -17.6% (203),
+        # and the agreement buckets reorder completely out-of-sample -> grey watch, never bet.
+        fade_flat = None
+        try:
+            _lo = json.loads(r["live_odds_json"]) if pd.notna(r.get("live_odds_json")) else None
+        except (TypeError, ValueError):
+            _lo = None
+        if _lo and flat is not None:
+            _os = "away" if eb.get("side_is_home") else "home"
+            _bp = [v.get(_os) for v in (_lo.get("books") or {}).values() if v.get(_os) is not None]
+            if not _bp and _lo.get(_os) is not None:
+                _bp = [_lo.get(_os)]
+            if _bp:
+                _od = max(model_e.american_to_decimal(x) for x in _bp)
+                if _od:
+                    fade_flat = (_od - 1.0) if not g["won"] else -1.0
         sig_rows.append({"flat": flat, "won": g["won"], "move": move, "o_same": o_same, "pen_whip": pw,
-                         "n_agree": n_agree, "into_golden": into_golden})
+                         "n_agree": n_agree, "into_golden": into_golden,
+                         "fade_flat": fade_flat, "d": str(r.get("date") or "")})
 
     def _agg_sig(rows):
         v = [x["flat"] for x in rows if x["flat"] is not None]
@@ -1399,6 +1417,17 @@ def get_model_e_track_record() -> dict:
         "ours_agree_1": _agg_sig([x for x in sig_rows if x["n_agree"] == 1]),
         "ours_agree_2": _agg_sig([x for x in sig_rows if x["n_agree"] == 2]),
         "ours_agree_3": _agg_sig([x for x in sig_rows if x["n_agree"] == 3]),
+        # Registered fade WATCH (2026-09-27): fading 1-2/3-agreement bets. Live-window mirage
+        # (+6.0/126) refuted by the production-recipe walk-forward (-14.3/369, full-season 2026
+        # OOF rebuilt 9/27 with the live pipeline); tracked post-reg so it dies in public.
+        "mid_agree_fade": (lambda rows: {
+            "registered": "2026-09-27", "checkpoint": 50,
+            "backtest_roi": -14.3, "backtest_n": 369,
+            "at_registration": {"roi": 6.0, "n": 126},
+            "n": len(rows),
+            "flat_roi_pct": round(100 * sum(x["fade_flat"] for x in rows) / len(rows), 2) if rows else None,
+        })([x for x in sig_rows if x["n_agree"] in (1, 2) and x.get("fade_flat") is not None
+            and x.get("d", "") >= "2026-09-27"]),
         # PROFILE cells (added 9/5, the two-factor grid): agreement count x pen+whip. The live
         # record collapsed to: E alone = money either way (+26.5%); 1-2 agree = pen+whip
         # decides (+26/+35 with, -22.5/-22.8 without); 3/3 = breakeven at best with the
@@ -1415,6 +1444,103 @@ def get_model_e_track_record() -> dict:
         "omega_same_pw_yes": _agg_sig([x for x in sig_rows if x["o_same"] and x["pen_whip"] is True]),
         "omega_same_pw_no": _agg_sig([x for x in sig_rows if x["o_same"] and x["pen_whip"] is False]),
     }
+    # TWO-SEASON PRODUCTION-RECIPE RULES (2026-09-27, user ask: a whole new tab with every rule
+    # positive in BOTH 2026 and 2025 under the LIVE pipeline). Citations from
+    # _rule_sweep_production.py run on the 9/27 OOF rebuild (_rebuild_oof_2026.py /
+    # _rebuild_oof_2025.py): 14-day expanding-window walk-forward, production training calls,
+    # devig-3.5% pricing. LIVE record here is graded the SAME devig-3.5 way over ALL settled
+    # ledger rows (not just slip bets), so backtest and live are the same currency; "live26"
+    # counts only rows since 2026-09-26, the first clean-model slate after the drift repair --
+    # that subset is the current model's true live record and is the one that matters forward.
+    TWO_SEASON = {
+        "ts_dogA":       {"label": "Dog flip GRADE-A (55%+)", "group": "dog", "roi26": 8.6, "n26": 173, "roi25": 25.9, "n25": 155},
+        "ts_fav8":       {"label": "Favorites 8+ pts", "group": "fav", "roi26": 7.8, "n26": 135, "roi25": 17.7, "n25": 475},
+        "ts_dog6":       {"label": "Dog flips 6+", "group": "dog", "roi26": 4.9, "n26": 251, "roi25": 23.1, "n25": 207},
+        "ts_dog5":       {"label": "Dog flips 5+ (menu dog)", "group": "dog", "roi26": 4.8, "n26": 282, "roi25": 16.7, "n25": 234},
+        "ts_fav10":      {"label": "Favorites 10+ pts", "group": "fav", "roi26": 4.6, "n26": 49, "roi25": 24.7, "n25": 346},
+        "ts_dog5_short": {"label": "Flip 5+, short-priced dog", "group": "dog", "roi26": 4.1, "n26": 263, "roi25": 15.6, "n25": 221},
+        "ts_dog5_h13":   {"label": "Flip 5+ & h13 also flips", "group": "dog", "roi26": 2.7, "n26": 242, "roi25": 5.3, "n25": 146},
+        "ts_menu_h13":   {"label": "Menu bet & h13 menu-agrees", "group": "menu", "roi26": 1.9, "n26": 544, "roi25": 2.7, "n25": 361},
+        "ts_menu":       {"label": "E menu (every bet)", "group": "menu", "roi26": 1.8, "n26": 855, "roi25": 13.7, "n25": 983},
+        "ts_fav36":      {"label": "Slim favorites 3-6 (light)", "group": "fav", "roi26": 0.3, "n26": 275, "roi25": 1.9, "n25": 158},
+        "ts_dog8":       {"label": "Dog flips 8+", "group": "dog", "roi26": 0.3, "n26": 194, "roi25": 28.7, "n25": 151},
+        "ts_menu_fav":   {"label": "Menu favorites 3+", "group": "fav", "roi26": 0.3, "n26": 573, "roi25": 12.7, "n25": 749},
+        "ts_fav6":       {"label": "Favorites 6+ pts", "group": "fav", "roi26": 0.2, "n26": 298, "roi25": 15.7, "n25": 591},
+        "ts_e_alone":    {"label": "Menu bet, E alone (0/3)", "group": "menu", "roi26": 0.2, "n26": 120, "roi25": 12.9, "n25": 226},
+    }
+    ts_live = {k: [] for k in TWO_SEASON}
+    ts_live26 = {k: [] for k in TWO_SEASON}
+    _ts_all = log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
+                  & log["market_home_prob"].notna() & log["model_e_prob"].notna()]
+    for _, r in _ts_all.iterrows():
+        mk = float(r["market_home_prob"])
+        if not (0.02 < mk < 0.98):
+            continue
+        pe = float(r["model_e_prob"])
+        fh = mk >= 0.5
+        mkf = mk if fh else 1 - mk
+        epf = pe if fh else 1 - pe
+        e = epf - mkf
+        dogp, doge = 1 - epf, -e
+
+        def _ts_menu(p):
+            if p is None or pd.isna(p):
+                return None
+            f = float(p) if fh else 1 - float(p)
+            ee = f - mkf
+            if ee >= 0.03 and (mkf < 0.60 or ee >= 0.06):
+                return "fav"
+            if (1 - f) >= 0.52 and -ee >= 0.05:
+                return "dog"
+            return None
+
+        side_e = _ts_menu(pe)
+        fired = {}  # key -> side ("fav"/"dog")
+        if dogp >= 0.55 and doge >= 0.06:
+            fired["ts_dogA"] = "dog"
+        if dogp >= 0.52 and doge >= 0.06:
+            fired["ts_dog6"] = "dog"
+        if dogp >= 0.52 and doge >= 0.08:
+            fired["ts_dog8"] = "dog"
+        if side_e == "dog":
+            fired["ts_dog5"] = "dog"
+            if (1 - mkf) > 0.42:
+                fired["ts_dog5_short"] = "dog"
+            if _ts_menu(r.get("model_e_baseball_prob")) == "dog":
+                fired["ts_dog5_h13"] = "dog"
+        if epf >= 0.5:
+            if e >= 0.06:
+                fired["ts_fav6"] = "fav"
+            if e >= 0.08:
+                fired["ts_fav8"] = "fav"
+            if e >= 0.10:
+                fired["ts_fav10"] = "fav"
+            if 0.03 <= e < 0.06 and mkf < 0.60:
+                fired["ts_fav36"] = "fav"
+        if side_e:
+            fired["ts_menu"] = side_e
+            if side_e == "fav":
+                fired["ts_menu_fav"] = side_e
+            sib = [_ts_menu(r.get(c)) for c in ("model_home_win_prob", "model_c_prob", "model_e_baseball_prob")]
+            if sib[2] == side_e:
+                fired["ts_menu_h13"] = side_e
+            if not any(s == side_e for s in sib):
+                fired["ts_e_alone"] = side_e
+        if not fired:
+            continue
+        fav_won = bool(r["home_won"]) == fh
+        for k, sd in fired.items():
+            won = fav_won if sd == "fav" else not fav_won
+            ps = mkf if sd == "fav" else 1 - mkf
+            pnl = ((1.0 / ps) * (1 - 0.035) - 1.0) if won else -1.0
+            ts_live[k].append(pnl)
+            if str(r.get("date") or "") >= "2026-09-26":
+                ts_live26[k].append(pnl)
+    two_season = {k: {**TWO_SEASON[k],
+                      "live_roi_pct": round(100 * sum(v) / len(v), 2) if (v := ts_live[k]) else None,
+                      "live_n": len(ts_live[k]),
+                      "live26_roi_pct": round(100 * sum(w) / len(w), 2) if (w := ts_live26[k]) else None,
+                      "live26_n": len(ts_live26[k])} for k in TWO_SEASON}
     # PEN+WHIP FADE record (2026-09-05, the golden-contrarian signal): over ALL settled games
     # (jacob-ledger helper defined below, near the bottom of this module)
     # (not just E bets), how has the both-edge team done when the site's frozen prediction had
@@ -1678,6 +1804,189 @@ def get_model_e_track_record() -> dict:
                                "recent_roi_pct": _recent_half_roi([x for _, x in v])}
         else:
             bullpen_lean[k] = None
+    # SIGNAL-STACK record (2026-09-27, user ask -- the "live signals" tab): the live-positive
+    # signal families, retro-applied per settled game; a game side that collects 2+ of them is a
+    # "stacked pick". Graded flat at the frozen de-vigged close minus 3.5% vig, whole ledger.
+    # Signals mirrored EXACTLY by LiveSignalsView.jsx (client board for today's slate): pen-lean
+    # buckets (very_close/close_strong/big_gap -- the positive three), A-selectivity picks
+    # (flip >=6 / fav >=6), HD-FOLLOW, blocked-band dog, fav 0-3, and the E-bet chips (grade-B
+    # dog, pen+whip both edges, line moved toward, E-alone, heavy-fav 6+).
+    stack_buckets = {1: [], 2: [], 3: []}
+    # USER FORWARD TRACKERS (registered 2026-09-26, user ask "track what our live roi is today
+    # and moving forward"): (a) FADE fav 0-3 -- model likes the favorite by 0-3, take the DOG;
+    # (b) FADE dog 0-3 -- model likes the dog by 0-3, take the FAVORITE; (c) the BOARD -- every
+    # side that out-signals its opponent (any stack count, demoted signals included), daily.
+    # All flat at the devig close -3.5%. all-ledger = context; post_reg = the real record.
+    _REG_UF = "2026-09-26"
+    fav03_fade_rows, dog03_fade_rows, board_rows = [], [], []
+    dollar_rows = []  # $25 SLATE (2026-09-26 user ask): every followed pick, $25 flat at the
+    # best frozen book price (fallback devig-3.5). Fade lane wins conflicts with the board
+    # (user's own rule, shown 9/26: took KC/COL/TB fades over the CLE/CWS/PHI board sides).
+    if pw_feats is not None:
+        for _, r in log[(log["settled"] == True) & log["home_won"].notna()  # noqa: E712
+                        & log["market_home_prob"].notna()].iterrows():
+            mk = float(r["market_home_prob"])
+            if not (0.02 < mk < 0.98):
+                continue
+            fh = mk >= 0.5
+            mkf = mk if fh else 1 - mk
+            fav_h, dog_h = fh, not fh
+            sides = {True: set(), False: set()}  # side_is_home -> fired signal keys
+            _dollar_picks = {}  # side_is_home -> tracker tags
+            gpk = r.get("game_pk")
+            if pd.notna(gpk) and gpk in pw_feats.index:
+                _w = pw_feats.loc[gpk, "whip_diff"]
+                _b = pw_feats.loc[gpk, "bullpen_fip_diff"]
+                if pd.notna(_w) and pd.notna(_b) and _b != 0:
+                    _aw, _ab = abs(_w), abs(_b)
+                    bk = "very_close" if _aw <= 0.059 else (
+                        ("close_strong" if _ab > 0.498 else "close") if _aw <= 0.143 else "big_gap")
+                    if bk != "close":  # the one negative bucket stays off the board
+                        sides[bool(_b > 0)].add("pen_" + bk)
+            ap = r.get("model_home_win_prob")
+            if pd.notna(ap):
+                apf = float(ap) if fh else 1 - float(ap)
+                if apf < 0.48 and (1 - apf) - (1 - mkf) >= 0.06:
+                    sides[dog_h].add("a_flip")
+                elif apf - mkf >= 0.06:
+                    sides[fav_h].add("a_fav6")
+            ep = r.get("model_e_prob")
+            if pd.notna(ep):
+                epf = float(ep) if fh else 1 - float(ep)
+                de = epf - mkf
+                if mkf >= 0.60 and de <= -0.03:
+                    sides[fav_h].add("hd_follow")
+                if mkf >= 0.60 and 0.03 <= de < 0.06:
+                    sides[dog_h].add("blocked_dog")
+                if 0 <= de < 0.03:
+                    sides[fav_h].add("fav03")
+                    _dwon = bool(r["home_won"]) != fh
+                    _dpnl = ((1.0 / (1 - mkf)) * (1 - 0.035) - 1.0) if _dwon else -1.0
+                    fav03_fade_rows.append((_dwon, _dpnl, str(r.get("date") or "")))
+                    _dollar_picks.setdefault(not fh, set()).add("FADE fav 0-3")
+                if -0.03 < de < 0:
+                    _fwon2 = bool(r["home_won"]) == fh
+                    _fpnl2 = ((1.0 / mkf) * (1 - 0.035) - 1.0) if _fwon2 else -1.0
+                    dog03_fade_rows.append((_fwon2, _fpnl2, str(r.get("date") or "")))
+                    _dollar_picks.setdefault(fh, set()).add("FADE dog 0-3")
+            eb2 = None
+            if pd.notna(r.get("model_e_bet_json")):
+                try:
+                    eb2 = json.loads(r["model_e_bet_json"])
+                except (TypeError, ValueError):
+                    eb2 = None
+            if eb2:
+                bs = bool(eb2.get("side_is_home"))
+                if eb2.get("type") == "underdog" and eb2.get("dog_grade") == "B":
+                    sides[bs].add("dogB")
+                if eb2.get("pen_whip") is True:
+                    sides[bs].add("pen_whip")
+                fs = eb2.get("first_seen_market_prob")
+                mp2 = eb2.get("market_prob")
+                if fs is not None and mp2 is not None and (mp2 - fs) > 0.005:
+                    sides[bs].add("line_toward")
+                if eb2.get("type") == "favorite" and (eb2.get("market_prob") or 0) >= 0.60                         and (eb2.get("edge") or 0) >= 0.06:
+                    sides[bs].add("heavy_fav6")
+                agree_any = False
+                for c3 in ("model_home_win_prob", "model_c_prob", "model_e_baseball_prob"):
+                    p3 = r.get(c3)
+                    if pd.isna(p3):
+                        continue
+                    p3f = float(p3) if fh else 1 - float(p3)
+                    e3 = p3f - mkf
+                    s3 = None
+                    if e3 >= 0.03 and (mkf < 0.60 or e3 >= 0.06):
+                        s3 = fav_h
+                    elif (1 - p3f) >= 0.52 and -e3 >= 0.05:
+                        s3 = dog_h
+                    if s3 is not None and s3 == bs:
+                        agree_any = True
+                if not agree_any:
+                    sides[bs].add("e_alone")
+            nh, na = len(sides[True]), len(sides[False])
+            if nh != na:
+                top_h = nh > na
+                cnt = max(nh, na)
+                mks2 = mk if top_h else 1 - mk
+                won2 = bool(r["home_won"]) == top_h
+                pnl2 = ((1.0 / mks2) * (1 - 0.035) - 1.0) if won2 else -1.0
+                stack_buckets[min(cnt, 3)].append((won2, pnl2))
+                board_rows.append((won2, pnl2, str(r.get("date") or ""), min(cnt, 3)))
+                if not any(sh8 != top_h for sh8 in _dollar_picks):
+                    _dollar_picks.setdefault(top_h, set()).add(f"BOARD x{cnt}")
+            _d8 = str(r.get("date") or "")
+            if _dollar_picks and _d8 >= _REG_UF:
+                try:
+                    _lo8 = json.loads(r["live_odds_json"]) if pd.notna(r.get("live_odds_json")) else None
+                except (TypeError, ValueError):
+                    _lo8 = None
+                for _sh, _tags in _dollar_picks.items():
+                    _sd8 = "home" if _sh else "away"
+                    _cands = []
+                    if _lo8:
+                        for _bn, _bv in (_lo8.get("books") or {}).items():
+                            _pv = _bv.get(_sd8) if isinstance(_bv, dict) else None
+                            if _pv is not None:
+                                _dc = model_e.american_to_decimal(_pv)
+                                if _dc:
+                                    _cands.append((_dc, str(_bn), _pv))
+                        if not _cands and _lo8.get(_sd8) is not None:
+                            _dc = model_e.american_to_decimal(_lo8[_sd8])
+                            if _dc:
+                                _cands = [(_dc, str(_lo8.get("bookmaker")), _lo8[_sd8])]
+                    if _cands:
+                        _dec8, _bk8, _pr8 = max(_cands)
+                    else:
+                        _mks8 = mk if _sh else 1 - mk
+                        _dec8 = (1.0 / _mks8) * (1 - 0.035)
+                        _bk8, _pr8 = "devig", None
+                    _won8 = bool(r["home_won"]) == _sh
+                    dollar_rows.append({
+                        "date": _d8,
+                        "matchup": f"{r.get('away_team_abbr')}@{r.get('home_team_abbr')}",
+                        "side": r.get("home_team_abbr") if _sh else r.get("away_team_abbr"),
+                        "price": _pr8, "book": _bk8, "won": bool(_won8),
+                        "profit_usd": round(25.0 * (_dec8 - 1.0), 2) if _won8 else -25.0,
+                        "tags": sorted(_tags),
+                    })
+    def _stk(v):
+        if not v:
+            return None
+        return {"n": len(v), "hit_rate": round(sum(1 for w, _ in v if w) / len(v), 4),
+                "flat_roi_pct": round(100 * sum(x for _, x in v) / len(v), 2)}
+    signal_stack = {"one": _stk(stack_buckets[1]), "two": _stk(stack_buckets[2]),
+                    "three_plus": _stk(stack_buckets[3])}
+    def _dagg(rows):
+        if not rows:
+            return {"n": 0, "wins": 0, "staked_usd": 0, "profit_usd": 0.0, "roi_pct": None}
+        pf = sum(x["profit_usd"] for x in rows)
+        return {"n": len(rows), "wins": sum(1 for x in rows if x["won"]),
+                "staked_usd": 25 * len(rows), "profit_usd": round(pf, 2),
+                "roi_pct": round(100 * pf / (25 * len(rows)), 2)}
+    dollar_rows.sort(key=lambda x: x["date"], reverse=True)
+    _ddays = sorted({x["date"] for x in dollar_rows}, reverse=True)
+    dollar_slate = {
+        "registered": _REG_UF, "stake_usd": 25,
+        "overall": _dagg(dollar_rows),
+        "days": [{"date": dd, **_dagg([x for x in dollar_rows if x["date"] == dd])} for dd in _ddays[:30]],
+        "rows": dollar_rows[:80],
+    }
+    def _uf(rows):
+        v = [(w, p) for w, p, *_ in rows]
+        return _stk(v)
+    forward_trackers = {
+        "registered": _REG_UF,
+        "fav03_fade": {"all": _uf(fav03_fade_rows),
+                       "post_reg": _uf([x for x in fav03_fade_rows if x[2] >= _REG_UF])},
+        "dog03_fade": {"all": _uf(dog03_fade_rows),
+                       "post_reg": _uf([x for x in dog03_fade_rows if x[2] >= _REG_UF])},
+        "board": {"all": _uf(board_rows),
+                  "post_reg": _uf([x for x in board_rows if x[2] >= _REG_UF]),
+                  "post_reg_by_stack": {
+                      "one": _uf([x for x in board_rows if x[2] >= _REG_UF and x[3] == 1]),
+                      "two": _uf([x for x in board_rows if x[2] >= _REG_UF and x[3] == 2]),
+                      "three_plus": _uf([x for x in board_rows if x[2] >= _REG_UF and x[3] == 3])}},
+    }
     # LIVE record of the CURRENT rules, retro-applied to every settled bet: post-9/4 thresholds
     # (fav >= 3 pts, dog >= 6 pts) plus the omega-co-fire filter. This is the honest "what has
     # the ruleset that is live RIGHT NOW actually earned on real bets" number -- the Profit tab's
@@ -1735,6 +2044,10 @@ def get_model_e_track_record() -> dict:
             "jacob_book": jacob_book, "model_a_shadow": model_a_shadow, "dog_shade23": dog_shade23,
             "model_x_shadow": model_x_shadow, "xa_agree": xa_agree,
             "backtest_menu": backtest_menu,
+            "two_season": two_season,
+            "signal_stack": signal_stack,
+            "forward_trackers": forward_trackers,
+            "dollar_slate": dollar_slate,
             "fav_sub3": fav_sub3,
             "by_signal": by_signal, "current_rules": current_rules,
             "pen_whip_fade": pen_whip_fade, "bullpen_lean": bullpen_lean,

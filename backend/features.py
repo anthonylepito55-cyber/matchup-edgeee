@@ -233,6 +233,11 @@ CLOSE_MATCHUP_FIP_SCALE = 0.75  # combined season+recent starter FIP gap beyond 
 # against a total unknown, while a THIN (not zero) sample on both sides still gets the existing
 # min()-based shrinkage exactly as before -- this only changes behavior when one side is fully
 # absent, not when both sides simply have a smaller-than-ideal sample.
+# Experimental thin-side shrink flag -- see the EXPERIMENTAL block in build_matchup_features.
+# Default False (live behavior unchanged); the overnight validation rig flips it to rebuild a
+# variant training set and walk-forward compare before any ship decision.
+THIN_SIDE_SHRINK = False
+
 LEAGUE_AVG_FIP = 4.06
 LEAGUE_AVG_K_BB_PCT = 14.22
 LEAGUE_AVG_HR9 = 1.14
@@ -888,6 +893,32 @@ def build_matchup_features(
     xera_home, xera_away = _with_league_avg(xera_home, xera_away, LEAGUE_AVG_XERA)
     xfip_home, xfip_away = _with_league_avg(xfip_home, xfip_away, LEAGUE_AVG_XFIP)
     siera_home, siera_away = _with_league_avg(siera_home, siera_away, LEAGUE_AVG_SIERA)
+
+    # EXPERIMENTAL (default OFF -- flipped only by the overnight validation rig, never live
+    # until walk-forward validated + approved): the thin-side generalization of the fallback
+    # above. min()-gating means an ASYMMETRICALLY thin sample still suppresses the strong
+    # side's real quality (SF@NYM 2026-09-04: Wilkinson 5.7 IP dragged McLean's 148.7 IP /
+    # 3.21 ERA season to near-invisibility; the market said 64%, the models ~55%). Variant:
+    # shrink each side toward league average by ITS OWN weight, then compare at full
+    # season_weight -- a true debut converges to exactly the shipped fallback, a full sample
+    # is untouched, and a thin side becomes "roughly league average" instead of a veto.
+    if THIN_SIDE_SHRINK and home_has_season and away_has_season:
+        _w_h = _season_ip_weight(ip_home, season_ip_per_start_home)
+        _w_a = _season_ip_weight(ip_away, season_ip_per_start_away)
+
+        def _shrink(pair, avg):
+            h, a = pair
+            return (avg + _w_h * (h - avg) if pd.notna(h) else h,
+                    avg + _w_a * (a - avg) if pd.notna(a) else a)
+
+        fip_home, fip_away = _shrink((fip_home, fip_away), LEAGUE_AVG_FIP)
+        kbb_home, kbb_away = _shrink((kbb_home, kbb_away), LEAGUE_AVG_K_BB_PCT)
+        hr9_home, hr9_away = _shrink((hr9_home, hr9_away), LEAGUE_AVG_HR9)
+        h9_home, h9_away = _shrink((h9_home, h9_away), LEAGUE_AVG_H9)
+        xera_home, xera_away = _shrink((xera_home, xera_away), LEAGUE_AVG_XERA)
+        xfip_home, xfip_away = _shrink((xfip_home, xfip_away), LEAGUE_AVG_XFIP)
+        siera_home, siera_away = _shrink((siera_home, siera_away), LEAGUE_AVG_SIERA)
+        season_weight = max(_w_h, _w_a)  # per-side confidence now lives in the values themselves
 
     # Prior-season (e.g. 2025) form as its OWN signal — distinct from season_stats above, which
     # already blends in prior-season data but only to fill in a thin current-season sample, and

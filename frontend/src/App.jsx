@@ -19,6 +19,9 @@ import ModelF5TrackRecord from './ModelF5TrackRecord.jsx'
 import BetBoard from './BetBoard.jsx'
 import ProfitView from './ProfitView.jsx'
 import BacktestView from './BacktestView.jsx'
+import TwoSeasonView from './TwoSeasonView.jsx'
+import LiveSignalsView from './LiveSignalsView.jsx'
+import MoneyView from './MoneyView.jsx'
 import DailyProfitView from './DailyProfitView.jsx'
 import EdgePicksView from './EdgePicksView.jsx'
 import StrikeoutTrackRecord from './StrikeoutTrackRecord.jsx'
@@ -149,7 +152,7 @@ export default function App() {
         {sport === 'mlb' ? (
           <>
             <ViewToggle view={view} onChange={setView} />
-            {view !== 'profit' && view !== 'daily' && view !== 'edge' && view !== 'backtested' && (
+            {view !== 'profit' && view !== 'daily' && view !== 'edge' && view !== 'backtested' && view !== 'twoseason' && view !== 'livesignals' && view !== 'money' && (
               <>
                 <BetBoard games={games} date={data?.date} />
                 <ModelStatus />
@@ -166,6 +169,12 @@ export default function App() {
               <ProfitView games={games} date={data?.date} marketAge={data?.market_age_seconds} />
             ) : view === 'backtested' ? (
               <BacktestView games={games} />
+            ) : view === 'twoseason' ? (
+              <TwoSeasonView games={games} />
+            ) : view === 'livesignals' ? (
+              <LiveSignalsView games={games} />
+            ) : view === 'money' ? (
+              <MoneyView games={games} date={data?.date} />
             ) : view === 'edge' ? (
               <EdgePicksView games={games} />
             ) : view === 'daily' ? (
@@ -315,8 +324,11 @@ function SportTabs({ sport, onChange }) {
 function ViewToggle({ view, onChange }) {
   const options = [
     { key: 'today', label: 'today' },
+    { key: 'money', label: '$25 slate' },
     { key: 'profit', label: 'bet for profit' },
     { key: 'backtested', label: 'bet for backtested' },
+    { key: 'twoseason', label: '2-season' },
+    { key: 'livesignals', label: 'live signals' },
     { key: 'edge', label: '★ edge picks' },
     { key: 'daily', label: 'daily profit' },
     { key: 'history', label: 'previous day' },
@@ -429,16 +441,27 @@ export function OpenerBadge({ flag }) {
   const unresolved = !flag.substituted
   const color = unresolved ? '#f85149' : 'var(--amber)'
   const ip = flag.ip_per_start != null ? `${Number(flag.ip_per_start).toFixed(1)} IP/start recently` : 'short outings'
+  // Bulk-arm workload read from the book's strikeout line (user idea 2026-09-24): a normal line =>
+  // deep outing expected; low => short; none => committee. Display only, never moves the prediction.
+  const wl = flag.bulk_workload
+  const bulkLast = flag.bulk_pitcher ? flag.bulk_pitcher.split(' ').slice(-1)[0] : 'the bulk arm'
+  const wlTag = wl ? ({ deep: 'DEEP', moderate: 'MOD', restricted: 'SHORT', unknown: 'NO K LINE' }[wl.workload] || '') : ''
+  const wlText = !wl ? '' :
+    wl.workload === 'deep' ? ` Book expects ${bulkLast} to go DEEP — K line ${wl.k_line}${wl.implied_ip ? ` (~${wl.implied_ip} IP)` : ''}, a full starter's workload, so this substitution is well supported.`
+    : wl.workload === 'moderate' ? ` Book has ${bulkLast} at a moderate K line ${wl.k_line}${wl.implied_ip ? ` (~${wl.implied_ip} IP)` : ''} — multi-inning but maybe not a full start.`
+    : wl.workload === 'restricted' ? ` Book has ${bulkLast} at a LOW K line ${wl.k_line}${wl.implied_ip ? ` (~${wl.implied_ip} IP)` : ''} — a short/restricted outing; treat the substitution cautiously.`
+    : ` No strikeout line posted on ${bulkLast} — the book isn't treating them as the clear workhorse (possible committee), so the bullpen-quality fallback matters more here.`
   return (
     <span className="mono" title={unresolved
       ? `OPENER: this pitcher has been going 1-2 innings (${ip}) and no consistent bulk reliever could be identified behind them — the model's numbers for this side are built on a pitcher who will likely hand off early to arms it can't see. Treat this game's prediction with heavy skepticism; the safest action is no bet.${flag.recent_bulk && flag.recent_bulk.length ? ` Who has actually pitched bulk after their recent opens (rotating, no stable pattern): ${flag.recent_bulk.map(b => `${b.name} (${b.ip} IP, ${b.date})`).join('; ')}.` : ''}`
-      : `OPENER (handled): this pitcher opens, and the card's win-probability numbers are driven by ${flag.bulk_pitcher || 'the usual bulk reliever'}'s stats instead of the opener's own short-stint line. Strikeout props still refer to the announced pitcher.`}
+      : `OPENER (handled): this pitcher opens, and the card's win-probability numbers are driven by ${flag.bulk_pitcher || 'the usual bulk reliever'}'s stats instead of the opener's own short-stint line. Strikeout props still refer to the announced pitcher.${wlText}`}
       style={{
         fontSize: 8, fontWeight: 700, letterSpacing: '0.05em', color,
         border: `1px ${unresolved ? 'solid' : 'dashed'} ${color}`, borderRadius: 3, padding: '1px 4px', marginLeft: 5,
         verticalAlign: 'middle',
       }}>
       {unresolved ? '⚠ OPENER' : `OPENER → ${flag.bulk_pitcher ? flag.bulk_pitcher.split(' ').slice(-1)[0].toUpperCase() : 'BULK'}`}
+      {!unresolved && wlTag ? <span style={{ opacity: 0.85 }}> · {wlTag}</span> : null}
     </span>
   )
 }
@@ -969,6 +992,13 @@ function GameCard({ game, odds, onOddsChange, highConviction, onSelectPitcher, o
               away={game.strikeout_predictions.away} home={game.strikeout_predictions.home}
             />
           )}
+
+          {game.simulation && game.simulation.sims ? (
+            <div className="mono" style={{ fontSize: 10, color: '#3fb950', marginTop: 8, opacity: 0.9 }}
+              title={`MONTE CARLO (2026-10-01, user ask — same treatment as the tennis cards): ${game.simulation.sims.toLocaleString()} simulated games. Each sim draws the starters' runs from their predicted innings & earned runs, hands the rest of the game to the bullpen (its FIP sets the relief run rate), applies the park factor, and plays out the score. Seeded per game so the counts are stable between refreshes. This sim already feeds the headline number (60/40 sim/classifier blend) — this line just makes it visible. Middle-80% run margin: ${game.simulation.run_diff_p10} to +${game.simulation.run_diff_p90} (home perspective).`}>
+              ⚄ MC {game.simulation.sims.toLocaleString()}: {game.home_team_abbr} wins {game.simulation.home_wins.toLocaleString()} ({(100 * game.simulation.win_prob_home).toFixed(1)}%) — {game.away_team_abbr} {game.simulation.away_wins.toLocaleString()} ({(100 * (1 - game.simulation.win_prob_home)).toFixed(1)}%) · avg score {game.home_team_abbr} {game.simulation.home_runs_mean}–{game.simulation.away_runs_mean} · total {game.simulation.projected_total}
+            </div>
+          ) : null}
 
           <div style={{ marginTop: 10 }}>
             <ToggleLink onClick={() => setShowMarket(s => !s)} open={showMarket} label="market odds" />

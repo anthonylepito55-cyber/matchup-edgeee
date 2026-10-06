@@ -124,7 +124,10 @@ STRONG_EDGE = 0.06          # gap at which backtest ROI@fair roughly doubled vs 
 # (_e_threshold_validation.py) -- see FAVORITE_THRESHOLD's comment for both sets of numbers.
 # F5 passes min_underdog_edge=0.02 explicitly (its own validation used 0.02; not re-tested --
 # and the F5 betting thesis is separately under review as of 2026-09-04).
-UNDERDOG_MIN_EDGE = 0.06
+UNDERDOG_MIN_EDGE = 0.05  # 0.06 -> 0.05 (2026-09-27, user ship call): flip 5+ passed the full
+# two-season bar -- 2026 +13.2% (270, halves +12.2/+14.5), 2025 +8.8% (294, halves +5.6/+13.0);
+# the 5-6 sliver positive both seasons on its own (+11.6/18, +6.1/40). Same standard as every
+# validated cell; adds ~1 dog bet/week.
 # Dog grade by how strongly the model flips (same profile): A = model has the dog >= 55%
 # (+21% ROI 55-60%, +35% 60%+, fold-stable), B = 52-55% (+6%). Display/ranking only.
 DOG_GRADE_A = 0.55

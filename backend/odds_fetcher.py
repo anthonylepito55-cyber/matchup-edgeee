@@ -413,11 +413,26 @@ def _fetch_panel_odds(fixture_id: str, sportsbooks: list) -> dict:
             olv = o.get("olv") or {}
             if olv.get("price") is not None:
                 entry[f"{side}_open"] = olv["price"]
+            clv = o.get("clv") or {}
+            if clv.get("price") is not None:
+                entry[f"_{side}_clv"] = clv["price"]
 
         time.sleep(HISTORICAL_RATE_LIMIT_SLEEP)
         current_by_book = _fetch_current_panel_odds(fixture_id, sportsbooks, home_team, away_team)
         for book, prices in current_by_book.items():
             by_book.setdefault(book, {}).update(prices)
+        # Closing fallback (2026-09-25): the live /fixtures/odds endpoint returns NOTHING for
+        # COMPLETED fixtures, so for backfill the current-price merge above leaves home/away
+        # empty and every historical game "matches" zero books -- this is what silently zeroed
+        # the training cache's market coverage from mid-August (Aug 56% -> Sep 0%) after the
+        # Sep 3 freshness fix rerouted current prices to the live endpoint. Use this endpoint's
+        # own clv wherever the live endpoint provided nothing; live serving still prefers the
+        # current price, so the clv-empty-for-hours freshness fix stays intact for upcoming games.
+        for entry in by_book.values():
+            for side in ("home", "away"):
+                if side not in entry and f"_{side}_clv" in entry:
+                    entry[side] = entry[f"_{side}_clv"]
+                entry.pop(f"_{side}_clv", None)
 
         # Identical home/away prices from the same book are essentially never a genuine two-sided
         # line -- see get_moneyline_odds' equivalent guard for the confirmed real case. Drop just

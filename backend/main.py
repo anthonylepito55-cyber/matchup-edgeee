@@ -93,6 +93,7 @@ from tennis_features import get_or_compute_state, build_live_matchup_features, f
 import tennis_model
 import tennis_log
 import tennis_scanner
+import tennis_context
 
 # MODEL X (2026-09-22, user ask): recency-only shadow model. Columns mirror the audition
 # script exactly; recent_whip_diff is derived at serve time from its H9+BB9 components.
@@ -406,10 +407,40 @@ def _is_opener(recent: dict) -> bool:
     text.
     """
     ip_per_start = recent.get("ip_per_start")
-    return (
-        recent.get("sample_type") == "starts" and recent.get("sample_size", 0) >= MIN_RELIABLE_STARTS
-        and ip_per_start is not None and ip_per_start < SHORT_OUTING_IP_THRESHOLD
-    )
+    if ip_per_start is None or ip_per_start >= SHORT_OUTING_IP_THRESHOLD:
+        return False
+    n = recent.get("sample_size", 0)
+    stype = recent.get("sample_type")
+    # (a) classic: a real multi-start sample that consistently runs short.
+    if stype == "starts" and n >= MIN_RELIABLE_STARTS:
+        return True
+    # (b) low-start swingmen/openers (2026-09-24 fix): a pitcher with too few real starts
+    # falls back to an "appearances" sample, which USED to skip this check entirely -- yet a
+    # sub-3 IP average over a few appearances is an unmistakable opener/short-leash pattern,
+    # and these low-start arms are exactly the population most likely to BE openers. This
+    # branch also unlocks the bulk-arm substitution (_resolve_effective_starter) for them, so
+    # the game is modeled off the pitcher who actually goes long, not the 1-inning opener.
+    # Caught Daniel Espino (CLE): 1.07 IP over 5 appearances, opened for bulk arm Joey
+    # Cantillo, silently modeled as a normal starter before this fix.
+    if stype == "appearances" and n >= 3:
+        return True
+    return False
+
+
+BULK_OVERRIDES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_cache", "bulk_overrides.json")
+
+
+def _bulk_override(team_abbr: str):
+    """Manual bulk-arm override: {"YYYY-MM-DD|TEAM": pitcher_id} in data_cache/bulk_overrides.json.
+    User-supplied ground truth for opener games where get_bulk_reliever_pattern comes up empty --
+    first case 2026-09-25 ATL: Grant Holmes bulking behind Ray Kerr with no prior pattern on
+    record. Only consulted when the announced starter IS a detected opener (see caller), so a
+    late scratch to a real starter makes the override inert."""
+    try:
+        with open(BULK_OVERRIDES_PATH, encoding="utf-8") as f:
+            return json.load(f).get(f"{todays_date_et()}|{team_abbr}")
+    except (OSError, ValueError):
+        return None
 
 
 def _resolve_effective_starter(pitcher_id: int, team_abbr: str, season: int, recent: dict) -> tuple:
@@ -426,11 +457,43 @@ def _resolve_effective_starter(pitcher_id: int, team_abbr: str, season: int, rec
     """
     if not _is_opener(recent):
         return pitcher_id, False, None
+    override = _bulk_override(team_abbr)
+    if override and int(override) != int(pitcher_id):
+        return int(override), True, get_pitcher_info(int(override)).get("name")
     bulk_id = get_bulk_reliever_pattern(pitcher_id, team_abbr, season)
     if bulk_id is None:
         return pitcher_id, False, None
     bulk_name = get_pitcher_info(bulk_id).get("name")
     return bulk_id, True, bulk_name
+
+
+BULK_DEEP_K_LINE = 4.5    # a bulk arm carrying a starter-sized K line (typical starters run 4.5-6.5)
+BULK_SHORT_K_LINE = 3.0   # is one the book expects to work deep; below ~3 it's a short/committee outing
+
+
+def _bulk_workload_signal(bulk_name, prop_lines, prizepicks_lines, bulk_k9):
+    """Estimate a substituted bulk arm's expected workload from the book's strikeout line (user
+    idea 2026-09-24). Whoever the book posts a K line on is who it expects to pitch bulk, and the
+    line size implies how deep: a normal starter line => 'deep' ("goes as many as possible"), a low
+    line => 'restricted', no line => 'unknown' (book didn't post them -- often a committee). DISPLAY
+    ONLY -- never changes the win-prob prediction. implied_ip = (line / k9) * 9 when k9 is known."""
+    if not bulk_name:
+        return None
+    key = normalize_player_name(bulk_name)
+    src = entry = None
+    bl = (prop_lines or {}).get(key)
+    if bl and bl.get("line") is not None:
+        src, entry = "book", bl
+    else:
+        pp = (prizepicks_lines or {}).get(key)
+        if pp and pp.get("line") is not None:
+            src, entry = "prizepicks", pp
+    if entry is None:
+        return {"k_line": None, "source": None, "implied_ip": None, "workload": "unknown"}
+    line = float(entry["line"])
+    implied_ip = round((line / bulk_k9) * 9, 1) if bulk_k9 else None
+    workload = "deep" if line >= BULK_DEEP_K_LINE else ("restricted" if line < BULK_SHORT_K_LINE else "moderate")
+    return {"k_line": line, "source": src, "implied_ip": implied_ip, "workload": workload}
 
 
 def _opener_substitution_warning(pitcher_name: str, bulk_name: str) -> list[str]:
@@ -1542,8 +1605,85 @@ def _tennis_reason(feats: dict, player_1_favored: bool) -> str:
     return (" and ".join(phrases)).capitalize() + "."
 
 
+_TENNIS_TODAY_CACHE = {}
+_TENNIS_TODAY_TTL = 90          # serve-stale window so the tab can poll without recomputing
+_tennis_today_refreshing = set()
+
+
 @app.get("/api/tennis/today")
 def tennis_today(date: str = None):
+    """Stale-while-revalidate wrapper (2026-09-26, user ask 'live update the tennis tab'):
+    the full compute (models + scanner + context) takes 30-120s, so the tab polls this and
+    gets the cached slate instantly while a background thread recomputes when stale."""
+    date = date or todays_date_et()
+    now = time.monotonic()
+    c = _TENNIS_TODAY_CACHE.get(date)
+    if c and now - c[0] < _TENNIS_TODAY_TTL:
+        return c[1]
+    if c:
+        if date not in _tennis_today_refreshing:
+            _tennis_today_refreshing.add(date)
+
+            def _bg(d=date):
+                try:
+                    out = _compute_tennis_today(d)
+                    _TENNIS_TODAY_CACHE[d] = (time.monotonic(), out)
+                finally:
+                    _tennis_today_refreshing.discard(d)
+
+            threading.Thread(target=_bg, daemon=True).start()
+        return c[1]
+    out = _compute_tennis_today(date)
+    _TENNIS_TODAY_CACHE[date] = (time.monotonic(), out)
+    return out
+
+
+def _devig_two_way(o1, o2):
+    """De-vig two AMERICAN odds to player_1's fair prob, or None if the line is impossible.
+    Guards against corrupt books (2026-10-05, Kabbaj/Sensano: OpticOdds's 'Polymarket (USA)'
+    mirror returned -337/-5212 -- both favorites, a 175% overround -- which the old de-vig
+    silently normalized into a fake 44/56 and flipped the favorite). Rejects both-negative
+    lines and absurd overrounds so the match shows UNPRICED instead of a fabricated market."""
+    try:
+        a, b = float(o1), float(o2)
+    except (TypeError, ValueError):
+        return None
+    if a < 0 and b < 0:
+        return None  # two favorites is impossible
+
+    def _imp(o):
+        return 1.0 / ((1 + o / 100.0) if o > 0 else (1 + 100.0 / abs(o)))
+    i1, i2 = _imp(a), _imp(b)
+    s = i1 + i2
+    if s <= 0 or s > 1.25 or s < 0.80:
+        return None  # overround way outside a real two-way book (~100-112%)
+    return round(i1 / (i1 + i2), 4)
+
+
+def _x_flat(ma, mb, mc, md, mk1, surface, league, rnd):
+    """Normalise the per-card model objects into the flat dict Model X's predict_x wants."""
+    g = lambda m, k="p1_prob": (m.get(k) if isinstance(m, dict) else None)  # noqa: E731
+    return {
+        "market_p1": mk1,
+        "a_p1": g(ma), "b_p1": g(mb), "c_p1": g(mc), "d_p1": g(md),
+        "cma_p1": g(mc, "market_aware_p1"), "ama_p1": g(ma, "market_aware_p1"),
+        "bma_p1": g(mb, "market_aware_p1"), "dma_p1": g(md, "market_aware_p1"),
+        "mc_p1": ((md.get("mc") or {}).get("p1_pct") / 100.0
+                  if isinstance(md, dict) and (md.get("mc") or {}).get("p1_pct") is not None else None),
+        "mcc_p1": ((mc.get("mc") or {}).get("p1_pct") / 100.0
+                   if isinstance(mc, dict) and (mc.get("mc") or {}).get("p1_pct") is not None else None),
+        "mc75_p1": g(mc, "mc_c75_p1"), "mcutr_p1": g(mc, "mc_cutr_p1"),
+        "surface": surface, "league": league, "round": rnd,
+    }
+
+
+def _compute_tennis_today(date: str = None):
+    # Serialize behind the shared heavy-compute lock (OOM fix, see _today_compute_lock).
+    with _today_compute_lock:
+        return _compute_tennis_today_inner(date)
+
+
+def _compute_tennis_today_inner(date: str = None):
     """
     Today's ATP + WTA singles matches with win-probability predictions.
     Built from a free historical dataset (surface/Elo/form/opponent-
@@ -1562,8 +1702,10 @@ def tennis_today(date: str = None):
         if not league_matches:
             continue
 
-        model_trained = tennis_model.load_model(league)[0] is not None
-        feat_df, player_states, h2h = get_or_compute_state(league, history_fn, as_of_date=pd.Timestamp(date))
+        # Original tour model RETIRED 2026-09-28 (user call "remove the original tennis model,
+        # keep A and B"): it never beat the market (57.5% vs 69.2% on 360 settled, closed as
+        # display-only 9/21) and Models A/B now cover the whole 1,760-player pool. The history
+        # feeds below stay -- they drive surface/tournament metadata and name matching.
         history = history_fn()
         tournament_meta = build_tournament_metadata_lookup(history)
         name_index = build_player_name_index(history)
@@ -1575,27 +1717,53 @@ def tennis_today(date: str = None):
             meta = lookup_tournament_metadata(m["tournament"], tournament_meta)
             surface = meta["surface"] if meta else "Hard"  # most common surface tour-wide; reasonable default
             surface_known = meta is not None
+            if not surface_known:
+                _ts = tennis_context.get_tournament_surface(m.get("tournament"))
+                if _ts:
+                    surface, surface_known = _ts, True
             best_of_5 = bool(meta and meta.get("series") == "Grand Slam" and league == "atp")
 
-            prediction = None
+            prediction = None   # retired model -- Models A/B are the tab's models now
             reason = None
             feats_out = None
-            if model_trained and p1_name and p2_name:
-                feats = build_live_matchup_features(
-                    p1_name, p2_name, surface, best_of_5, player_states, h2h,
-                    as_of_date=pd.Timestamp(date),
-                )
-                row = tennis_features_to_row(feats)
-                prediction = tennis_model.predict_proba(row, league)
-                reason = _tennis_reason(feats, prediction["player_1_win_prob"] >= 0.5)
-                feats_out = _json_safe(feats)
 
             odds_entry = live_odds.get(m["fixture_id"])
+            ctx1 = tennis_context.get_context(m["player_1"], surface)
+            ctx2 = tennis_context.get_context(m["player_2"], surface)
+            # SR-DOG pre-registered tracker (2026-09-26): flag the UNDERDOG (>=2.00 decimal)
+            # whose last-10-on-surface serve+return composite (sr10) beats the favorite's --
+            # the ONE rule that survived the flat-ROI battery in BOTH seasons on the
+            # TennisRatio core (2025 +21.2%/90, 2026 +1.2%/89 at real odds; sole survivor of
+            # 24 tested slices, so winner's-curse haircut applies). Display + ledger flag
+            # only -- never staked by the model. Judged at 50 settled.
+            sr_dog = None
+            if odds_entry and ctx1 and ctx2:
+                s1 = (ctx1.get("surface_stats") or {}).get("sr10")
+                s2 = (ctx2.get("surface_stats") or {}).get("sr10")
+                d1 = model_e.american_to_decimal(odds_entry.get("player_1"))
+                d2 = model_e.american_to_decimal(odds_entry.get("player_2"))
+                if None not in (s1, s2, d1, d2) and d1 != d2 and s1 != s2:
+                    dog = "p1" if d1 > d2 else "p2"
+                    if max(d1, d2) >= 2.0 and ((s1 > s2) == (dog == "p1")):
+                        sr_dog = dog
+            # SOS tracker (2026-09-26, user ask): stats not worse (sr10 within 2.0 composite
+            # pts) but CLEARLY tougher recent schedule (median opp rank <= 0.8x the other's)
+            # -> track how often they WIN. Backtest: wins 63-65% of matches but flat ROI
+            # -3/-12% (avg odds ~1.60 -- the market prices schedule strength almost exactly).
+            # WIN-RATE tracker, not a bet signal; frozen-ledger reg 4-3 (57.1%), ROI -17.6%.
+            sos = None
+            if ctx1 and ctx2:
+                s1 = (ctx1.get("surface_stats") or {}).get("sr10")
+                s2 = (ctx2.get("surface_stats") or {}).get("sr10")
+                o1, o2 = ctx1.get("avg_opp_rank"), ctx2.get("avg_opp_rank")
+                if None not in (s1, s2, o1, o2):
+                    qp = (s1 >= s2 - 2.0) and (o1 <= 0.8 * o2)
+                    qr = (s2 >= s1 - 2.0) and (o2 <= 0.8 * o1)
+                    if qp != qr:
+                        sos = "p1" if qp else "p2"
             note = None
-            if not model_trained:
-                note = "Model not trained yet"
-            elif not p1_name or not p2_name:
-                note = "No historical match data for one or both players (qualifier/wildcard with no tracked tour-level matches)"
+            if not p1_name or not p2_name:
+                note = "No tour-level match history for one or both players"
 
             results.append({
                 **m,
@@ -1609,7 +1777,205 @@ def tennis_today(date: str = None):
                 "reason": reason,
                 "features": feats_out,
                 "note": note,
+                # TennisRatio display context (2026-09-25, user ask): surface form, record vs
+                # top-200, perf-vs-market, clutch — CONTEXT ONLY, backtested as fully priced in.
+                "tr_context": {"p1": ctx1, "p2": ctx2},
+                "sr_dog": sr_dog,
+                "sos": sos,
             })
+
+    # Challenger pass (2026-09-26, user "we're missing a ton"): fixtures outside the modeled
+    # atp/wta tours get cards with TennisRatio context + SR-DOG/SOS flags, no model prediction.
+    # Surface from TennisRatio's today feed when the pairing matches, else Hard-estimated.
+    extra_matches = [m for m in all_matches if m["league"] not in ("atp", "wta")]
+    if extra_matches:
+        tr_today_surface = {}
+        try:
+            import tennisratio_ingest as _tri
+            for _t in ("atp", "wta"):
+                for _mt in _tri.fetch_today_matches(_t):
+                    _k = frozenset((tennis_context._norm_name(_mt.get("player1_name")),
+                                    tennis_context._norm_name(_mt.get("player2_name"))))
+                    _s = (_mt.get("surface") or "").title()
+                    if _s:
+                        tr_today_surface[_k] = _s
+        except Exception:  # noqa: BLE001
+            tr_today_surface = {}
+        for m in extra_matches:
+            _key = frozenset((tennis_context._norm_name(m["player_1"]),
+                              tennis_context._norm_name(m["player_2"])))
+            surface = (tr_today_surface.get(_key)
+                       or tennis_context.get_tournament_surface(m.get("tournament"))
+                       or "Hard")
+            odds_entry = live_odds.get(m["fixture_id"])
+            ctx1 = tennis_context.get_context(m["player_1"], surface)
+            ctx2 = tennis_context.get_context(m["player_2"], surface)
+            sr_dog = None
+            if odds_entry and ctx1 and ctx2:
+                s1 = (ctx1.get("surface_stats") or {}).get("sr10")
+                s2 = (ctx2.get("surface_stats") or {}).get("sr10")
+                d1 = model_e.american_to_decimal(odds_entry.get("player_1"))
+                d2 = model_e.american_to_decimal(odds_entry.get("player_2"))
+                if None not in (s1, s2, d1, d2) and d1 != d2 and s1 != s2:
+                    dog = "p1" if d1 > d2 else "p2"
+                    if max(d1, d2) >= 2.0 and ((s1 > s2) == (dog == "p1")):
+                        sr_dog = dog
+            sos = None
+            if ctx1 and ctx2:
+                s1 = (ctx1.get("surface_stats") or {}).get("sr10")
+                s2 = (ctx2.get("surface_stats") or {}).get("sr10")
+                o1, o2 = ctx1.get("avg_opp_rank"), ctx2.get("avg_opp_rank")
+                if None not in (s1, s2, o1, o2):
+                    qp = (s1 >= s2 - 2.0) and (o1 <= 0.8 * o2)
+                    qr = (s2 >= s1 - 2.0) and (o2 <= 0.8 * o1)
+                    if qp != qr:
+                        sos = "p1" if qp else "p2"
+            results.append({
+                **m, "surface": surface, "surface_estimated": _key not in tr_today_surface,
+                "best_of_5": False,
+                "live_odds": {"player_1": odds_entry["player_1"], "player_2": odds_entry["player_2"],
+                              "bookmaker": odds_entry["bookmaker"]} if odds_entry else None,
+                "prediction": None, "reason": None, "features": None,
+                "note": "No model for this tour -- TennisRatio context and trackers only",
+                "tr_context": {"p1": ctx1, "p2": ctx2},
+                "sr_dog": sr_dog, "sos": sos,
+            })
+
+    # TENNIS MODEL A (2026-09-28, user ask): stat+form+opponent-quality+H2H model %, shown
+    # against the market on every card. DISPLAY-ONLY, and the label is earned: walk-forward
+    # on 109,915 priced matches (2024/2025/2026 test years) the market's AUC .71-.73 beats
+    # the model's .66-.68 every year, market+model == market, and betting the model's
+    # disagreements loses 10.6-12.0% flat at every edge size. The % and the real H2H record
+    # are context; when Model A and the price disagree, history says trust the price.
+    # FROZEN PRE-MATCH ODDS for started/finished matches (2026-09-28, user ask): the odds
+    # feed drops fixtures once play starts, which blanked market context on live/final cards.
+    # The tennis ledger freezes each match's odds at first serve -- serve those back onto any
+    # card with no current odds, tagged frozen:true so the UI can say so.
+    try:
+        import tennis_log as _tlog2
+        _ldf = _tlog2._read_log()
+        _ldf = _ldf[_ldf["p1_odds"].notna() & _ldf["p2_odds"].notna()]
+        _fro = {}
+        for _, _lr in _ldf.iterrows():
+            _fro[str(_lr["fixture_id"])] = {"player_1": _lr["p1_odds"], "player_2": _lr["p2_odds"],
+                                            "bookmaker": _lr.get("bookmaker"), "frozen": True}
+        _nfro = 0
+        for r in results:
+            _fid = str(r.get("fixture_id"))
+            # started matches: prefer the FROZEN pre-match price even when the feed still
+            # streams in-play odds (2026-09-28 fix -- a pre-match model compared to an
+            # in-play line reads nonsense edges once a set is lost)
+            if _fid in _fro and (not r.get("live_odds") or r.get("status") != "unplayed"):
+                r["live_odds"] = _fro[_fid]
+                _nfro += 1
+        if _nfro:
+            print(f"[tennis] restored frozen pre-match odds on {_nfro} started/finished cards")
+    except Exception as _e_fro:  # noqa: BLE001
+        print(f"[tennis frozen odds] {_e_fro}")
+
+    try:
+        import tennis_model_a as _tma
+        import tennis_model_x as _tmx
+        for r in results:
+            _mk1 = None
+            if r.get("live_odds"):
+                _mk1 = _devig_two_way(r["live_odds"].get("player_1"), r["live_odds"].get("player_2"))
+                if _mk1 is None:
+                    # had a line but it was impossible -> flag it, keep the card on the board
+                    # (user wants to see it + verify the real price), but drop the bad odds.
+                    r["market_corrupt"] = True
+                    r["live_odds"] = None
+            ma = _tma.predict(r["player_1"], r["player_2"], r.get("surface"), market_p1=_mk1)
+            if ma and _mk1 is not None:
+                ma["market_p1"] = _mk1
+                ma["edge_p1"] = round(ma["p1_prob"] - _mk1, 4)
+            r["model_a"] = ma
+            # MODEL B (2026-09-28, user ask): last-10-on-surface only (recent stats + rank-
+            # adjusted who-they-beat). Same validation harness, same verdict, same label:
+            # stats-only AUC .63-.65 vs market .70-.73 all three test years, market-aware
+            # head == market, betting B's edges -10.2..-11.3%. Display-only.
+            mb = _tma.predict_b(r["player_1"], r["player_2"], r.get("surface"), market_p1=_mk1)
+            if mb and _mk1 is not None:
+                mb["market_p1"] = _mk1
+                mb["edge_p1"] = round(mb["p1_prob"] - _mk1, 4)
+            r["model_b"] = mb
+            # MODEL C (2026-09-28): 52w-on-surface profile + season + rank-band + last-10 +
+            # H2H. Audited (no leak found; ranks verified historical) but labeled carefully:
+            # its +4..+11% backtest is vs the site's AVERAGE odds, decays by year, and sits
+            # mostly in challengers/futures -- likely the stale-soft-price mechanism, unproven
+            # vs sharp closes. The c_edge25 forward lane is the judge.
+            mc = _tma.predict_c(r["player_1"], r["player_2"], r.get("surface"), market_p1=_mk1)
+            if mc and _mk1 is not None:
+                mc["market_p1"] = _mk1
+                mc["edge_p1"] = round(mc["p1_prob"] - _mk1, 4)
+            # MODEL-C MONTE CARLO (2026-10-02, user "make it like D's — independent"): a
+            # real serve-based sim anchored toward C's read. The VISIBLE line = c50 (C
+            # anchor halfway, NO sUTR -> sutr_weight=0.0 keeps it exactly as shipped).
+            # Plus two INVISIBLE variants tracked head-to-head (user "do all 3, keep them
+            # invisible, track which does best"): c75 = harder C pull; cutr = C anchor +
+            # a STRONGER sUTR de-padding first (the Storm-Hunter padded-serve fix).
+            if mc is not None and mc.get("p1_prob") is not None:
+                _cp = mc["p1_prob"]
+                _p1n, _p2n, _sf, _lg5, _b5 = (r["player_1"], r["player_2"], r.get("surface"),
+                                              r.get("league"), bool(r.get("best_of_5")))
+                try:
+                    mc["mc"] = _tma.simulate_match(_p1n, _p2n, _sf, level=_lg5, best_of_5=_b5,
+                                                   n=40000, c_anchor=_cp, c_weight=0.5, sutr_weight=0.0)
+                except Exception:  # noqa: BLE001
+                    mc["mc"] = None
+                for _k, _cw, _sw in (("mc_c75_p1", 0.75, 0.0), ("mc_cutr_p1", 0.5, 0.75)):
+                    try:
+                        _v = _tma.simulate_match(_p1n, _p2n, _sf, level=_lg5, best_of_5=_b5,
+                                                 n=20000, c_anchor=_cp, c_weight=_cw, sutr_weight=_sw)
+                        mc[_k] = (_v["p1_pct"] / 100.0) if _v else None
+                    except Exception:  # noqa: BLE001
+                        mc[_k] = None
+            r["model_c"] = mc
+            # MODEL D (2026-09-30, user ask): heavy last-10 form -- recent win rates,
+            # form vs own 52w baseline, competitiveness vs top-150, recency-weighted
+            # L10 serve/return splits, rest, rank anchor. Walk-forward: AUC .67-.69 but
+            # market-beaten; D+gray-dog decayed to +1.1% in 2026. Display-only.
+            md = _tma.predict_d(r["player_1"], r["player_2"], r.get("surface"), market_p1=_mk1,
+                                level=r.get("league"))
+            if md and _mk1 is not None:
+                md["market_p1"] = _mk1
+                md["edge_p1"] = round(md["p1_prob"] - _mk1, 4)
+            if md is not None:
+                # MONTE CARLO (2026-10-01, user ask): 100k simulated matches from the
+                # recency-weighted serve/return stats. Display context, not a signal.
+                try:
+                    md["mc"] = _tma.simulate_match(r["player_1"], r["player_2"],
+                                                   r.get("surface"), level=r.get("league"),
+                                                   best_of_5=bool(r.get("best_of_5")))
+                except Exception:
+                    md["mc"] = None
+            r["model_d"] = md
+            # MODEL X (2026-10-03, user ask): the self-auditing meta-model over the frozen
+            # log. Stacks market + A/B/C/D + gray heads + Monte Carlos (whatever it has
+            # walk-forward-validated as useful) into one number. Display-only; retrains
+            # nightly and auto-adds any frozen signal that clears the walk-forward gate.
+            try:
+                r["model_x"] = _tmx.predict_x(_x_flat(ma, mb, mc, md, _mk1,
+                                                       r.get("surface"), r.get("league"),
+                                                       r.get("round")))
+            except Exception:  # noqa: BLE001
+                r["model_x"] = None
+    except Exception as _e_tma:  # noqa: BLE001 -- never let the display models break the slate
+        print(f"[tennis models] {_e_tma}")
+
+    # Slate-driven pool growth (2026-09-26): any player on OUR board without a profile gets a
+    # background page attempt (TR's own feed misses whole events -- Boisson/Adana case). Fire
+    # and forget; new pages land in the pool for the next request via the mtime hot-reload.
+    try:
+        _missing_names = list({nm for r in results
+                               for nm, c in ((r["player_1"], (r.get("tr_context") or {}).get("p1")),
+                                             (r["player_2"], (r.get("tr_context") or {}).get("p2")))
+                               if not c})
+        if _missing_names:
+            import tennisratio_ingest as _tri2
+            threading.Thread(target=_tri2.ingest_names, args=(_missing_names,), daemon=True).start()
+    except Exception:  # noqa: BLE001
+        pass
 
     # Tennis forward record (2026-09-06): freeze predictions+odds into the tennis log
     # (upsert until first serve, frozen after) and settle any finished matches -- tennis
@@ -1635,12 +2001,252 @@ def tennis_today(date: str = None):
 
 @app.get("/api/tennis/track-record")
 def tennis_track_record():
-    return tennis_log.get_tennis_track_record()
+    d = tennis_log.get_tennis_track_record()
+    d["ab25"] = tennis_log.get_ab25_record()
+    return d
 
 
 @app.get("/api/tennis/scanner-record")
 def tennis_scanner_record():
     return tennis_scanner.get_scanner_track_record()
+
+
+@app.get("/api/tennis/model-x")
+def tennis_model_x_record():
+    """Model X meta: nightly walk-forward numbers, active features, the auto-add/reject
+    audit, and its live $25 lanes from the ab25 study."""
+    import tennis_model_x as _tmx
+    meta = _tmx.get_meta() or {"status": "not trained yet"}
+    try:
+        st = (tennis_log.get_ab25_record().get("study") or {})
+        meta["lane_all"] = st.get("model_x_all")
+        meta["lane_edge2"] = st.get("model_x_edge2")
+    except Exception:  # noqa: BLE001
+        pass
+    return meta
+
+
+@app.get("/api/tennis/history")
+def tennis_history(limit_dates: int = 30):
+    """Every finished tennis match from the frozen log, newest date first (user ask
+    2026-10-02). Each match carries the result + each model's and the MC's pick/hit."""
+    return tennis_log.get_tennis_history(limit_dates=limit_dates)
+
+
+_TENNIS_ITF_CACHE = {}
+_TENNIS_ITF_TTL = 120  # 2 min; stale-while-revalidate keeps live status fresh fast
+_itf_refreshing = set()      # dates with a background recompute in flight
+_ITF_TE_QUEUE = set()        # gap players awaiting a Tennis Explorer ingest
+_ITF_STICKY = {}             # fixture_id -> (ts, card): keep live games from vanishing on a feed gap
+_itf_te_running = [False]    # single background TE-ingest worker at a time
+
+
+@app.get("/api/tennis/itf")
+def tennis_itf(date: str = None):
+    """ITF men + women singles with the SAME A/B/C/D + cUTR + Monte Carlo models the
+    ATP/WTA board uses (user ask 2026-10-02). Stale-while-revalidate (2026-10-02): serves
+    the cached slate instantly and recomputes in a background thread when >2min stale, so
+    live status refreshes fast without a 10-min wait or a blocking recompute on every hit.
+    Separate from the main board so ITF never 2-3x's its latency; the models already cover
+    ITF (our TennisRatio pool is >half ITF/futures, 348k matches, 1,752 players)."""
+    date = date or todays_date_et()
+    now = time.monotonic()
+    c = _TENNIS_ITF_CACHE.get(date)
+    if c and now - c[0] < _TENNIS_ITF_TTL:
+        return c[1]
+    if c:  # stale: serve stale instantly, refresh in the background
+        if date not in _itf_refreshing:
+            _itf_refreshing.add(date)
+
+            def _bg(d=date):
+                try:
+                    out = _compute_tennis_itf(d)
+                    _TENNIS_ITF_CACHE[d] = (time.monotonic(), out)
+                finally:
+                    _itf_refreshing.discard(d)
+            threading.Thread(target=_bg, daemon=True).start()
+        return c[1]
+    out = _compute_tennis_itf(date)
+    _TENNIS_ITF_CACHE[date] = (now, out)
+    return out
+
+
+def _compute_tennis_itf(date: str):
+    # Serialize behind the shared heavy-compute lock (OOM fix, see _today_compute_lock).
+    with _today_compute_lock:
+        return _compute_tennis_itf_inner(date)
+
+
+def _compute_tennis_itf_inner(date: str):
+    import tennis_model_a as _tma
+    import tennis_model_x as _tmx
+    _tctx = tennis_context
+    LG = ["itf_men", "itf_women"]
+    # Polymarket/Kalshi price ~30 ITF games the main books don't (2026-10-02, user) — pull
+    # their fixtures + lines too so the ITF tab shows everything the user can actually bet.
+    BK = ["Polymarket (USA)", "Kalshi"]
+    try:
+        matches = get_tennis_today_matches(date, leagues=LG, sportsbooks=BK)
+        odds = get_tennis_moneyline_odds(date, leagues=LG, sportsbooks=BK)
+    except Exception as e:  # noqa: BLE001
+        return {"matches": [], "error": str(e)}
+    # Polymarket-DIRECT ITF (2026-10-02, user): OpticOdds mirrors ~1 ITF event; Polymarket's
+    # own API has the full calendar. Merge its open matchups in, deduped by player pair.
+    try:
+        import polymarket_tennis as _pm
+        def _pair(a, b):
+            return tuple(sorted((str(a).strip().lower(), str(b).strip().lower())))
+        pm_by_pair = {}
+        for pm in _pm.fetch_open_itf():
+            pm_by_pair[_pair(pm["player_1"], pm["player_2"])] = pm
+        have = {_pair(m["player_1"], m["player_2"]) for m in matches}
+        # (a) fill blank OpticOdds tournament names + use the DIRECT Polymarket price when
+        # OpticOdds has none OR a corrupt one (2026-10-05, Kabbaj/Sensano: OpticOdds's
+        # Polymarket-USA mirror gave -337/-5212; the real Polymarket line is the valid one).
+        for m in matches:
+            pm = pm_by_pair.get(_pair(m["player_1"], m["player_2"]))
+            if pm:
+                if not m.get("tournament"):
+                    m["tournament"] = pm["tournament"]
+                ex = odds.get(m["fixture_id"])
+                ex_ok = ex and _devig_two_way(ex.get("player_1"), ex.get("player_2")) is not None
+                pm_ok = _devig_two_way(pm["p1_odds"], pm["p2_odds"]) is not None
+                if not ex_ok and pm_ok:
+                    odds[m["fixture_id"]] = {"player_1": pm["p1_odds"], "player_2": pm["p2_odds"],
+                                             "bookmaker": "Polymarket"}
+        # (b) add Polymarket matches we don't have at all
+        for pr, pm in pm_by_pair.items():
+            if pr in have:
+                continue
+            matches.append(pm)
+            odds[pm["fixture_id"]] = {"player_1": pm["p1_odds"], "player_2": pm["p2_odds"],
+                                      "bookmaker": "Polymarket"}
+    except Exception as _e_pm:  # noqa: BLE001
+        print(f"[itf polymarket] {_e_pm}")
+    cards = []
+    for m in matches:
+        if m.get("status") not in ("unplayed", "live"):
+            continue
+        od = odds.get(m["fixture_id"])
+        surf = _tctx.get_tournament_surface(m.get("tournament")) or "Hard"
+        _mk1 = None
+        _corrupt = False
+        if od and od.get("player_1") is not None and od.get("player_2") is not None:
+            _mk1 = _devig_two_way(od.get("player_1"), od.get("player_2"))
+            if _mk1 is None:
+                _corrupt = True  # had a line but it was impossible -> flag + keep unpriced
+                od = None
+        p1, p2 = m["player_1"], m["player_2"]
+        def _mdl(fn, **kw):
+            try:
+                r = fn(p1, p2, surf, market_p1=_mk1, **kw)
+            except Exception:  # noqa: BLE001
+                return None
+            if r and _mk1 is not None:
+                r["market_p1"] = _mk1
+                r["edge_p1"] = round(r["p1_prob"] - _mk1, 4)
+            return r
+        ma = _mdl(_tma.predict)
+        mb = _mdl(_tma.predict_b)
+        mc = _mdl(_tma.predict_c)
+        md = _mdl(_tma.predict_d, level=m.get("league"))
+        if md is not None:
+            try:
+                md["mc"] = _tma.simulate_match(p1, p2, surf, level=m.get("league"))
+            except Exception:  # noqa: BLE001
+                md["mc"] = None
+        # MODEL-C MONTE CARLO (2026-10-02): visible c50 (sutr_weight 0.0 = as shipped) +
+        # two invisible tracked variants c75 / cutr (see board path).
+        if mc is not None and mc.get("p1_prob") is not None:
+            _cp = mc["p1_prob"]
+            try:
+                mc["mc"] = _tma.simulate_match(p1, p2, surf, level=m.get("league"),
+                                               n=40000, c_anchor=_cp, c_weight=0.5, sutr_weight=0.0)
+            except Exception:  # noqa: BLE001
+                mc["mc"] = None
+            for _k, _cw, _sw in (("mc_c75_p1", 0.75, 0.0), ("mc_cutr_p1", 0.5, 0.75)):
+                try:
+                    _v = _tma.simulate_match(p1, p2, surf, level=m.get("league"),
+                                             n=20000, c_anchor=_cp, c_weight=_cw, sutr_weight=_sw)
+                    mc[_k] = (_v["p1_pct"] / 100.0) if _v else None
+                except Exception:  # noqa: BLE001
+                    mc[_k] = None
+        try:
+            model_x = _tmx.predict_x(_x_flat(ma, mb, mc, md, _mk1, surf,
+                                             m.get("league"), m.get("round")))
+        except Exception:  # noqa: BLE001
+            model_x = None
+        try:
+            ctx1 = _tctx.get_context(p1, surf)
+            ctx2 = _tctx.get_context(p2, surf)
+        except Exception:  # noqa: BLE001
+            ctx1 = ctx2 = None
+        # MODEL I (2026-10-02): for players outside the TennisRatio stat pool, a Tennis
+        # Explorer results/market estimate (display-only, disambiguation-gated). Serves
+        # from cache; uncached players are queued for a background TE ingest.
+        model_i = None
+        if mc is None:
+            try:
+                import tennis_explorer_ingest as _te
+                model_i = _te.predict_i(p1, p2, surf)
+                if model_i and _mk1 is not None:
+                    model_i["market_p1"] = _mk1
+                    model_i["edge_p1"] = round(model_i["p1_prob"] - _mk1, 4)
+                if model_i is None:
+                    _ITF_TE_QUEUE.add(p1)
+                    _ITF_TE_QUEUE.add(p2)
+            except Exception:  # noqa: BLE001
+                model_i = None
+        cards.append({**m, "surface": surf, "best_of_5": False,
+                      "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
+                                     "bookmaker": od.get("bookmaker")} if od else None),
+                      "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
+                      "model_i": model_i, "model_x": model_x, "market_corrupt": _corrupt,
+                      "tr_context": {"p1": ctx1, "p2": ctx2}})
+    # kick a bounded background TE ingest for the queued gap players (polite, throttled);
+    # they fill in on a later load. Never blocks this response.
+    if _ITF_TE_QUEUE and not _itf_te_running[0]:
+        _itf_te_running[0] = True
+        q = list(_ITF_TE_QUEUE)
+        _ITF_TE_QUEUE.clear()
+
+        def _bg_te(names=q):
+            try:
+                import tennis_explorer_ingest as _te
+                _te.ensure_ingested(names, max_new=12)
+            finally:
+                _itf_te_running[0] = False
+        threading.Thread(target=_bg_te, daemon=True).start()
+    # STICKY-LIVE (2026-10-05, user "stop dropping them off when they go live"): a match
+    # that has started can briefly vanish from the OpticOdds fixture pull during the
+    # unplayed->live flip, which dropped live games off the board. Keep a short memory of
+    # seen cards; if one that was unplayed/live is missing from THIS compute but started
+    # within the last ~5h, carry it forward (marked stale) so a live game never disappears.
+    _now = time.time()
+    _cur = {c.get("fixture_id") for c in cards}
+    for c in cards:
+        if c.get("fixture_id"):
+            _ITF_STICKY[c["fixture_id"]] = (_now, c)
+    for fid, (ts, c) in list(_ITF_STICKY.items()):
+        if _now - ts > 6 * 3600:
+            del _ITF_STICKY[fid]
+            continue
+        if fid in _cur or c.get("status") not in ("unplayed", "live"):
+            continue
+        st = c.get("start_time_utc")
+        try:
+            started = datetime.fromisoformat(str(st).replace("Z", "+00:00")) if st else None
+        except (ValueError, TypeError):
+            started = None
+        # only carry a match whose scheduled start is in the recent past (plausibly still
+        # live) -- avoids resurrecting long-finished games that legitimately left the feed.
+        if started and (datetime.now(timezone.utc) - started).total_seconds() < 5 * 3600 \
+                and datetime.now(timezone.utc) >= started:
+            cards.append({**c, "status": "live", "sticky": True})
+    return {"date": date, "matches": cards,
+            "men": sum(1 for c in cards if c["league"] == "itf_men"),
+            "women": sum(1 for c in cards if c["league"] == "itf_women"),
+            "modeled": sum(1 for c in cards if c.get("model_c") or c.get("model_i"))}
 
 
 @app.get("/api/pitcher/{pitcher_id}")
@@ -1856,7 +2462,17 @@ def history_for_date(date: str):
 _TODAY_RESPONSE_CACHE = {}  # resolved_date -> (computed_at_monotonic, response_dict)
 _TODAY_CACHE_TTL_SECONDS = 45  # was 90 -- serve stale-while-revalidate for at most 45s so the
 # dog / BB-DOG marker edges (line-sensitive 3-6pt bands) refresh close to real time before games.
-_today_compute_lock = threading.Lock()
+# Shared heavy-compute lock (2026-10-02 OOM fix): the MLB /api/today compute AND both
+# tennis computes (_compute_tennis_today, _compute_tennis_itf) each peak at ~2.5-3.5GB RSS
+# (model loads + per-card 100k Monte Carlo). The box has 7.7GB RAM + 2GB swap, so when two
+# of these recompute concurrently (e.g. a foreground tennis hit during an MLB background
+# refresh, or the ITF SWR firing alongside the main slate) their footprints stacked past
+# RAM and the OOM killer nuked the service (crash-loop 2026-10-02). Serializing every heavy
+# recompute behind ONE lock caps peak memory at a single compute. All three paths are
+# stale-while-revalidate, so this adds no user-facing latency except the rare cold start.
+# RLock so a heavy compute that (now or later) nests another on the same thread can't
+# self-deadlock.
+_today_compute_lock = threading.RLock()
 _today_refresh_inflight = set()  # dates with a background recompute already running
 
 
@@ -2321,6 +2937,10 @@ def _compute_today_response(date: str = None):
                 "bulk_pitcher": bulk,
                 "ip_per_start": (recent_form_out[side] or {}).get("ip_per_start"),
             }
+            if sub and bulk:
+                # Book's K line on the bulk arm implies how deep they'll go (user idea 2026-09-24).
+                flag["bulk_workload"] = _bulk_workload_signal(
+                    bulk, prop_lines, prizepicks_lines, (recent_form_out[side] or {}).get("k9"))
             if is_op and not sub:
                 # No single bulk arm qualified as a pattern -- show WHO has actually followed
                 # this opener recently anyway (user ask 2026-09-12), so the badge can name the
@@ -3096,7 +3716,10 @@ def _compute_today_response(date: str = None):
                         away_starter_er=er_predictions["away"]["predicted"],
                         away_bullpen_fip=away_bp_fip,
                         park_factor=get_park_factor(g["home_team_abbr"]),
-                        n_sims=20_000,
+                        # 100k sims (2026-10-01, user ask: tennis-style MC on baseball
+                        # cards). Vectorized NB draws — the bump from 20k costs ~ms.
+                        n_sims=100_000,
+                        seed=(int(g["game_pk"]) if g.get("game_pk") else None),
                     )
                     blended_prob = (
                         _SIM_CLF_WEIGHT * raw_prediction["home_win_prob"]
@@ -3114,6 +3737,14 @@ def _compute_today_response(date: str = None):
                         "win_prob_home": round(sim_result["win_prob_home"], 4),
                         "projected_total": round(sim_result["projected_total"], 1),
                         "projected_spread": round(sim_result["projected_spread"], 1),
+                        # tennis-style MC readout (2026-10-01, user ask)
+                        "sims": int(sim_result["n_sims"]),
+                        "home_wins": int(round(sim_result["win_prob_home"] * sim_result["n_sims"])),
+                        "away_wins": int(round((1 - sim_result["win_prob_home"]) * sim_result["n_sims"])),
+                        "home_runs_mean": round(sim_result["home_runs_mean"], 1),
+                        "away_runs_mean": round(sim_result["away_runs_mean"], 1),
+                        "run_diff_p10": round(sim_result["run_diff_p10"], 1),
+                        "run_diff_p90": round(sim_result["run_diff_p90"], 1),
                     }
             # Display-only (not a model feature — see the ablation note on h2h_fip_diff/h2h_k9 in
             # features.py): each pitcher's own head-to-head record against tonight's specific
@@ -3483,6 +4114,20 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
         "home": _json_safe(recent_stats[home_pitcher_id]),
         "away": _json_safe(recent_stats[away_pitcher_id]),
     }
+    # Opener substitution (2026-09-24): match /api/today so the drill-down re-prices an opener
+    # game off the bulk arm too. Capture opener status on the ANNOUNCED pitcher first, then swap
+    # the WIN-PROB inputs to the bulk arm. Strikeout props + rest-days stay on the announced arm.
+    home_is_opener_announced = _is_opener(result["recent_form"]["home"])
+    away_is_opener_announced = _is_opener(result["recent_form"]["away"])
+    eff_home_id, home_sub, home_bulk = _resolve_effective_starter(home_pitcher_id, home_team, season, result["recent_form"]["home"])
+    eff_away_id, away_sub, away_bulk = _resolve_effective_starter(away_pitcher_id, away_team, season, result["recent_form"]["away"])
+    if home_sub or away_sub:
+        _eff_recent = _recent_stats_for_matchup(eff_home_id, eff_away_id, season)
+        if home_sub:
+            result["recent_form"]["home"] = _json_safe(_eff_recent[eff_home_id])
+        if away_sub:
+            result["recent_form"]["away"] = _json_safe(_eff_recent[eff_away_id])
+    win_recent = {eff_home_id: result["recent_form"]["home"], eff_away_id: result["recent_form"]["away"]}
     recent_stats_last3 = _recent_stats_last3_for_matchup(home_pitcher_id, away_pitcher_id, season)
     result["last3_form"] = {
         "home": _json_safe(recent_stats_last3[home_pitcher_id]),
@@ -3497,7 +4142,8 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
     days_since_il_home = days_since_il_return(home_pitcher_id, today_str, il_activations)
     days_since_il_away = days_since_il_return(away_pitcher_id, today_str, il_activations)
     any_recent_il_return = days_since_il_home is not None or days_since_il_away is not None
-    any_opener = _is_opener(result["recent_form"]["home"]) or _is_opener(result["recent_form"]["away"])
+    any_opener = home_is_opener_announced or away_is_opener_announced
+    any_unresolved_opener = (home_is_opener_announced and not home_sub) or (away_is_opener_announced and not away_sub)
     result["opener_affected"] = any_opener
     result["pitcher_warnings"] = (
         _pitcher_warnings(f"Home starter ({home_team})", rest_days.get(home_pitcher_id), result["recent_form"]["home"]) +
@@ -3509,14 +4155,14 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
     # Same primary-model choice as /api/today — Model A (baseball-only, 5-seed ensemble), see the plan doc.
     model_trained = model_module.load_model_ensemble(model_module.BASELINE_MODEL_PATH)[0] is not None
     if model_trained:
-        result["season_stats"] = _season_stats_for_matchup(season_stats, prior_season_stats, home_pitcher_id, away_pitcher_id)
-        h2h_stats_display = _h2h_stats_dict_for_matchup(home_pitcher_id, away_pitcher_id, home_team, away_team, season)
+        result["season_stats"] = _season_stats_for_matchup(season_stats, prior_season_stats, eff_home_id, eff_away_id)
+        h2h_stats_display = _h2h_stats_dict_for_matchup(eff_home_id, eff_away_id, home_team, away_team, season)
         result["h2h"] = {
-            "home": _json_safe(h2h_stats_display.get(home_pitcher_id, {})),
-            "away": _json_safe(h2h_stats_display.get(away_pitcher_id, {})),
+            "home": _json_safe(h2h_stats_display.get(eff_home_id, {})),
+            "away": _json_safe(h2h_stats_display.get(eff_away_id, {})),
         }
         team_batting_vs_hand = {"L": get_team_batting_vs_hand(season, "L"), "R": get_team_batting_vs_hand(season, "R")}
-        pitcher_hands = {home_pitcher_id: get_pitcher_hand(home_pitcher_id), away_pitcher_id: get_pitcher_hand(away_pitcher_id)}
+        pitcher_hands = {pid: get_pitcher_hand(pid) for pid in {home_pitcher_id, away_pitcher_id, eff_home_id, eff_away_id}}
         bullpen_fatigue = {home_team: get_team_recent_bullpen_usage(home_team), away_team: get_team_recent_bullpen_usage(away_team)}
         recent_team_batting = {home_team: get_team_recent_batting_form(home_team), away_team: get_team_recent_batting_form(away_team)}
         recent_team_batting_30d = {
@@ -3541,32 +4187,40 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
         velocity_trend = _velocity_trend_for_matchup(home_pitcher_id, away_pitcher_id, season)
         pitch_diversity = _pitch_diversity_for_matchup(home_pitcher_id, away_pitcher_id, season)
         pitch_mix = _pitch_mix_for_matchup(home_pitcher_id, away_pitcher_id, season)
+        # Win-prob copies keyed to the bulk arm on a substituted opener (props below use announced).
+        if home_sub or away_sub:
+            statcast_win = _statcast_for_matchup(eff_home_id, eff_away_id, season)
+            velocity_win = _velocity_trend_for_matchup(eff_home_id, eff_away_id, season)
+            pitchdiv_win = _pitch_diversity_for_matchup(eff_home_id, eff_away_id, season)
+            pitchmix_win = _pitch_mix_for_matchup(eff_home_id, eff_away_id, season)
+        else:
+            statcast_win, velocity_win, pitchdiv_win, pitchmix_win = statcast, velocity_trend, pitch_diversity, pitch_mix
         feats = build_matchup_features(
-            home_pitcher_id=home_pitcher_id,
-            away_pitcher_id=away_pitcher_id,
+            home_pitcher_id=eff_home_id,
+            away_pitcher_id=eff_away_id,
             home_team_abbr=home_team,
             away_team_abbr=away_team,
             bullpen_fatigue=bullpen_fatigue,
             high_leverage_bullpen_stats=high_leverage_bullpen_stats,
             team_defense=team_defense,
-            statcast=statcast,
-            velocity_trend=velocity_trend,
-            pitch_diversity=pitch_diversity,
-            season_stats=_season_stats_dict_for_matchup(season_stats, prior_season_stats, home_pitcher_id, away_pitcher_id),
+            statcast=statcast_win,
+            velocity_trend=velocity_win,
+            pitch_diversity=pitchdiv_win,
+            season_stats=_season_stats_dict_for_matchup(season_stats, prior_season_stats, eff_home_id, eff_away_id),
             team_batting=team_batting,
             bullpen_stats=bullpen_stats,
             park_factor_lookup=get_park_factor,
             pitcher_hands=pitcher_hands,
             team_batting_vs_hand=team_batting_vs_hand,
-            recent_stats=recent_stats,
+            recent_stats=win_recent,
             rest_days=rest_days,
-            il_return_days={home_pitcher_id: days_since_il_home, away_pitcher_id: days_since_il_away},
-            prior_season_stats=_raw_prior_season_stats_dict_for_matchup(prior_season_stats, home_pitcher_id, away_pitcher_id),
+            il_return_days={eff_home_id: days_since_il_return(eff_home_id, today_str, il_activations), eff_away_id: days_since_il_return(eff_away_id, today_str, il_activations)},
+            prior_season_stats=_raw_prior_season_stats_dict_for_matchup(prior_season_stats, eff_home_id, eff_away_id),
             h2h_stats=h2h_stats_display,
             recent_team_batting=recent_team_batting,
             recent_team_batting_30d=recent_team_batting_30d,
             team_travel=team_travel,
-            pitch_mix=pitch_mix,
+            pitch_mix=pitchmix_win,
             batter_arsenal=batter_arsenal,
             batter_expected=batter_expected,
             batter_exitvelo=batter_exitvelo,
@@ -3584,7 +4238,7 @@ def matchup(home_pitcher_id: int, away_pitcher_id: int, home_team: str, away_tea
         )
         result["model"] = _apply_confidence_override(
             raw_prediction["home_win_prob"], feats, result["recent_form"], result.get("season_stats"), any_long_layoff,
-            any_recent_il_return, any_opener,
+            any_recent_il_return, any_unresolved_opener,
         )
         result["features"] = _json_safe(feats)
         result["data_quality"] = _data_completeness(feats)

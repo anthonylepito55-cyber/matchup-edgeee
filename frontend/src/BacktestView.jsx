@@ -19,7 +19,7 @@ function classify(g, bt) {
   const bSide = sideOf(g.market_model_prob)
   const eligible = []
   const tags = []
-  if (bet.type === 'underdog' && edge >= 0.06) {
+  if (bet.type === 'underdog' && edge >= 0.05) {  // bar 6->5 (2026-09-27, two-season validated)
     eligible.push('dog_flip6')
     if (bet.dog_grade === 'A') eligible.push('dog_flipA')
     if (bet.dog_grade === 'B') eligible.push('dog_flipB')

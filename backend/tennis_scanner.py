@@ -104,18 +104,29 @@ def _decimal(am) -> float | None:
 
 def _fetch_fixtures(date: str) -> list[dict]:
     """Unplayed singles fixtures across all scan leagues, main tours first."""
+    # 2026-09-28 fix: was /fixtures/active (drops ~half the slate -- the defect the board
+    # fetch fixed 9/26) with a 1-UTC-day window (empty every US evening) and no pagination.
+    # Now: paginated /fixtures via cursor, 48h window -- same as tennis_data.
     headers = {"X-Api-Key": OPTICODDS_API_KEY}
-    end = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    end = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
     out = []
     for league in SCAN_LEAGUES:
-        try:
-            resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures/active", params={
-                "league": league, "start_date_after": date, "start_date_before": end,
-            }, headers=headers, timeout=15)
-            resp.raise_for_status()
-            fixtures = resp.json().get("data", [])
-        except requests.exceptions.RequestException:
-            continue
+        fixtures, cursor = [], None
+        while True:
+            params = {"league": league, "start_date_after": date, "start_date_before": end}
+            if cursor:
+                params["cursor"] = cursor
+            try:
+                resp = requests.get(f"{OPTICODDS_BASE_URL}/fixtures", params=params,
+                                    headers=headers, timeout=15)
+                resp.raise_for_status()
+                j = resp.json()
+            except requests.exceptions.RequestException:
+                break
+            fixtures += j.get("data", [])
+            cursor = j.get("cursor")
+            if not j.get("data") or not j.get("has_more") or not cursor or len(fixtures) > 1500:
+                break
         for f in fixtures:
             home, away = f.get("home_competitors") or [], f.get("away_competitors") or []
             if f.get("status") != "unplayed" or len(home) != 1 or len(away) != 1:

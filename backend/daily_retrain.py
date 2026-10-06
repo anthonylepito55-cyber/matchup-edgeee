@@ -130,6 +130,51 @@ def main():
     if os.path.exists(strikeout_cache):
         shutil.copy2(strikeout_cache, strikeout_backup)
 
+    print("=== Step 0: odds backfill (closing-market coverage) ===")
+    # 2026-09-25: market coverage silently rotted to 0% for September (backfill was manual and
+    # a Sep-3 parser change made every run match nothing) -- the deployed model trained
+    # market-blind on recent games and inflated favorites live. Heal coverage BEFORE every
+    # rebuild; the MARKET COLLAPSE tripwire below stays as the last line of defense.
+    try:
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "backfill_historical_odds.py")],
+                       check=False, timeout=3600)
+    except Exception as e:  # noqa: BLE001 -- never let backfill problems block the retrain itself
+        print(f"[step 0] backfill failed/timed out: {e} -- continuing with existing coverage")
+
+    print("=== Step 0.5: tennis pool refresh (TennisRatio daily sweep) ===")
+    # 2026-09-26 user ask: walk every ATP/WTA player on today's slates and refresh their
+    # TennisRatio match log (the site keeps adding player pages); players it doesn't serve
+    # are skipped and their matches simply get no context/SR-DOG flag. Failure-tolerant.
+    try:
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "tennisratio_ingest.py"),
+                        "--refresh-daily"], check=False, timeout=2400)
+    except Exception as e:  # noqa: BLE001
+        print(f"[step 0.5] tennis pool refresh failed/timed out: {e} -- continuing")
+
+    print("=== Step 0.55: rebuild court-UTR (sUTR) from the refreshed match log ===")
+    # 2026-10-05 (Charaeva case): the sUTR is a separate artifact from the match-log
+    # profiles and was NOT rebuilt nightly, so ratings went days stale (a player's recent
+    # upset wasn't reflected in the cUTR Monte Carlo). Rebuild it from the fresh pool each
+    # night. Failure-tolerant. (Serving hot-reloads it via the artifact mtime.)
+    try:
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "_tennis_sutr_build.py")],
+                       check=False, timeout=1800)
+    except Exception as e:  # noqa: BLE001
+        print(f"[step 0.55] sUTR rebuild failed/timed out: {e} -- continuing")
+
+    print("=== Step 0.6: Model X nightly retrain (meta-model over the frozen tennis log) ===")
+    # 2026-10-03 user ask: analyse every settled game, retrain Model X daily, and auto-add
+    # any frozen signal that clears the walk-forward gate. Reads the frozen tennis log, so
+    # it only sharpens as the ledger grows. Failure-tolerant (never blocks the MLB retrain).
+    try:
+        import tennis_model_x
+        tennis_model_x.discover_and_train()
+        # apply Model X to past games via walk-forward (display/post-mortems only; the
+        # forward lanes ignore these recon rows). Refreshes as the model sharpens.
+        print("[step 0.6] Model X history backfill:", tennis_model_x.backfill_history())
+    except Exception as e:  # noqa: BLE001
+        print(f"[step 0.6] Model X retrain failed: {e} -- continuing")
+
     print("=== Step 1: incremental game-log refresh + rebuild training data ===")
     build_training_data.build_full_training_set(SEASONS)
     build_training_data.build_strikeout_training_set(SEASONS)
