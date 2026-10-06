@@ -874,6 +874,9 @@ function bestSig(m) {
     hate: (mdog - gdog) >= 0.02,
   }
 }
+// Pre-match snapshots survive tab switches (module-level, keyed by tab+fixture) so a live
+// game stays FROZEN even after you leave the Best/Prices tab and come back.
+const _bestLiveSnaps = new Map()
 function BestPanel({ query, laneRec, priceOnly }) {
   // The board's elite picks only (2026-10-05, user ask): every today/ITF game that fires a
   // signal currently proven on its gender in the live log (hit >=65%, ROI >=+4%, n>=20),
@@ -881,6 +884,8 @@ function BestPanel({ query, laneRec, priceOnly }) {
   const [data, setData] = useState({ today: null, itf: null })
   const [err, setErr] = useState(null)
   const [mode, setMode] = useState('roi')   // 'roi' = sample-weighted/ROI; 'time' = by start time
+  const snaps = _bestLiveSnaps
+  const pfx = priceOnly ? 'p·' : 'b·'        // keep Best/Prices snapshots separate
   useEffect(() => {
     const go = () => Promise.all([
       fetch('/api/tennis/today').then(r => r.json()).catch(() => ({ matches: [] })),
@@ -898,6 +903,15 @@ function BestPanel({ query, laneRec, priceOnly }) {
     if (!['unplayed', 'live'].includes(m.status)) continue
     const key = m.fixture_id || (m.player_1 + m.player_2)
     if (seen.has(key)) continue; seen.add(key)
+    // FROZEN once live (2026-10-05, user "can't have them changing mid match"): a live game
+    // is served from its pre-match snapshot, never recomputed -- so the pick/band/signals
+    // don't flip when the live model updates. (Odds are already frozen at first serve.)
+    if (m.status === 'live' && snaps.has(pfx + key)) {
+      const snap = snaps.get(pfx + key)
+      if (q && !((snap.pick || '') + ' ' + (snap.opp || '')).toLowerCase().includes(q)) continue
+      rows.push({ ...snap, live: true, frozen: true })
+      continue
+    }
     const s = bestSig(m); if (!s) continue
     const gen = m.league === 'wta' || m.league === 'itf_women' ? 'w' : 'm'
     const hits = []
@@ -926,17 +940,22 @@ function BestPanel({ query, laneRec, priceOnly }) {
     const sweet = inSweetPrice(od, gen, a10)
     if (priceOnly && !sweet) continue        // 💰 Prices tab: only sweet-spot-priced picks
     const bestN = Math.max(...kept.map(g => g.n))
-    rows.push({
-      pick, opp, od, thin, sigs: kept, gen, lg: m.league, t: m.start_time_utc, live: m.status === 'live',
+    const row = {
+      fid: key, pick, opp, od, thin, sigs: kept, gen, lg: m.league, t: m.start_time_utc, live: m.status === 'live',
       bestRoi: kept[0].roi, bestHit: kept[0].hit, nSig: kept.length,
       bestN, core: bestN >= 50,   // CORE = a dependable big-sample edge backs it
       sweet, band: priceBand(od, gen, a10), allTen: a10,
-    })
+    }
+    // Freeze the pre-match state so a live game can be served from it unchanged.
+    if (m.status === 'unplayed') snaps.set(pfx + key, { ...row })
+    rows.push(row)
   }
-  // Order: 'time' = by start time (soonest first); else sample-weighted (CORE >=50 first,
-  // then ROI; a +8%/n117 edge outranks a +67%/n12 one).
-  if (mode === 'time') rows.sort((a, b) => (a.t || '').localeCompare(b.t || ''))
-  else rows.sort((a, b) => (Number(b.core) - Number(a.core)) || b.bestRoi - a.bestRoi || b.nSig - a.nSig || b.bestHit - a.bestHit)
+  // Drop snapshots for games that have left the slate (ended) so the map doesn't grow.
+  for (const sk of [...snaps.keys()]) if (sk.startsWith(pfx) && !seen.has(sk.slice(pfx.length))) snaps.delete(sk)
+  // Order: LIVE games sticky at the top (2026-10-05, user), then 'time' = by start time, else
+  // sample-weighted (CORE >=50 first, then ROI; a +8%/n117 edge outranks a +67%/n12 one).
+  if (mode === 'time') rows.sort((a, b) => (Number(b.live) - Number(a.live)) || (a.t || '').localeCompare(b.t || ''))
+  else rows.sort((a, b) => (Number(b.live) - Number(a.live)) || (Number(b.core) - Number(a.core)) || b.bestRoi - a.bestRoi || b.nSig - a.nSig || b.bestHit - a.bestHit)
   const btn = (k, label) => (
     <button onClick={() => setMode(k)} className="mono" style={{ padding: '3px 12px', borderRadius: 12, fontSize: 10, cursor: 'pointer', marginLeft: 6, border: `1px solid ${mode === k ? '#e3b341' : 'var(--line)'}`, background: mode === k ? 'rgba(227,179,65,0.14)' : 'transparent', color: mode === k ? '#e3b341' : 'var(--text-secondary)', fontWeight: 700 }}>{label}</button>
   )
@@ -980,6 +999,7 @@ function BestPanel({ query, laneRec, priceOnly }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {bd ? <span title={bd.tip} style={{ fontSize: 10 }}>{bd.icon}</span> : null}
                 {r.live ? <span style={{ color: '#f85149', fontSize: 8 }}>● LIVE</span> : null}
+                {r.frozen ? <span title="📌 Frozen at first serve — this in-play pick is shown exactly as it was pre-match; live model updates do NOT change it (odds were already frozen too)." style={{ fontSize: 8, color: '#e3b341' }}>📌 frozen</span> : null}
                 {r.nSig >= 2 ? <span style={{ color: '#3fb950', fontSize: 9, fontWeight: 700, border: '1px solid #3fb95088', borderRadius: 4, padding: '0 5px' }}>★{r.nSig} STACK</span> : null}
                 <span title={r.core ? 'CORE: a dependable edge with 50+ settled bets backs this — bet it at full unit.' : 'THIN: best backing edge has <50 settled bets. Real but high-variance — bet smaller, expect regression.'} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${r.core ? '#58a6ff88' : '#8b949e66'}`, color: r.core ? '#58a6ff' : '#8b949e' }}>{r.core ? 'CORE' : 'THIN'} n{r.bestN}</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: bd ? bd.col : '#3fb950', textShadow: bd ? `0 0 10px ${bd.glow}` : undefined }}>{r.pick}</span>
