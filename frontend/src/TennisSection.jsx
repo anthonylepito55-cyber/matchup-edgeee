@@ -1562,6 +1562,11 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           }
           addG('HATED DOG', dog1, b26('−22.8', '−41.8'), stx.grayhate_dog, '#f85149')
         }
+        // 🥇 GOLD NAME chip (2026-10-05, user ask: chip the gold names, not just the glow).
+        // Every neon-yellow name = the union of C+gray DOGs (star → g1) and gray-hated
+        // FAVORITES (hate → !dog1). add() shows THIS match's gender record (men +4.1% / 201,
+        // women −10.4% / 107) and recolors by it (green on men, red on women).
+        if (star || hate) add('🥇 GOLD NAME', star ? g1 : !dog1, b26('+4.1', '−10.4'), stx.gold_names, '#f5f13b')
         if (c1 !== g1) {
           addG('FIGHT C-side', c1, b26('−1.3', '+2.3'), stx.cvg_c, '#f85149')
           addG('FIGHT gray-side', g1, b26('−8.0', '−6.6'), stx.cvg_gray, '#8b949e')
