@@ -1756,7 +1756,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             if (favp >= 0.65 && favp < 0.85)
               conflicts.push(['⑤', `LEAN FAV · ${nmc(!dog1)}`, 'COLLISION (every base model on the fav + gray hates the dog) at a 65-85% favorite price: the dog edge is gone, but the FAVORITE here has been positive — but ONLY on WOMEN (+13.8% live, n10), driven by the 75-85% slice; on MEN it is flat (+0.6%). Thin samples, low conviction. This match’s gender record shown.', 'cr5_coll_leanfav'])
             else
-              conflicts.push(['⑤', 'COLLISION · PASS (no edge)', 'COLLISION at a near-coin-flip (50-65%) or extreme-chalk (85%+) favorite price: NEITHER side is +EV — the dog is deeply negative and the favorite has also lost here. NO-BET, skip the game. Live record (all genders) shown.', 'cr5_coll_passfav'])
+              conflicts.push(['⑤', 'COLLISION · PASS (no edge)', 'COLLISION at a near-coin-flip (50-65%) or extreme-chalk (85%+) favorite price: NEITHER side is +EV — the dog is deeply negative and the favorite has also lost here. NO-BET, skip. NOTE: even if ✅ ALL-10 AGREE fires here (a high WIN RATE like 14-3), that is win rate, not profit — ALL-10 only makes money OUTSIDE collisions (+26.8%, 6-0 on women); inside one it loses (−3.2%, and −19% at 50-65% fav). You will usually win the match but still lose money at the price. This match’s gender record shown.', 'cr5_coll_passfav'])
           }
           else conflicts.push(['④', `TRUST DOG · ${nmc(dog1)}`, 'The gray line hates the market dog (WOMEN): take the DOG — it has paid live at the plus price. (But if every model also agrees on the favorite, rule ⑤ overrides this and says fade the dog.) Live record shown.', 'cr4_grayhate'])
         }
