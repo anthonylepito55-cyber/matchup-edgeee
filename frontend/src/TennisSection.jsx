@@ -795,17 +795,28 @@ const BEST_N = 20, BEST_HIT = 65, BEST_ROI = 4
 // price map): MEN +100..+250 (dog value, +46%) or −600..−300 (short-chalk pocket, +8%);
 // WOMEN +150..+250 only. The −110..−300 band and extreme chalk (< −600) lose, so excluded.
 // A Best pick inside one of these windows historically ran +24% ROI vs +6.7% for all Best.
-function inSweetPrice(od, gen) {
+// ...plus a MEN-ONLY exception (2026-10-05): when ALL 10 models agree, the −150..−300 band
+// flips profitable (+12.8%, 21-6, driven by −200/−300 at +16.7%) even though it loses for
+// every other signal and for women's ALL-10 (−39%). So pass isAll10 to open that window.
+function inSweetPrice(od, gen, isAll10) {
   if (od == null) return false
-  if (gen === 'w') return od >= 150 && od <= 250
+  if (gen === 'w') return false   // MEN ONLY for now (2026-10-05, user) — women sweet spots
+  // are too thin (n=13) to mark; revisit once validated. Women dog value = MC-DOG chips.
   return (od >= 100 && od <= 250) || (od >= -600 && od <= -300)
+    || (!!isAll10 && od >= -300 && od <= -150)
 }
-function priceBand(od, gen) {
-  if (od == null) return null
-  if (od >= 150 && od <= 250) return 'dog +150/250'
-  if (gen === 'm' && od >= 100 && od < 150) return 'dog +100/150'
-  if (gen === 'm' && od >= -600 && od <= -300) return 'chalk −300/600'
+function priceBand(od, gen, isAll10) {
+  if (od == null || gen !== 'm') return null   // men-only marking
+  if (od >= 100 && od <= 250) return od >= 150 ? 'dog +150/250' : 'dog +100/150'
+  if (od >= -600 && od <= -300) return 'chalk −300/600'
+  if (isAll10 && od >= -300 && od <= -150) return 'ALL-10 −150/300'
   return null
+}
+// Do all 10 model heads agree on one side? (used for the ALL-10 price exception.)
+function isAll10Agree(s) {
+  if (!s) return false
+  const a = [s.aP, s.bP, s.c1, s.g1, s.dP, s.dmaP, s.mcdS, s.mcS, s.c75, s.cuS]
+  return a.every(x => x != null) && a.every(x => x === a[0])
 }
 // Elite signal predicates -- each recomputes a lane's membership from a match's model
 // outputs (same conditions as the board's signal strip) and returns the pick side as a
@@ -897,14 +908,15 @@ function BestPanel({ query, laneRec, priceOnly }) {
     const thin = !!((dmx.sutr_p1 && dmx.sutr_p1.n != null && dmx.sutr_p1.n < 12)
       || (dmx.sutr_p2 && dmx.sutr_p2.n != null && dmx.sutr_p2.n < 12))
     const od = m.live_odds ? (pickSide ? m.live_odds.player_1 : m.live_odds.player_2) : null
-    const sweet = inSweetPrice(od, gen)
+    const a10 = isAll10Agree(s)                 // all 10 heads agree -> opens the −150/−300 men window
+    const sweet = inSweetPrice(od, gen, a10)
     if (priceOnly && !sweet) continue        // 💰 Prices tab: only sweet-spot-priced picks
     const bestN = Math.max(...kept.map(g => g.n))
     rows.push({
       pick, opp, od, thin, sigs: kept, gen, lg: m.league, t: m.start_time_utc, live: m.status === 'live',
       bestRoi: kept[0].roi, bestHit: kept[0].hit, nSig: kept.length,
       bestN, core: bestN >= 50,   // CORE = a dependable big-sample edge backs it
-      sweet, band: priceBand(od, gen),
+      sweet, band: priceBand(od, gen, a10),
     })
   }
   // Sample-weighted order (2026-10-05, user "weight by sample size, not headline ROI"):
@@ -915,14 +927,14 @@ function BestPanel({ query, laneRec, priceOnly }) {
     <div style={{ marginTop: 16 }}>
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: `1px solid ${priceOnly ? '#e3b34155' : '#3fb95055'}`, background: priceOnly ? 'rgba(227,179,65,0.06)' : 'rgba(63,185,80,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
         {priceOnly ? (
-          <><b style={{ color: '#e3b341' }}>💰 BEST PICKS · SWEET-SPOT PRICES</b> — Best-tab picks that ALSO sit in a profitable price window: <b>men +100…+250</b> (dog value) or <b>−300…−600</b> (short chalk), <b>women +150…+250</b>. On the full log these ran <b style={{ color: '#3fb950' }}>+24% ROI</b> (plus-money +46%) vs +6.7% for all Best picks — the signal edge × the price edge. Mostly a men's set; women’s window is thin. Skips the −110…−300 dead zone. Auto-refresh 2 min.</>
+          <><b style={{ color: '#e3b341' }}>💰 BEST PICKS · SWEET-SPOT PRICES (men only)</b> — men Best-tab picks in a profitable price window: <b>+100…+250</b> (dog value) or <b>−300…−600</b> (short chalk), PLUS <b>ALL-10-agree at −150…−300</b> (+12.8%, the one spot that band pays). On the full log these ran <b style={{ color: '#3fb950' }}>+24% ROI</b> vs +6.7% for all Best picks — signal × price. <b>Women not marked yet</b> (sample too thin — their dog value is the MC-DOG chips). Skips the −110…−300 dead zone. Auto-refresh 2 min.</>
         ) : (
           <><b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.</>
         )}
       </div>
       {rows.length === 0 ? (
         <div className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: 24, textAlign: 'center' }}>
-          {priceOnly ? 'No Best picks are in a sweet-spot price right now (men +100…+250 or −300…−600, women +150…+250).' : `No games right now clear the elite gate (hit ≥${BEST_HIT}%, ROI ≥+${BEST_ROI}%, n≥${BEST_N}).`}
+          {priceOnly ? 'No men Best picks are in a sweet-spot price right now (+100…+250, −300…−600, or ALL-10 at −150…−300).' : `No games right now clear the elite gate (hit ≥${BEST_HIT}%, ROI ≥+${BEST_ROI}%, n≥${BEST_N}).`}
         </div>
       ) : (
         <div style={{ marginTop: 12 }}>
@@ -1770,8 +1782,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             if (!top || rb.roi_pct > top.roi) top = { side: sideB, roi: rb.roi_pct }
           }
           const odB = (top && match.live_odds) ? Number(top.side ? match.live_odds.player_1 : match.live_odds.player_2) : null
-          if (top && inSweetPrice(odB, gen))
-            chips.push(['💰 PRICE ✓', nm(top.side), priceBand(odB, gen), `+${Math.round(top.roi)}% @${odB > 0 ? '+' : ''}${odB}`, '#e3b341'])
+          const a10B = isAll10Agree(bs)
+          if (top && inSweetPrice(odB, gen, a10B))
+            chips.push(['💰 PRICE ✓', nm(top.side), priceBand(odB, gen, a10B), `+${Math.round(top.roi)}% @${odB > 0 ? '+' : ''}${odB}`, '#e3b341'])
         }
         // ⚖️ CONFLICT RESOLVERS (2026-10-05, user ask): when signals point OPPOSITE ways on a
         // card, which side to trust -- gender-specific, from the live conflict lanes. Rendered
