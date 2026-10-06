@@ -1610,6 +1610,60 @@ _TENNIS_TODAY_TTL = 90          # serve-stale window so the tab can poll without
 _tennis_today_refreshing = set()
 
 
+def _tennis_freeze_models(r, lr):
+    """Overwrite a STARTED card's model outputs with the values frozen in the log at first
+    serve (2026-10-06, user "can't have them changing mid match") so the pick, signals and
+    sweet-price band are immutable mid-match. Returns True if any field was applied."""
+    import math
+
+    def _f(col):
+        v = lr.get(col)
+        try:
+            if v is None or (isinstance(v, float) and math.isnan(v)):
+                return None
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+    applied = False
+    mc, ma, mb, md = r.get("model_c"), r.get("model_a"), r.get("model_b"), r.get("model_d")
+    mk = None
+    try:
+        o1, o2 = float(lr["p1_odds"]), float(lr["p2_odds"])
+        d1 = 1 + o1 / 100 if o1 > 0 else 1 + 100 / abs(o1)
+        d2 = 1 + o2 / 100 if o2 > 0 else 1 + 100 / abs(o2)
+        mk = (1 / d1) / ((1 / d1) + (1 / d2))
+    except Exception:  # noqa: BLE001
+        mk = None
+    if isinstance(mc, dict):
+        for key, col in (("p1_prob", "model_c_p1"), ("market_aware_p1", "model_cma_p1"),
+                         ("mc_c75_p1", "mc_c75_p1"), ("mc_cutr_p1", "mc_cutr_p1")):
+            v = _f(col)
+            if v is not None:
+                mc[key] = round(v, 4); applied = True
+        if mk is not None:
+            mc["market_p1"] = round(mk, 4)
+        v = _f("mc_c_p1")
+        if v is not None and isinstance(mc.get("mc"), dict):
+            mc["mc"]["p1_pct"] = round(v * 100, 1)
+    if isinstance(ma, dict):
+        v = _f("model_a_p1")
+        if v is not None:
+            ma["p1_prob"] = round(v, 4); applied = True
+    if isinstance(mb, dict):
+        v = _f("model_b_p1")
+        if v is not None:
+            mb["p1_prob"] = round(v, 4); applied = True
+    if isinstance(md, dict):
+        for key, col in (("p1_prob", "model_d_p1"), ("market_aware_p1", "model_dma_p1")):
+            v = _f(col)
+            if v is not None:
+                md[key] = round(v, 4); applied = True
+        v = _f("mc_p1")
+        if v is not None and isinstance(md.get("mc"), dict):
+            md["mc"]["p1_pct"] = round(v * 100, 1)
+    return applied
+
+
 @app.get("/api/tennis/today")
 def tennis_today(date: str = None):
     """Stale-while-revalidate wrapper (2026-09-26, user ask 'live update the tennis tab'):
@@ -1985,6 +2039,25 @@ def _compute_tennis_today_inner(date: str = None):
         tennis_log.settle()
     except Exception as e:
         print(f"[tennis log] logging/settlement failed: {e}")
+
+    # FROZEN MODEL OUTPUTS for started matches (2026-10-06, user "can't have them changing mid
+    # match"): now that models are attached AND first-serve values are frozen in the log just
+    # above, serve those logged probs back onto any started card -- so the pick, signals and
+    # sweet-price band are immutable mid-match (odds were already frozen earlier).
+    try:
+        _lgf = tennis_log._read_log()
+        _lgf = _lgf[_lgf["p1_odds"].notna() & _lgf["p2_odds"].notna()]
+        _froM = {str(_lr["fixture_id"]): _lr for _, _lr in _lgf.iterrows()}
+        _nfrm = 0
+        for r in results:
+            if r.get("status") != "unplayed":
+                _lr = _froM.get(str(r.get("fixture_id")))
+                if _lr is not None and _tennis_freeze_models(r, _lr):
+                    _nfrm += 1
+        if _nfrm:
+            print(f"[tennis] froze model outputs on {_nfrm} started/finished cards")
+    except Exception as _efm:  # noqa: BLE001
+        print(f"[tennis freeze models] {_efm}")
 
     # Cross-book price-edge scan (2026-09-09): sharp-consensus fair prices vs bettable-book
     # prices across ATP/WTA/Challenger/ITF. Flags are logged as a pre-registered flat-1u
