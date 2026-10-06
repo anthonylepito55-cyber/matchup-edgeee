@@ -502,7 +502,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['history', 'results history'], ['modelx', 'Model X']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['history', 'results history'], ['modelx', 'Model X']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -528,7 +528,7 @@ export default function TennisSection() {
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
 
 
@@ -791,6 +791,22 @@ function PicksPanel({ query }) {
 // roi while having the highest hit rate"). A signal must clear ALL three on THIS match's
 // gender record in the frozen live log to qualify a game. Tunable in one place.
 const BEST_N = 20, BEST_HIT = 65, BEST_ROI = 4
+// Sweet-spot PRICES where a Best pick's edge actually pays (2026-10-05, from the full-history
+// price map): MEN +100..+250 (dog value, +46%) or −600..−300 (short-chalk pocket, +8%);
+// WOMEN +150..+250 only. The −110..−300 band and extreme chalk (< −600) lose, so excluded.
+// A Best pick inside one of these windows historically ran +24% ROI vs +6.7% for all Best.
+function inSweetPrice(od, gen) {
+  if (od == null) return false
+  if (gen === 'w') return od >= 150 && od <= 250
+  return (od >= 100 && od <= 250) || (od >= -600 && od <= -300)
+}
+function priceBand(od, gen) {
+  if (od == null) return null
+  if (od >= 150 && od <= 250) return 'dog +150/250'
+  if (gen === 'm' && od >= 100 && od < 150) return 'dog +100/150'
+  if (gen === 'm' && od >= -600 && od <= -300) return 'chalk −300/600'
+  return null
+}
 // Elite signal predicates -- each recomputes a lane's membership from a match's model
 // outputs (same conditions as the board's signal strip) and returns the pick side as a
 // p1-boolean, or null if the game isn't in that lane. The gender-split live record under
@@ -834,7 +850,7 @@ function bestSig(m) {
     hate: (mdog - gdog) >= 0.02,
   }
 }
-function BestPanel({ query, laneRec }) {
+function BestPanel({ query, laneRec, priceOnly }) {
   // The board's elite picks only (2026-10-05, user ask): every today/ITF game that fires a
   // signal currently proven on its gender in the live log (hit >=65%, ROI >=+4%, n>=20),
   // ranked by that signal's ROI. Stacked (multi-signal) games float to the top.
@@ -881,11 +897,14 @@ function BestPanel({ query, laneRec }) {
     const thin = !!((dmx.sutr_p1 && dmx.sutr_p1.n != null && dmx.sutr_p1.n < 12)
       || (dmx.sutr_p2 && dmx.sutr_p2.n != null && dmx.sutr_p2.n < 12))
     const od = m.live_odds ? (pickSide ? m.live_odds.player_1 : m.live_odds.player_2) : null
+    const sweet = inSweetPrice(od, gen)
+    if (priceOnly && !sweet) continue        // 💰 Prices tab: only sweet-spot-priced picks
     const bestN = Math.max(...kept.map(g => g.n))
     rows.push({
       pick, opp, od, thin, sigs: kept, gen, lg: m.league, t: m.start_time_utc, live: m.status === 'live',
       bestRoi: kept[0].roi, bestHit: kept[0].hit, nSig: kept.length,
       bestN, core: bestN >= 50,   // CORE = a dependable big-sample edge backs it
+      sweet, band: priceBand(od, gen),
     })
   }
   // Sample-weighted order (2026-10-05, user "weight by sample size, not headline ROI"):
@@ -894,12 +913,16 @@ function BestPanel({ query, laneRec }) {
   const odfmt = v => v == null ? '' : (v > 0 ? `+${v}` : `${v}`)
   return (
     <div style={{ marginTop: 16 }}>
-      <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid #3fb95055', background: 'rgba(63,185,80,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-        <b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.
+      <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: `1px solid ${priceOnly ? '#e3b34155' : '#3fb95055'}`, background: priceOnly ? 'rgba(227,179,65,0.06)' : 'rgba(63,185,80,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+        {priceOnly ? (
+          <><b style={{ color: '#e3b341' }}>💰 BEST PICKS · SWEET-SPOT PRICES</b> — Best-tab picks that ALSO sit in a profitable price window: <b>men +100…+250</b> (dog value) or <b>−300…−600</b> (short chalk), <b>women +150…+250</b>. On the full log these ran <b style={{ color: '#3fb950' }}>+24% ROI</b> (plus-money +46%) vs +6.7% for all Best picks — the signal edge × the price edge. Mostly a men's set; women’s window is thin. Skips the −110…−300 dead zone. Auto-refresh 2 min.</>
+        ) : (
+          <><b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.</>
+        )}
       </div>
       {rows.length === 0 ? (
         <div className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: 24, textAlign: 'center' }}>
-          No games right now clear the elite gate (hit ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, n≥{BEST_N}).
+          {priceOnly ? 'No Best picks are in a sweet-spot price right now (men +100…+250 or −300…−600, women +150…+250).' : `No games right now clear the elite gate (hit ≥${BEST_HIT}%, ROI ≥+${BEST_ROI}%, n≥${BEST_N}).`}
         </div>
       ) : (
         <div style={{ marginTop: 12 }}>
@@ -913,6 +936,7 @@ function BestPanel({ query, laneRec }) {
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>vs {r.opp.split(' ').slice(-1)[0]}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>· {String(r.lg || '').toUpperCase()} · {r.gen === 'w' ? 'W' : 'M'}</span>
                 {r.od != null ? <span style={{ fontSize: 11, color: r.od > 0 ? '#3fb950' : 'var(--text-secondary)' }}>{odfmt(r.od)}</span> : null}
+                {r.sweet ? <span title={`💰 Price sweet spot (${r.band}) — a Best pick here ran +24% ROI on the full log (plus-money +46%) vs +6.7% at all prices. The signal edge AND the price edge both line up.`} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: '1px solid #e3b341aa', color: '#e3b341', background: 'rgba(227,179,65,0.12)' }}>💰 {r.band}</span> : null}
                 {r.thin ? <span title="A player's court-UTR is built on <12 matches — rating may be inflated (thin/weak-schedule sample)." style={{ fontSize: 9, color: '#e3b341' }}>⚠ thin</span> : null}
                 <span style={{ marginLeft: 'auto', color: 'var(--text-tertiary)', fontSize: 9 }}>{fmtPT(r.t) || ''}</span>
               </div>
@@ -1730,6 +1754,24 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           if (mc3 && mc3.mc && mc3.mc.sims && (mc3.mc.p1_pct >= 50) === mcSide1) {
             add('⚄ MC-C+MC-D', mcSide1, 'watch', stx.mc_c_and_d, gcol(stx.mc_c_and_d, '#8b949e'))
           }
+        }
+        // 💰 PRICE ✓ chip (2026-10-05, user ask): a gated Best-tab signal fires AND the pick
+        // sits in a profitable price window (men +100..+250 or −300..−600, women +150..+250).
+        // On the full log these ran +24% ROI vs +6.7% for all Best picks -- signal × price.
+        {
+          const bs = bestSig(match)
+          const gen = wAll ? 'w' : 'm'
+          let top = null
+          if (bs) for (const e of BEST_SIGNALS) {
+            const sideB = e.fire(bs); if (sideB == null) continue
+            const rb = (stx[e.key] || {})[gen] || {}; const nb = rb.n || 0
+            if (nb < BEST_N) continue
+            if (100 * rb.wins / nb < BEST_HIT || rb.roi_pct < BEST_ROI) continue
+            if (!top || rb.roi_pct > top.roi) top = { side: sideB, roi: rb.roi_pct }
+          }
+          const odB = (top && match.live_odds) ? Number(top.side ? match.live_odds.player_1 : match.live_odds.player_2) : null
+          if (top && inSweetPrice(odB, gen))
+            chips.push(['💰 PRICE ✓', nm(top.side), priceBand(odB, gen), `+${Math.round(top.roi)}% @${odB > 0 ? '+' : ''}${odB}`, '#e3b341'])
         }
         // ⚖️ CONFLICT RESOLVERS (2026-10-05, user ask): when signals point OPPOSITE ways on a
         // card, which side to trust -- gender-specific, from the live conflict lanes. Rendered
