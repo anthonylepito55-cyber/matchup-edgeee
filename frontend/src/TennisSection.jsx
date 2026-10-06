@@ -867,6 +867,7 @@ function BestPanel({ query, laneRec, priceOnly }) {
   // ranked by that signal's ROI. Stacked (multi-signal) games float to the top.
   const [data, setData] = useState({ today: null, itf: null })
   const [err, setErr] = useState(null)
+  const [mode, setMode] = useState('roi')   // 'roi' = sample-weighted/ROI; 'time' = by start time
   useEffect(() => {
     const go = () => Promise.all([
       fetch('/api/tennis/today').then(r => r.json()).catch(() => ({ matches: [] })),
@@ -916,12 +917,16 @@ function BestPanel({ query, laneRec, priceOnly }) {
       pick, opp, od, thin, sigs: kept, gen, lg: m.league, t: m.start_time_utc, live: m.status === 'live',
       bestRoi: kept[0].roi, bestHit: kept[0].hit, nSig: kept.length,
       bestN, core: bestN >= 50,   // CORE = a dependable big-sample edge backs it
-      sweet, band: priceBand(od, gen, a10),
+      sweet, band: priceBand(od, gen, a10), allTen: a10,
     })
   }
-  // Sample-weighted order (2026-10-05, user "weight by sample size, not headline ROI"):
-  // CORE edges (>=50 settled) first, then by ROI; a +8%/n117 edge outranks a +67%/n12 one.
-  rows.sort((a, b) => (Number(b.core) - Number(a.core)) || b.bestRoi - a.bestRoi || b.nSig - a.nSig || b.bestHit - a.bestHit)
+  // Order: 'time' = by start time (soonest first); else sample-weighted (CORE >=50 first,
+  // then ROI; a +8%/n117 edge outranks a +67%/n12 one).
+  if (mode === 'time') rows.sort((a, b) => (a.t || '').localeCompare(b.t || ''))
+  else rows.sort((a, b) => (Number(b.core) - Number(a.core)) || b.bestRoi - a.bestRoi || b.nSig - a.nSig || b.bestHit - a.bestHit)
+  const btn = (k, label) => (
+    <button onClick={() => setMode(k)} className="mono" style={{ padding: '3px 12px', borderRadius: 12, fontSize: 10, cursor: 'pointer', marginLeft: 6, border: `1px solid ${mode === k ? '#e3b341' : 'var(--line)'}`, background: mode === k ? 'rgba(227,179,65,0.14)' : 'transparent', color: mode === k ? '#e3b341' : 'var(--text-secondary)', fontWeight: 700 }}>{label}</button>
+  )
   const odfmt = v => v == null ? '' : (v > 0 ? `+${v}` : `${v}`)
   return (
     <div style={{ marginTop: 16 }}>
@@ -932,24 +937,34 @@ function BestPanel({ query, laneRec, priceOnly }) {
           <><b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.</>
         )}
       </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+        {btn('roi', '📈 by edge')}{btn('time', '🕐 by time')}
+      </div>
       {rows.length === 0 ? (
         <div className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: 24, textAlign: 'center' }}>
           {priceOnly ? 'No men Best picks are in a sweet-spot price right now (+100…+250, −300…−600, or ALL-10 at −140…−300).' : `No games right now clear the elite gate (hit ≥${BEST_HIT}%, ROI ≥+${BEST_ROI}%, n≥${BEST_N}).`}
         </div>
       ) : (
         <div style={{ marginTop: 12 }}>
-          {rows.map((r, i) => (
-            <div key={i} className="mono" style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', borderLeft: r.sweet ? '3px solid #f5f13b' : '3px solid transparent', background: r.sweet ? 'rgba(245,241,59,0.09)' : (r.nSig >= 2 ? 'rgba(63,185,80,0.07)' : undefined) }}>
+          {rows.map((r, i) => {
+            // STRONGEST tier (2026-10-05, user): ALL-10 agree AND priced −200..−300 — the
+            // +16.7% cell. Marked DARK GREEN; the rest of the sweet spots stay gold.
+            const strong = r.allTen && r.od != null && r.od >= -300 && r.od <= -200
+            const nameCol = strong ? '#1a7f37' : (r.sweet ? '#f5f13b' : '#3fb950')
+            const accent = strong ? '#1a7f37' : '#f5f13b'
+            return (
+            <div key={i} className="mono" style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', borderLeft: (strong || r.sweet) ? `3px solid ${accent}` : '3px solid transparent', background: strong ? 'rgba(26,127,55,0.16)' : (r.sweet ? 'rgba(245,241,59,0.09)' : (r.nSig >= 2 ? 'rgba(63,185,80,0.07)' : undefined)) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {r.sweet ? <span title="💰 GOLD = Best pick in a proven price window (men +100..+250, −300..−600, or ALL-10 at −140..−300). Signal edge × price edge — the plays to prioritize." style={{ fontSize: 10 }}>💰</span> : null}
+                {strong ? <span title="💎 STRONGEST — all 10 models agree AND the pick is priced −200 to −300: the best cell in the band (+16.7% live). Dark green = prime play." style={{ fontSize: 10 }}>💎</span> : (r.sweet ? <span title="💰 GOLD = Best pick in a proven price window (men +100..+250, −300..−600, or ALL-10 at −140..−300). Signal edge × price edge." style={{ fontSize: 10 }}>💰</span> : null)}
                 {r.live ? <span style={{ color: '#f85149', fontSize: 8 }}>● LIVE</span> : null}
                 {r.nSig >= 2 ? <span style={{ color: '#3fb950', fontSize: 9, fontWeight: 700, border: '1px solid #3fb95088', borderRadius: 4, padding: '0 5px' }}>★{r.nSig} STACK</span> : null}
                 <span title={r.core ? 'CORE: a dependable edge with 50+ settled bets backs this — bet it at full unit.' : 'THIN: best backing edge has <50 settled bets. Real but high-variance — bet smaller, expect regression.'} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${r.core ? '#58a6ff88' : '#8b949e66'}`, color: r.core ? '#58a6ff' : '#8b949e' }}>{r.core ? 'CORE' : 'THIN'} n{r.bestN}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: r.sweet ? '#f5f13b' : '#3fb950', textShadow: r.sweet ? '0 0 9px #f5f13b66' : undefined }}>{r.pick}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: nameCol, textShadow: strong ? '0 0 10px #2ea04399' : (r.sweet ? '0 0 9px #f5f13b66' : undefined) }}>{r.pick}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>vs {r.opp.split(' ').slice(-1)[0]}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>· {String(r.lg || '').toUpperCase()} · {r.gen === 'w' ? 'W' : 'M'}</span>
                 {r.od != null ? <span style={{ fontSize: 11, color: r.od > 0 ? '#3fb950' : 'var(--text-secondary)' }}>{odfmt(r.od)}</span> : null}
-                {r.sweet ? <span title={`💰 Price sweet spot (${r.band}) — a Best pick here ran +24% ROI on the full log (plus-money +46%) vs +6.7% at all prices. The signal edge AND the price edge both line up.`} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: '1px solid #e3b341aa', color: '#e3b341', background: 'rgba(227,179,65,0.12)' }}>💰 {r.band}</span> : null}
+                {strong ? <span title="💎 ALL-10 agree at −200 to −300 — the +16.7% cell, the strongest price spot on the board." style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: '1px solid #1a7f37', color: '#2ea043', background: 'rgba(26,127,55,0.18)' }}>💎 ALL-10 −200/300 STRONG</span>
+                 : r.sweet ? <span title={`💰 Price sweet spot (${r.band}) — a Best pick here ran +24% ROI on the full log (plus-money +46%) vs +6.7% at all prices.`} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: '1px solid #e3b341aa', color: '#e3b341', background: 'rgba(227,179,65,0.12)' }}>💰 {r.band}</span> : null}
                 {r.thin ? <span title="A player's court-UTR is built on <12 matches — rating may be inflated (thin/weak-schedule sample)." style={{ fontSize: 9, color: '#e3b341' }}>⚠ thin</span> : null}
                 <span style={{ marginLeft: 'auto', color: 'var(--text-tertiary)', fontSize: 9 }}>{fmtPT(r.t) || ''}</span>
               </div>
@@ -961,7 +976,7 @@ function BestPanel({ query, laneRec, priceOnly }) {
                 ))}
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>
