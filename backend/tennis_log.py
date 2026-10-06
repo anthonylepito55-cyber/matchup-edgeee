@@ -829,7 +829,9 @@ def get_ab25_record() -> dict:
               "cr1_stardog", "cr2_cvg", "cr3_fadea", "cr4_grayhate", "cr5_collision",
               # collision split by the favorite's market price (2026-10-05): the pass is
               # NOT uniform -- a 65-85% favorite has been mildly +EV, the extremes negative.
-              "cr5_coll_leanfav", "cr5_coll_passfav")}
+              "cr5_coll_leanfav", "cr5_coll_passfav",
+              # ALL-10-agree men pick priced −140..−300 (2026-10-05, user) -- auto-updating.
+              "all10_price_m")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -967,6 +969,20 @@ def get_ab25_record() -> dict:
                     _favp = max(mk1, 1 - mk1)
                     bet("cr5_coll_leanfav" if 0.65 <= _favp < 0.85
                         else "cr5_coll_passfav", not dog1)
+            # ALL-10 AGREE price lane (2026-10-05, user "mark −140..−300 all-10, auto-update"):
+            # MEN only. All 10 model heads on the same side AND the pick priced −140..−300 ->
+            # the band spot that pays (+12.8% at build; −200..−300 is the strong half).
+            if not _isw:
+                _cols = [ap, bp, r.get("model_c_p1"), r.get("model_cma_p1"), _dp9,
+                         r.get("model_dma_p1"), r.get("mc_p1"), r.get("mc_c_p1"),
+                         r.get("mc_c75_p1"), r.get("mc_cutr_p1")]
+                if all(pd.notna(x) for x in _cols):
+                    _sd = [float(x) >= 0.5 for x in _cols]
+                    if len(set(_sd)) == 1:
+                        _a10side = _sd[0]
+                        _a10od = r.get("p1_odds") if _a10side else r.get("p2_odds")
+                        if pd.notna(_a10od) and -300 <= float(_a10od) <= -140:
+                            bet("all10_price_m", _a10side)
             # MODEL D lanes (registered 2026-09-30, user "live test how D does"):
             # d_all = D's side every match; dma_all = D's gray head; d_gray_dog = D +
             # its gray on a market dog (bt decayed +9.3 -> +10.1 -> +1.1 -- this lane is

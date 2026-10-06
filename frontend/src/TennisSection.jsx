@@ -803,13 +803,13 @@ function inSweetPrice(od, gen, isAll10) {
   if (gen === 'w') return false   // MEN ONLY for now (2026-10-05, user) — women sweet spots
   // are too thin (n=13) to mark; revisit once validated. Women dog value = MC-DOG chips.
   return (od >= 100 && od <= 250) || (od >= -600 && od <= -300)
-    || (!!isAll10 && od >= -300 && od <= -150)
+    || (!!isAll10 && od >= -300 && od <= -140)   // −140..−300 per user (−200/−300 is the strong half)
 }
 function priceBand(od, gen, isAll10) {
   if (od == null || gen !== 'm') return null   // men-only marking
   if (od >= 100 && od <= 250) return od >= 150 ? 'dog +150/250' : 'dog +100/150'
   if (od >= -600 && od <= -300) return 'chalk −300/600'
-  if (isAll10 && od >= -300 && od <= -150) return 'ALL-10 −150/300'
+  if (isAll10 && od >= -300 && od <= -140) return 'ALL-10 −140/300'
   return null
 }
 // Do all 10 model heads agree on one side? (used for the ALL-10 price exception.)
@@ -927,24 +927,25 @@ function BestPanel({ query, laneRec, priceOnly }) {
     <div style={{ marginTop: 16 }}>
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: `1px solid ${priceOnly ? '#e3b34155' : '#3fb95055'}`, background: priceOnly ? 'rgba(227,179,65,0.06)' : 'rgba(63,185,80,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
         {priceOnly ? (
-          <><b style={{ color: '#e3b341' }}>💰 BEST PICKS · SWEET-SPOT PRICES (men only)</b> — men Best-tab picks in a profitable price window: <b>+100…+250</b> (dog value) or <b>−300…−600</b> (short chalk), PLUS <b>ALL-10-agree at −150…−300</b> (+12.8%, the one spot that band pays). On the full log these ran <b style={{ color: '#3fb950' }}>+24% ROI</b> vs +6.7% for all Best picks — signal × price. <b>Women not marked yet</b> (sample too thin — their dog value is the MC-DOG chips). Skips the −110…−300 dead zone. Auto-refresh 2 min.</>
+          <><b style={{ color: '#e3b341' }}>💰 BEST PICKS · SWEET-SPOT PRICES (men only)</b> — men Best-tab picks in a profitable price window: <b>+100…+250</b> (dog value) or <b>−300…−600</b> (short chalk), PLUS <b>ALL-10-agree at −140…−300</b> {(() => { const a = study.all10_price_m || {}; return a.n ? <>(live <b style={{ color: a.roi_pct > 0 ? '#3fb950' : '#f85149' }}>{a.roi_pct > 0 ? '+' : ''}{Math.round(a.roi_pct)}%</b>, {a.wins}-{a.n - a.wins}, auto-updating)</> : '(tracking)' })()}. These <b>glow gold</b> below. On the full log the sweet spots ran <b style={{ color: '#3fb950' }}>+24% ROI</b> vs +6.7% for all Best picks. <b>Women not marked yet</b> (too thin — their dog value is the MC-DOG chips). Skips the −110…−140 and under −600 dead prices. Auto-refresh 2 min.</>
         ) : (
           <><b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.</>
         )}
       </div>
       {rows.length === 0 ? (
         <div className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: 24, textAlign: 'center' }}>
-          {priceOnly ? 'No men Best picks are in a sweet-spot price right now (+100…+250, −300…−600, or ALL-10 at −150…−300).' : `No games right now clear the elite gate (hit ≥${BEST_HIT}%, ROI ≥+${BEST_ROI}%, n≥${BEST_N}).`}
+          {priceOnly ? 'No men Best picks are in a sweet-spot price right now (+100…+250, −300…−600, or ALL-10 at −140…−300).' : `No games right now clear the elite gate (hit ≥${BEST_HIT}%, ROI ≥+${BEST_ROI}%, n≥${BEST_N}).`}
         </div>
       ) : (
         <div style={{ marginTop: 12 }}>
           {rows.map((r, i) => (
-            <div key={i} className="mono" style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: r.nSig >= 2 ? 'rgba(63,185,80,0.07)' : undefined }}>
+            <div key={i} className="mono" style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', borderLeft: r.sweet ? '3px solid #f5f13b' : '3px solid transparent', background: r.sweet ? 'rgba(245,241,59,0.09)' : (r.nSig >= 2 ? 'rgba(63,185,80,0.07)' : undefined) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {r.sweet ? <span title="💰 GOLD = Best pick in a proven price window (men +100..+250, −300..−600, or ALL-10 at −140..−300). Signal edge × price edge — the plays to prioritize." style={{ fontSize: 10 }}>💰</span> : null}
                 {r.live ? <span style={{ color: '#f85149', fontSize: 8 }}>● LIVE</span> : null}
                 {r.nSig >= 2 ? <span style={{ color: '#3fb950', fontSize: 9, fontWeight: 700, border: '1px solid #3fb95088', borderRadius: 4, padding: '0 5px' }}>★{r.nSig} STACK</span> : null}
                 <span title={r.core ? 'CORE: a dependable edge with 50+ settled bets backs this — bet it at full unit.' : 'THIN: best backing edge has <50 settled bets. Real but high-variance — bet smaller, expect regression.'} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${r.core ? '#58a6ff88' : '#8b949e66'}`, color: r.core ? '#58a6ff' : '#8b949e' }}>{r.core ? 'CORE' : 'THIN'} n{r.bestN}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#3fb950' }}>{r.pick}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: r.sweet ? '#f5f13b' : '#3fb950', textShadow: r.sweet ? '0 0 9px #f5f13b66' : undefined }}>{r.pick}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>vs {r.opp.split(' ').slice(-1)[0]}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>· {String(r.lg || '').toUpperCase()} · {r.gen === 'w' ? 'W' : 'M'}</span>
                 {r.od != null ? <span style={{ fontSize: 11, color: r.od > 0 ? '#3fb950' : 'var(--text-secondary)' }}>{odfmt(r.od)}</span> : null}
