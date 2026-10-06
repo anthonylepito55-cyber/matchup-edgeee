@@ -881,17 +881,21 @@ function BestPanel({ query, laneRec }) {
     const thin = !!((dmx.sutr_p1 && dmx.sutr_p1.n != null && dmx.sutr_p1.n < 12)
       || (dmx.sutr_p2 && dmx.sutr_p2.n != null && dmx.sutr_p2.n < 12))
     const od = m.live_odds ? (pickSide ? m.live_odds.player_1 : m.live_odds.player_2) : null
+    const bestN = Math.max(...kept.map(g => g.n))
     rows.push({
       pick, opp, od, thin, sigs: kept, gen, lg: m.league, t: m.start_time_utc, live: m.status === 'live',
       bestRoi: kept[0].roi, bestHit: kept[0].hit, nSig: kept.length,
+      bestN, core: bestN >= 50,   // CORE = a dependable big-sample edge backs it
     })
   }
-  rows.sort((a, b) => b.bestRoi - a.bestRoi || b.nSig - a.nSig || b.bestHit - a.bestHit)
+  // Sample-weighted order (2026-10-05, user "weight by sample size, not headline ROI"):
+  // CORE edges (>=50 settled) first, then by ROI; a +8%/n117 edge outranks a +67%/n12 one.
+  rows.sort((a, b) => (Number(b.core) - Number(a.core)) || b.bestRoi - a.bestRoi || b.nSig - a.nSig || b.bestHit - a.bestHit)
   const odfmt = v => v == null ? '' : (v > 0 ? `+${v}` : `${v}`)
   return (
     <div style={{ marginTop: 16 }}>
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid #3fb95055', background: 'rgba(63,185,80,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-        <b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal that is currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Ranked by ROI; a game stacking 2+ elite signals sorts to the top. Auto-refresh 2 min. The gate is gender-specific — the same c75 that qualifies on men (+8% / 68%) is excluded on women (−2%).
+        <b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.
       </div>
       {rows.length === 0 ? (
         <div className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: 24, textAlign: 'center' }}>
@@ -904,6 +908,7 @@ function BestPanel({ query, laneRec }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {r.live ? <span style={{ color: '#f85149', fontSize: 8 }}>● LIVE</span> : null}
                 {r.nSig >= 2 ? <span style={{ color: '#3fb950', fontSize: 9, fontWeight: 700, border: '1px solid #3fb95088', borderRadius: 4, padding: '0 5px' }}>★{r.nSig} STACK</span> : null}
+                <span title={r.core ? 'CORE: a dependable edge with 50+ settled bets backs this — bet it at full unit.' : 'THIN: best backing edge has <50 settled bets. Real but high-variance — bet smaller, expect regression.'} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${r.core ? '#58a6ff88' : '#8b949e66'}`, color: r.core ? '#58a6ff' : '#8b949e' }}>{r.core ? 'CORE' : 'THIN'} n{r.bestN}</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#3fb950' }}>{r.pick}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>vs {r.opp.split(' ').slice(-1)[0]}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>· {String(r.lg || '').toUpperCase()} · {r.gen === 'w' ? 'W' : 'M'}</span>
