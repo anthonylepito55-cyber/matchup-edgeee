@@ -317,6 +317,10 @@ function Ab25Panel() {
         $25 a game, registered {rec ? rec.registered : '2026-09-28'}. Picks freeze at first serve with the odds; settled from the ledger.
         {rec && rec.pending ? ` ${rec.pending} pending.` : ''}
       </div>
+      {section('🔀 Fade the 6-4 split (new · watch)', '— when the 10 model heads split exactly 6-4, $25 on the 4-MINORITY side (fade the slim majority). Backtest +80.7% men / +58% all, but n=17 — NOISE, unvalidated. Forward-tracked from today; the weekly checkpoint judges it.')}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {card(['st:split64_fade', '🔀 FADE 6-4 SPLIT', 'When the 10 heads (A, B, C, gray, D, D-MA, serve-MC, c50, c75, cUTR) split exactly 6-4, $25 on the side only 4 agree on — fading the slim majority. In backtest the 6-majority was wrong ~76% of the time (men 24% hit), so the 4-minority (usually the live dog) won +80.7% on men (13-4) / +58% all. BUT n=17 — noise-level, UNVALIDATED. Forward-tracked from 2026-10-05; do not stake real money until the live sample grows. Men/women split shown below.'], '#d2a8ff', '#d2a8ff')}
+      </div>
       {(() => {
         // C-MC VARIANT HEAD-TO-HEAD (2026-10-03, user "track which variant does best over
         // time"): all three anchorings bet the SAME matches, so rank them by live ROI and

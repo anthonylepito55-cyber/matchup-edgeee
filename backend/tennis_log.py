@@ -831,7 +831,10 @@ def get_ab25_record() -> dict:
               # NOT uniform -- a 65-85% favorite has been mildly +EV, the extremes negative.
               "cr5_coll_leanfav", "cr5_coll_passfav",
               # ALL-10-agree men pick priced −140..−300 (2026-10-05, user) -- auto-updating.
-              "all10_price_m")}
+              "all10_price_m",
+              # 🔀 FADE 6-4 SPLIT (2026-10-05, user): heads split 6-4 -> bet the 4-minority
+              # side. Forward-tracked from registration (bt +80.7% men but n=17, unvalidated).
+              "split64_fade")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -983,6 +986,17 @@ def get_ab25_record() -> dict:
                         _a10od = r.get("p1_odds") if _a10side else r.get("p2_odds")
                         if pd.notna(_a10od) and -300 <= float(_a10od) <= -140:
                             bet("all10_price_m", _a10side)
+            # 🔀 FADE 6-4 SPLIT (2026-10-05, user "watch the 4/6"): the 10 heads split exactly
+            # 6-4 -> bet the 4-MINORITY side (fade the slim majority). Forward-tracked from
+            # registration day only (bt +80.7% men / +58% all, n=17 -- noise, unvalidated).
+            if str(r.get("date") or "") >= "2026-10-05":
+                _c6 = [ap, bp, r.get("model_c_p1"), r.get("model_cma_p1"), _dp9,
+                       r.get("model_dma_p1"), r.get("mc_p1"), r.get("mc_c_p1"),
+                       r.get("mc_c75_p1"), r.get("mc_cutr_p1")]
+                if all(pd.notna(x) for x in _c6):
+                    _nt6 = sum(1 for x in _c6 if float(x) >= 0.5)   # heads on p1
+                    if _nt6 in (4, 6):                              # exactly 6-4
+                        bet("split64_fade", _nt6 == 4)             # take the 4-side (p1 iff 4 on p1)
             # MODEL D lanes (registered 2026-09-30, user "live test how D does"):
             # d_all = D's side every match; dma_all = D's gray head; d_gray_dog = D +
             # its gray on a market dog (bt decayed +9.3 -> +10.1 -> +1.1 -- this lane is
