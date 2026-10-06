@@ -807,10 +807,19 @@ function inSweetPrice(od, gen, isAll10) {
 }
 function priceBand(od, gen, isAll10) {
   if (od == null || gen !== 'm') return null   // men-only marking
-  if (od >= 100 && od <= 250) return od >= 150 ? 'dog +150/250' : 'dog +100/150'
-  if (od >= -600 && od <= -300) return 'chalk −300/600'
-  if (isAll10 && od >= -300 && od <= -140) return 'ALL-10 −140/300'
+  if (od >= 100 && od <= 250) return 'dog'
+  if (od >= -600 && od <= -300) return 'chalk'
+  if (isAll10 && od >= -300 && od <= -200) return 'all10strong'
+  if (isAll10 && od > -200 && od <= -140) return 'all10'
   return null
+}
+// Color-coded price tiers for the 💰 Prices tab (2026-10-05, user). Each cites a live
+// auto-updating lane record (study[lane]). col = text/name, bd = border, bg = row tint.
+const BAND = {
+  all10strong: { name: 'ALL-10 −200/300', col: '#2ea043', bd: '#1a7f37', bg: 'rgba(26,127,55,0.16)', glow: '#2ea04399', lane: 'all10_200_300_m', icon: '💎', tip: 'All 10 models agree AND the pick is priced −200 to −300 — the prime ALL-10 cell.' },
+  dog: { name: 'dog +100/250', col: '#58a6ff', bd: '#1f6feb', bg: 'rgba(31,111,235,0.16)', glow: '#1f6feb99', lane: 'price_dog_m', icon: '🔵', tip: 'Best pick on a plus-money dog, +100 to +250 — the highest-ROI window (but thinner).' },
+  chalk: { name: 'chalk −300/600', col: '#a371f7', bd: '#8957e5', bg: 'rgba(137,87,229,0.16)', glow: '#8957e599', lane: 'price_chalk_m', icon: '🟣', tip: 'Best pick on a short favorite, −300 to −600 — the most reliable/biggest-sample window.' },
+  all10: { name: 'ALL-10 −140/200', col: '#f5f13b', bd: '#caa700', bg: 'rgba(245,241,59,0.10)', glow: '#f5f13b66', lane: 'all10_140_200_m', icon: '🟡', tip: 'All 10 agree at −140 to −200 — the thin/weak half of the ALL-10 band; smallest edge.' },
 }
 // Do all 10 model heads agree on one side? (used for the ALL-10 price exception.)
 function isAll10Agree(s) {
@@ -937,6 +946,19 @@ function BestPanel({ query, laneRec, priceOnly }) {
           <><b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.</>
         )}
       </div>
+      {priceOnly ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, padding: '8px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--line)', alignItems: 'center' }}>
+          <span style={{ fontSize: 9, color: 'var(--text-tertiary)', fontWeight: 700, letterSpacing: '0.04em' }}>PRICE TIERS (live · auto-updates daily):</span>
+          {['all10strong', 'dog', 'chalk', 'all10'].map(k => {
+            const b = BAND[k]; const o = study[b.lane] || {}; const n = o.n || 0; const roi = o.roi_pct
+            return (
+              <span key={k} title={b.tip} className="mono" style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 8, border: `1px solid ${b.bd}`, color: b.col, background: b.bg }}>
+                {b.icon} {b.name} <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>{n ? `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% · ${o.wins}-${n - o.wins} · n${n}` : 'tracking'}</span>
+              </span>
+            )
+          })}
+        </div>
+      ) : null}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
         {btn('roi', '📈 by edge')}{btn('time', '🕐 by time')}
       </div>
@@ -947,24 +969,20 @@ function BestPanel({ query, laneRec, priceOnly }) {
       ) : (
         <div style={{ marginTop: 12 }}>
           {rows.map((r, i) => {
-            // STRONGEST tier (2026-10-05, user): ALL-10 agree AND priced −200..−300 — the
-            // +16.7% cell. Marked DARK GREEN; the rest of the sweet spots stay gold.
-            const strong = r.allTen && r.od != null && r.od >= -300 && r.od <= -200
-            const nameCol = strong ? '#1a7f37' : (r.sweet ? '#f5f13b' : '#3fb950')
-            const accent = strong ? '#1a7f37' : '#f5f13b'
+            // Color-coded price tier (2026-10-05, user): name/row tinted by its band.
+            const bd = r.band ? BAND[r.band] : null
             return (
-            <div key={i} className="mono" style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', borderLeft: (strong || r.sweet) ? `3px solid ${accent}` : '3px solid transparent', background: strong ? 'rgba(26,127,55,0.16)' : (r.sweet ? 'rgba(245,241,59,0.09)' : (r.nSig >= 2 ? 'rgba(63,185,80,0.07)' : undefined)) }}>
+            <div key={i} className="mono" style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', borderLeft: bd ? `3px solid ${bd.bd}` : '3px solid transparent', background: bd ? bd.bg : (r.nSig >= 2 ? 'rgba(63,185,80,0.07)' : undefined) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {strong ? <span title="💎 STRONGEST — all 10 models agree AND the pick is priced −200 to −300: the best cell in the band (+16.7% live). Dark green = prime play." style={{ fontSize: 10 }}>💎</span> : (r.sweet ? <span title="💰 GOLD = Best pick in a proven price window (men +100..+250, −300..−600, or ALL-10 at −140..−300). Signal edge × price edge." style={{ fontSize: 10 }}>💰</span> : null)}
+                {bd ? <span title={bd.tip} style={{ fontSize: 10 }}>{bd.icon}</span> : null}
                 {r.live ? <span style={{ color: '#f85149', fontSize: 8 }}>● LIVE</span> : null}
                 {r.nSig >= 2 ? <span style={{ color: '#3fb950', fontSize: 9, fontWeight: 700, border: '1px solid #3fb95088', borderRadius: 4, padding: '0 5px' }}>★{r.nSig} STACK</span> : null}
                 <span title={r.core ? 'CORE: a dependable edge with 50+ settled bets backs this — bet it at full unit.' : 'THIN: best backing edge has <50 settled bets. Real but high-variance — bet smaller, expect regression.'} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${r.core ? '#58a6ff88' : '#8b949e66'}`, color: r.core ? '#58a6ff' : '#8b949e' }}>{r.core ? 'CORE' : 'THIN'} n{r.bestN}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: nameCol, textShadow: strong ? '0 0 10px #2ea04399' : (r.sweet ? '0 0 9px #f5f13b66' : undefined) }}>{r.pick}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: bd ? bd.col : '#3fb950', textShadow: bd ? `0 0 10px ${bd.glow}` : undefined }}>{r.pick}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>vs {r.opp.split(' ').slice(-1)[0]}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>· {String(r.lg || '').toUpperCase()} · {r.gen === 'w' ? 'W' : 'M'}</span>
                 {r.od != null ? <span style={{ fontSize: 11, color: r.od > 0 ? '#3fb950' : 'var(--text-secondary)' }}>{odfmt(r.od)}</span> : null}
-                {strong ? <span title="💎 ALL-10 agree at −200 to −300 — the +16.7% cell, the strongest price spot on the board." style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: '1px solid #1a7f37', color: '#2ea043', background: 'rgba(26,127,55,0.18)' }}>💎 ALL-10 −200/300 STRONG</span>
-                 : r.sweet ? <span title={`💰 Price sweet spot (${r.band}) — a Best pick here ran +24% ROI on the full log (plus-money +46%) vs +6.7% at all prices.`} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: '1px solid #e3b341aa', color: '#e3b341', background: 'rgba(227,179,65,0.12)' }}>💰 {r.band}</span> : null}
+                {bd ? <span title={bd.tip} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${bd.bd}`, color: bd.col, background: bd.bg }}>{bd.icon} {bd.name}</span> : null}
                 {r.thin ? <span title="A player's court-UTR is built on <12 matches — rating may be inflated (thin/weak-schedule sample)." style={{ fontSize: 9, color: '#e3b341' }}>⚠ thin</span> : null}
                 <span style={{ marginLeft: 'auto', color: 'var(--text-tertiary)', fontSize: 9 }}>{fmtPT(r.t) || ''}</span>
               </div>

@@ -1153,6 +1153,97 @@ def get_ab25_record() -> dict:
                         bet("c_alone_gray_fav", c1)
     study_out = {k: {**agg(d["v"]), "pending": int(d["p"]),
                      "m": agg(d["vm"]), "w": agg(d["vw"])} for k, d in study.items()}
+    # PRICE-BAND Best-pick records (2026-10-05, user: live color-coded legend on the Prices
+    # tab). For each settled MEN game: the Best pick (top gated signal) bucketed by its price
+    # (dog +100..+250 / chalk −300..−600), plus the ALL-10 split (−200..−300 / −140..−200).
+    # Auto-recomputes every call; merged into study_out so the frontend reads them live.
+    def _gate_m(key):
+        o = study_out.get(key, {}).get("m") or {}
+        n = o.get("n") or 0
+        return n >= 20 and 100 * o["wins"] / n >= 65 and (o.get("roi_pct") or -99) >= 4
+    _pb = {k: [] for k in ("price_dog_m", "price_chalk_m", "all10_200_300_m", "all10_140_200_m")}
+    _sm = log[(log["settled"] == True) & log["p1_won"].notna() & log["model_c_p1"].notna()  # noqa: E712
+              & log["model_cma_p1"].notna() & log["p1_odds"].notna() & log["p2_odds"].notna()]
+    for _, rr in _sm.iterrows():
+        if str(rr.get("league")).lower() in ("wta", "itf_women"):
+            continue
+        d1b, d2b = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
+        if not d1b or not d2b:
+            continue
+        mkb = (1 / d1b) / ((1 / d1b) + (1 / d2b))
+
+        def _bb(c):
+            v = rr.get(c)
+            return None if (v is None or pd.isna(v)) else (float(v) >= 0.5)
+        c1b, g1b = _bb("model_c_p1"), _bb("model_cma_p1")
+        if c1b is None or g1b is None:
+            continue
+        won1b = bool(rr["p1_won"])
+        dgb = mkb < 0.5
+        ab, bbb, dbb = _bb("model_a_p1"), _bb("model_b_p1"), _bb("model_d_p1")
+        dmab, c50b, c75b, cub, mcdb = (_bb("model_dma_p1"), _bb("mc_c_p1"), _bb("mc_c75_p1"),
+                                       _bb("mc_cutr_p1"), _bb("mc_p1"))
+        cmab = rr.get("model_cma_p1")
+        gpb = float(cmab) if pd.notna(cmab) else None
+        mdogb = mkb if dgb else 1 - mkb
+        gdogb = (gpb if dgb else 1 - gpb) if gpb is not None else mdogb
+        hateb = (mdogb - gdogb) >= 0.02
+        d5b = (mdogb - gdogb) >= 0.05
+        dmaedge = False
+        if dmab is not None and pd.notna(rr.get("model_dma_p1")):
+            dpb = float(rr["model_dma_p1"])
+            dmaedge = ((dpb if dmab else 1 - dpb) - (mkb if dmab else 1 - mkb)) >= 0.02
+        cand = []
+
+        def _add(key, side):
+            if side is not None and _gate_m(key):
+                cand.append((study_out[key]["m"]["roi_pct"], side))
+        _add("mc_c75_all", c75b)
+        if c50b is not None and c75b is not None and c50b == c75b:
+            _add("mcc_c75_agree", c75b)
+        if dmaedge:
+            _add("dma_edge2", dmab)
+        allvb = [ab, bbb, c1b, g1b, dbb, dmab, mcdb, c50b, c75b, cub]
+        all10b = all(x is not None for x in allvb) and len(set(allvb)) == 1
+        if all10b:
+            _add("all10_agree", ab)
+        if None not in (ab, bbb, dbb, c50b) and ab == bbb == c1b == dbb == c50b:
+            _add("mc_4of4", c1b)
+        if c1b != g1b:
+            _add("cvg_gray", g1b)
+        if d5b:
+            _add("goldfav_d5", not dgb)
+        if hateb:
+            _add("grayhate_fav", not dgb)
+        if None not in (ab, bbb) and ab != bbb and bbb == c1b and bbb != dgb:
+            _add("fade_a_fav", bbb)
+        if None not in (ab, bbb) and ab != bbb and bbb == c1b:
+            _add("fade_a", bbb)
+        if None not in (ab, bbb) and ab != c1b and bbb != c1b and g1b == c1b:
+            _add("c_alone_gray", c1b)
+        if c1b == g1b == dgb:
+            _add("gold_names", c1b)
+        elif hateb:
+            _add("gold_names", not dgb)
+        if cand:
+            cand.sort(reverse=True)
+            sp = cand[0][1]
+            op = float(rr["p1_odds"] if sp else rr["p2_odds"])
+            pn = (25 * ((d1b if sp else d2b) - 1)) if (sp == won1b) else -25
+            if 100 <= op <= 250:
+                _pb["price_dog_m"].append(pn)
+            elif -600 <= op <= -300:
+                _pb["price_chalk_m"].append(pn)
+        if all10b:
+            op = float(rr["p1_odds"] if ab else rr["p2_odds"])
+            pn = (25 * ((d1b if ab else d2b) - 1)) if (ab == won1b) else -25
+            if -300 <= op <= -200:
+                _pb["all10_200_300_m"].append(pn)
+            elif -200 < op <= -140:
+                _pb["all10_140_200_m"].append(pn)
+    for _k, _v in _pb.items():
+        study_out[_k] = {**agg(_v), "m": agg(_v), "w": agg([])}
+
     def _mw(g):
         return {"m": agg(g["m"]), "w": agg(g["w"])}
     return {"registered": "2026-09-28", "stake_usd": 25,
