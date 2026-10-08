@@ -104,6 +104,16 @@ def _p_match(pa, pb):
 
 
 _NODES = ((-1.7320508, 1 / 6), (0.0, 2 / 3), (1.7320508, 1 / 6))
+# DAY-FORM TILT (stage 3b, 2026-10-08): sets are NOT iid — one player is better today.
+# A common tilt tau ~ N(0, 0.06) integrated at match level reproduces the realized
+# 3-set rate (33.9 vs 34.7%), TB rate (27.1 vs 27.6%) and mean games (22.1 vs 22.2)
+# that the iid engine over-predicted by 7-14pts. Applied to DISTRIBUTIONS only.
+DAY_SD = 0.06
+
+
+def _p_match_tilt(pa, pb):
+    return sum(w * _p_match(_rnd(pa + x * DAY_SD), _rnd(pb - x * DAY_SD))
+               for x, w in _NODES)
 
 
 def _point_probs(st_a, st_b, surf):
@@ -152,7 +162,7 @@ def _anchor(pa, pb, target):
     lo, hi = -0.10, 0.10
     for _ in range(24):
         mid = 0.5 * (lo + hi)
-        if _p_match(_rnd(pa + mid), _rnd(pb - mid)) < target:
+        if _p_match_tilt(_rnd(pa + mid), _rnd(pb - mid)) < target:
             lo = mid
         else:
             hi = mid
@@ -169,7 +179,38 @@ def distribution(p1_name, p2_name, surface, market_p1):
         return None
     pa, pb = base["pa_pt"], base["pb_pt"]
     d = _anchor(pa, pb, round(float(market_p1), 3))
-    pa, pb = _rnd(pa + d), _rnd(pb - d)
+    pa, pb = pa + d, pb - d
+    # mix the full engine over the day-form tilt nodes
+    mix = [(_rnd(pa + x * DAY_SD), _rnd(pb - x * DAY_SD), w) for x, w in _NODES]
+    agg = {"s": 0.0, "p20": 0.0, "p21": 0.0, "q21": 0.0, "q20": 0.0,
+           "tb": 0.0, "games": {}, "s1g": {}}
+    for pa9, pb9, w9 in mix:
+        r9 = _dist_core(pa9, pb9)
+        for k in ("s", "p20", "p21", "q21", "q20", "tb"):
+            agg[k] += w9 * r9[k]
+        for g, v in r9["games"].items():
+            agg["games"][g] = agg["games"].get(g, 0.0) + w9 * v
+        for g, v in r9["s1g"].items():
+            agg["s1g"][g] = agg["s1g"].get(g, 0.0) + w9 * v
+    s, p20, p21, q21, q20 = agg["s"], agg["p20"], agg["p21"], agg["q21"], agg["q20"]
+    games, tb_any, s1g = agg["games"], agg["tb"], agg["s1g"]
+    tot = sum(games.values()) or 1.0
+    overs = {ln: round(sum(v for g, v in games.items() if g > ln) / tot, 4)
+             for ln in (19.5, 20.5, 21.5, 22.5, 23.5)}
+    s1tot = sum(s1g.values()) or 1.0
+    set1_over = {ln: round(sum(v for g, v in s1g.items() if g > ln) / s1tot, 4)
+                 for ln in (8.5, 9.5, 10.5, 11.5, 12.5)}
+    return {"match_p1": round(float(market_p1), 4), "set1_p1": round(s, 4),
+            "three_sets": round(p21 + q21, 4), "set1_over": set1_over,
+            "p1_20": round(p20, 4), "p1_21": round(p21, 4),
+            "p2_21": round(q21, 4), "p2_20": round(q20, 4),
+            "straight_sets": round(p20 + q20, 4), "tb_any": round(tb_any, 4),
+            "over_games": overs,
+            "p1_set_hcp_m1_5": round(p20, 4),
+            "p2_set_hcp_p1_5": round(1 - p20, 4)}
+
+
+def _dist_core(pa, pb):
     sd = dict(_set_dist(pa, pb))
     s = sum(v for (a, b, _), v in sd.items() if a > b)
     p20, p21 = s * s, 2 * s * s * (1 - s)
@@ -202,16 +243,12 @@ def distribution(p1_name, p2_name, surface, market_p1):
             games[g] = games.get(g, 0.0) + pw * v
             if t:
                 tb_any += pw * v
-    tot = sum(games.values()) or 1.0
-    overs = {ln: round(sum(v for g, v in games.items() if g > ln) / tot, 4)
-             for ln in (19.5, 20.5, 21.5, 22.5, 23.5)}
-    return {"match_p1": round(float(market_p1), 4), "set1_p1": round(s, 4),
-            "p1_20": round(p20, 4), "p1_21": round(p21, 4),
-            "p2_21": round(q21, 4), "p2_20": round(q20, 4),
-            "straight_sets": round(p20 + q20, 4), "tb_any": round(tb_any, 4),
-            "over_games": overs,
-            "p1_set_hcp_m1_5": round(p20, 4),      # p1 -1.5 sets = wins 2-0
-            "p2_set_hcp_p1_5": round(1 - p20, 4)}
+    # set-1 games marginal
+    s1g = {}
+    for (ga, gb, _t), v in sd.items():
+        s1g[ga + gb] = s1g.get(ga + gb, 0.0) + v
+    return {"s": s, "p20": p20, "p21": p21, "q21": q21, "q20": q20,
+            "tb": tb_any, "games": games, "s1g": s1g}
 
 
 if __name__ == "__main__":

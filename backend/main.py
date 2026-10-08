@@ -2169,6 +2169,14 @@ def tennis_history(limit_dates: int = 30):
     return tennis_log.get_tennis_history(limit_dates=limit_dates)
 
 
+@app.get("/api/tennis/set-scan")
+def tennis_set_scan():
+    """🎲 MC v2 anchored distribution engine vs Polymarket's tennis DERIVATIVE markets
+    (2026-10-08): set handicaps, first-set, match/set totals. Module-cached 3 min."""
+    import tennis_setscan
+    return tennis_setscan.scan()
+
+
 _TAB_PROFIT_CACHE = {"at": 0.0, "data": None}
 
 

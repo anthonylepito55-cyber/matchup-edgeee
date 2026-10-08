@@ -557,7 +557,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -583,7 +583,7 @@ export default function TennisSection() {
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
 
       {error && (
@@ -1527,7 +1527,7 @@ function HistoryPanel({ query, greenOnly = false }) {
         for (const m of d.matches) {
           for (const [k, p] of Object.entries(m.models)) bump(k, p)
           bump('MC-D', m.mc); bump('C50', m.mc_c && m.mc_c.c50); bump('C75', m.mc_c && m.mc_c.c75); bump('CU', m.mc_c && m.mc_c.cutr)
-          bump('OUR', m.our); bump('C-MC+c75', m.cmc_c75)
+          bump('OUR', m.our); bump('C-MC+c75', m.cmc_c75); bump('X', m.model_x)
           for (const s of [...(m.signals || []), ...(m.conflicts || [])]) {
             const o = s.side === 1 ? m.p1_odds : m.p2_odds
             const dec = (o == null || o === 0) ? null : (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o))
@@ -1548,7 +1548,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                 {takePct != null ? <span style={{ color: '#a78bfa', marginLeft: 8, fontWeight: 400 }} title="Your take: every game where c-MC (c50) and c75 agree — win rate for the day.">· C-MC+c75 take {hr['C-MC+c75']}/{tot['C-MC+c75']} ({takePct}%)</span> : null}
               </span>
               <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-tertiary)' }}>
-                {['A', 'B', 'C', 'gray', 'D', 'MC-D', 'C50', 'C75', 'CU'].filter(k => tot[k]).map(k => `${k} ${hr[k]}/${tot[k]}`).join(' · ')}
+                {['A', 'B', 'C', 'gray', 'D', 'MC-D', 'C50', 'C75', 'CU', 'X'].filter(k => tot[k]).map(k => `${k} ${hr[k]}/${tot[k]}`).join(' · ')}
               </span>
             </div>
             {Object.keys(sigT).length ? (
@@ -1577,6 +1577,9 @@ function HistoryPanel({ query, greenOnly = false }) {
                 </span>
                 <span style={{ display: 'flex', flexWrap: 'wrap' }}>
                   {chip('A', m.models.A)}{chip('B', m.models.B)}{chip('C', m.models.C)}{chip('gray', m.models.gray)}{chip('D', m.models.D)}
+                  {m.model_x ? <span className="mono" title={`Model X (meta)${m.model_x.recon ? ' — walk-forward backfill, display-only (trained only on earlier games)' : ' — genuine frozen pick'}: ${m.model_x.p1_pct}% p1 — ${m.model_x.hit ? 'correct' : 'wrong'}`}
+                    style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.model_x.hit ? '#3fb95055' : '#f8514955'}`, color: m.model_x.hit ? '#3fb950' : '#f85149', background: m.model_x.hit ? '#3fb9500d' : '#f851490d', opacity: m.model_x.recon ? 0.6 : 1 }}>
+                    {m.model_x.recon ? '~' : ''}X{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span> : null}
                   {m.mc ? <span className="mono" title={`Model-D serve Monte Carlo favored player ${m.mc.side} (${m.mc.p1_pct}% p1) — ${m.mc.hit ? 'correct' : 'wrong'}`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.mc.hit ? '#3fb95055' : '#f8514955'}`, color: m.mc.hit ? '#3fb950' : '#f85149', background: m.mc.hit ? '#3fb9500d' : '#f851490d' }}>⚄D{m.mc.side === 1 ? '◀' : '▶'}{m.mc.hit ? '✓' : '✗'}</span> : null}
                 </span>
@@ -1637,6 +1640,41 @@ function HistoryPanel({ query, greenOnly = false }) {
 // EVERY 🏆 Best-tab pick vs EVERY 💰 Prices-tab pick (the sweet-priced subset), per day
 // from the frozen ledger, head-to-head. Server-computed (/api/tennis/tab-profit) with the
 // same gates/long-dog rules as the tabs themselves.
+// 🎲 SET-MARKET SCANNER (2026-10-08): MC v2's anchored distribution engine priced vs
+// Polymarket's tennis derivative books. NEW + UNPROVEN: flags are logged for forward
+// CLV/settlement before anyone trusts them with money — the header says so.
+function SetScanPanel() {
+  const [d, setD] = useState(null)
+  const [err, setErr] = useState(null)
+  useEffect(() => {
+    const go = () => fetch('/api/tennis/set-scan').then(r => r.json()).then(setD).catch(e => setErr(String(e)))
+    go(); const id = setInterval(go, 180000); return () => clearInterval(id)
+  }, [])
+  if (err) return <div className="mono" style={{ color: 'var(--edge-neg)', padding: 20 }}>Couldn't load ({err})</div>
+  if (!d) return <div className="mono" style={{ color: 'var(--text-secondary)', padding: 40, textAlign: 'center' }}>pricing set markets…</div>
+  const fl = d.flags || []
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid #a78bfa55', background: 'rgba(167,139,250,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+        <b style={{ color: '#a78bfa' }}>🎲 SET MARKETS — MC v2 anchored engine vs Polymarket's derivative books</b> ({d.priced}/{d.scanned} matches priced). The engine takes the <b>sharp no-vig moneyline</b> (OpticOdds consensus when we have it — the [sharp] tag) and adds the validated match structure (day-form calibrated: 3-setters 33.9% vs 34.7% real, TB 27.1 vs 27.6, games 22.1 vs 22.2 on 20k score lines) → prices every set/total/handicap market. <b>BUY</b> = cross the book's ask now; <b>POST</b> = the maker price to leave as a limit order instead (on thin books, posting turns the spread into edge). <b style={{ color: '#e3b341' }}>⚠ BRAND NEW + UNPROVEN</b>: every flag is logged for forward CLV/settlement — treat as paper until the log earns a record. Auto-refresh 3 min.
+      </div>
+      <div className="mono" style={{ display: 'flex', fontSize: 9, color: 'var(--text-tertiary)', padding: '8px 10px 3px', borderBottom: '1px solid var(--line)' }}>
+        <span style={{ width: 52 }}>edge</span><span style={{ flex: 1.3 }}>market · side</span><span style={{ width: 92 }}>our / buy / post</span><span style={{ flex: 1.5 }}>match</span><span style={{ width: 46 }}>anchor</span>
+      </div>
+      {fl.map((f, i) => (
+        <div key={i} className="mono" style={{ display: 'flex', alignItems: 'center', fontSize: 10.5, padding: '5px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <span style={{ width: 52, fontWeight: 800, color: f.edge >= 0.10 ? '#a78bfa' : '#8b949e' }}>+{Math.round(f.edge * 100)}¢</span>
+          <span style={{ flex: 1.3 }}>{f.market} · <b style={{ color: 'var(--text-primary)' }}>{f.side}</b></span>
+          <span style={{ width: 92, color: 'var(--text-secondary)' }}>{f.our_p.toFixed(2)} / {f.buy_at.toFixed(2)} / <b style={{ color: '#3fb950' }}>{f.post_at.toFixed(2)}</b></span>
+          <span style={{ flex: 1.5, color: 'var(--text-secondary)' }}>{f.match}</span>
+          <span style={{ width: 46, fontSize: 8.5, color: f.anchor === 'sharp' ? '#3fb950' : 'var(--text-tertiary)' }}>{f.anchor}</span>
+        </div>
+      ))}
+      {!fl.length ? <div className="mono" style={{ padding: 24, textAlign: 'center', color: 'var(--text-tertiary)' }}>No liquid derivative edges right now.</div> : null}
+    </div>
+  )
+}
+
 function TabProfitPanel() {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(null)
@@ -2702,6 +2740,14 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#22d3ee', fontWeight: 700 }}
           title="SOS tracker (2026-09-26): this player's surface serve+return is not worse (within 2 pts) but their recent schedule is clearly tougher (median opponent rank ≤0.8× the other's). Backtest: they WIN 63-65% of these matches — but avg odds ~1.60 mean the market prices it almost exactly (flat ROI −3/−12%). A WIN-RATE tracker to watch, not a bet signal.">
           ◆ SOS: {match.sos === 'p1' ? match.player_1 : match.player_2} <span style={{ fontWeight: 400, opacity: 0.85 }}>· tougher slate, stats hold up — win-rate tracker</span>
+        </div>
+      ) : null}
+
+      {match.mc2 ? (
+        <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#c9a7fa' }}
+          title={`MC v2 (2026-10-08): the rebuilt Monte Carlo — surface Elo + opponent-adjusted serve/return ratings -> learned point probabilities -> exact Markov engine, with parameter uncertainty. Walk-forward 2024-26: AUC .692 vs market .722, calibration within ~1pt per decile. DISPLAY-ONLY: measured residual-vs-close == market minus vig, so it never bets alone; its mc2_* watch lanes earn (or don't) on the Splits tab, and its real product is the 🎲 Sets tab's anchored derivative prices. Components: Elo ${Math.round(100 * match.mc2.elo_p1)}% / Markov ${Math.round(100 * match.mc2.mkv_p1)}%; serve-rating samples n=${match.mc2.n1}/${match.mc2.n2}.`}>
+          🧮 MC2: {match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(100 * match.mc2.p1_prob)}%</b> — <b>{Math.round(100 * (1 - match.mc2.p1_prob))}%</b> {match.player_2.split(' ').slice(-1)[0]}
+          <span style={{ opacity: 0.75 }}> · elo {Math.round(100 * match.mc2.elo_p1)} / mkv {Math.round(100 * match.mc2.mkv_p1)} · display-only</span>
         </div>
       ) : null}
 
