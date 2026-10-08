@@ -2004,6 +2004,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     if (c50v == null || mcdv == null) return null
     const lo = match.live_odds || {}
     const fav1 = mc3.market_p1 >= 0.5
+    const dogName = fav1 ? match.player_2 : match.player_1
     const dogOdds = Number(fav1 ? lo.player_2 : lo.player_1)
     if (isNaN(dogOdds) || dogOdds < 100 || dogOdds > 200) return null
     const mkf = fav1 ? mc3.market_p1 : 1 - mc3.market_p1
@@ -2017,7 +2018,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // (replay +31.0%, 27-19, 58.7% win). 🔥 adds when it's a women's match (12-3,
     // +83% replay — but n=15, so the flame is a priority hint, not its own cell).
     const prime = dogOdds <= 150 && gap >= 6
-    return { gap, dogOdds, isW, prime }
+    return { gap, dogOdds, isW, prime, dogName }
   })()
 
   return (
@@ -2031,16 +2032,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       {baitGreen ? (
         <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Replay month at the 6pt discount: dogs 39-37 (51.3%) +23.4% — women +40.1%, men +13.6% — with clean dose-response (deeper discount = worse favorite, better dog). +200..+250 bait dogs LOSE -42.5%, which is why this only fires through +200. Live record = the bait_dog lane (Splits tab), gender-split, auto-updating. Smallest head-gap on this card: ${baitGreen.gap}pts.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#3fb950', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(63,185,80,0.5)' }}>
-          🪤 BAIT FAV · TAKE THE DOG +{baitGreen.dogOdds} · all-sim discount {baitGreen.gap}pt+
+          🪤 BAIT FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaffea', textShadow: '0 0 10px #3fb950' }}>TAKE {baitGreen.dogName.split(' ').slice(-1)[0].toUpperCase()} +{baitGreen.dogOdds}</span> · discount {baitGreen.gap}pt+
           {(() => {
-            // live lane record for THIS match's gender (bait_dog lane, auto-updating as
-            // games settle; the lane replays the whole frozen log so it starts with history)
-            const st = ((laneRec && laneRec.study) || {}).bait_dog || {}
+            // live record of THIS CARD'S OWN CELL (2026-10-08, user "which specific
+            // category it lands in"): PRIME games read bait_dog_prime, the rest read
+            // bait_dog_rest — each shown as this match's gender cell + the cell total.
+            const key = baitGreen.prime ? 'bait_dog_prime' : 'bait_dog_rest'
+            const st = ((laneRec && laneRec.study) || {})[key] || {}
             const c = (baitGreen.isW ? st.w : st.m) || {}
             const n = c.n || 0
-            const tot = st.n ? ` · all ${st.roi_pct > 0 ? '+' : ''}${Math.round(st.roi_pct * 10) / 10}% (${st.wins}-${st.n - st.wins})` : ''
-            return <span style={{ color: '#d9ffe3', fontWeight: 400 }} title="Live bait_dog lane record at frozen closing odds — this match's gender cell first, whole lane after. Replays the full frozen log (genuine sim columns), then updates automatically as new games settle.">
-              {n ? ` · LIVE ${baitGreen.isW ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ' · LIVE tracking'}{tot}
+            const nm = baitGreen.prime ? 'PRIME' : 'GREEN'
+            const tot = st.n ? ` · ${nm} all ${st.roi_pct > 0 ? '+' : ''}${Math.round(st.roi_pct * 10) / 10}% (${st.wins}-${st.n - st.wins})` : ''
+            return <span style={{ color: '#d9ffe3', fontWeight: 400 }} title={`Live record of this card's exact cell (${nm} = ${baitGreen.prime ? 'dog +100..+150 with the full 6pt+ discount' : 'the rest of the green cell: dog +150..+200, or +100..+150 at the women-only 4-6pt discount'}), at frozen closing odds: this match's gender first, the whole cell after. Auto-updates as games settle.`}>
+              {n ? ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} tracking`}{tot}
             </span>
           })()}{baitGreen.prime ? <span style={{ color: '#eaffea', background: 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, textShadow: '0 0 8px #3fb950' }} title={`⭐ PRIME tier: dog +100..+150 AND the full 6pt+ discount — the fattest measured slice of the green cell (replay +31.0%, 27-19, 58.7% win at near-even money${baitGreen.isW ? '; 🔥 = women’s match, 12-3 +83% in replay — but n=15, a priority hint, not its own cell' : ''}). Take PRIME greens first.`}>⭐ PRIME{baitGreen.isW ? ' 🔥' : ''}</span> : null}
         </div>

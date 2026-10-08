@@ -1041,7 +1041,8 @@ def get_ab25_record() -> dict:
               # 2026-10-08 watch lanes: fatigue-residual favorites; the MC2-edge cells
               # the replay tour surfaced (orange band fav, 3-5pt banded dog, c75 dog
               # countersigned 5pt+); and the 🪤 bait-favorite dog (all-sim discount).
-              "fav_value", "mc2e58_fav", "mc2e35_dog_band", "c75_mc2e5_dog", "bait_dog")}
+              "fav_value", "mc2e58_fav", "mc2e35_dog_band", "c75_mc2e5_dog", "bait_dog",
+              "bait_dog_prime", "bait_dog_rest")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -1298,6 +1299,14 @@ def get_ab25_record() -> dict:
                         and all((float(v) if _bt_fav1 else 1 - float(v)) <= _bt_mkf - _bt_disc
                                 for v in _bt_heads)):
                     bet("bait_dog", dog1)
+                    # category split (2026-10-08, user "which specific category it lands
+                    # in"): PRIME = dog +100..+150 AND full 6pt+ discount; REST = the
+                    # remainder of the green cell. Same side, separate records.
+                    _bt_fv = [(float(v) if _bt_fav1 else 1 - float(v)) for v in _bt_heads]
+                    if float(_bt_do) <= 150 and all(v <= _bt_mkf - 0.06 for v in _bt_fv):
+                        bet("bait_dog_prime", dog1)
+                    else:
+                        bet("bait_dog_rest", dog1)
             # 💪 FAV-VALUE (2026-10-08, user "make a model that's precise with favorites"):
             # the measured fatigue-residual favorite. Archive 2024-26: ALL favorites
             # −5.2%, heavy-load favorites −0.9% (banded −0.1% vs −5.1%) — the market
