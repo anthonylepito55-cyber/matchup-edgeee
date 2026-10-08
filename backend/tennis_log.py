@@ -34,7 +34,9 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # than their established rating. See utr_data.py.
            "utr_edge_p1", "utr_mom_p1",
            # MC v2 head (2026-10-08): frozen blend prob; display/watch-lane only.
-           "mc2_p1"]
+           # mc2_recon=True marks a walk-forward BACKFILL (pre-match ratings only, result
+           # never used) -- display-only, excluded from the mc2_* forward lanes.
+           "mc2_p1", "mc2_recon"]
 
 
 def _read_log() -> pd.DataFrame:
@@ -143,6 +145,7 @@ def log_predictions(matches: list, date: str):
             "utr_edge_p1": (m.get("utr") or {}).get("edge"),
             "utr_mom_p1": (m.get("utr") or {}).get("mom"),
             "mc2_p1": (m.get("mc2") or {}).get("p1_prob"),
+            "mc2_recon": False,
         })
     log = _read_log()
     # SELF-HEALING EARLY START (2026-10-07, Tarvet case): a match seen LIVE/completed while
@@ -576,9 +579,12 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
                      "recon": bool(r.get("mc_c_recon")) if pd.notna(r.get("mc_c_recon")) else False},
             "model_x": (lambda p: ({**p, "recon": bool(r.get("model_x_recon"))
                                      if pd.notna(r.get("model_x_recon")) else False} if p else None))(pickpct(r, "model_x_p1")),
-            # MC v2's frozen read per game (2026-10-08, user "put it on previous days tab").
-            # Frozen-log column only — never recomputed; null for games before 2026-10-08.
-            "mc2": pickpct(r, "mc2_p1"),
+            # MC v2's read per game (2026-10-08, user "put it on previous days tab"):
+            # frozen forward picks, plus recon=True walk-forward backfills ("put it on
+            # previous games without knowing who won them") — computed from pre-match
+            # ratings only, shown dimmed with ~, never in the forward lanes.
+            "mc2": (lambda p: ({**p, "recon": bool(r.get("mc2_recon"))
+                                 if pd.notna(r.get("mc2_recon")) else False} if p else None))(pickpct(r, "mc2_p1")),
             # our headline pick (the favored side shown on the board) + the user's
             # c-MC+c75 take, for the daily hit % in results-history (2026-10-03). The board
             # headlines off prediction -> A -> B -> C (the old tour model is retired, so
@@ -1210,7 +1216,8 @@ def get_ab25_record() -> dict:
             # mc2_all = its side every rated match; mc2_edge2 = 2+pt over the market;
             # mc2_dog_band = its pick is a +100..+250 market dog (the house pattern).
             _m29 = r.get("mc2_p1")
-            if pd.notna(_m29):
+            _m2rec = bool(r.get("mc2_recon")) if pd.notna(r.get("mc2_recon")) else False
+            if pd.notna(_m29) and not _m2rec:
                 _m2b = float(_m29) >= 0.5
                 bet("mc2_all", _m2b)
                 _ms2 = float(_m29) if _m2b else 1 - float(_m29)

@@ -1564,7 +1564,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                 {takePct != null ? <span style={{ color: '#a78bfa', marginLeft: 8, fontWeight: 400 }} title="Your take: every game where c-MC (c50) and c75 agree — win rate for the day.">· C-MC+c75 take {hr['C-MC+c75']}/{tot['C-MC+c75']} ({takePct}%)</span> : null}
               </span>
               <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-tertiary)' }}>
-                {['A', 'B', 'C', 'gray', 'D', 'MC-D', 'C50', 'C75', 'CU', 'X'].filter(k => tot[k]).map(k => `${k} ${hr[k]}/${tot[k]}`).join(' · ')}
+                {['A', 'B', 'C', 'gray', 'D', 'MC-D', 'C50', 'C75', 'CU', 'X', 'MC2'].filter(k => tot[k]).map(k => `${k} ${hr[k]}/${tot[k]}`).join(' · ')}
               </span>
             </div>
             {Object.keys(sigT).length ? (
@@ -1596,9 +1596,9 @@ function HistoryPanel({ query, greenOnly = false }) {
                   {m.model_x ? <span className="mono" title={`Model X (meta)${m.model_x.recon ? ' — walk-forward backfill, display-only (trained only on earlier games)' : ' — genuine frozen pick'}: ${m.model_x.p1_pct}% p1 — ${m.model_x.hit ? 'correct' : 'wrong'}`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.model_x.hit ? '#3fb95055' : '#f8514955'}`, color: m.model_x.hit ? '#3fb950' : '#f85149', background: m.model_x.hit ? '#3fb9500d' : '#f851490d', opacity: m.model_x.recon ? 0.6 : 1 }}>
                     {m.model_x.recon ? '~' : ''}X{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span> : null}
-                  {m.mc2 ? <span className="mono" title={`🧮 MC v2 (frozen pre-match read): ${m.mc2.p1_pct}% p1 — ${m.mc2.hit ? 'correct' : 'wrong'}. Display-only model (never beats the market moneyline head-on); its real product is the 🎲 Sets tab. Logged from 2026-10-08 — older games have no reading.`}
-                    style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.mc2.hit ? '#bc8cff55' : '#f8514955'}`, color: m.mc2.hit ? '#d2a8ff' : '#f85149', background: m.mc2.hit ? 'rgba(188,140,255,0.06)' : '#f851490d' }}>
-                    🧮{m.mc2.side === 1 ? '◀' : '▶'}{m.mc2.hit ? '✓' : '✗'}</span> : null}
+                  {m.mc2 ? <span className="mono" title={`🧮 MC v2${m.mc2.recon ? ' — ~ walk-forward BACKFILL: computed from the ratings as they stood the morning of the match (the result and everything after are excluded). Honest hindsight-free read, but display-only and NOT in the forward lanes' : ' (genuine frozen pre-match read)'}: ${m.mc2.p1_pct}% p1 — ${m.mc2.hit ? 'correct' : 'wrong'}. Display-only model; its real product is the 🎲 Sets tab.`}
+                    style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.mc2.hit ? '#bc8cff55' : '#f8514955'}`, color: m.mc2.hit ? '#d2a8ff' : '#f85149', background: m.mc2.hit ? 'rgba(188,140,255,0.06)' : '#f851490d', opacity: m.mc2.recon ? 0.6 : 1 }}>
+                    {m.mc2.recon ? '~' : ''}🧮{m.mc2.side === 1 ? '◀' : '▶'}{m.mc2.hit ? '✓' : '✗'}</span> : null}
                   {m.mc ? <span className="mono" title={`Model-D serve Monte Carlo favored player ${m.mc.side} (${m.mc.p1_pct}% p1) — ${m.mc.hit ? 'correct' : 'wrong'}`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.mc.hit ? '#3fb95055' : '#f8514955'}`, color: m.mc.hit ? '#3fb950' : '#f85149', background: m.mc.hit ? '#3fb9500d' : '#f851490d' }}>⚄D{m.mc.side === 1 ? '◀' : '▶'}{m.mc.hit ? '✓' : '✗'}</span> : null}
                 </span>
@@ -1640,7 +1640,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                     📋 won: {m.postmortem.won_player === 1 ? m.p1.split(' ').slice(-1)[0] : m.p2.split(' ').slice(-1)[0]} ·
                     market <span style={{ color: m.postmortem.market_right ? '#3fb950' : '#f85149' }}>{m.postmortem.market_right ? 'right' : 'wrong'}</span>
                     {m.model_x ? <> · X <span style={{ color: m.model_x.hit ? '#3fb950' : '#f85149', opacity: m.model_x.recon ? 0.65 : 1 }} title={m.model_x.recon ? 'walk-forward backfill (trained only on earlier games) — display-only, not in the forward lanes' : 'genuine forward pick'}>{m.model_x.recon ? '~' : ''}{m.model_x.p1_pct}%{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span></> : null}
-                    {m.mc2 ? <> · 🧮 <span style={{ color: m.mc2.hit ? '#d2a8ff' : '#f85149' }} title="MC v2's frozen pre-match read (logged from 2026-10-08, display-only)">{m.mc2.p1_pct}%{m.mc2.side === 1 ? '◀' : '▶'}{m.mc2.hit ? '✓' : '✗'}</span></> : null}
+                    {m.mc2 ? <> · 🧮 <span style={{ color: m.mc2.hit ? '#d2a8ff' : '#f85149', opacity: m.mc2.recon ? 0.65 : 1 }} title={m.mc2.recon ? 'walk-forward backfill (pre-match ratings only; result never used) — display-only' : "MC v2's genuine frozen pre-match read"}>{m.mc2.recon ? '~' : ''}{m.mc2.p1_pct}%{m.mc2.side === 1 ? '◀' : '▶'}{m.mc2.hit ? '✓' : '✗'}</span></> : null}
                     {m.postmortem.missed_info && m.postmortem.missed_info.length
                       ? <span style={{ color: '#e3b341' }}> · missed: {m.postmortem.missed_info.join(', ')}</span> : null}
                   </div>
