@@ -2012,21 +2012,26 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const heads = [c50v, mc3.mc_c75_p1, mc3.mc_cutr_p1, mcdv].map(v => fav1 ? v : 1 - v)
     if (!heads.every(h => h <= mkf - disc)) return null
     const gap = Math.round(100 * (mkf - Math.max(...heads)))
-    return { gap, dogOdds, isW }
+    // ⭐ PRIME tier (2026-10-08, user "mark the best to take"): the fattest measured
+    // slice INSIDE the green cell — dog +100..+150 with the full 6pt+ discount
+    // (replay +31.0%, 27-19, 58.7% win). 🔥 adds when it's a women's match (12-3,
+    // +83% replay — but n=15, so the flame is a priority hint, not its own cell).
+    const prime = dogOdds <= 150 && gap >= 6
+    return { gap, dogOdds, isW, prime }
   })()
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? 'rgba(63,185,80,0.12)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? '1px solid rgba(63,185,80,0.75)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
       padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? '0 0 16px rgba(63,185,80,0.22)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {baitGreen ? (
         <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Replay month at the 6pt discount: dogs 39-37 (51.3%) +23.4% — women +40.1%, men +13.6% — with clean dose-response (deeper discount = worse favorite, better dog). +200..+250 bait dogs LOSE -42.5%, which is why this only fires through +200. Live record = the bait_dog lane (Splits tab), gender-split, auto-updating. Smallest head-gap on this card: ${baitGreen.gap}pts.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#3fb950', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(63,185,80,0.5)' }}>
-          🪤 BAIT FAV · TAKE THE DOG +{baitGreen.dogOdds} · all-sim discount {baitGreen.gap}pt+ · replay +23.4% (W +40.1%)
+          🪤 BAIT FAV · TAKE THE DOG +{baitGreen.dogOdds} · all-sim discount {baitGreen.gap}pt+ · replay +23.4% (W +40.1%){baitGreen.prime ? <span style={{ color: '#eaffea', background: 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, textShadow: '0 0 8px #3fb950' }} title={`⭐ PRIME tier: dog +100..+150 AND the full 6pt+ discount — the fattest measured slice of the green cell (replay +31.0%, 27-19, 58.7% win at near-even money${baitGreen.isW ? '; 🔥 = women’s match, 12-3 +83% in replay — but n=15, a priority hint, not its own cell' : ''}). Take PRIME greens first.`}>⭐ PRIME{baitGreen.isW ? ' 🔥' : ''}</span> : null}
         </div>
       ) : null}
       {orange58 ? (
