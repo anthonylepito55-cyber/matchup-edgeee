@@ -1037,7 +1037,11 @@ def get_ab25_record() -> dict:
               # 🔒 HIGH-HIT FAVORITE STACK candidates (2026-10-06, user "track all of these"):
               # favorite + form-confirms, in a price band; ~85-91% hit + small +ROI in-sample,
               # UNVALIDATED (tiny n / multiple-comparison) -- forward-tracked, not yet a take.
-              "pf_ghfav", "pf_ghfav_pr", "pf_c75fav_pr", "pf_a10fav_pr")}
+              "pf_ghfav", "pf_ghfav_pr", "pf_c75fav_pr", "pf_a10fav_pr",
+              # 2026-10-08 watch lanes: fatigue-residual favorites; the MC2-edge cells
+              # the replay tour surfaced (orange band fav, 3-5pt banded dog, c75 dog
+              # countersigned 5pt+); and the 🪤 bait-favorite dog (all-sim discount).
+              "fav_value", "mc2e58_fav", "mc2e35_dog_band", "c75_mc2e5_dog", "bait_dog")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -1279,6 +1283,21 @@ def get_ab25_record() -> dict:
                         bet("mc2e35_dog_band", dog1)
                 if _e2g >= 0.05 and pd.notna(r.get("mc_c75_p1")) and (float(r.get("mc_c75_p1")) >= 0.5) == dog1:
                     bet("c75_mc2e5_dog", dog1)
+            # 🪤 BAIT_DOG (2026-10-08, user "highlight these green full card"): all 4
+            # sims price the FAVORITE >=6pts (women >=4pts) below the no-vig market AND
+            # the dog is +100..+200 -> bet the DOG. Replay: +23.4% at 6pts (W +40.1%,
+            # M +13.6%), dose-response clean; +200..250 variant loses -42.5% (excluded).
+            _bt_heads = [r.get("mc_c_p1"), r.get("mc_c75_p1"), r.get("mc_cutr_p1"), r.get("mc_p1")]
+            if all(pd.notna(v) for v in _bt_heads):
+                _bt_fav1 = not dog1
+                _bt_mkf = mk1 if _bt_fav1 else 1 - mk1
+                _bt_wom = "wta" in str(r.get("league") or "") or "itf_women" in str(r.get("league") or "")
+                _bt_disc = 0.04 if _bt_wom else 0.06
+                _bt_do = r.get("p1_odds") if dog1 else r.get("p2_odds")
+                if (pd.notna(_bt_do) and 100 <= float(_bt_do) <= 200
+                        and all((float(v) if _bt_fav1 else 1 - float(v)) <= _bt_mkf - _bt_disc
+                                for v in _bt_heads)):
+                    bet("bait_dog", dog1)
             # 💪 FAV-VALUE (2026-10-08, user "make a model that's precise with favorites"):
             # the measured fatigue-residual favorite. Archive 2024-26: ALL favorites
             # −5.2%, heavy-load favorites −0.9% (banded −0.1% vs −5.1%) — the market

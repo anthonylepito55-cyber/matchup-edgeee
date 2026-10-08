@@ -1989,15 +1989,46 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return (d1 ? match.mc2.p1_prob : 1 - match.mc2.p1_prob) - (d1 ? mc3.market_p1 : 1 - mc3.market_p1)
   })()
   const orange58 = mc2DogEdge != null && mc2DogEdge >= 0.05 && mc2DogEdge < 0.08
+  // 🪤 BAIT-FAVORITE GREEN (2026-10-08, user "I want all these games highlighted green
+  // full card on the board"): ALL FOUR sims (c50/c75/cUTR/serve-MC) price the favorite
+  // >=6pts below the no-vig market (>=4pts women) AND the dog is +100..+200 -> the
+  // chalk is bait, the DOG is the play. Replay month: dogs +23.4% at 6pts (51.3% win,
+  // 39-37), women +40.1%, men +13.6%; the favorite decays monotonically with discount
+  // depth (dose-response both directions — healthiest cell shape measured 2026-10-08).
+  // +200..+250 bait dogs are a GRAVEYARD (-42.5%) — the band edge is the mark.
+  // Takes precedence over the orange MC2 watch tint. bait_dog lane scores it live.
+  const baitGreen = (() => {
+    if (!mc3 || mc3.market_p1 == null || mc3.mc_c75_p1 == null || mc3.mc_cutr_p1 == null) return null
+    const c50v = (mc3.mc && mc3.mc.sims) ? mc3.mc.p1_pct / 100 : null
+    const mcdv = (match.model_d && match.model_d.mc && match.model_d.mc.sims) ? match.model_d.mc.p1_pct / 100 : null
+    if (c50v == null || mcdv == null) return null
+    const lo = match.live_odds || {}
+    const fav1 = mc3.market_p1 >= 0.5
+    const dogOdds = Number(fav1 ? lo.player_2 : lo.player_1)
+    if (isNaN(dogOdds) || dogOdds < 100 || dogOdds > 200) return null
+    const mkf = fav1 ? mc3.market_p1 : 1 - mc3.market_p1
+    const isW = match.league === 'wta' || match.league === 'itf_women'
+    const disc = isW ? 0.04 : 0.06
+    const heads = [c50v, mc3.mc_c75_p1, mc3.mc_cutr_p1, mcdv].map(v => fav1 ? v : 1 - v)
+    if (!heads.every(h => h <= mkf - disc)) return null
+    const gap = Math.round(100 * (mkf - Math.max(...heads)))
+    return { gap, dogOdds, isW }
+  })()
 
   return (
     <div className="game-card card-enter" style={{
-      background: orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: baitGreen ? 'rgba(63,185,80,0.12)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? '1px solid rgba(63,185,80,0.75)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: baitGreen ? '0 0 16px rgba(63,185,80,0.22)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
+      {baitGreen ? (
+        <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Replay month at the 6pt discount: dogs 39-37 (51.3%) +23.4% — women +40.1%, men +13.6% — with clean dose-response (deeper discount = worse favorite, better dog). +200..+250 bait dogs LOSE -42.5%, which is why this only fires through +200. Live record = the bait_dog lane (Splits tab), gender-split, auto-updating. Smallest head-gap on this card: ${baitGreen.gap}pts.`}
+          style={{ fontSize: 9, fontWeight: 800, color: '#3fb950', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(63,185,80,0.5)' }}>
+          🪤 BAIT FAV · TAKE THE DOG +{baitGreen.dogOdds} · all-sim discount {baitGreen.gap}pt+ · replay +23.4% (W +40.1%)
+        </div>
+      ) : null}
       {orange58 ? (
         <div className="mono" title={`🟠 MC2 5-8pt DOG-EDGE GAME: the calibrated MC v2 prices the market underdog ${(100 * mc2DogEdge).toFixed(1)} points above the market — the band you flagged. Replay on the backfilled month: taking the FAVORITE here went 114-42 (+5.6%), but the 3-5pt and 8-12pt neighbors were negative, so treat it as a watch cell: the mc2e58_fav lane is scoring the favorite live on the Splits tab before this ever becomes a bet mark. (Backing this dog in the same band ran −14.9%.)`}
           style={{ fontSize: 9, fontWeight: 800, color: '#f0883e', marginBottom: 6, letterSpacing: '0.04em' }}>
