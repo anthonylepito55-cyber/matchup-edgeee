@@ -2358,11 +2358,21 @@ def _compute_tennis_itf_inner(date: str):
                     _ITF_TE_QUEUE.add(p2)
             except Exception:  # noqa: BLE001
                 model_i = None
+        # MC v2 on ITF too (2026-10-08, user "can't see the new mc on the itf tab"):
+        # same display-only head as the main board; the TennisRatio pool is >half ITF
+        # so many ITF players are rated (unrated pairs return None -> no line). Attached
+        # here so log_predictions below freezes ITF mc2_p1 into the ledger as well.
+        try:
+            import tennis_mc2 as _tm2
+            mc2 = _tm2.predict(p1, p2, surf, market_p1=_mk1)
+        except Exception:  # noqa: BLE001
+            mc2 = None
         cards.append({**m, "surface": surf, "best_of_5": False,
                       "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
                                      "bookmaker": od.get("bookmaker")} if od else None),
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
                       "model_i": model_i, "model_x": model_x, "market_corrupt": _corrupt,
+                      "mc2": mc2,
                       "tr_context": {"p1": ctx1, "p2": ctx2}})
     # LOG ITF TO THE LEDGER (2026-10-08): ITF cards were never logged (only mislabeled
     # relics from the first PM build, since purged), so started ITF matches had no frozen
