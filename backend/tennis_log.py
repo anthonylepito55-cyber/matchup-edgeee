@@ -32,7 +32,9 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # public API, current ratings only -> FORWARD tracker, never retro-tested);
            # utr_mom_p1 = (p1 3mo-vs-level) - (p2 3mo-vs-level) = who's running hotter
            # than their established rating. See utr_data.py.
-           "utr_edge_p1", "utr_mom_p1"]
+           "utr_edge_p1", "utr_mom_p1",
+           # MC v2 head (2026-10-08): frozen blend prob; display/watch-lane only.
+           "mc2_p1"]
 
 
 def _read_log() -> pd.DataFrame:
@@ -140,6 +142,7 @@ def log_predictions(matches: list, date: str):
             # REAL UTR (2026-10-07): frozen at log time, forward lanes only (utr_data.py).
             "utr_edge_p1": (m.get("utr") or {}).get("edge"),
             "utr_mom_p1": (m.get("utr") or {}).get("mom"),
+            "mc2_p1": (m.get("mc2") or {}).get("p1_prob"),
         })
     log = _read_log()
     # SELF-HEALING EARLY START (2026-10-07, Tarvet case): a match seen LIVE/completed while
@@ -986,6 +989,7 @@ def get_ab25_record() -> dict:
               # usual. Surfaced on the board/Best/Prices only where the cell's ROI is +.
               "pf_c75_dis", "pf_c75_agr",
               "utr_all", "utr_dog", "utr_mom_hot", "utr_mom_fade",
+              "mc2_all", "mc2_edge2", "mc2_dog_band",
               "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
               # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
               # favorites lose (−5%). The board/Best 🧊 tag reads these so it only greens on dogs.
@@ -1199,6 +1203,21 @@ def get_ab25_record() -> dict:
             if pd.notna(_um9) and abs(float(_um9)) >= 0.2:
                 bet("utr_mom_hot", float(_um9) > 0)
                 bet("utr_mom_fade", float(_um9) <= 0)
+            # 🧮 MC v2 watch lanes (2026-10-08): forward-only, display-grade model.
+            # mc2_all = its side every rated match; mc2_edge2 = 2+pt over the market;
+            # mc2_dog_band = its pick is a +100..+250 market dog (the house pattern).
+            _m29 = r.get("mc2_p1")
+            if pd.notna(_m29):
+                _m2b = float(_m29) >= 0.5
+                bet("mc2_all", _m2b)
+                _ms2 = float(_m29) if _m2b else 1 - float(_m29)
+                _mk2 = mk1 if _m2b else 1 - mk1
+                if _ms2 - _mk2 >= 0.02:
+                    bet("mc2_edge2", _m2b)
+                if _m2b == dog1:
+                    _od2 = r.get("p1_odds") if _m2b else r.get("p2_odds")
+                    if pd.notna(_od2) and 100 <= float(_od2) <= 250:
+                        bet("mc2_dog_band", _m2b)
             # 🔒 HIGH-HIT FAVORITE STACKS (2026-10-06, user "track all of these on the $25
             # tab"): a heavy favorite that recent FORM confirms (form on the fav), in a sane
             # price band -- candidates that scanned ~85-91% hit + small +ROI IN-SAMPLE.

@@ -2050,6 +2050,18 @@ def _compute_tennis_today_inner(date: str = None):
                 r["utr"] = _utr.block(r["player_1"], r["player_2"])
             except Exception:  # noqa: BLE001
                 r["utr"] = None
+            # MC v2 (2026-10-08): the rebuilt Markov engine's head — an INDEPENDENT,
+            # well-calibrated third opinion (walk-forward .692 AUC, calibration within
+            # ~1pt per bucket). DISPLAY + LEDGER ONLY: Stage-4 measured residual-vs-
+            # close == market minus vig, so it never bets alone; its ledger lanes
+            # (mc2_all/mc2_edge2) are watch lanes and its real product is the anchored
+            # distribution engine (tennis_mc2.distribution) for PM set markets.
+            try:
+                import tennis_mc2 as _tm2
+                r["mc2"] = _tm2.predict(r["player_1"], r["player_2"],
+                                        r.get("surface"), market_p1=_mk1)
+            except Exception:  # noqa: BLE001
+                r["mc2"] = None
     except Exception as _e_tma:  # noqa: BLE001 -- never let the display models break the slate
         print(f"[tennis models] {_e_tma}")
 
