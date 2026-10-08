@@ -1248,6 +1248,22 @@ function BestPanel({ query, laneRec, priceOnly }) {
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>vs {r.opp.split(' ').slice(-1)[0]}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>· {String(r.lg || '').toUpperCase()} · {r.gen === 'w' ? 'W' : 'M'}</span>
                 {r.od != null ? <span style={{ fontSize: 11, color: r.od > 0 ? '#3fb950' : 'var(--text-secondary)' }}>{odfmt(r.od)}</span> : null}
+                {(() => {
+                  // ⚖ KELLY-LITE STAKE (2026-10-08): uncertainty-gated sizing, the principled
+                  // version of CORE/THIN/⚠. Top backing cell's ROI is SHRUNK toward zero by
+                  // sample size (n/(n+50) — a +60%/n12 lane sizes like a +12% edge), then
+                  // quarter-Kelly at this pick's own price on a 25u bankroll. Thin lanes and
+                  // long prices auto-size small; nothing here overrides the no-bet gates.
+                  if (r.od == null || !r.sigs || !r.sigs.length) return null
+                  const g0 = r.sigs[0]
+                  const e = Math.min(Math.max((g0.roi / 100) * (g0.n / (g0.n + 50)), 0), 0.30)
+                  if (e <= 0.005) return null
+                  const dz = r.od > 0 ? 1 + r.od / 100 : 1 + 100 / Math.abs(r.od)
+                  const u = Math.min(Math.max(0.25 * (e / (dz - 1)) * 25, 0.1), 1.5)
+                  const us = u.toFixed(1)
+                  return <span title={`⚖ Suggested stake ≈${us}u — quarter-Kelly on a 25-unit bankroll. Edge = top backing cell's live ROI (+${g0.roi}% on n=${g0.n}) shrunk by sample size to +${Math.round(e * 100)}%, divided by this price's payout. Thin lanes and long dogs size themselves down automatically; a CORE favorite at short odds sizes up (low variance — that's Kelly, not a bug). Guidance only: flat 1u is what every record on this site measures.`}
+                    className="mono" style={{ fontSize: 9, fontWeight: 800, borderRadius: 4, padding: '0 6px', border: '1px solid #bc8cff66', color: '#d2a8ff', background: 'rgba(188,140,255,0.10)' }}>⚖ {us}u</span>
+                })()}
                 {bd ? <span title={bd.tip} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${bd.bd}`, color: bd.col, background: bd.bg }}>{bd.icon} {bd.name}</span> : null}
                 {r.gen === 'm' && r.band === 'dog' && r.nSig >= 2 ? (() => { const o = study.blue2stack || {}; const n = o.n || 0; return (
                   <span title="💎 BLUE ★2+: a +100/+250 men dog with 2+ INDEPENDENT signal families agreeing — the board's best measured cell (+55.5%, 16-7 at build). Live record auto-updates as games settle." className="mono" style={{ fontSize: 9, fontWeight: 800, borderRadius: 4, padding: '0 6px', border: '1px solid #58a6ff', color: '#eaf4ff', background: 'rgba(31,111,235,0.38)', textShadow: '0 0 8px #58a6ff' }}>
@@ -1658,6 +1674,15 @@ function SetScanPanel() {
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid #a78bfa55', background: 'rgba(167,139,250,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
         <b style={{ color: '#a78bfa' }}>🎲 SET MARKETS — MC v2 anchored engine vs Polymarket's derivative books</b> ({d.priced}/{d.scanned} matches priced). The engine takes the <b>sharp no-vig moneyline</b> (OpticOdds consensus when we have it — the [sharp] tag) and adds the validated match structure (day-form calibrated: 3-setters 33.9% vs 34.7% real, TB 27.1 vs 27.6, games 22.1 vs 22.2 on 20k score lines) → prices every set/total/handicap market. <b>BUY</b> = cross the book's ask now; <b>POST</b> = the maker price to leave as a limit order instead (on thin books, posting turns the spread into edge). <b style={{ color: '#e3b341' }}>⚠ BRAND NEW + UNPROVEN</b>: every flag is logged for forward CLV/settlement — treat as paper until the log earns a record. Auto-refresh 3 min.
       </div>
+      {d.record && d.record.n ? (
+        <div className="mono" style={{ marginTop: 8, padding: '7px 12px', borderRadius: 6, border: `1px solid ${d.record.pnl >= 0 ? '#3fb95055' : '#f8514955'}`, background: d.record.pnl >= 0 ? 'rgba(63,185,80,0.06)' : 'rgba(248,81,73,0.05)', fontSize: 10.5 }}
+          title="The forward record: every flag auto-settles from the match's real score string once it resolves (taker basis — buying the book's ask at flag time; a maker fill at the post price can't be verified after the fact, so it isn't counted). Retirements/walkovers void. PnL is per-share units: win = 1 − buy price, loss = −buy price.">
+          📒 <b>settled record:</b> <b style={{ color: d.record.pnl >= 0 ? '#3fb950' : '#f85149' }}>{d.record.wins}-{d.record.n - d.record.wins} · {d.record.pnl >= 0 ? '+' : ''}{d.record.pnl}u</b> (taker, flat 1-share)
+          {Object.entries(d.record.by_market || {}).map(([k, v]) => (
+            <span key={k} style={{ marginLeft: 10, color: 'var(--text-tertiary)', fontSize: 9 }}>{k}: <span style={{ color: v.pnl >= 0 ? '#3fb950' : '#f85149' }}>{v.wins}-{v.n - v.wins} {v.pnl >= 0 ? '+' : ''}{v.pnl}u</span></span>
+          ))}
+        </div>
+      ) : null}
       <div className="mono" style={{ display: 'flex', fontSize: 9, color: 'var(--text-tertiary)', padding: '8px 10px 3px', borderBottom: '1px solid var(--line)' }}>
         <span style={{ width: 52 }}>edge</span><span style={{ flex: 1.3 }}>market · side</span><span style={{ width: 92 }}>our / buy / post</span><span style={{ flex: 1.5 }}>match</span><span style={{ width: 46 }}>anchor</span>
       </div>

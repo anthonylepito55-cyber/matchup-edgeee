@@ -78,6 +78,125 @@ def _book(mk):
         return None
 
 
+def _parse_sets(score):
+    """[(ga, gb), ...] completed sets from a PM score string, or None (ret/w-o/unparseable).
+    The orientation (who is 'a') is the event's own; _settle pins it via the ML winner."""
+    if not isinstance(score, str) or not score.strip():
+        return None
+    low = score.lower()
+    if "ret" in low or "w/o" in low or "walk" in low or "def" in low:
+        return None
+    sets = []
+    for tok in score.replace(",", " ").split():
+        t = tok.split("(")[0]
+        if "-" not in t:
+            return None
+        try:
+            x, y = map(int, t.split("-"))
+        except ValueError:
+            return None
+        if x > 7 or y > 7 or (max(x, y) < 6):
+            return None          # unfinished / superbreak formats — don't guess
+        sets.append((x, y))
+    if len(sets) not in (2, 3):
+        return None
+    sa = sum(1 for x, y in sets if x > y)
+    sb = len(sets) - sa
+    if max(sa, sb) != 2:
+        return None
+    return sets
+
+
+def settle():
+    """Grade past scanner flags against PM's resolved events (score-string settlement).
+    TAKER record only — a maker fill at post_at is unknowable after the fact (and
+    adversely selected), so the honest record is 'crossed the ask at buy_at'. Voids
+    (ret/w-o/unparseable) are excluded. Returns the running record summary."""
+    empty = {"n": 0, "wins": 0, "pnl": 0.0, "by_market": {}}
+    try:
+        df = pd.read_parquet(_LOG)
+    except Exception:  # noqa: BLE001
+        return empty
+    if "settled" not in df.columns:
+        df["settled"] = None
+        df["pnl"] = None
+    now_utc = datetime.now(timezone.utc)
+    todo = df[df["settled"].isna()]
+    # only matches that started 3h+ ago can be settled
+    mask = []
+    for st in todo["start"]:
+        try:
+            t = datetime.fromisoformat(str(st).replace("Z", "+00:00"))
+            mask.append((now_utc - t).total_seconds() > 3 * 3600)
+        except (TypeError, ValueError):
+            mask.append(False)
+    todo = todo[pd.Series(mask, index=todo.index)] if len(todo) else todo
+    if len(todo):
+        import polymarket_data as pmd
+        ev_by_slug = {}
+        for closed in (True, False):
+            for ev in pmd._fetch_events(closed):
+                sl = ev.get("slug")
+                if sl and sl not in ev_by_slug and ev.get("ended"):
+                    ev_by_slug[sl] = ev
+        for idx, row in todo.iterrows():
+            ev = ev_by_slug.get(row["slug"])
+            if ev is None:
+                continue
+            sets = _parse_sets(ev.get("score"))
+            if sets is None:
+                df.loc[idx, "settled"] = "void"
+                continue
+            # pin score orientation to the match (p1, p2) via the resolved ML winner
+            p1, p2 = pmd._players(ev)
+            a1, a2 = pmd._match_price(ev)
+            if a1 is None or a2 is None or abs(a1 - a2) < 0.05:
+                df.loc[idx, "settled"] = "void"
+                continue
+            p1_won = a1 > a2
+            score_a_won = sum(1 for x, y in sets if x > y) == 2
+            if p1_won != score_a_won:                      # score is p2-first -> flip
+                sets = [(y, x) for x, y in sets]
+            tot = sum(x + y for x, y in sets)
+            s1a, s1b = sets[0]
+            mkt, side = str(row["market"]), str(row["side"])
+            won = None
+            if mkt.startswith("match games O/U"):
+                ln = float(mkt.rsplit(" ", 1)[-1])
+                won = (tot < ln) if side == "Under" else (tot > ln)
+            elif mkt.startswith("set-1 games O/U"):
+                ln = float(mkt.rsplit(" ", 1)[-1])
+                won = (s1a + s1b < ln) if side == "Under" else (s1a + s1b > ln)
+            elif mkt.startswith("3 sets"):
+                won = (len(sets) == 3) if side.lower().startswith("o") else (len(sets) == 2)
+            elif mkt == "1st set winner":
+                w1 = p1 if s1a > s1b else p2
+                won = _norm(side) == _norm(w1)
+            elif mkt.startswith("set handicap"):
+                # side covers -1.5 only by winning 2-0
+                winner = p1 if p1_won else p2
+                won = _norm(side) == _norm(winner) and len(sets) == 2
+            if won is None:
+                df.loc[idx, "settled"] = "void"
+                continue
+            buy = float(row["buy_at"])
+            df.loc[idx, "settled"] = "win" if won else "loss"
+            df.loc[idx, "pnl"] = round((1 - buy) if won else -buy, 3)
+        try:
+            df.to_parquet(_LOG)
+        except Exception:  # noqa: BLE001
+            pass
+    g = df[df["settled"].isin(["win", "loss"])]
+    if not len(g):
+        return empty
+    bym = {}
+    for mk, grp in g.groupby(g["market"].str.replace(r" [0-9.]+$", "", regex=True)):
+        bym[mk] = {"n": int(len(grp)), "wins": int((grp["settled"] == "win").sum()),
+                   "pnl": round(float(grp["pnl"].sum()), 2)}
+    return {"n": int(len(g)), "wins": int((g["settled"] == "win").sum()),
+            "pnl": round(float(g["pnl"].sum()), 2), "by_market": bym}
+
+
 def scan():
     now = time.time()
     if _cache["data"] is not None and now - _cache["at"] < _TTL:
@@ -164,8 +283,12 @@ def scan():
                 our = D["p1_20"] if fav_name == _norm(p1) else D["p2_20"]
                 push(m, "set handicap -1.5", our, outs)
     flags.sort(key=lambda f: -f["edge"])
+    try:
+        record = settle()
+    except Exception:  # noqa: BLE001
+        record = {"n": 0, "wins": 0, "pnl": 0.0, "by_market": {}}
     out = {"flags": flags[:60], "scanned": scanned, "priced": priced,
-           "at": datetime.now(timezone.utc).isoformat()}
+           "record": record, "at": datetime.now(timezone.utc).isoformat()}
     _cache.update({"at": now, "data": out})
     # forward log (append-only; dedup by slug+market+side per day)
     try:
