@@ -1918,8 +1918,16 @@ def _compute_tennis_today_inner(date: str = None):
             _fid = str(r.get("fixture_id"))
             # started matches: prefer the FROZEN pre-match price even when the feed still
             # streams in-play odds (2026-09-28 fix -- a pre-match model compared to an
-            # in-play line reads nonsense edges once a set is lost)
-            if _fid in _fro and (not r.get("live_odds") or r.get("status") != "unplayed"):
+            # in-play line reads nonsense edges once a set is lost). ALSO time-based
+            # (2026-10-07, Tarvet case): Polymarket trades IN-PLAY and its `live` flag can
+            # lag, leaving a started match as "unplayed" with a drifting price -- once the
+            # scheduled start has passed, lock to the logged closing odds regardless of status.
+            _startd = False
+            try:
+                _startd = _tlog2._started(r.get("start_time_utc"))
+            except Exception:  # noqa: BLE001
+                pass
+            if _fid in _fro and (not r.get("live_odds") or r.get("status") != "unplayed" or _startd):
                 r["live_odds"] = _fro[_fid]
                 _nfro += 1
         if _nfro:
@@ -2014,8 +2022,44 @@ def _compute_tennis_today_inner(date: str = None):
                                                        r.get("round")))
             except Exception:  # noqa: BLE001
                 r["model_x"] = None
+            # PURE-RESULTS FORM overlay (2026-10-06, user): quality- + competitiveness-
+            # adjusted last-10-on-surface form, NO serve stats. Logged + forward-tracked as
+            # a CONTRARIAN overlay on mc_c75 (men mc_c75 + form DISAGREES = +live edge; the
+            # market overvalues recent form). Surfaced on the board/Best/Prices only where
+            # the matching pf_c75_* lane is +ROI. As-of `date` so live == the backfilled log.
+            try:
+                import tennis_pure_form as _tpf
+                _pfe, _pn1, _pn2 = _tpf.edge(r["player_1"], r["player_2"],
+                                             r.get("surface"), asof=date)
+                if _pfe is not None:
+                    _c75v = (mc or {}).get("mc_c75_p1")
+                    _agree = (((_pfe > 0) == (float(_c75v) >= 0.5))
+                              if _c75v is not None else None)
+                    r["pure_form"] = {"edge": round(float(_pfe), 4),
+                                      "n1": int(_pn1), "n2": int(_pn2),
+                                      "p1_better": bool(_pfe > 0), "agree_c75": _agree}
+            except Exception:  # noqa: BLE001
+                pass
+            # REAL UTR attach (2026-10-07, user "get real utr data ... do tests with it"):
+            # UTR's PUBLIC search API, current singlesUtr + 3-month form rating. Cache-only
+            # here (never blocks the slate); misses are queued for the polite background
+            # sweep below and fill in on a later compute. CURRENT ratings only -> forward
+            # tracker (utr_edge_p1/utr_mom_p1 frozen at log time; retro test would leak).
+            try:
+                import utr_data as _utr
+                r["utr"] = _utr.block(r["player_1"], r["player_2"])
+            except Exception:  # noqa: BLE001
+                r["utr"] = None
     except Exception as _e_tma:  # noqa: BLE001 -- never let the display models break the slate
         print(f"[tennis models] {_e_tma}")
+
+    # Background real-UTR sweep for any slate player without a fresh rating (1 req/s,
+    # single worker; ratings land in the disk cache for the next recompute).
+    try:
+        import utr_data as _utr
+        _utr.queue_fetch([nm for r in results for nm in (r["player_1"], r["player_2"])])
+    except Exception:  # noqa: BLE001
+        pass
 
     # Slate-driven pool growth (2026-09-26): any player on OUR board without a profile gets a
     # background page attempt (TR's own feed misses whole events -- Boisson/Adana case). Fire
@@ -2050,7 +2094,14 @@ def _compute_tennis_today_inner(date: str = None):
         _froM = {str(_lr["fixture_id"]): _lr for _, _lr in _lgf.iterrows()}
         _nfrm = 0
         for r in results:
-            if r.get("status") != "unplayed":
+            # time-based too (2026-10-07): PM's `live` flag can lag, so a started match may
+            # still read "unplayed" -- freeze models once the scheduled start has passed.
+            _startd2 = False
+            try:
+                _startd2 = tennis_log._started(r.get("start_time_utc"))
+            except Exception:  # noqa: BLE001
+                pass
+            if r.get("status") != "unplayed" or _startd2:
                 _lr = _froM.get(str(r.get("fixture_id")))
                 if _lr is not None and _tennis_freeze_models(r, _lr):
                     _nfrm += 1
@@ -2104,6 +2155,23 @@ def tennis_history(limit_dates: int = 30):
     """Every finished tennis match from the frozen log, newest date first (user ask
     2026-10-02). Each match carries the result + each model's and the MC's pick/hit."""
     return tennis_log.get_tennis_history(limit_dates=limit_dates)
+
+
+_TAB_PROFIT_CACHE = {"at": 0.0, "data": None}
+
+
+@app.get("/api/tennis/tab-profit")
+def tennis_tab_profit():
+    """📊 Tab P/L (2026-10-08, user "a separate tab that tracks daily profit taking every
+    bet on the best tab and on the prices tab and comparing which one makes more"): flat
+    1u on every Best-tab pick vs the Prices-tab (sweet-priced) subset, per day from the
+    frozen ledger. Cached 2 min (it runs the full lane study)."""
+    now = time.monotonic()
+    if _TAB_PROFIT_CACHE["data"] is not None and now - _TAB_PROFIT_CACHE["at"] < 120:
+        return _TAB_PROFIT_CACHE["data"]
+    out = tennis_log.get_tab_profit()
+    _TAB_PROFIT_CACHE.update({"at": now, "data": out})
+    return out
 
 
 _TENNIS_ITF_CACHE = {}
@@ -2276,6 +2344,46 @@ def _compute_tennis_itf_inner(date: str):
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
                       "model_i": model_i, "model_x": model_x, "market_corrupt": _corrupt,
                       "tr_context": {"p1": ctx1, "p2": ctx2}})
+    # LOG ITF TO THE LEDGER (2026-10-08): ITF cards were never logged (only mislabeled
+    # relics from the first PM build, since purged), so started ITF matches had no frozen
+    # closing line to serve and ITF women never fed the lanes. Same closing-line-only
+    # upsert discipline as the board (log_predictions skips started matches itself).
+    try:
+        tennis_log.log_predictions(cards, date)
+    except Exception as _e_li:  # noqa: BLE001
+        print(f"[tennis itf log] {_e_li}")
+    # FREEZE AT FIRST SERVE — ITF too (2026-10-08, user "I want the lines to stop moving
+    # when the game starts" / "block it on the best bet tab"): the MAIN board has frozen
+    # started cards to the ledger's closing odds + logged model heads since 2026-10-06,
+    # but ITF cards kept serving in-play prices (the Giza −194-vs-logged-+264 case), and
+    # the Best tab builds its ITF rows from these cards. Same two blocks as the board:
+    # once a match has started (status OR scheduled time), lock odds to the frozen
+    # closing line and overwrite model heads with the logged first-serve values.
+    try:
+        _ldfI = tennis_log._read_log()
+        _ldfI = _ldfI[_ldfI["p1_odds"].notna() & _ldfI["p2_odds"].notna()]
+        _froI = {str(_lr["fixture_id"]): _lr for _, _lr in _ldfI.iterrows()}
+        _nfoI = _nfmI = 0
+        for c in cards:
+            _startdI = False
+            try:
+                _startdI = tennis_log._started(c.get("start_time_utc"))
+            except Exception:  # noqa: BLE001
+                pass
+            if not (c.get("status") != "unplayed" or _startdI):
+                continue
+            _lr = _froI.get(str(c.get("fixture_id")))
+            if _lr is None:
+                continue
+            c["live_odds"] = {"player_1": _lr["p1_odds"], "player_2": _lr["p2_odds"],
+                              "bookmaker": _lr.get("bookmaker"), "frozen": True}
+            _nfoI += 1
+            if _tennis_freeze_models(c, _lr):
+                _nfmI += 1
+        if _nfoI:
+            print(f"[tennis itf] froze odds on {_nfoI} / models on {_nfmI} started cards")
+    except Exception as _e_fi:  # noqa: BLE001
+        print(f"[tennis itf freeze] {_e_fi}")
     # kick a bounded background TE ingest for the queued gap players (polite, throttled);
     # they fill in on a later load. Never blocks this response.
     if _ITF_TE_QUEUE and not _itf_te_running[0]:

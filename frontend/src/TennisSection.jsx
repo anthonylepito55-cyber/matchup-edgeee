@@ -303,6 +303,28 @@ function Ab25Panel() {
             {l.w && l.w.n ? `W ${l.w.wins}-${l.w.n - l.w.wins} ${l.w.roi_pct > 0 ? '+' : ''}${l.w.roi_pct}%` : 'W —'}
           </div>
         ) : null}
+        {l && ((l.dog && l.dog.n) || (l.fav && l.fav.n)) ? (
+          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}
+            title="This signal's record split by whether the PICK was a market UNDERDOG vs FAVORITE. For almost every signal the real edge is in the dogs; favorite picks tend to be flat-to-negative (efficiently priced chalk).">
+            {l.dog && l.dog.n ? <span style={{ color: l.dog.roi_pct > 3 ? '#3fb950' : l.dog.roi_pct < -3 ? '#f85149' : 'var(--text-tertiary)' }}>🐕 {l.dog.wins}-{l.dog.n - l.dog.wins} {l.dog.roi_pct > 0 ? '+' : ''}{l.dog.roi_pct}%</span> : '🐕 —'}
+            {' · '}
+            {l.fav && l.fav.n ? <span style={{ color: l.fav.roi_pct > 3 ? '#3fb950' : l.fav.roi_pct < -3 ? '#f85149' : 'var(--text-tertiary)' }}>⭐ {l.fav.wins}-{l.fav.n - l.fav.wins} {l.fav.roi_pct > 0 ? '+' : ''}{l.fav.roi_pct}%</span> : '⭐ —'}
+          </div>
+        ) : null}
+        {l && ((l.m_dog && l.m_dog.n) || (l.m_fav && l.m_fav.n) || (l.w_dog && l.w_dog.n) || (l.w_fav && l.w_fav.n)) ? (
+          <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 2 }}
+            title="Gender × side crossed: men-dog / men-fav / women-dog / women-fav. Shows which exact slice carries the signal (e.g. the 6-4 fade is a men-dog play).">
+            {(() => {
+              const cc = c => (!c || !c.n) ? null : <span style={{ color: c.roi_pct > 3 ? '#3fb950' : c.roi_pct < -3 ? '#f85149' : 'var(--text-secondary)' }}>{c.roi_pct > 0 ? '+' : ''}{c.roi_pct}%/{c.n}</span>
+              const md = cc(l.m_dog), mf = cc(l.m_fav), wd = cc(l.w_dog), wf = cc(l.w_fav)
+              return <>
+                {(md || mf) ? <>M {md ? <>🐕{md} </> : ''}{mf ? <>⭐{mf}</> : ''}</> : null}
+                {((md || mf) && (wd || wf)) ? ' · ' : ''}
+                {(wd || wf) ? <>W {wd ? <>🐕{wd} </> : ''}{wf ? <>⭐{wf}</> : ''}</> : null}
+              </>
+            })()}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -316,6 +338,18 @@ function Ab25Panel() {
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
         $25 a game, registered {rec ? rec.registered : '2026-09-28'}. Picks freeze at first serve with the odds; settled from the ledger.
         {rec && rec.pending ? ` ${rec.pending} pending.` : ''}
+      </div>
+      {section('🧊 Fade the form (live take · forward-only)', '— on an mc_c75 pick where quality-adjusted last-10-on-surface form (opponent quality + how competitive, NO serve stats) points at the OPPONENT, $25 on the MODEL side. The market overvalues recent form, so you fade it. Forward-only (reconstructed games excluded). The edge is ALL in the DOGS (🐕 line below); favorite form-fades are flat/negative. The FORM-AGREES card is the no-edge contrast.')}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {card(['st:pf_c75_dis', '🧊 FADE FORM (take)', 'The 🧊 FORM-FADE board/Best signal as a $25 lane: every mc_c75 pick where the pure-results recent-form overlay (last-10-on-surface, opponent quality + how competitively they won/lost, NO serve stats) points at the OPPONENT — you fade that form narrative and stake $25 on the model’s pick. Live edge: men +18.9% (n117), women +4.9% (n70). Favorites are the steady half (~74% hit, +10%), dogs the high-variance half (+36%). One month of forward sample — real but unproven; m/w split below. Click to see the picks.'], '#56d4dd', '#56d4dd')}
+        {card(['st:pf_c75_agr', '🔥 FORM AGREES (contrast)', 'The control half: mc_c75 picks where recent form AGREES with the model. This is the no-edge comparison — live men −2% / women −15% — shown so the separation that makes the FADE-FORM side worth taking is visible. NOT a take.'], '#8b949e', '#8b949e')}
+      </div>
+      {section('🔒 High-hit favorite stacks (candidates · UNVALIDATED)', '— a heavy favorite that recent FORM confirms, in a −300..−730 price band. These scanned ~85–91% hit + small +ROI IN-SAMPLE, but on tiny n and found by scanning many combos (multiple-comparison risk). Forward-tracked from today — do NOT bet real money until the live sample proves them. The M/W split is below each card.')}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {card(['st:pf_ghfav', '🔒 GRAYHATE FAV + FORM', 'Take the market FAVORITE when (a) the gray line hates the dog (prices it 2+ pts under market = bait) AND (b) recent form also backs the favorite. Any price. In-sample 76% hit / +2.8% (n122) — the biggest-sample, most believable candidate. Forward-tracked.'], '#3fb950', '#3fb950')}
+        {card(['st:pf_ghfav_pr', '🔒 GRAYHATE FAV + FORM · −300/730', 'Same as GRAYHATE FAV + FORM but only in the −300..−730 price window. In-sample 87% hit / +2.1% (n38). The best shot at a high-hit + positive-ROI cell — still unvalidated. Forward-tracked.'], '#3fb950', '#3fb950')}
+        {card(['st:pf_c75fav_pr', '🔒 c75 FAV + FORM · −350/730', 'The C-MC c75 pick IS the favorite, recent form confirms it, priced −350..−730. In-sample 88% hit / +2.1% (n25). Unvalidated (small n). Forward-tracked.'], '#58a6ff', '#58a6ff')}
+        {card(['st:pf_a10fav_pr', '🔒 ALL-10 FAV + FORM · −350/730', 'All 10 model heads agree on the favorite AND recent form confirms, priced −350..−730. In-sample 88% hit men / 91% hit all-gender, +1–5% (n16–22). The highest-hit candidate but the thinnest sample — two upsets from break-even. Forward-tracked.'], '#58a6ff', '#58a6ff')}
       </div>
       {section('🔀 Fade the 6-4 split (new · watch)', '— when the 10 model heads split exactly 6-4, $25 on the 4-MINORITY side (fade the slim majority). Backtest +80.7% men / +58% all, but n=17 — NOISE, unvalidated. Forward-tracked from today; the weekly checkpoint judges it.')}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -358,6 +392,14 @@ function Ab25Panel() {
                         <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                           {l.wins}-{l.n - l.wins} · {usd(l.profit_usd)}{l.pending ? ` · ${l.pending} pend` : ''}
                         </div>
+                        {(l.dog && l.dog.n) || (l.fav && l.fav.n) ? (
+                          <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 2 }}
+                            title="This variant's record split by whether its pick was a market DOG vs FAVORITE.">
+                            {l.dog && l.dog.n ? <span style={{ color: l.dog.roi_pct > 3 ? '#3fb950' : l.dog.roi_pct < -3 ? '#f85149' : 'var(--text-tertiary)' }}>🐕 {l.dog.wins}-{l.dog.n - l.dog.wins} {l.dog.roi_pct > 0 ? '+' : ''}{l.dog.roi_pct}%</span> : '🐕 —'}
+                            {' · '}
+                            {l.fav && l.fav.n ? <span style={{ color: l.fav.roi_pct > 3 ? '#3fb950' : l.fav.roi_pct < -3 ? '#f85149' : 'var(--text-tertiary)' }}>⭐ {l.fav.wins}-{l.fav.n - l.fav.wins} {l.fav.roi_pct > 0 ? '+' : ''}{l.fav.roi_pct}%</span> : '⭐ —'}
+                          </div>
+                        ) : null}
                       </>
                     ) : (
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{l.pending ? `${l.pending} pending` : '0 settled'}</div>
@@ -429,15 +471,24 @@ export default function TennisSection() {
   async function fetchTennis() {
     setLoading(true)
     setError(null)
-    try {
-      const res = await fetch('/api/tennis/today')
-      if (!res.ok) throw new Error(`API returned ${res.status}`)
-      setData(await res.json())
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
+    // SILENT RETRY (2026-10-07): the board loads once by design (no auto-poll), so a page
+    // opened during a server restart/deploy used to stick on an empty board until a manual
+    // reload. Retry the one-shot fetch a few times with backoff before giving up.
+    let lastErr = null
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 4000 * attempt))
+        const res = await fetch('/api/tennis/today')
+        if (!res.ok) throw new Error(`API returned ${res.status}`)
+        setData(await res.json())
+        setLoading(false)
+        return
+      } catch (e) {
+        lastErr = e
+      }
     }
+    setError(lastErr ? lastErr.message : 'load failed')
+    setLoading(false)
   }
 
   const all = data?.matches ?? []
@@ -506,7 +557,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['history', 'results history'], ['modelx', 'Model X']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -532,9 +583,8 @@ export default function TennisSection() {
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
-
 
       {error && (
         <div style={{
@@ -706,6 +756,10 @@ function PicksPanel({ query }) {
     const mks = s50 ? mk : 1 - mk
     if (c50s <= mks) continue                 // must be OVER the market
     const od = m.live_odds ? (s50 ? m.live_odds.player_1 : m.live_odds.player_2) : null
+    // LONG DOGS DROPPED here too (2026-10-08, user — same rule as the Best tab): a dog
+    // pick priced over +250 doesn't make the sheet (+250..+400 went 1-6 in replay; the
+    // Picks-sheet half of that band went 0-3). Lanes keep tracking them in the background.
+    if (mks < 0.5 && od != null && od > 250) continue
     const row = { ...base, od, mk: Math.round(mks * 100), edge: Math.round(100 * (c50s - mks)), dog: mks < 0.5 }
     ;(mks < 0.5 ? dogs : favs).push(row)
   }
@@ -795,6 +849,7 @@ function PicksPanel({ query }) {
 // roi while having the highest hit rate"). A signal must clear ALL three on THIS match's
 // gender record in the frozen live log to qualify a game. Tunable in one place.
 const BEST_N = 20, BEST_HIT = 65, BEST_ROI = 4
+const BEST_N_SPLIT = 12   // smaller floor for the (gender×dog/fav) cells, which carry less n
 // Sweet-spot PRICES where a Best pick's edge actually pays (2026-10-05, from the full-history
 // price map): MEN +100..+250 (dog value, +46%) or −600..−300 (short-chalk pocket, +8%);
 // WOMEN +150..+250 only. The −110..−300 band and extreme chalk (< −600) lose, so excluded.
@@ -804,13 +859,17 @@ const BEST_N = 20, BEST_HIT = 65, BEST_ROI = 4
 // every other signal and for women's ALL-10 (−39%). So pass isAll10 to open that window.
 function inSweetPrice(od, gen, isAll10) {
   if (od == null) return false
-  if (gen === 'w') return false   // MEN ONLY for now (2026-10-05, user) — women sweet spots
-  // are too thin (n=13) to mark; revisit once validated. Women dog value = MC-DOG chips.
+  // WOMEN marked too (2026-10-08, user "mark the women ones too"): the +100..+250 DOG
+  // band only — it's the one women's band with live evidence (banded 🤝 DOG W +55%,
+  // price_dog_w lane now tracks it). Women chalk / ALL-10 bands stay unmarked (no edge:
+  // women's ALL-10 ran −39%).
+  if (gen === 'w') return od >= 100 && od <= 250
   return (od >= 100 && od <= 250) || (od >= -600 && od <= -300)
     || (!!isAll10 && od >= -300 && od <= -140)   // −140..−300 per user (−200/−300 is the strong half)
 }
 function priceBand(od, gen, isAll10) {
-  if (od == null || gen !== 'm') return null   // men-only marking
+  if (od == null) return null
+  if (gen === 'w') return (od >= 100 && od <= 250) ? 'dog' : null   // women: dog band only
   if (od >= 100 && od <= 250) return 'dog'
   if (od >= -600 && od <= -300) return 'chalk'
   if (isAll10 && od >= -300 && od <= -200) return 'all10strong'
@@ -836,8 +895,30 @@ function isAll10Agree(s) {
 // p1-boolean, or null if the game isn't in that lane. The gender-split live record under
 // stx[key][m|w] is what actually gates it, so the list self-maintains as the log grows.
 const BEST_SIGNALS = [
-  { key: 'mc_c75_all', label: 'C-MC c75', icon: '⚄', fire: s => s.c75 },
+  // c75 SPLIT BY SIDE (2026-10-06, user): the c75 edge is ALL in the dogs; plain c75
+  // favorites lose (−6.7%), so they no longer qualify via c75. The ONE +ROI c75 favorite is
+  // the one recent form DISAGREES with (fade the form) — tracked as c75fav_formfade.
+  { key: 'mc_c75_dog', label: 'C-MC c75 DOG', icon: '⚄', fire: s => (s.c75 != null && s.c75 === s.dog1) ? s.c75 : null },
+  // c75fav_formfade is WATCH-ONLY (2026-10-06, user "watch the other positive roi signals"):
+  // men −5.2% forward, women +7.4% but only n14 — tracked as a lane on Splits/$25, not a Best
+  // mark. Re-add here if its forward sample firms up.
+  // MC-GREEN (2026-10-06, user "mark the women's mc_green"): a plain gray pick (not gold/
+  // hate/passfav) that the Monte Carlo agrees with. Only +ROI cell is WOMEN favorites
+  // (+20%); the side-aware gate surfaces it there and nowhere else, so it's women-only in
+  // practice. Bets the gray side.
+  { key: 'mc_green', label: 'MC-GREEN', icon: '🟢', fire: s => {
+      // uses the D-serve MC (mcdS), matching the backend mc_green lane exactly (2026-10-07
+      // fix — was firing on the c50 MC, which the lane doesn't measure)
+      if (s.mcdS == null || s.g1 == null || s.c1 == null) return null
+      const star0 = (s.c1 === s.g1 && s.g1 === s.dog1)
+      const passfav = (s.aP !== s.c1 && s.bP !== s.c1 && s.g1 === s.c1 && s.c1 !== s.dog1)
+      return (!star0 && !s.hate && !passfav && s.mcdS === s.g1) ? s.g1 : null
+    } },
   { key: 'mcc_c75_agree', label: 'c50+c75 agree', icon: '⚄', fire: s => (s.mcS != null && s.c75 != null && s.mcS === s.c75) ? s.c75 : null },
+  // ⚄⚄ ALL-4 MCs ON THE DOG (2026-10-08, user: 'a +100..+250 dog like Aliona should
+  // have been on the best tab over Oliynykova' — promoted on the measured cell:
+  // banded 15-15 +17.3%, outside the band 0-7). Band enforced odds-side in BestPanel.
+  { key: 'mc4_dog_band', label: '4-MC DOG', icon: '⚄', fire: s => (s.mcdS != null && s.mcS != null && s.c75 != null && s.cuS != null && s.mcdS === s.mcS && s.mcS === s.c75 && s.c75 === s.cuS && s.mcS === s.dog1) ? s.mcS : null },
   { key: 'dma_edge2', label: 'D-MA 2pt', icon: '📈', fire: s => s.dmaEdge ? s.dmaP : null },
   { key: 'all10_agree', label: 'ALL-10', icon: '✅', fire: s => { const a = [s.aP, s.bP, s.c1, s.g1, s.dP, s.dmaP, s.mcdS, s.mcS, s.c75, s.cuS]; return (a.every(x => x != null) && a.every(x => x === a[0])) ? a[0] : null } },
   { key: 'mc_4of4', label: 'MC 4/4 slip', icon: '⚄', fire: s => (s.aP != null && s.bP != null && s.dP != null && s.mcS != null && s.aP === s.bP && s.bP === s.c1 && s.c1 === s.dP && s.mcS === s.c1) ? s.c1 : null },
@@ -849,6 +930,17 @@ const BEST_SIGNALS = [
   { key: 'c_alone_gray', label: 'C-ALONE+GRAY', icon: '🔵', fire: s => (s.aP != null && s.bP != null && s.aP !== s.c1 && s.bP !== s.c1 && s.g1 === s.c1) ? s.c1 : null },
   { key: 'gold_names', label: 'GOLD NAME', icon: '🥇', fire: s => (s.c1 === s.g1 && s.g1 === s.dog1) ? s.c1 : (s.hate ? !s.dog1 : null) },
 ]
+// Signal FAMILIES (2026-10-06, user: a ★2 of two correlated c75 signals isn't 2 reads). The
+// stack count = distinct families, so ★N only rises when genuinely DIFFERENT logic agrees.
+// c50+c75 and c75-dog are one family ('mc'); gold/grayhate/gold-names are one ('gold'); etc.
+const SIG_FAM = {
+  mc_c75_dog: 'mc', mcc_c75_agree: 'mc', mc4_dog_band: 'mc', mc4ovr_fav_band: 'mc', fight_mc4_dog: 'mc',
+  mc_4of4: 'consensus', all10_agree: 'consensus', all10_price_m: 'consensus',
+  dma_edge2: 'dma', cvg_gray: 'gray', mc_green: 'gray',
+  goldfav_d5: 'gold', grayhate_fav: 'gold', gold_names: 'gold',
+  c_alone_gray: 'calone', fade_a: 'fadea', fade_a_fav: 'fadea', cr5_coll_leanfav: 'collision',
+}
+const famOf = k => SIG_FAM[k] || k
 function bestSig(m) {
   const c = m.model_c
   if (!c || c.p1_prob == null || c.market_aware_p1 == null || c.market_p1 == null) return null
@@ -864,14 +956,56 @@ function bestSig(m) {
     const mk = dmaP ? c.market_p1 : 1 - c.market_p1
     dmaEdge = (ds - mk) >= 0.02
   }
+  const pf = m.pure_form
   return {
     c1, g1, dog1, mdog, gdog, dmaP, dmaEdge,
     mcS: mc && mc.sims ? mc.p1_pct >= 50 : null,
     c75: c.mc_c75_p1 != null ? c.mc_c75_p1 >= 0.5 : null,
+    // c75 side is the market FAVORITE, and whether recent form DISAGREES with it (for the
+    // +ROI favorite signal: a c75 favorite that form fades).
+    c75fav: c.mc_c75_p1 != null ? ((c.mc_c75_p1 >= 0.5) !== dog1) : null,
+    pfDis: (pf && pf.agree_c75 != null) ? (pf.agree_c75 === false) : null,
     cuS: c.mc_cutr_p1 != null ? c.mc_cutr_p1 >= 0.5 : null,
     aP: b05(a, 'p1_prob'), bP: b05(b, 'p1_prob'), dP: b05(d, 'p1_prob'),
     mcdS: d && d.mc && d.mc.sims ? d.mc.p1_pct >= 50 : null,
     hate: (mdog - gdog) >= 0.02,
+    mktFav: c.market_p1 != null ? Math.max(c.market_p1, 1 - c.market_p1) : null,  // favorite's implied prob
+  }
+}
+// 🧊 Pure-form overlay tag (2026-10-06, user "notify the bets/prices tab when it agrees or
+// disagrees, positive ROI only"): the pf_c75_* contrarian lane for a card. Quality-adjusted
+// last-10-on-surface recent form (NO serve stats) vs the C-MC(c75) lean. Returns a badge
+// ONLY when THIS match's gender cell is currently +ROI in the live log (men disagree +18.9%).
+function pureFormTag(m, study) {
+  const pf = m.pure_form
+  if (!pf || pf.agree_c75 == null || !study) return null
+  const gen = (m.league === 'wta' || m.league === 'itf_women') ? 'w' : 'm'
+  const dis = !pf.agree_c75
+  const mcc = m.model_c || {}
+  const c75v = mcc.mc_c75_p1
+  const sideP1 = c75v != null ? c75v >= 0.5 : null      // the side to TAKE (the C-MC c75 pick)
+  // Read the DOG/FAV-split lane (2026-10-06): FORM-FADE pays on dogs, loses on favorites, so
+  // the +ROI gate below greens the tag only on dog picks. recon-filtered server-side.
+  const dogPick = (sideP1 != null && mcc.market_p1 != null) ? (sideP1 === (mcc.market_p1 < 0.5)) : null
+  const laneObj = dis
+    ? (dogPick === true ? study.pf_c75_dis_dog : dogPick === false ? study.pf_c75_dis_fav : study.pf_c75_dis)
+    : study.pf_c75_agr
+  const rec = (laneObj || {})[gen] || {}
+  const n = rec.n || 0, roi = rec.roi_pct
+  // n>=12 (not 20): recon-filtering + the dog-only split legitimately shrinks the forward dog
+  // sample (~n18 men). Still a real minimum; the live n is shown so thinness is visible.
+  if (n < 12 || roi == null || roi <= 0) return null   // positive-ROI only (dogs clear it, favs don't)
+  const pickName = sideP1 == null ? null : (sideP1 ? m.player_1 : m.player_2)
+  const oppName = sideP1 == null ? null : (sideP1 ? m.player_2 : m.player_1)
+  const roiTxt = `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec.wins}-${n - rec.wins}, n${n})`
+  return {
+    dis, roi: Math.round(roi * 10) / 10, n, wins: rec.wins, sideP1, pickName,
+    // The highlighted name is the one to TAKE. "FADE FORM" = recent form points at the
+    // opponent; you fade that and back the model's pick. Worded so it can't read backwards.
+    label: dis ? '🧊 FADE FORM · TAKE' : '🔥 FORM BACKS · TAKE',
+    tip: dis
+      ? `TAKE ${pickName} — bet THIS player. Recent form (last-10-on-surface, opponent quality + how close, no serve stats) actually favors the opponent (${oppName}), but the model (C-MC c75) likes ${pickName}, and fading the form narrative in this spot is live ${roiTxt} for ${gen === 'w' ? 'women' : 'men'}. The market overvalues recent form, so the model side has overperformed.`
+      : `TAKE ${pickName} — recent form AND the model (C-MC c75) both back ${pickName} here; live ${roiTxt} for ${gen === 'w' ? 'women' : 'men'}.`,
   }
 }
 // Pre-match snapshots survive tab switches (module-level, keyed by tab+fixture) so a live
@@ -918,12 +1052,86 @@ function BestPanel({ query, laneRec, priceOnly }) {
     for (const e of BEST_SIGNALS) {
       const side = e.fire(s)
       if (side == null) continue
-      const rec = (study[e.key] || {})[gen] || {}
+      // ⚔→🐕 FIGHT-FLIP suppression (2026-10-08, user "gray fight favorites get
+      // overpowered if all MCs are on the dog — change every bet like that to the
+      // dog"): a FIGHT gray-side FAVORITE whose opponent is a banded all-4-MC dog is
+      // NOT a pick — the dog is (pushed below as fight_mc4_dog).
+      if (e.key === 'cvg_gray' && side !== s.dog1
+          && s.mcdS != null && s.mcS != null && s.c75 != null && s.cuS != null
+          && s.mcdS === s.mcS && s.mcS === s.c75 && s.c75 === s.cuS && s.mcS === s.dog1) {
+        const oD = m.live_odds ? Number(s.dog1 ? m.live_odds.player_1 : m.live_odds.player_2) : null
+        if (oD != null && !isNaN(oD) && oD >= 100 && oD <= 250) continue
+      }
+      // 4-MC DOG is a PRICE-BANDED signal: only counts when the dog is +100..+250
+      if (e.key === 'mc4_dog_band') {
+        const o4 = m.live_odds ? Number(side ? m.live_odds.player_1 : m.live_odds.player_2) : null
+        if (o4 == null || isNaN(o4) || o4 < 100 || o4 > 250) continue
+      }
+      // SIDE-AWARE GATE (2026-10-06, user "change all the live signals, a lot of bets should
+      // change"): judge the pick by its signal's record on the EXACT cell it lands in —
+      // gender × (dog/fav). Almost every signal is +ROI on dogs and −ROI on favorites, so
+      // this drops the losing favorite picks the blended gate used to let through.
+      const isDog = (side === s.dog1)
+      const cellKey = gen + (isDog ? '_dog' : '_fav')   // m_dog / m_fav / w_dog / w_fav
+      const rec = (study[e.key] || {})[cellKey] || {}
       const n = rec.n || 0
-      if (n < BEST_N) continue
+      if (n < BEST_N_SPLIT) continue
       const hit = 100 * rec.wins / n, roi = rec.roi_pct
-      if (hit < BEST_HIT || roi < BEST_ROI) continue
-      hits.push({ ...e, side, n, hit: Math.round(hit), roi: Math.round(roi * 10) / 10 })
+      // Qualify as a high-hit pick (hit≥65 & ROI≥+4) OR a high-ROI dog (ROI≥+15; dogs win
+      // <65% but pay big). The cell is already side-specific so favorites can't borrow dog ROI.
+      const ok = (hit >= BEST_HIT && roi >= BEST_ROI) || (roi >= 15)
+      if (!ok) continue
+      hits.push({ ...e, side, n, hit: Math.round(hit), roi: Math.round(roi * 10) / 10, isDog })
+    }
+    // MEN FAVORITE signals (2026-10-06, user "mark all10_price_m + cr5_coll_leanfav, men only"):
+    // the only two favorite cells that pay. These are price/odds-dependent so they're checked
+    // here (odds in hand) rather than via the odds-agnostic BEST_SIGNALS list. Men only.
+    if (gen === 'm' && m.live_odds && m.live_odds.player_1 != null && m.live_odds.player_2 != null) {
+      const favSide = !s.dog1
+      const favOd = favSide ? m.live_odds.player_1 : m.live_odds.player_2
+      const pushFav = (key, label, icon) => {
+        const r2 = (study[key] || {}).m || {}
+        const nn = r2.n || 0
+        if (nn >= BEST_N_SPLIT && r2.roi_pct > 0) hits.push({ key, label, icon, side: favSide, n: nn, hit: Math.round(100 * r2.wins / nn), roi: Math.round(r2.roi_pct * 10) / 10, isDog: false })
+      }
+      // ALL-10 agree ON the favorite, priced −140..−300
+      if (isAll10Agree(s) && s.c1 === favSide && favOd <= -140 && favOd >= -300) pushFav('all10_price_m', 'ALL-10 FAV −140/300', '✅')
+      // COLLISION lean-fav: gray hates the dog + A,B,C,gray,D all on the favorite + fav 65–85%
+      if (s.hate && s.aP === favSide && s.bP === favSide && s.c1 === favSide && s.g1 === favSide && s.dP === favSide && s.mktFav != null && s.mktFav >= 0.65 && s.mktFav <= 0.85) pushFav('cr5_coll_leanfav', 'COLLISION lean-fav', '⚖️')
+    }
+    // ⚄ 4-MC OVER-MARKET FAV −200..−300 (2026-10-08, user "add the −200 to −300 picks
+    // to the best tab"): every sim prices the FAVORITE above the market AND the price is
+    // in the one pocket that paid (6-0 +41.8% at promotion; −100/−200 loses, big sim
+    // edges are 1-5 — the band is the whole mark). BOTH genders; explicit push with NO
+    // n-floor (user call) — the chip shows the live lane with ⚠ while n<12.
+    if (m.live_odds && m.live_odds.player_1 != null && m.live_odds.player_2 != null) {
+      const cx = m.model_c || {}; const mcx = (m.model_d || {}).mc
+      if (mcx && mcx.sims && cx.mc && cx.mc.sims && cx.mc_c75_p1 != null && cx.mc_cutr_p1 != null && cx.market_p1 != null) {
+        const favS = !s.dog1
+        const mkf = Math.max(cx.market_p1, 1 - cx.market_p1)
+        const pf = [mcx.p1_pct / 100, cx.mc.p1_pct / 100, cx.mc_c75_p1, cx.mc_cutr_p1]
+          .map(v => favS ? v : 1 - v)
+        const favOd2 = Number(favS ? m.live_odds.player_1 : m.live_odds.player_2)
+        if (pf.every(v => v > mkf) && !isNaN(favOd2) && favOd2 >= -300 && favOd2 <= -200) {
+          const r4 = ((study.mc4ovr_fav_band || {})[gen] && (study.mc4ovr_fav_band || {})[gen].n ? (study.mc4ovr_fav_band || {})[gen] : (study.mc4ovr_fav_band || {}))
+          const n4 = r4.n || 0
+          hits.push({ key: 'mc4ovr_fav_band', label: `4-MC>MKT −200/300${n4 < 12 ? ' ⚠' : ''}`, icon: '⚄', side: favS, n: n4, hit: n4 ? Math.round(100 * r4.wins / n4) : 0, roi: n4 ? Math.round((r4.roi_pct || 0) * 10) / 10 : 0, isDog: false })
+        }
+      }
+    }
+    // ⚔→🐕 FIGHT-FLIP DOG (2026-10-08, user): gray fights C onto the FAVORITE while all
+    // four sims take the +100..+250 dog -> the tab's pick IS THE DOG (10-6 +48.1% banded
+    // at registration, men 7-2; outside the band 0-3 = no bet either way). Explicit
+    // push, no n-floor (user mark); ⚠ while the lane is thin.
+    if (m.live_odds && s.c1 != null && s.g1 != null && s.c1 !== s.g1 && s.g1 !== s.dog1
+        && s.mcdS != null && s.mcS != null && s.c75 != null && s.cuS != null
+        && s.mcdS === s.mcS && s.mcS === s.c75 && s.c75 === s.cuS && s.mcS === s.dog1) {
+      const oD = Number(s.dog1 ? m.live_odds.player_1 : m.live_odds.player_2)
+      if (!isNaN(oD) && oD >= 100 && oD <= 250) {
+        const rf = ((study.fight_mc4_dog || {})[gen] && (study.fight_mc4_dog || {})[gen].n ? (study.fight_mc4_dog || {})[gen] : (study.fight_mc4_dog || {}))
+        const nf = rf.n || 0
+        hits.push({ key: 'fight_mc4_dog', label: `FIGHT-FLIP DOG${nf < 12 ? ' ⚠' : ''}`, icon: '⚔🐕', side: s.dog1, n: nf, hit: nf ? Math.round(100 * rf.wins / nf) : 0, roi: nf ? Math.round((rf.roi_pct || 0) * 10) / 10 : 0, isDog: true })
+      }
     }
     if (!hits.length) continue
     hits.sort((x, y) => y.roi - x.roi)
@@ -936,15 +1144,46 @@ function BestPanel({ query, laneRec, priceOnly }) {
     const thin = !!((dmx.sutr_p1 && dmx.sutr_p1.n != null && dmx.sutr_p1.n < 12)
       || (dmx.sutr_p2 && dmx.sutr_p2.n != null && dmx.sutr_p2.n < 12))
     const od = m.live_odds ? (pickSide ? m.live_odds.player_1 : m.live_odds.player_2) : null
+    // LONG DOGS DROPPED (2026-10-08, user "get rid of all the 250 to 400 greens"): a DOG
+    // pick priced over +250 doesn't make the tab at all — replay: +250..+400 went 1-6
+    // (−39%), and the lone +400 winner is n=1 luck. The lanes still track them in the
+    // background; if long dogs ever start paying, the records will say so and this gate
+    // can reopen on evidence. Unpriced picks stay (nothing to judge them by).
+    if (od != null && od > 250 && pickSide === s.dog1) continue
     const a10 = isAll10Agree(s)                 // all 10 heads agree -> opens the −150/−300 men window
     const sweet = inSweetPrice(od, gen, a10)
     if (priceOnly && !sweet) continue        // 💰 Prices tab: only sweet-spot-priced picks
     const bestN = Math.max(...kept.map(g => g.n))
+    // Stack count = distinct signal FAMILIES, not raw chips (so correlated c75/gold signals
+    // don't inflate ★). ★2 now means two genuinely different reads agree.
+    const nFam = new Set(kept.map(g => famOf(g.key))).size
+    // 🤝 BOTH-TABS OVERLAP (2026-10-07, user "when the favorites overlap mark it on the
+    // best tab"): does the ⭐ Picks sheet land on this SAME pick? (c50 & c75 agree AND the
+    // model prices that side over the market.) 5-day replay: overlap favorites 19-3 +26.7%
+    // — the only favorite cell that paid; overlap dogs +39.5%. Badge cites the live lane.
+    const dbl = (() => {
+      const c = m.model_c || {}; const mcx = c.mc || {}
+      if (mcx.p1_pct == null || c.mc_c75_p1 == null || c.market_p1 == null) return null
+      const s50 = mcx.p1_pct >= 50
+      if (s50 !== (c.mc_c75_p1 >= 0.5)) return null
+      const cp = s50 ? mcx.p1_pct / 100 : 1 - mcx.p1_pct / 100
+      const mp = s50 ? c.market_p1 : 1 - c.market_p1
+      if (!(cp > mp) || s50 !== pickSide) return null
+      if (pickSide === s.dog1) {
+        // DOG badge gated to +100..+250 (2026-10-08, user "I only want the +100 to +250
+        // ones") — the band where the overlap-dog edge actually earned; a +614 doesn't mark.
+        return (od != null && od >= 100 && od <= 250) ? 'dog' : null
+      }
+      return 'fav'
+    })()
     const row = {
       fid: key, pick, opp, od, thin, sigs: kept, gen, lg: m.league, t: m.start_time_utc, live: m.status === 'live',
-      bestRoi: kept[0].roi, bestHit: kept[0].hit, nSig: kept.length,
+      bestRoi: kept[0].roi, bestHit: kept[0].hit, nSig: nFam, nChips: kept.length,
       bestN, core: bestN >= 50,   // CORE = a dependable big-sample edge backs it
-      sweet, band: priceBand(od, gen, a10), allTen: a10,
+      sweet, band: priceBand(od, gen, a10), allTen: a10, dbl,
+      // 🧊 pure-form overlay (shown only when its cell is +ROI) — attach to the row ONLY when
+      // this row's pick IS the form-fade side, so the glowing name = the name to take.
+      pf: (() => { const t = pureFormTag(m, study); return (t && t.sideP1 === pickSide) ? t : null })(),
     }
     // Freeze the pre-match state so a live game can be served from it unchanged.
     if (m.status === 'unplayed') snaps.set(pfx + key, { ...row })
@@ -964,9 +1203,9 @@ function BestPanel({ query, laneRec, priceOnly }) {
     <div style={{ marginTop: 16 }}>
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: `1px solid ${priceOnly ? '#e3b34155' : '#3fb95055'}`, background: priceOnly ? 'rgba(227,179,65,0.06)' : 'rgba(63,185,80,0.06)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
         {priceOnly ? (
-          <><b style={{ color: '#e3b341' }}>💰 BEST PICKS · SWEET-SPOT PRICES (men only)</b> — men Best-tab picks in a profitable price window: <b>+100…+250</b> (dog value) or <b>−300…−600</b> (short chalk), PLUS <b>ALL-10-agree at −140…−300</b> {(() => { const a = study.all10_price_m || {}; return a.n ? <>(live <b style={{ color: a.roi_pct > 0 ? '#3fb950' : '#f85149' }}>{a.roi_pct > 0 ? '+' : ''}{Math.round(a.roi_pct)}%</b>, {a.wins}-{a.n - a.wins}, auto-updating)</> : '(tracking)' })()}. These <b>glow gold</b> below. On the full log the sweet spots ran <b style={{ color: '#3fb950' }}>+24% ROI</b> vs +6.7% for all Best picks. <b>Women not marked yet</b> (too thin — their dog value is the MC-DOG chips). Skips the −110…−140 and under −600 dead prices. Auto-refresh 2 min.</>
+          <><b style={{ color: '#e3b341' }}>💰 BEST PICKS · SWEET-SPOT PRICES</b> — Best-tab picks in a profitable price window. MEN: <b>+100…+250</b> (dog value), <b>−300…−600</b> (short chalk), PLUS <b>ALL-10-agree at −140…−300</b> {(() => { const a = study.all10_price_m || {}; return a.n ? <>(live <b style={{ color: a.roi_pct > 0 ? '#3fb950' : '#f85149' }}>{a.roi_pct > 0 ? '+' : ''}{Math.round(a.roi_pct)}%</b>, {a.wins}-{a.n - a.wins}, auto-updating)</> : '(tracking)' })()}. <b>WOMEN (2026-10-08): the +100…+250 dog band is marked too</b> — its own price_dog_w lane in the legend. Women's chalk/ALL-10 bands stay excluded (ALL-10 women ran −39%). On the full log the sweet spots ran <b style={{ color: '#3fb950' }}>+24% ROI</b> vs +6.7% for all Best picks. Skips the −110…−140 and under −600 dead prices. Auto-refresh 2 min.</>
         ) : (
-          <><b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal currently <b>proven on its own gender</b> in the live log: win rate ≥{BEST_HIT}%, ROI ≥+{BEST_ROI}%, ≥{BEST_N} settled. Sample-weighted: <b style={{ color: '#58a6ff' }}>CORE</b> (a ≥50-bet edge backs it — the dependable ones) sort above <b style={{ color: '#8b949e' }}>THIN</b> (small-sample, high-ROI but will regress — bet smaller). Within each, ranked by ROI; 2+ stacked signals rise. Gender-specific + auto-refresh 2 min.</>
+          <><b style={{ color: '#3fb950' }}>🏆 BEST PICKS</b> — only games firing a signal proven on the <b>exact cell the pick lands in</b>: its record for this <b>gender AND side</b> (dog/fav) must be +ROI (hit ≥{BEST_HIT}% & ROI ≥+{BEST_ROI}%, OR ROI ≥+15% for high-paying dogs; n≥{BEST_N_SPLIT}). Because almost every signal only pays on <b style={{ color: '#3fb950' }}>dogs</b>, favorite picks now drop off — this tab is mostly underdogs by design. <b style={{ color: '#58a6ff' }}>CORE</b> sorts above <b style={{ color: '#8b949e' }}>THIN</b>; 2+ stacked signals rise. Auto-refresh 2 min.</>
         )}
       </div>
       {priceOnly ? (
@@ -974,9 +1213,12 @@ function BestPanel({ query, laneRec, priceOnly }) {
           <span style={{ fontSize: 9, color: 'var(--text-tertiary)', fontWeight: 700, letterSpacing: '0.04em' }}>PRICE TIERS (live · auto-updates daily):</span>
           {['all10strong', 'dog', 'chalk', 'all10'].map(k => {
             const b = BAND[k]; const o = study[b.lane] || {}; const n = o.n || 0; const roi = o.roi_pct
+            // dog band is the one WOMEN band too (2026-10-08, user "mark the women ones
+            // too") — the legend shows the women's own lane (price_dog_w) beside the men's.
+            const ow = k === 'dog' ? ((study.price_dog_w || {}).w || {}) : null
             return (
-              <span key={k} title={b.tip} className="mono" style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 8, border: `1px solid ${b.bd}`, color: b.col, background: b.bg }}>
-                {b.icon} {b.name} <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>{n ? `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% · ${o.wins}-${n - o.wins} · n${n}` : 'tracking'}</span>
+              <span key={k} title={b.tip + (k === 'dog' ? ' Women are marked in this band too; their record is the separate price_dog_w lane shown as W.' : '')} className="mono" style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 8, border: `1px solid ${b.bd}`, color: b.col, background: b.bg }}>
+                {b.icon} {b.name} <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>{n ? `M ${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% · ${o.wins}-${n - o.wins}` : 'M tracking'}{ow ? (ow.n ? ` · W ${ow.roi_pct > 0 ? '+' : ''}${Math.round(ow.roi_pct * 10) / 10}% · ${ow.wins}-${ow.n - ow.wins}` : ' · W tracking') : ''}</span>
               </span>
             )
           })}
@@ -1000,13 +1242,37 @@ function BestPanel({ query, laneRec, priceOnly }) {
                 {bd ? <span title={bd.tip} style={{ fontSize: 10 }}>{bd.icon}</span> : null}
                 {r.live ? <span style={{ color: '#f85149', fontSize: 8 }}>● LIVE</span> : null}
                 {r.frozen ? <span title="📌 Frozen at first serve — this in-play pick is shown exactly as it was pre-match; live model updates do NOT change it (odds were already frozen too)." style={{ fontSize: 8, color: '#e3b341' }}>📌 frozen</span> : null}
-                {r.nSig >= 2 ? <span style={{ color: '#3fb950', fontSize: 9, fontWeight: 700, border: '1px solid #3fb95088', borderRadius: 4, padding: '0 5px' }}>★{r.nSig} STACK</span> : null}
+                {r.nSig >= 2 ? <span title={`${r.nSig} INDEPENDENT signal families agree on this pick${r.nChips > r.nSig ? ` (${r.nChips} chips below, but correlated ones — e.g. the two c75 signals — count once)` : ''}. More distinct families = more conviction.`} style={{ color: '#3fb950', fontSize: 9, fontWeight: 700, border: '1px solid #3fb95088', borderRadius: 4, padding: '0 5px' }}>★{r.nSig} STACK</span> : null}
                 <span title={r.core ? 'CORE: a dependable edge with 50+ settled bets backs this — bet it at full unit.' : 'THIN: best backing edge has <50 settled bets. Real but high-variance — bet smaller, expect regression.'} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${r.core ? '#58a6ff88' : '#8b949e66'}`, color: r.core ? '#58a6ff' : '#8b949e' }}>{r.core ? 'CORE' : 'THIN'} n{r.bestN}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: bd ? bd.col : '#3fb950', textShadow: bd ? `0 0 10px ${bd.glow}` : undefined }}>{r.pick}</span>
+                <span title={r.pf ? r.pf.tip : undefined} style={{ fontSize: r.pf ? 14 : 13, fontWeight: r.pf ? 800 : 700, color: r.pf ? '#56d4dd' : (bd ? bd.col : '#3fb950'), textShadow: r.pf ? '0 0 11px #56d4ddbb' : (bd ? `0 0 10px ${bd.glow}` : undefined) }}>{r.pf ? '🧊 ' : ''}{r.pick}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>vs {r.opp.split(' ').slice(-1)[0]}</span>
                 <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>· {String(r.lg || '').toUpperCase()} · {r.gen === 'w' ? 'W' : 'M'}</span>
                 {r.od != null ? <span style={{ fontSize: 11, color: r.od > 0 ? '#3fb950' : 'var(--text-secondary)' }}>{odfmt(r.od)}</span> : null}
                 {bd ? <span title={bd.tip} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${bd.bd}`, color: bd.col, background: bd.bg }}>{bd.icon} {bd.name}</span> : null}
+                {r.gen === 'm' && r.band === 'dog' && r.nSig >= 2 ? (() => { const o = study.blue2stack || {}; const n = o.n || 0; return (
+                  <span title="💎 BLUE ★2+: a +100/+250 men dog with 2+ INDEPENDENT signal families agreeing — the board's best measured cell (+55.5%, 16-7 at build). Live record auto-updates as games settle." className="mono" style={{ fontSize: 9, fontWeight: 800, borderRadius: 4, padding: '0 6px', border: '1px solid #58a6ff', color: '#eaf4ff', background: 'rgba(31,111,235,0.38)', textShadow: '0 0 8px #58a6ff' }}>
+                    💎 A+ {n ? `${o.roi_pct > 0 ? '+' : ''}${Math.round(o.roi_pct * 10) / 10}% ${o.wins}-${n - o.wins}` : 'tracking'}
+                  </span>) })() : null}
+                {r.dbl ? (() => { const c = ((study['ovl_' + r.dbl] || {})[r.gen]) || {}; const n = c.n || 0; const fav = r.dbl === 'fav'; return (
+                  <span title={`🤝 BOTH TABS AGREE on this ${fav ? 'FAVORITE' : 'DOG'} — the pick also qualifies on the ⭐ Picks sheet (c50+c75 agree AND the model prices it over the market). 5-day replay at build: overlap favorites 19-3 +26.7% (the ONLY favorite cell that paid) · overlap dogs +39.5% · both-tabs union +16.5% vs Best alone +23.0% / Picks alone +20.6%. The number shown is the live ovl_${r.dbl} lane for this match's gender — auto-updates as games settle.`}
+                    className="mono" style={{ fontSize: 9, fontWeight: 800, borderRadius: 4, padding: '0 6px', border: `1px solid ${fav ? '#e3b341' : '#3fb950'}`, color: fav ? '#fff7df' : '#eaffea', background: fav ? 'rgba(227,179,65,0.35)' : 'rgba(63,185,80,0.30)', textShadow: `0 0 8px ${fav ? '#e3b341' : '#3fb950'}` }}>
+                    🤝 {fav ? 'FAV' : 'DOG'} {r.gen === 'w' ? 'W' : 'M'} {n ? `${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% ${c.wins}-${n - c.wins}` : 'tracking'}
+                  </span>) })() : null}
+                {r.pf ? <span title={r.pf.tip} style={{ fontSize: 8.5, fontWeight: 700, borderRadius: 4, padding: '0 5px', border: `1px solid ${r.pf.dis ? '#56d4dd88' : '#f0883e88'}`, color: r.pf.dis ? '#56d4dd' : '#f0883e', background: r.pf.dis ? 'rgba(86,212,221,0.10)' : 'rgba(240,136,62,0.10)' }}>{r.pf.label} {r.pf.roi > 0 ? '+' : ''}{r.pf.roi}%</span> : null}
+                {r.gen === 'w' && r.sigs && r.sigs.some(g => g.key === 'mc_green') ? (() => {
+                  // 🟢 MC-GREEN WOMEN mark (2026-10-07, user "mark mc green women games on the
+                  // best bet tab with a warning until it settles more but I still want to bet
+                  // them"): a BETTABLE mark that carries a ⚠ thin flag automatically while the
+                  // women's cell is under 50 settles; the ⚠ drops itself once the sample matures.
+                  const o = study.mc_green || {}; const c = o.w_fav && o.w_fav.n ? o.w_fav : (o.w || {})
+                  const n = c.n || 0; const warn = n < 50
+                  return (
+                    <span title={`🟢 MC-GREEN WOMEN — the serve-MC agrees with a plain green (gray-line) pick on a women's match: every fire so far has been a favorite, and the cell is ${n ? `${c.wins}-${n - c.wins} (${Math.round(100 * c.wins / n)}%) ROI ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}%` : 'new'}. BETTABLE by your call (2026-10-07)${warn ? ` — but ⚠ THIN: n=${n} settles. An 89%-hit favorite lane WILL regress toward the mid-70s; bet smaller until ~50 settles (the ⚠ removes itself at n≥50). Men's half is −7.8% on 3× the sample — women only.` : '. Sample has matured past 50 settles.'}`}
+                      className="mono" style={{ fontSize: 9, fontWeight: 800, borderRadius: 4, padding: '0 6px', border: `1px solid ${warn ? '#e3b341' : '#3fb950'}`, color: '#d9ffe3', background: 'rgba(63,185,80,0.28)', textShadow: '0 0 8px #3fb950' }}>
+                      🟢 MC-GREEN W {n ? `${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% ${c.wins}-${n - c.wins}` : 'new'}{warn ? <span style={{ color: '#e3b341' }}> ⚠ n{n}</span> : null}
+                    </span>
+                  )
+                })() : null}
                 {r.thin ? <span title="A player's court-UTR is built on <12 matches — rating may be inflated (thin/weak-schedule sample)." style={{ fontSize: 9, color: '#e3b341' }}>⚠ thin</span> : null}
                 <span style={{ marginLeft: 'auto', color: 'var(--text-tertiary)', fontSize: 9 }}>{fmtPT(r.t) || ''}</span>
               </div>
@@ -1021,6 +1287,121 @@ function BestPanel({ query, laneRec, priceOnly }) {
           )})}
         </div>
       )}
+    </div>
+  )
+}
+// 📈 EVERY +EV SIGNAL (2026-10-07, user "put every single positive signal on board with the
+// amount of matches that signal has and roi, even the watch ones"): one chip per POSITIVE
+// cell — lane × side (🐕 dog / ⭐ fav, all-gender) across the study lanes, root A/B/C lanes
+// and price bands. Thin cells (n<12) grey; tooltip carries the men/women crossed cells.
+// Live — recomputes with the track record every refresh.
+function PositiveSignalsPanel({ laneRec }) {
+  const [open, setOpen] = useState(true)
+  if (!laneRec) return null
+  const SKIP = new Set(['mc_c75_dog', 'mc_c75_fav', 'pf_c75_dis_dog', 'pf_c75_dis_fav'])
+  const entries = []
+  const cellTip = o => {
+    const c = k => { const x = (o || {})[k]; return x && x.n ? `${x.roi_pct > 0 ? '+' : ''}${x.roi_pct}%/${x.n}` : '—' }
+    return `M 🐕${c('m_dog')} ⭐${c('m_fav')} · W 🐕${c('w_dog')} ⭐${c('w_fav')}`
+  }
+  const push = (key, o) => {
+    if (!o) return
+    const hasSide = (o.dog && o.dog.n) || (o.fav && o.fav.n)
+    if (hasSide) {
+      for (const [sk, icon] of [['dog', '🐕'], ['fav', '⭐']]) {
+        const c = o[sk]
+        if (c && c.n && c.roi_pct > 0) entries.push({ key, icon, roi: c.roi_pct, w: c.wins, l: c.n - c.wins, n: c.n, tip: cellTip(o) })
+      }
+    } else if (o.n && o.roi_pct > 0) {
+      const icon = /dog|blue/.test(key) ? '🐕' : (/chalk|fav|all10/.test(key) ? '⭐' : '')
+      entries.push({ key, icon, roi: o.roi_pct, w: o.wins, l: o.n - o.wins, n: o.n, tip: cellTip(o) })
+    }
+  }
+  for (const [k, o] of Object.entries(laneRec.study || {})) { if (!SKIP.has(k)) push(k, o) }
+  for (const [k, o] of Object.entries(laneRec.lanes || {})) push(k, o)
+  for (const k of ['cma_all', 'agree_dog', 'c_all', 'c_alone', 'c_with']) push(k, laneRec[k])
+  entries.sort((a, b) => b.roi - a.roi)
+  if (!entries.length) return null
+  return (
+    <div className="mono" style={{ margin: '14px 0', padding: '10px 12px', borderRadius: 8, border: '1px solid #3fb95044', background: 'rgba(63,185,80,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setOpen(!open)}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#3fb950', letterSpacing: '0.05em' }}>
+          📈 EVERY +EV SIGNAL CELL — {entries.length} positive right now · 🐕 dog / ⭐ fav side-specific · includes watch lanes · grey = thin (n&lt;12) · auto-updates
+        </span>
+        <span style={{ marginLeft: 'auto', color: 'var(--text-tertiary)', fontSize: 10 }}>{open ? '▾ hide' : '▸ show'}</span>
+      </div>
+      {open ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+          {entries.map((e, i) => {
+            const thin = e.n < 12
+            return (
+              <span key={i} title={e.tip} style={{ fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 8, border: `1px solid ${thin ? '#8b949e55' : '#3fb95055'}`, color: thin ? '#8b949e' : '#3fb950', background: thin ? 'transparent' : 'rgba(63,185,80,0.07)' }}>
+                {e.icon} {e.key} <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>+{Math.round(e.roi * 10) / 10}% · {e.w}-{e.l} · n{e.n}</span>
+              </span>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+// 🐕/⭐ SPLITS (2026-10-06, user "look at every single signal and see the rois if it's on a
+// dog or fav pick"): every tracked $25 lane's live ROI split by the pick's side, sortable,
+// with a gender filter. Reads the gender×side cells (m_dog/m_fav/w_dog/w_fav) the study now
+// carries. The on-site version of the dog/fav scan.
+function SplitsPanel() {
+  const [rec, setRec] = useState(null)
+  const [gender, setGender] = useState('all')   // all / m / w
+  const [sortBy, setSortBy] = useState('dog')    // dog / fav / all
+  useEffect(() => {
+    const go = () => fetch('/api/tennis/track-record').then(r => r.json()).then(d => setRec(d.ab25 || null)).catch(() => {})
+    go(); const id = setInterval(go, 120000); return () => clearInterval(id)
+  }, [])
+  if (!rec) return <div className="mono" style={{ color: 'var(--text-secondary)', padding: 40, textAlign: 'center' }}>loading…</div>
+  const study = rec.study || {}
+  const dogKey = gender === 'all' ? 'dog' : gender + '_dog'
+  const favKey = gender === 'all' ? 'fav' : gender + '_fav'
+  const cellOf = o => (o && o.n) ? { n: o.n, w: o.wins, roi: o.roi_pct } : null
+  const rows = []
+  for (const [k, o] of Object.entries(study)) {
+    const dog = cellOf(o[dogKey]), fav = cellOf(o[favKey])
+    const all = cellOf(gender === 'all' ? o : o[gender])
+    if (!dog && !fav) continue
+    rows.push({ k, dog, fav, all })
+  }
+  const sv = r => { const c = r[sortBy]; return c ? c.roi : -9999 }
+  rows.sort((a, b) => sv(b) - sv(a))
+  const col = c => !c ? 'var(--text-tertiary)' : c.roi > 3 ? '#3fb950' : c.roi < -3 ? '#f85149' : 'var(--text-secondary)'
+  const cellTxt = c => c ? `${c.roi > 0 ? '+' : ''}${c.roi}%` : '—'
+  const subTxt = c => c ? ` ${c.w}-${c.n - c.w} n${c.n}` : ''
+  const tgl = (cur, set, k, label) => (
+    <button key={k} onClick={() => set(k)} className="mono" style={{ padding: '3px 11px', borderRadius: 12, fontSize: 10, cursor: 'pointer', marginLeft: 6, fontWeight: 700, border: `1px solid ${cur === k ? '#e3b341' : 'var(--line)'}`, background: cur === k ? 'rgba(227,179,65,0.14)' : 'transparent', color: cur === k ? '#e3b341' : 'var(--text-secondary)' }}>{label}</button>
+  )
+  const Cell = ({ c }) => (
+    <div style={{ flex: 1, textAlign: 'right' }}>
+      <span style={{ color: col(c), fontWeight: 700 }}>{cellTxt(c)}</span>
+      <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>{subTxt(c)}</span>
+    </div>
+  )
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+        <b style={{ color: 'var(--text-primary)' }}>🐕/⭐ EVERY SIGNAL BY SIDE</b> — each tracked $25 lane's live ROI split by whether its pick was a market <b>DOG</b> or <b>FAVORITE</b>. The edge is almost always the <b style={{ color: '#3fb950' }}>dog</b> side; favorites are flat-to-negative (efficiently priced chalk). Forward-tracked, auto-refresh 2 min.
+      </div>
+      <div className="mono" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, margin: '10px 0', fontSize: 10, color: 'var(--text-tertiary)' }}>
+        <span style={{ fontWeight: 700 }}>GENDER:</span>{tgl(gender, setGender, 'all', 'ALL')}{tgl(gender, setGender, 'm', 'MEN')}{tgl(gender, setGender, 'w', 'WOMEN')}
+        <span style={{ fontWeight: 700, marginLeft: 16 }}>SORT:</span>{tgl(sortBy, setSortBy, 'dog', '🐕 dog ROI')}{tgl(sortBy, setSortBy, 'fav', '⭐ fav ROI')}{tgl(sortBy, setSortBy, 'all', 'overall')}
+      </div>
+      <div className="mono" style={{ display: 'flex', fontSize: 9, color: 'var(--text-tertiary)', fontWeight: 700, padding: '4px 10px', borderBottom: '1px solid var(--line)', letterSpacing: '0.04em' }}>
+        <div style={{ flex: 2 }}>SIGNAL</div><div style={{ flex: 1, textAlign: 'right' }}>🐕 DOG</div><div style={{ flex: 1, textAlign: 'right' }}>⭐ FAV</div><div style={{ flex: 1, textAlign: 'right' }}>ALL</div>
+      </div>
+      {rows.map(r => (
+        <div key={r.k} className="mono" style={{ display: 'flex', alignItems: 'center', fontSize: 10, padding: '5px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ flex: 2, color: 'var(--text-secondary)' }}>{r.k}</div>
+          <Cell c={r.dog} /><Cell c={r.fav} /><Cell c={r.all} />
+        </div>
+      ))}
+      {rows.length === 0 ? <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: 24, textAlign: 'center' }}>no settled picks for this gender yet</div> : null}
     </div>
   )
 }
@@ -1138,10 +1519,22 @@ function HistoryPanel({ query, greenOnly = false }) {
       {dates.map(d => {
         const hr = {}; const tot = {}
         const bump = (k, p) => { if (p) { tot[k] = (tot[k] || 0) + 1; hr[k] = (hr[k] || 0) + (p.hit ? 1 : 0) } }
+        // 🎯 PER-DAY SIGNAL TALLY (2026-10-07, user "make sure all the new signals for
+        // every board slip are added to the previous day tab so i can see how well it
+        // does every day"): every board signal that fired on the day's games, with its
+        // day record AND flat-1u PnL at the frozen odds (the side it bet).
+        const sigT = {}
         for (const m of d.matches) {
           for (const [k, p] of Object.entries(m.models)) bump(k, p)
           bump('MC-D', m.mc); bump('C50', m.mc_c && m.mc_c.c50); bump('C75', m.mc_c && m.mc_c.c75); bump('CU', m.mc_c && m.mc_c.cutr)
           bump('OUR', m.our); bump('C-MC+c75', m.cmc_c75)
+          for (const s of [...(m.signals || []), ...(m.conflicts || [])]) {
+            const o = s.side === 1 ? m.p1_odds : m.p2_odds
+            const dec = (o == null || o === 0) ? null : (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o))
+            const t = sigT[s.label] || (sigT[s.label] = { w: 0, l: 0, pnl: 0, priced: 0 })
+            if (s.hit) t.w++; else t.l++
+            if (dec != null) { t.pnl += s.hit ? dec - 1 : -1; t.priced++ }
+          }
         }
         const dayOpen = full && (openDate === d.date || q)
         const ourPct = tot['OUR'] ? Math.round(100 * hr['OUR'] / tot['OUR']) : null
@@ -1158,6 +1551,17 @@ function HistoryPanel({ query, greenOnly = false }) {
                 {['A', 'B', 'C', 'gray', 'D', 'MC-D', 'C50', 'C75', 'CU'].filter(k => tot[k]).map(k => `${k} ${hr[k]}/${tot[k]}`).join(' · ')}
               </span>
             </div>
+            {Object.keys(sigT).length ? (
+              <div className="mono" style={{ fontSize: 9, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}
+                title="🎯 THE DAY, PER SIGNAL — every board signal that fired on this day's finished games: day record (w-l) and flat-1u P/L at the frozen closing odds of the side it bet. Green = the signal made money that day, red = lost. Sorted best day first. Same frozen-log predicates as the board chips / 🏆 Best tab.">
+                <span style={{ color: '#3fb950', fontWeight: 700 }}>🎯 day:</span>
+                {Object.entries(sigT).sort((x, y) => y[1].pnl - x[1].pnl).map(([k, t]) => (
+                  <span key={k} style={{ whiteSpace: 'nowrap', padding: '0 5px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)', color: t.pnl > 0.02 ? '#3fb950' : t.pnl < -0.02 ? '#f85149' : 'var(--text-tertiary)' }}>
+                    {k} {t.w}-{t.l}{t.priced ? ` ${t.pnl > 0 ? '+' : ''}${t.pnl.toFixed(1)}u` : ''}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {full ? (dayOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
                 {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={m.card} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
@@ -1224,6 +1628,78 @@ function HistoryPanel({ query, greenOnly = false }) {
         )
       })}
       {dates.length === 0 ? <div className="mono" style={{ color: 'var(--text-tertiary)', padding: 30, textAlign: 'center' }}>No finished matches{q ? ' match that search' : ''} yet.</div> : null}
+    </div>
+  )
+}
+
+// 📊 TAB P/L (2026-10-08, user "a separate tab that tracks daily profit taking every bet
+// on the best tab and on the prices tab and comparing which one makes more"): flat 1u on
+// EVERY 🏆 Best-tab pick vs EVERY 💰 Prices-tab pick (the sweet-priced subset), per day
+// from the frozen ledger, head-to-head. Server-computed (/api/tennis/tab-profit) with the
+// same gates/long-dog rules as the tabs themselves.
+function TabProfitPanel() {
+  const [d, setD] = useState(null)
+  const [err, setErr] = useState(null)
+  useEffect(() => {
+    const go = () => fetch('/api/tennis/tab-profit').then(r => r.json()).then(setD).catch(e => setErr(String(e)))
+    go(); const id = setInterval(go, 120000); return () => clearInterval(id)
+  }, [])
+  if (err) return <div className="mono" style={{ color: 'var(--edge-neg)', padding: 20 }}>Couldn't load ({err})</div>
+  if (!d) return <div className="mono" style={{ color: 'var(--text-secondary)', padding: 40, textAlign: 'center' }}>replaying both tabs…</div>
+  const t = d.totals || {}
+  const fp = v => `${v > 0 ? '+' : ''}${(v ?? 0).toFixed(1)}u`
+  const pc = v => (v > 0.05 ? '#3fb950' : v < -0.05 ? '#f85149' : 'var(--text-tertiary)')
+  const bb = t.best || {}, pp = t.prices || {}
+  const leader = (bb.pnl ?? 0) === (pp.pnl ?? 0) ? null : ((bb.pnl ?? 0) > (pp.pnl ?? 0) ? 'best' : 'prices')
+  const cell = (x) => x && x.n
+    ? <span><b style={{ color: pc(x.pnl) }}>{fp(x.pnl)}</b> <span style={{ color: 'var(--text-tertiary)' }}>({x.w}-{x.n - x.w}{x.roi_pct != null ? ` · ${x.roi_pct > 0 ? '+' : ''}${x.roi_pct}%` : ''})</span></span>
+    : <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid #e3b34155', background: 'rgba(227,179,65,0.05)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+        <b style={{ color: '#e3b341' }}>📊 TAB P/L</b> — flat <b>1u on every pick</b>, judged at the frozen closing odds: the full <b style={{ color: '#3fb950' }}>🏆 Best tab</b> vs the <b style={{ color: '#e3b341' }}>💰 Prices tab</b> (its sweet-priced subset: men +100…+250 / −300…−600 / ALL-10 −140…−300, women +100…+250). Same gates, same long-dog exclusion as the live tabs. NOTE: the signal gates use the CURRENT lane records, so past days are a faithful reconstruction (the gate drifts a little as lanes update), and recent days keep filling in as matches settle. Auto-refresh 2 min.
+      </div>
+      <div className="mono" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: '12px 16px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel)', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>🏆 BEST — {bb.n} bets</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: pc(bb.pnl) }}>{fp(bb.pnl)}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{bb.w}-{(bb.n ?? 0) - (bb.w ?? 0)} · ROI {bb.roi_pct > 0 ? '+' : ''}{bb.roi_pct}%</div>
+        </div>
+        <div style={{ fontSize: 16, color: 'var(--text-tertiary)' }}>vs</div>
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>💰 PRICES — {pp.n} bets</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: pc(pp.pnl) }}>{fp(pp.pnl)}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{pp.w}-{(pp.n ?? 0) - (pp.w ?? 0)} · ROI {pp.roi_pct > 0 ? '+' : ''}{pp.roi_pct}%</div>
+        </div>
+        {leader ? (
+          <div className="mono" style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 800, padding: '6px 12px', borderRadius: 8, border: `1px solid ${leader === 'best' ? '#3fb950' : '#e3b341'}`, color: leader === 'best' ? '#3fb950' : '#e3b341', background: leader === 'best' ? 'rgba(63,185,80,0.10)' : 'rgba(227,179,65,0.10)' }}
+            title={`Which strategy has made more total profit over the window shown, flat 1u per pick. Days won: Best ${t.best_days_won} · Prices ${t.prices_days_won}.`}>
+            {leader === 'best' ? '🏆 BEST is ahead' : '💰 PRICES is ahead'} · days {t.best_days_won}-{t.prices_days_won}
+          </div>
+        ) : null}
+      </div>
+      <div className="mono" style={{ display: 'flex', fontSize: 9, color: 'var(--text-tertiary)', padding: '8px 10px 3px', borderBottom: '1px solid var(--line)', marginTop: 10 }}>
+        <span style={{ width: 90 }}>date</span>
+        <span style={{ flex: 1 }}>🏆 BEST (every pick)</span>
+        <span style={{ flex: 1 }}>💰 PRICES (sweet only)</span>
+        <span style={{ width: 70, textAlign: 'right' }}>day winner</span>
+      </div>
+      {(d.days || []).map((row, i) => {
+        const win = row.best.pnl === row.prices.pnl ? null : (row.best.pnl > row.prices.pnl ? 'best' : 'prices')
+        return (
+          <div key={i} className="mono" style={{ display: 'flex', alignItems: 'center', fontSize: 11, padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <span style={{ width: 90, color: 'var(--text-secondary)' }}>{row.date}</span>
+            <span style={{ flex: 1 }}>{cell(row.best)}</span>
+            <span style={{ flex: 1 }}>{cell(row.prices)}</span>
+            <span style={{ width: 70, textAlign: 'right', fontSize: 10, fontWeight: 700, color: win === 'best' ? '#3fb950' : win === 'prices' ? '#e3b341' : 'var(--text-tertiary)' }}>
+              {win === 'best' ? '🏆' : win === 'prices' ? '💰' : '—'}
+            </span>
+          </div>
+        )
+      })}
+      <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', padding: '8px 10px' }}>
+        Prices is a subset of Best — when 💰 wins a day it means the non-sweet-priced picks LOST that day (the filter earned its keep); when 🏆 wins, the extra volume outside the windows was profitable.
+      </div>
     </div>
   )
 }
@@ -1362,7 +1838,14 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   const catBadge = (() => {
     const stx = (laneRec && laneRec.study) || {}
     const lv = v => (v && v.n ? `${v.roi_pct > 0 ? '+' : ''}${Math.round(v.roi_pct)}% (${v.wins}-${v.n - v.wins})` : '0 settled')
-    const mk = (txt, color, bt, liveV, tip) => ({ txt, color, bt, live: lv(liveV), tip })
+    // SIDE-SPLIT top badge (2026-10-07, user "the fade gold at the top doesn't split
+    // favorites and underdogs"): mk takes the SIDE the badge bets; the live record is
+    // that side's gender×side cell (not the gender blend) and wears its 🐕/⭐ icon.
+    const mk = (txt, color, bt, liveV, tip, side) => ({
+      txt, color, bt,
+      live: lv(liveV) + (typeof side === 'boolean' ? ((side === dog1x) ? ' 🐕' : ' ⭐') : ''),
+      tip,
+    })
     if (!mc3 || mc3.market_aware_p1 == null || mc3.market_p1 == null) {
       return { txt: 'NO MODEL', color: 'var(--text-tertiary)', bt: '', live: '', tip: 'A player is missing from the TennisRatio pool — no model reads.' }
     }
@@ -1373,33 +1856,39 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // each badge shows THIS match's gender slice of its lane.
     const bW = match.league === 'wta'
     const bg = L => (L ? (bW ? L.w : L.m) : null)
+    // gender×side cell for the side the badge bets; falls back to the gender slice
+    // for lanes without crossed cells.
+    const bgs = (L, side) => {
+      if (!L) return null
+      const ck = (bW ? 'w' : 'm') + ((side === dog1x) ? '_dog' : '_fav')
+      return (L[ck] && L[ck].n !== undefined) ? L[ck] : bg(L)
+    }
     const gtag = bW ? 'W' : 'M'
     // Gendered bt26 in parentheses (2026-09-30): from _tennis_gender_full_bt.py.
     const b26b = (m, w) => `(bt26 ${bW ? w : m})`
     const alone = ma3 && mb3 && ma3.p1_prob != null && mb3.p1_prob != null
       && (ma3.p1_prob >= 0.5) !== c1x && (mb3.p1_prob >= 0.5) !== c1x
     if (c1x === g1x && g1x === dog1x) {
-      if (alone) return mk(`★ C-ALONE+GRAY DOG ${gtag}`, '#f5f13b', b26b('+13.3%', '+44.4%'), bg(stx.c_alone_gray_dog), 'Best cell in the build. Gendered 2026 backtest: men +13.3% (452-437), women +44.4% (57-38). Live record shown for this match’s gender.')
+      if (alone) return mk(`★ C-ALONE+GRAY DOG ${gtag}`, '#f5f13b', b26b('+13.3%', '+44.4%'), bgs(stx.c_alone_gray_dog, dog1x), 'Best cell in the build. Gendered 2026 backtest: men +13.3% (452-437), women +44.4% (57-38). Live record = this match’s gender DOG cell.', dog1x)
       const gEdge = dog1x ? mc3.market_aware_p1 - mc3.market_p1 : mc3.market_p1 - mc3.market_aware_p1
-      if (gEdge >= 0.04) return mk(`★ C+GRAY DOG 4pt+ ${gtag}`, '#f5f13b', b26b('+11.1%', '+35.1%'), bg(laneRec && laneRec.agree_dog), 'Gendered 2026 backtest: men +11.1% (1,027-987), women +35.1% (133-91). Positive every year. Live record shown for this match’s gender.')
-      return mk(`★ C+GRAY DOG ${gtag}`, '#f5f13b', b26b('+12.0%', '+33.6%'), bg(laneRec && laneRec.agree_dog), 'Gendered 2026 backtest: men +12.0% (1,021-946), women +33.6% (125-87). Positive every year. Live record shown for this match’s gender.')
+      if (gEdge >= 0.04) return mk(`★ C+GRAY DOG 4pt+ ${gtag}`, '#f5f13b', b26b('+11.1%', '+35.1%'), bgs(laneRec && laneRec.agree_dog, dog1x), 'Gendered 2026 backtest: men +11.1% (1,027-987), women +35.1% (133-91). Positive every year. Live record = this match’s gender DOG cell.', dog1x)
+      return mk(`★ C+GRAY DOG ${gtag}`, '#f5f13b', b26b('+12.0%', '+33.6%'), bgs(laneRec && laneRec.agree_dog, dog1x), 'Gendered 2026 backtest: men +12.0% (1,021-946), women +33.6% (125-87). Positive every year. Live record = this match’s gender DOG cell.', dog1x)
     }
     const mdogx = dog1x ? mc3.market_p1 : 1 - mc3.market_p1
     const gdogx = dog1x ? mc3.market_aware_p1 : 1 - mc3.market_aware_p1
     if (mdogx - gdogx >= 0.02) {
-      return mk(`FADE-GOLD ${gtag}`, '#f5f13b', b26b('+1.0%', '+9.4%'), bg(stx.grayhate_fav), `Favorite over a gray-hated dog — the one valid favorite play. Gendered 2026 backtest: men +1.0% (thin), women +9.4% — but live W is negative (watch). The dog side is the documented loser (men bt26 −22.8, women −41.8; live ${lv(stx.grayhate_dog)}).`)
+      return mk(`⭐✓ FADE-GOLD ${gtag}`, '#f5f13b', b26b('+1.0%', '+9.4%'), bgs(stx.grayhate_fav, !dog1x), `Favorite over a gray-hated dog — one of the THREE favorite cells positive in the full gender×side backtest (with C-EDGE 5pt FAV and women's D-MA 2pt FAV). Gendered 2026 backtest: men +1.0% (thin), women +9.4% — but live W is negative (watch). Live record = this match’s gender ⭐ FAVORITE cell (the badge bets the fav). The dog side is the documented loser (men bt26 −22.8, women −41.8; live ${lv(bgs(stx.grayhate_dog, dog1x))} 🐕).`, !dog1x)
     }
     if (alone && g1x === c1x && c1x !== dog1x) {
-      return mk(`RED: C+GRAY FAV ${gtag}`, '#f85149', b26b('+1.5%', '+2.6%'), bg(stx.c_alone_gray_fav), 'C alone + gray on the market FAVORITE — DEMOTED to avoid (2026-10-02, user call): live −6.7% on 31 settles. The dog half of C-alone+gray is the +40% play; the favorite half loses. No bet.')
+      return mk(`RED: C+GRAY FAV ${gtag}`, '#f85149', b26b('+1.5%', '+2.6%'), bgs(stx.c_alone_gray_fav, c1x), 'C alone + gray on the market FAVORITE — DEMOTED to avoid (2026-10-02, user call): live −6.7% on 31 settles. The dog half of C-alone+gray is the +40% play; the favorite half loses. No bet.', c1x)
     }
     if (c1x !== g1x) {
-      return mk(`RED: C-vs-GRAY ${gtag}`, '#f85149', b26b('−1.3%', '+2.3%'), bg(stx.cvg_c), `Raw C fights the gray line — C’s side decayed to ≈0 in 2026 (men −1.3, women +2.3 thin). Gray’s side: men bt26 −8.0, women −6.6, live ${lv(stx.cvg_gray)}, on watch to 30 settles.`)
+      return mk(`RED: C-vs-GRAY ${gtag}`, '#f85149', b26b('−1.3%', '+2.3%'), bgs(stx.cvg_c, c1x), `Raw C fights the gray line — C’s side decayed to ≈0 in 2026 (men −1.3, women +2.3 thin). Live record = C’s side’s gender×side cell. Gray’s side: men bt26 −8.0, women −6.6, live ${lv(bgs(stx.cvg_gray, g1x))}, on watch to 30 settles.`, c1x)
     }
     // Gender-aware since 2026-09-30 (user ask, matching the gold 5pt+ chips): the badge
     // shows THIS match's gender slice of the green-names lane, not the blend.
     const gnIsW = match.league === 'wta'
-    const gn = stx.green_names || {}
-    return mk(`NO SIGNAL ${gnIsW ? 'W' : 'M'}`, 'var(--text-tertiary)', b26b('−8.7%', '−8.0%'), gnIsW ? gn.w : gn.m, 'No lane fires — market and models roughly agree. Dark green = probable winner only, NOT a bet (gendered 2026 backtest: men −8.7%, women −8.0%). Record shown is the green-names lane for this match’s gender.')
+    return mk(`NO SIGNAL ${gnIsW ? 'W' : 'M'}`, 'var(--text-tertiary)', b26b('−8.7%', '−8.0%'), bgs(stx.green_names, g1x), 'No lane fires — market and models roughly agree. Dark green = probable winner only, NOT a bet (gendered 2026 backtest: men −8.7%, women −8.0%). Record shown is the green-names lane’s gender×side cell for gray’s side on this match.', g1x)
   })()
   // GREEN-ONLY mode (2026-10-02, user ask): a red/avoid category badge renders as a
   // neutral NO BET while live samples mature (the lanes still track in the background).
@@ -1527,8 +2016,15 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const aS = ma3.p1_prob >= 0.5
           const bS = mb3.p1_prob >= 0.5
           if (aS === bS) return null
-          const lb = laneRec && laneRec.lanes && laneRec.lanes.b_alone
-          const lvb = lb && lb.n ? `${lb.roi_pct > 0 ? '+' : ''}${lb.roi_pct.toFixed(1)}% (${lb.wins}-${lb.n - lb.wins})` : '+5.4% (39-13)'
+          const lb0 = laneRec && laneRec.lanes && laneRec.lanes.b_alone
+          // gender×side cell for B's side (2026-10-07, every top-of-slip record side-split)
+          const wB = match.league === 'wta'
+          const dgB = mc3 && mc3.market_p1 != null ? (mc3.market_p1 < 0.5) : null
+          const ckB = (wB ? 'w' : 'm') + ((bS === dgB) ? '_dog' : '_fav')
+          const lb = (dgB !== null && lb0 && lb0[ckB] && lb0[ckB].n) ? lb0[ckB]
+            : (lb0 && (wB ? lb0.w : lb0.m) && (wB ? lb0.w : lb0.m).n ? (wB ? lb0.w : lb0.m) : lb0)
+          const icB = dgB === null ? '' : ((bS === dgB) ? ' 🐕' : ' ⭐')
+          const lvb = lb && lb.n ? `${lb.roi_pct > 0 ? '+' : ''}${lb.roi_pct.toFixed(1)}% (${lb.wins}-${lb.n - lb.wins})${icB}` : '+5.4% (39-13)'
           const bName = bS ? match.player_1 : match.player_2
           return (
             <span className="mono" title={`A and B disagree — B’s side (${bName}) has the record: fully-settled mirror lanes ran B-side ${lvb} while A-alone went 13-39 (−34.1%, the worst settled lane on the board). Thin edge, mostly “A’s dissents lose” — information, not a validated take.`}
@@ -1545,8 +2041,27 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const all6 = ma3.market_aware_p1 != null && mb3.market_aware_p1 != null && mc3.market_aware_p1 != null
             && (ma3.market_aware_p1 >= 0.5) === s && (mb3.market_aware_p1 >= 0.5) === s && (mc3.market_aware_p1 >= 0.5) === s
           const stx6 = laneRec && laneRec.study
-          const l = stx6 && (all6 ? stx6.all6_agree : stx6.abc_agree)
-          const lvtxt = l && l.n ? `${l.roi_pct > 0 ? '+' : ''}${Math.round(l.roi_pct)}% (${l.wins}-${l.n - l.wins})` : (all6 ? 'proxy +10% (35-9)' : '0 settled')
+          const lane6 = stx6 && (all6 ? stx6.all6_agree : stx6.abc_agree)
+          // SIDE+GENDER cell (2026-10-07, user "the all 6 at the top of slips doesn't
+          // split favorites and underdogs"): the record is this match's gender×side cell
+          // for the agreed side (near-always the ⭐ favorite), with its icon — not the
+          // all-matches blend. Falls back gender → blend when the cell is empty/no odds.
+          const w6 = match.league === 'wta'
+          const dg6 = mc3.market_p1 != null ? (mc3.market_p1 < 0.5) : null
+          const cell6 = (() => {
+            if (!lane6) return null
+            if (dg6 !== null) {
+              const ck = (w6 ? 'w' : 'm') + ((s === dg6) ? '_dog' : '_fav')
+              if (lane6[ck] && lane6[ck].n) return lane6[ck]
+            }
+            const gg = w6 ? lane6.w : lane6.m
+            return (gg && gg.n) ? gg : lane6
+          })()
+          const ic6 = dg6 === null ? '' : ((s === dg6) ? ' 🐕' : ' ⭐')
+          const l = cell6
+          const lvtxt = l && l.n
+            ? `${l.roi_pct > 0 ? '+' : ''}${Math.round(l.roi_pct)}% (${l.wins}-${l.n - l.wins})${ic6}`
+            : (all6 ? 'proxy +10% (35-9)' : '0 settled')
           return (
             <span className="mono" title={all6
               ? `ALL SIX heads agree — the three stats models AND all three market-aware gray lines. Live proxy at registration: +10.0% (35-9) on 44; the exact all6 lane freezes from 2026-09-30 and takes over this chip as it settles. 2026 backtest −2.6% on 10,826 (72.5% hit) — maximal chalk consensus riding the favorite hot streak; on the promotion watchlist if it survives a real sample.`
@@ -1593,6 +2108,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         const bP = mb3 && mb3.p1_prob != null ? mb3.p1_prob >= 0.5 : null
         const nm = s => (s ? match.player_1 : match.player_2).split(' ').slice(-1)[0]
         const chips = []
+        // lanes already shown as a chip on THIS card (object identity) -- the ➕ +EV pass
+        // below skips these so a lane never appears twice on one card (2026-10-07).
+        const usedLanes = new Set()
         const wAll = match.league === 'wta'
         const gpick = L => (L ? (wAll ? L.w : L.m) : null)
         const gcol = (L, base) => (!L || !L.n || L.n < 8) ? base : (L.roi_pct > 3 ? '#3fb950' : L.roi_pct < -3 ? '#f85149' : base)
@@ -1602,14 +2120,33 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         // it (gcol keeps the base color while that gender's sample is thin). Already-
         // gendered lanes (from addG) or lanes with no split pass through unchanged.
         const add = (label, side, bt, rec2, color) => {
-          const L = (rec2 && (rec2.m !== undefined || rec2.w !== undefined)) ? gpick(rec2) : rec2
-          chips.push([label, side === null ? '' : nm(side), bt, lv(L), gcol(L, color)])
+          // SIDE-AWARE chip records (2026-10-07, user "all the signals are for favorite roi
+          // right?" — they weren't): when the lane carries gender×side cells, show the cell
+          // matching THIS pick's side (🐕 dog / ⭐ fav) instead of the blended record — a
+          // favorite pick must not wear a dog-earned ROI (e.g. c75-agree blend +3% vs fav −8%).
+          let L
+          // EVERY chip declares its pick's side (2026-10-07, user): 🐕/⭐ from the side it
+          // bets, always. The record shown is the gender×side cell when the lane carries one;
+          // one-sided lanes (FADE-GOLD, GRAY-2pt-FAV, price bands…) are their side's record
+          // by construction, so icon + number agree there too.
+          const sideTag = (typeof side === 'boolean') ? ((side === dog1) ? ' 🐕' : ' ⭐') : ''
+          if (rec2 && typeof rec2 === 'object') usedLanes.add(rec2)
+          if (rec2 && (rec2.m_dog !== undefined || rec2.m_fav !== undefined)
+              && typeof side === 'boolean') {
+            L = rec2[(wAll ? 'w' : 'm') + ((side === dog1) ? '_dog' : '_fav')] || gpick(rec2)
+          } else if (rec2 && (rec2.m !== undefined || rec2.w !== undefined)) {
+            L = gpick(rec2)
+          } else {
+            L = rec2
+          }
+          chips.push([label, side === null ? '' : nm(side), bt, lv(L) + sideTag, gcol(L, color)])
         }
         // Every chip gendered (2026-09-30, user ask "everything computed separate"):
         // addG appends M/W to the label and shows THAT gender's live lane, colored by it.
         const addG = (label, side, bt, Lfull, base) => {
-          const L = gpick(Lfull)
-          add(`${label} ${wAll ? 'W' : 'M'}`, side, bt, L, gcol(L, base))
+          // pass the FULL lane through so add() can pick the gender×side cell when the lane
+          // carries one (2026-10-07) — pre-picking the gender here was blocking the dog/fav split
+          add(`${label} ${wAll ? 'W' : 'M'}`, side, bt, Lfull, gcol(gpick(Lfull), base))
         }
         // Gendered bt26 in parentheses (2026-09-30, user ask): numbers from the full
         // gender-split backtest (_tennis_gender_full_bt.py) — each chip cites ITS
@@ -1627,7 +2164,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const dAm = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
           const dDec = dAm != null && !isNaN(dAm) ? (dAm > 0 ? 1 + dAm / 100 : 1 + 100 / Math.abs(dAm)) : null
           if (dDec != null && dDec >= 2.0) {
-            add(`🎯 PRICED ${dDec >= 3.0 ? '+59' : dDec >= 2.5 ? '+35' : '+20'}`, dog1, 'bt↑price', stx.stardog_prime, '#3fb950')
+            addG(`🎯 PRICED ${dDec >= 3.0 ? '+59' : dDec >= 2.5 ? '+35' : '+20'}`, dog1, 'bt↑price', stx.stardog_prime, '#3fb950')
             // APEX DOG (2026-10-02): the maximal stack — C-alone+gray dog AND priced.
             // Live +47.6% (+70.8% men's). The board's single best-pick flag.
             if (aP !== null && bP !== null && aP !== c1 && bP !== c1) addG('🔥 APEX DOG', dog1, 'lv +47.6', stx.apex_dog, '#3fb950')
@@ -1639,20 +2176,25 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           // positive live watch signals on the board too"): gcol -> green while the lane
           // is earning (>+3% on 8+ settles), red if it decays, base while thin. Same
           // self-pruning the gendered takes use, so a positive watch stands out as positive.
-          if (lateRnd) add('LATE ROUND', dog1, 'watch', stx.cgray_dog_late, gcol(stx.cgray_dog_late, '#8b949e'))
+          if (lateRnd) addG('LATE ROUND', dog1, 'watch', stx.cgray_dog_late, gcol(stx.cgray_dog_late, '#8b949e'))
         }
         if (hate) {
           // Depth-aware chip (2026-09-30, user ask): 4-5pt gold favorites show that
           // bucket's own live record; 5pt+ show THIS match's gender lane (men live
           // +8.2% vs women −24% at 5+, so one blended number would mislead).
           const dp = (mdog - gdog) * 100
+          // ⭐✓ = one of the THREE favorite cells positive in the full gender×side
+          // walk-forward backtest (2026-10-07, user "put the three positive favorite
+          // cells on the board"): FADE-GOLD fav (M +2.7/W +10.4 all-yrs), C-EDGE 5pt
+          // fav (M +5.3/W +10.9), D-MA 2pt fav (women +5.4). Every other favorite cell
+          // backtests flat-to-negative.
           if (dp >= 5) {
             const d5g = gpick(stx.goldfav_d5)
-            add(`FADE-GOLD 5pt+ ${wAll ? 'W' : 'M'}`, !dog1, b26('+1.0¹', '+9.4¹'), d5g, gcol(d5g, '#f5f13b'))
+            add(`⭐✓ FADE-GOLD 5pt+ ${wAll ? 'W' : 'M'}`, !dog1, b26('+1.0¹', '+9.4¹'), d5g, gcol(d5g, '#f5f13b'))
           } else if (dp >= 4) {
-            addG('FADE-GOLD 4-5pt', !dog1, b26('+1.0¹', '+9.4¹'), stx.goldfav_d45, '#f5f13b')
+            addG('⭐✓ FADE-GOLD 4-5pt', !dog1, b26('+1.0¹', '+9.4¹'), stx.goldfav_d45, '#f5f13b')
           } else {
-            addG('FADE-GOLD', !dog1, b26('+1.0', '+9.4'), stx.grayhate_fav, '#f5f13b')
+            addG('⭐✓ FADE-GOLD', !dog1, b26('+1.0', '+9.4'), stx.grayhate_fav, '#f5f13b')
           }
           addG('HATED DOG', dog1, b26('−22.8', '−41.8'), stx.grayhate_dog, '#f85149')
         }
@@ -1660,7 +2202,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         // Every neon-yellow name = the union of C+gray DOGs (star → g1) and gray-hated
         // FAVORITES (hate → !dog1). add() shows THIS match's gender record (men +4.1% / 201,
         // women −10.4% / 107) and recolors by it (green on men, red on women).
-        if (star || hate) add('🥇 GOLD NAME', star ? g1 : !dog1, b26('+4.1', '−10.4'), stx.gold_names, '#f5f13b')
+        if (star || hate) addG('🥇 GOLD NAME', star ? g1 : !dog1, b26('+4.1', '−10.4'), stx.gold_names, '#f5f13b')
         if (c1 !== g1) {
           addG('FIGHT C-side', c1, b26('−1.3', '+2.3'), stx.cvg_c, '#f85149')
           addG('FIGHT gray-side', g1, b26('−8.0', '−6.6'), stx.cvg_gray, '#8b949e')
@@ -1698,7 +2240,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             // (stx.c_alone_gray -- men +7.2% / women −6.0%). Raw c_alone isn't tracked
             // (n=0), so when gray sits on C's side read that lane; add() recolors by this
             // match's gender (men green, women red). Gray-disagrees falls back to watch.
-            if (g1 === c1) add('C-ALONE+GRAY', c1, b26('+7.2', '−6.0'), stx.c_alone_gray, '#8b949e')
+            if (g1 === c1) addG('C-ALONE+GRAY', c1, b26('+7.2', '−6.0'), stx.c_alone_gray, '#8b949e')
             else addG('C-ALONE', c1, b26('+6.0', '+26.7'), laneRec && laneRec.c_alone, '#8b949e')
           }
         }
@@ -1712,7 +2254,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const ceS = mc3.p1_prob - mc3.market_p1 >= 0.05
           const ceDog = (mc3.market_p1 < 0.5) === ceS
           const ceL = (laneRec && laneRec.c_edge || {})[gsKey(ceS)]
-          add(`C-EDGE 5pt ${ceDog ? 'DOG' : 'FAV'} ${wAll ? 'W' : 'M'}`, ceS, ceDog ? b26('+2.4¹', '+18.1¹') : b26('+4.6¹', '+11.0¹'), ceL, gcol(ceL, '#8b949e'))
+          // fav side wears ⭐✓ (validated favorite cell: bt all-yrs M +5.3 / W +10.9,
+          // 2026 M +4.6 / W +11.0 — one of only three +EV favorite cells) and gold base.
+          add(`${ceDog ? '' : '⭐✓ '}C-EDGE 5pt ${ceDog ? 'DOG' : 'FAV'} ${wAll ? 'W' : 'M'}`, ceS, ceDog ? b26('+2.4¹', '+18.1¹') : b26('+4.6¹', '+11.0¹'), ceL, gcol(ceL, ceDog ? '#8b949e' : '#e3b341'))
         }
         const gEdgeAbs = Math.abs(mc3.market_aware_p1 - mc3.market_p1)
         if (gEdgeAbs >= 0.02) {
@@ -1729,24 +2273,53 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const s50 = mc3.mc.p1_pct >= 50
           const s75 = mc3.mc_c75_p1 >= 0.5
           if (s50 === s75) {
-            add('⚄ C-MC+c75 TAKE', s50, 'take', stx.mcc_c75_agree, gcol(stx.mcc_c75_agree, '#a78bfa'))
+            addG('⚄ C-MC+c75 TAKE', s50, 'take', stx.mcc_c75_agree, gcol(stx.mcc_c75_agree, '#a78bfa'))
             // c50+c75 both on the market DOG = a validated priced-dog take (+19%, 47% vs
             // 38% implied). Shown green; the D-split flags below refine it.
-            if (s50 === dog1) add('🐕 c50+c75 DOG', dog1, 'bt +19 (47%)', stx.cc75_dog, gcol(stx.cc75_dog, '#3fb950'))
+            if (s50 === dog1) addG('🐕 c50+c75 DOG', dog1, 'bt +19 (47%)', stx.cc75_dog, gcol(stx.cc75_dog, '#3fb950'))
             // user hypothesis (2026-10-04): c50+c75 on a DOG + Model D agrees. Flag it and
             // whether D is on the dog (your idea) or on the fav (the backfill-stronger half).
             const dP2 = match.model_d && match.model_d.p1_prob != null ? match.model_d.p1_prob >= 0.5 : null
             if (s50 === dog1 && dP2 !== null) {
-              if (dP2 === dog1) add('🐕 c50+c75+D DOG', dog1, 'bt 46% (watch)', stx.cc75_d_dog, gcol(stx.cc75_d_dog, '#f5f13b'))
-              else add('🐕 c50+c75 DOG · D on fav', dog1, 'bt 73%', stx.cc75_nod_dog, gcol(stx.cc75_nod_dog, '#3fb950'))
+              if (dP2 === dog1) addG('🐕 c50+c75+D DOG', dog1, 'bt 46% (watch)', stx.cc75_d_dog, gcol(stx.cc75_d_dog, '#f5f13b'))
+              else addG('🐕 c50+c75 DOG · D on fav', dog1, 'bt 73%', stx.cc75_nod_dog, gcol(stx.cc75_nod_dog, '#3fb950'))
             }
           }
         }
         // C75 MEN chip (2026-10-05, user ask): the c75 variant's side is live-positive on
         // the MEN's side (+8.3% / 117) but flat-negative on women, so mark the MEN's c75
         // pick specifically. Only fires on men's matches; add() auto-shows the men's lane.
-        if (!wAll && mc3.mc_c75_p1 != null) {
-          add('⚄ C75 ✓M', mc3.mc_c75_p1 >= 0.5, 'lv +8% M', stx.mc_c75_all, gcol((stx.mc_c75_all || {}).m, '#3fb950'))
+        // C75 chip SPLIT BY SIDE (2026-10-06, user "split it that way"): the blended c75 ROI
+        // was dog-earned; show the SIDE-specific record so a favorite pick can't borrow the
+        // dogs' number. Dogs are the edge (+34% men); favorites are flat/neg (shows red).
+        // UNGATED for women (2026-10-07, user "split every signal men/women"): the chip
+        // fires on BOTH genders; the record is this match's gender cell of the side-split
+        // lane, so a women's c75 pick shows the W number, never borrows the men's.
+        if (mc3.mc_c75_p1 != null) {
+          const _c75S = mc3.mc_c75_p1 >= 0.5, _dg = mc3.market_p1 < 0.5
+          const _c75dog = (_c75S === _dg)
+          const _lane = _c75dog ? stx.mc_c75_dog : stx.mc_c75_fav
+          add(`⚄ C75 ${_c75dog ? 'DOG' : 'FAV'} ${wAll ? 'W' : 'M'}`, _c75S,
+              _c75dog ? 'dogs = the edge' : 'favs flat/neg',
+              _lane, gcol(gpick(_lane), '#3fb950'))
+        }
+        // 🧊 PURE-FORM × C75 (2026-10-06, user "wire that tracker + notify when +ROI only"):
+        // quality-adjusted last-10-on-surface recent form (NO serve stats) vs the C-MC(c75)
+        // lean. The live edge is in the DISAGREE cell -- the market overvalues recent form,
+        // so when form fades the model's c75 pick the pick has overperformed. Shown ONLY when
+        // this match's gender cell is currently +ROI (men disagree +18.9%); auto-updates.
+        if (mc3.mc_c75_p1 != null && match.pure_form && match.pure_form.agree_c75 != null) {
+          const _pfDis = !match.pure_form.agree_c75
+          const _c75p1b = mc3.mc_c75_p1 >= 0.5
+          const _dogPick = (_c75p1b === (mc3.market_p1 < 0.5))   // c75 pick is the market dog
+          const _pfLane = _pfDis ? (_dogPick ? stx.pf_c75_dis_dog : stx.pf_c75_dis_fav) : stx.pf_c75_agr
+          const _pfG = gpick(_pfLane)
+          if (_pfG && _pfG.n >= 12 && _pfG.roi_pct > 0) {   // n>=12: dog-split sample is thinner
+            // Name after the label = the side to TAKE. "FADE FORM → TAKE [name]": recent form
+            // likes the opponent, you fade it and back the named (model) side.
+            addG(_pfDis ? '🧊 FADE FORM → TAKE' : '🔥 FORM → TAKE', mc3.mc_c75_p1 >= 0.5,
+                _pfDis ? 'form likes opp' : 'form backs pick', _pfLane, _pfDis ? '#56d4dd' : '#f0883e')
+          }
         }
         // ALL-10 AGREE chip (2026-10-04, user ask): every model + MC on the same side.
         // Highest-hit marker (~80%), small +ROI (near-always a chalk favorite).
@@ -1759,13 +2332,13 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const cuS = mc3 && mc3.mc_cutr_p1 != null ? mc3.mc_cutr_p1 >= 0.5 : null
           const all = [aP, bP, c1, g1, dP3, dmaP, mcdS, mcS, c75S, cuS]
           if (all.every(x => x !== null) && all.every(x => x === all[0])) {
-            add('✅ ALL-10 AGREE', all[0], 'bt 80% +4.4', stx.all10_agree, '#8b949e')
+            addG('✅ ALL-10 AGREE', all[0], 'bt 80% +4.4', stx.all10_agree, '#8b949e')
           }
         }
         // AGAINST A watch chip (2026-10-04, user ask): the side opposite Model A, every
         // match. Colors by its own live lane (watch grey; green if it ever earns). Hidden
         // in green-only mode while negative.
-        if (aP !== null) add('↺ AGAINST A', !aP, 'watch', stx.against_a, gcol(stx.against_a, '#8b949e'))
+        if (aP !== null) addG('↺ AGAINST A', !aP, 'watch', stx.against_a, gcol(stx.against_a, '#8b949e'))
         // D-MA 2pt EDGE chip (2026-10-04, user ask): Model D's market-aware head is >=2pts
         // over the market on its favored side -- the only mkt-aware head +ROI when it
         // dissents (+7.5%/53 backfill). Colors by its own live lane.
@@ -1773,7 +2346,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const dmaS1 = match.model_d.market_aware_p1 >= 0.5
           const dmaSide = dmaS1 ? match.model_d.market_aware_p1 : 1 - match.model_d.market_aware_p1
           const mktSide = dmaS1 ? mc3.market_p1 : 1 - mc3.market_p1
-          if (dmaSide - mktSide >= 0.02) add('📈 D-MA 2pt EDGE', dmaS1, 'bt +7.5 (53)', stx.dma_edge2, gcol(stx.dma_edge2, '#3fb950'))
+          if (dmaSide - mktSide >= 0.02) {
+            // SIDE-SPLIT (2026-10-07 gender×side backtest): the FAV half is the validated
+            // cell on WOMEN (+5.4 all-yrs / +6.2 in 2026, 75% hit — one of the three +EV
+            // favorite cells → ⭐✓ W); men fav is flat (bt26 −0.8). Dog half: M +1.8 / W +15.2.
+            const dmaFav = dmaS1 !== dog1
+            const dmaMark = dmaFav && wAll
+            add(`${dmaMark ? '⭐✓ ' : '📈 '}D-MA 2pt ${dmaFav ? 'FAV' : 'DOG'} ${wAll ? 'W' : 'M'}`, dmaS1,
+                dmaFav ? b26('−0.8¹', '+6.2¹') : b26('+1.8¹', '+15.2¹'), stx.dma_edge2,
+                gcol(stx.dma_edge2, dmaMark ? '#e3b341' : '#3fb950'))
+          }
         }
         // D + GRAY DOG and D ALONE chips (2026-10-05, user ask "add these roi%s to
         // selective men/women matches"). Both read Model D's favored side.
@@ -1783,14 +2365,13 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           // backtest cell, live MEN +86.5% (5-1) vs women +9% (n2). Men-focused: green on
           // men, grey watch on women (women sample is 2; the edge is men-side).
           if (dS === dog1 && g1 === dog1) {
-            if (!wAll) add('🐕 D+GRAY DOG ✓M', dog1, 'lv +86% M', stx.d_gray_dog, gcol((stx.d_gray_dog || {}).m, '#3fb950'))
-            else add('🐕 D+GRAY DOG · W', dog1, 'watch W', stx.d_gray_dog, '#8b949e')
+            addG('🐕 D+GRAY DOG', dog1, b26('−0.8¹', '+5.5¹'), stx.d_gray_dog, gcol(gpick(stx.d_gray_dog), '#3fb950'))
           }
           // D ALONE: Model D dissents from A, B AND C. Thesis is "zero info," but live it's
           // MEN +5.8% (8-7, n15) / women +113% (3-0, n3 = noise). Grey watch base; add()
           // greens the gender that's actually earning on a real sample (men).
           if (aP !== null && bP !== null && aP !== dS && bP !== dS && c1 !== dS) {
-            add('🧩 D ALONE', dS, 'watch', stx.d_alone, '#8b949e')
+            addG('🧩 D ALONE', dS, 'watch', stx.d_alone, '#8b949e')
           }
         }
         // MC BIG DOG chip (2026-10-01, user hypothesis): the sim favors the market
@@ -1801,28 +2382,28 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           if (mcDogP >= 0.60) {
             // backtest (2026-10-02): raw MC big dog −6.0%, but +19.3% when GRAY also
             // likes the dog. Split so the gray-backed play and the trap look different.
-            if (g1 === dog1) add(`★ MC DOG+GRAY ${Math.round(mcDogP * 100)}%`, dog1, 'bt +19.3', stx.mc_biggray, '#f5f13b')
-            else add(`MC BIG DOG ${Math.round(mcDogP * 100)}% · no gray`, dog1, 'bt −6.0', stx.mc_dog_big, '#f85149')
+            if (g1 === dog1) addG(`★ MC DOG+GRAY ${Math.round(mcDogP * 100)}%`, dog1, 'bt +19.3', stx.mc_biggray, '#f5f13b')
+            else addG(`MC BIG DOG ${Math.round(mcDogP * 100)}% · no gray`, dog1, 'bt −6.0', stx.mc_dog_big, '#f85149')
           }
           // MC TOSS-UP (2026-10-02, user ask): MC's closest calls (conf 50-60%) are the
           // one MC bucket positive live (+15% on 13, thin). Marked green as a watch.
           const mcConf = Math.max(mcc.p1_pct, 100 - mcc.p1_pct)
-          if (mcConf >= 50 && mcConf < 60) add('MC TOSS-UP', mcc.p1_pct >= 50, 'watch', stx.mc_tossup, gcol(stx.mc_tossup, '#8b949e'))
+          if (mcConf >= 50 && mcConf < 60) addG('MC TOSS-UP', mcc.p1_pct >= 50, 'watch', stx.mc_tossup, gcol(stx.mc_tossup, '#8b949e'))
           // MC agrees with a 4/4 slip (A=B=C=D all one side) — user ask 2026-10-02.
           // Tracked, not a take (bt −2.2%); marks the slip the user wanted flagged.
           const mcSide1 = mcc.p1_pct >= 50
           const dP = match.model_d && match.model_d.p1_prob != null ? match.model_d.p1_prob >= 0.5 : null
           if (aP !== null && bP !== null && dP !== null
               && aP === bP && bP === c1 && c1 === dP && mcSide1 === c1) {
-            add('⚄+4/4 SLIP', c1, 'bt −2.2', stx.mc_4of4, gcol(stx.mc_4of4, '#8b949e'))
+            addG('⚄+4/4 SLIP', c1, 'bt −2.2', stx.mc_4of4, gcol(stx.mc_4of4, '#8b949e'))
           }
           // previously-unmarked positive watch lanes (2026-10-04, user audit): MC DOG =
           // serve-MC favors the market dog (+18%/34); MC+GREEN = serve-MC agrees a green
           // name (+18%/28); MC-C+MC-D = the C-MC and serve-MC land the same side (+10%/73).
-          if (mcSide1 === dog1) add('⚄ MC DOG', dog1, 'watch', stx.mc_dog, gcol(stx.mc_dog, '#8b949e'))
-          if (!star && !hate && mcSide1 === g1) add('⚄ MC+GREEN', g1, 'watch', stx.mc_green, gcol(stx.mc_green, '#8b949e'))
+          if (mcSide1 === dog1) addG('⚄ MC DOG', dog1, 'watch', stx.mc_dog, gcol(stx.mc_dog, '#8b949e'))
+          if (!star && !hate && mcSide1 === g1) addG('⚄ MC+GREEN', g1, 'watch', stx.mc_green, gcol(stx.mc_green, '#8b949e'))
           if (mc3 && mc3.mc && mc3.mc.sims && (mc3.mc.p1_pct >= 50) === mcSide1) {
-            add('⚄ MC-C+MC-D', mcSide1, 'watch', stx.mc_c_and_d, gcol(stx.mc_c_and_d, '#8b949e'))
+            addG('⚄ MC-C+MC-D', mcSide1, 'watch', stx.mc_c_and_d, gcol(stx.mc_c_and_d, '#8b949e'))
           }
         }
         // 💰 PRICE ✓ chip (2026-10-05, user ask): a gated Best-tab signal fires AND the pick
@@ -1882,6 +2463,156 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
               conflicts.push(['⑤', 'COLLISION · PASS (no edge)', 'COLLISION at a near-coin-flip (50-65%) or extreme-chalk (85%+) favorite price: NEITHER side is +EV — the dog is deeply negative and the favorite has also lost here. NO-BET, skip. NOTE: even if ✅ ALL-10 AGREE fires here (a high WIN RATE like 14-3), that is win rate, not profit — ALL-10 only makes money OUTSIDE collisions (+26.8%, 6-0 on women); inside one it loses (−3.2%, and −19% at 50-65% fav). You will usually win the match but still lose money at the price. This match’s gender record shown.', 'cr5_coll_passfav'])
           }
           else conflicts.push(['④', `TRUST DOG · ${nmc(dog1)}`, 'The gray line hates the market dog (WOMEN): take the DOG — it has paid live at the plus price. (But if every model also agrees on the favorite, rule ⑤ overrides this and says fade the dog.) Live record shown.', 'cr4_grayhate'])
+        }
+        // ➕ EVERY POSITIVE SIGNAL ON THE PICK IT FIRES ON (2026-10-07, user "i want them
+        // on every board pick that has them not at the top"): the +EV panel's content,
+        // distributed per card. For each lane in the FULL catalog (watch lanes included)
+        // that FIRES on this match, read the gender×side cell for the side it bets; if
+        // that cell is currently +ROI, chip it with record + n (grey while n<12, green
+        // on a real sample). Lanes already chipped above are skipped (usedLanes identity
+        // dedup) so nothing shows twice. KEEP CONDITIONS IN LOCKSTEP with
+        // tennis_log.get_ab25_record's bet() calls.
+        {
+          const dP9 = match.model_d && match.model_d.p1_prob != null ? match.model_d.p1_prob >= 0.5 : null
+          const dmaV9 = match.model_d && match.model_d.market_aware_p1 != null ? match.model_d.market_aware_p1 : null
+          const dmaS9 = dmaV9 != null ? dmaV9 >= 0.5 : null
+          const mcd9 = (match.model_d && match.model_d.mc && match.model_d.mc.sims) ? match.model_d.mc.p1_pct / 100 : null
+          const mcdS9 = mcd9 != null ? mcd9 >= 0.5 : null
+          const c509 = (mc3.mc && mc3.mc.sims) ? mc3.mc.p1_pct / 100 : null
+          const c50S9 = c509 != null ? c509 >= 0.5 : null
+          const c75S9 = mc3.mc_c75_p1 != null ? mc3.mc_c75_p1 >= 0.5 : null
+          const cuS9 = mc3.mc_cutr_p1 != null ? mc3.mc_cutr_p1 >= 0.5 : null
+          const pfe9 = match.pure_form && match.pure_form.edge != null ? match.pure_form.edge : null
+          const mk19 = mc3.market_p1
+          const favp9 = Math.max(mk19, 1 - mk19)
+          const passfav9 = aP !== null && bP !== null && aP !== c1 && bP !== c1 && g1 === c1 && c1 !== dog1
+          const alone9 = aP !== null && bP !== null && aP !== c1 && bP !== c1
+          const lo9 = match.live_odds || {}
+          const am9 = sd => { const v = Number(sd ? lo9.player_1 : lo9.player_2); return isNaN(v) ? null : v }
+          const dec9 = sd => { const v = am9(sd); return v == null ? null : (v > 0 ? 1 + v / 100 : 1 + 100 / Math.abs(v)) }
+          const h109 = [aP, bP, c1, g1, dP9, dmaS9, mcdS9, c50S9, c75S9, cuS9]
+          const h10ok = h109.every(x => x !== null)
+          const all109 = h10ok && h109.every(x => x === h109[0])
+          const n1side9 = h10ok ? h109.filter(Boolean).length : null
+          const lateRnd9 = (() => { const rn = (match.round || '').toLowerCase(); return rn && !(rn.includes('1st') || rn.includes('qual') || rn.includes('128') || rn.includes('of 64')) })()
+          // [study key, label, fire() -> side it bets (p1-bool) or null] — mirrors bet()
+          const CAT9 = [
+            ['cvg_c', 'FIGHT C', () => c1 !== g1 ? c1 : null],
+            ['cvg_gray', 'FIGHT GRAY', () => c1 !== g1 ? g1 : null],
+            ['gray_dog4', 'GRAY 4pt+ DOG', () => (gdog - mdog >= 0.04 && g1 === dog1) ? dog1 : null],
+            ['grayhate_dog', 'HATED DOG', () => hate ? dog1 : null],
+            ['grayhate_fav', 'FADE-GOLD FAV', () => hate ? !dog1 : null],
+            ['gold_names', 'GOLD NAME', () => star ? g1 : (hate ? !dog1 : null)],
+            ['green_names', 'GREEN NAME', () => (!star && !hate && !passfav9) ? g1 : null],
+            ['stardog_prime', 'PRICED STAR DOG', () => { const d = dec9(dog1); return (star && d != null && d >= 2.0) ? dog1 : null }],
+            ['apex_dog', 'APEX DOG', () => { const d = dec9(dog1); return (star && d != null && d >= 2.0 && alone9) ? dog1 : null }],
+            ['cgray_dog_late', 'STAR DOG LATE RND', () => (star && lateRnd9) ? dog1 : null],
+            ['tier1', 'TIER 1', () => (star && (alone9 || (gdog - mdog) >= 0.04)) ? dog1 : null],
+            ['tier2', 'TIER 2', () => (star && !(alone9 || (gdog - mdog) >= 0.04)) ? dog1 : null],
+            ['tier3', 'TIER 3 FAV', () => (!star && hate) ? !dog1 : null],
+            ['cr5_collision', 'COLLISION DOG', () => (hate && aP === !dog1 && bP === !dog1 && c1 === !dog1 && g1 === !dog1 && dP9 === !dog1) ? dog1 : null],
+            ['all10_price_m', 'ALL-10 −140..−300', () => { if (wAll || !all109) return null; const o = am9(h109[0]); return (o != null && o >= -300 && o <= -140) ? h109[0] : null }],
+            ['split64_fade', 'FADE 6-4 SPLIT', () => (h10ok && (n1side9 === 4 || n1side9 === 6)) ? (n1side9 === 4) : null],
+            ['pf_c75_agr', 'FORM BACKS c75', () => (c75S9 !== null && pfe9 != null && ((pfe9 > 0) === c75S9)) ? c75S9 : null],
+            ['pf_c75_dis_dog', 'FADE FORM DOG', () => (c75S9 !== null && pfe9 != null && ((pfe9 > 0) !== c75S9) && c75S9 === dog1) ? c75S9 : null],
+            ['pf_c75_dis_fav', 'FADE FORM FAV', () => (c75S9 !== null && pfe9 != null && ((pfe9 > 0) !== c75S9) && c75S9 !== dog1) ? c75S9 : null],
+            ['pf_ghfav', 'FORM+GOLD FAV', () => (pfe9 != null && ((pfe9 > 0) === !dog1) && hate) ? !dog1 : null],
+            ['pf_ghfav_pr', 'FORM+GOLD FAV PR', () => (pfe9 != null && ((pfe9 > 0) === !dog1) && hate && favp9 >= 0.75 && favp9 <= 0.88) ? !dog1 : null],
+            ['pf_c75fav_pr', 'FORM+c75 FAV PR', () => (pfe9 != null && ((pfe9 > 0) === !dog1) && c75S9 === !dog1 && favp9 >= 0.78 && favp9 <= 0.88) ? !dog1 : null],
+            ['pf_a10fav_pr', 'FORM+ALL10 FAV PR', () => (pfe9 != null && ((pfe9 > 0) === !dog1) && all109 && h109[0] === !dog1 && favp9 >= 0.78 && favp9 <= 0.88) ? !dog1 : null],
+            ['c75fav_formfade', 'c75FAV × FORM-FADE', () => (c75S9 !== null && c75S9 !== dog1 && pfe9 != null && ((pfe9 > 0) !== c75S9)) ? c75S9 : null],
+            ['d_all', 'MODEL D', () => dP9],
+            ['dma_all', 'D-GRAY', () => dmaS9],
+            ['d_gray_dog', 'D+GRAY DOG', () => (dP9 !== null && dmaS9 !== null && dP9 === dmaS9 && dP9 === dog1) ? dP9 : null],
+            ['dma_edge2', 'D-MA 2pt', () => { if (dmaS9 === null) return null; const ds = dmaS9 ? dmaV9 : 1 - dmaV9; const ms = dmaS9 ? mk19 : 1 - mk19; return (ds - ms >= 0.02) ? dmaS9 : null }],
+            ['d_alone', 'D ALONE', () => (dP9 !== null && aP !== null && bP !== null && aP !== dP9 && bP !== dP9 && c1 !== dP9) ? dP9 : null],
+            ['mc_all', 'MC', () => mcdS9],
+            ['mc_tossup', 'MC TOSS-UP', () => { if (mcd9 == null) return null; const cf = Math.max(mcd9, 1 - mcd9); return (cf >= 0.5 && cf < 0.6) ? mcdS9 : null }],
+            ['mc_dog', 'MC DOG', () => (mcdS9 !== null && mcdS9 === dog1) ? mcdS9 : null],
+            ['mc_dog_big', 'MC BIG DOG', () => { if (mcdS9 === null || mcdS9 !== dog1) return null; return ((dog1 ? mcd9 : 1 - mcd9) >= 0.6) ? mcdS9 : null }],
+            ['mc_biggray', 'MC DOG+GRAY', () => { if (mcdS9 === null || mcdS9 !== dog1 || g1 !== dog1) return null; return ((dog1 ? mcd9 : 1 - mcd9) >= 0.6) ? mcdS9 : null }],
+            ['mc_gold', 'MC+GOLD', () => { const gs = star ? dog1 : (hate ? !dog1 : null); return (gs !== null && mcdS9 === gs) ? gs : null }],
+            ['mc_green', 'MC+GREEN', () => (!star && !hate && !passfav9 && mcdS9 !== null && mcdS9 === g1) ? g1 : null],
+            ['mc_4of4', 'MC+4/4', () => (aP !== null && bP !== null && dP9 !== null && aP === bP && bP === c1 && c1 === dP9 && mcdS9 === c1) ? c1 : null],
+            ['mc_c_all', 'C-MC', () => c50S9],
+            ['mc_c_and_d', 'C-MC+MC', () => (c50S9 !== null && mcdS9 !== null && c50S9 === mcdS9) ? c50S9 : null],
+            // mc_c75_all skipped: its gender×side cell is the same population as the
+            // mc_c75_dog/fav split lanes below (and the men's ⚄ C75 chip) -- would double-print.
+            ['mc_c75_dog', 'c75 DOG', () => (c75S9 !== null && c75S9 === dog1) ? c75S9 : null],
+            ['mc_c75_fav', 'c75 FAV', () => (c75S9 !== null && c75S9 !== dog1) ? c75S9 : null],
+            ['mcc_c75_agree', 'c50+c75', () => (c50S9 !== null && c75S9 !== null && c50S9 === c75S9) ? c50S9 : null],
+            ['mc4ovr_fav_band', '4-MC>MKT −200/300', () => { if (mcd9 === null || c509 === null || mc3.mc_c75_p1 == null || mc3.mc_cutr_p1 == null) return null; const favS = !dog1; const mkf = Math.max(mk19, 1 - mk19); const pf = [mcd9, c509, mc3.mc_c75_p1, mc3.mc_cutr_p1].map(v => favS ? v : 1 - v); if (!pf.every(v => v > mkf)) return null; const o = am9(favS); return (o != null && o >= -300 && o <= -200) ? favS : null }],
+            ['fight_mc4_dog', '⚔🐕 FIGHT-FLIP', () => { if (c1 === g1 || g1 === dog1) return null; if (mcdS9 === null || c50S9 === null || c75S9 === null || cuS9 === null) return null; if (!(mcdS9 === c50S9 && c50S9 === c75S9 && c75S9 === cuS9 && c50S9 === dog1)) return null; const o = am9(dog1); return (o != null && o >= 100 && o <= 250) ? dog1 : null }],
+            ['mc4_dog_band', '4-MC DOG +100/250', () => { if (mcdS9 === null || c50S9 === null || c75S9 === null || cuS9 === null) return null; if (!(mcdS9 === c50S9 && c50S9 === c75S9 && c75S9 === cuS9 && c50S9 === dog1)) return null; const o = am9(c50S9); return (o != null && o >= 100 && o <= 250) ? c50S9 : null }],
+            ['cc75_dog', 'c50+c75 DOG', () => (c50S9 !== null && c50S9 === c75S9 && c50S9 === dog1) ? c50S9 : null],
+            ['cc75_d_dog', 'c50+c75+D DOG', () => (c50S9 !== null && c50S9 === c75S9 && c50S9 === dog1 && dP9 === c50S9) ? c50S9 : null],
+            ['cc75_nod_dog', 'c50+c75 DOG·D FAV', () => (c50S9 !== null && c50S9 === c75S9 && c50S9 === dog1 && dP9 !== null && dP9 !== c50S9) ? c50S9 : null],
+            ['mc_cutr_all', 'cUTR', () => cuS9],
+            ['all10_agree', 'ALL-10', () => all109 ? h109[0] : null],
+            ['against_a', 'AGAINST A', () => aP !== null ? !aP : null],
+            ['fade_a', 'FADE A', () => (aP !== null && bP !== null && aP !== bP && bP === c1) ? bP : null],
+            ['fade_a_dog', 'FADE-A DOG', () => (aP !== null && bP !== null && aP !== bP && bP === c1 && bP === dog1) ? bP : null],
+            ['fade_a_dog_gray', 'FADE-A DOG+GRAY', () => (aP !== null && bP !== null && aP !== bP && bP === c1 && bP === dog1 && g1 === bP) ? bP : null],
+            ['fade_a_fav', 'FADE-A FAV', () => (aP !== null && bP !== null && aP !== bP && bP === c1 && bP !== dog1) ? bP : null],
+            ['abc_agree', 'A+B+C', () => (aP !== null && bP !== null && aP === bP && bP === c1) ? c1 : null],
+            ['abc_dog', 'A+B+C DOG', () => (aP !== null && bP !== null && aP === bP && bP === c1 && c1 === dog1) ? c1 : null],
+            ['all6_agree', 'ALL 6', () => { const am = ma3 && ma3.market_aware_p1, bm = mb3 && mb3.market_aware_p1; return (aP !== null && bP !== null && am != null && bm != null && aP === bP && bP === c1 && c1 === g1 && (am >= 0.5) === c1 && (bm >= 0.5) === c1) ? c1 : null }],
+            ['c_alone_gray', 'C-ALONE+GRAY', () => (alone9 && g1 === c1) ? c1 : null],
+            ['c_alone_gray_dog', 'C-ALONE+GRAY DOG', () => (alone9 && g1 === c1 && c1 === dog1) ? c1 : null],
+            ['c_alone_gray_fav', 'C-ALONE+GRAY FAV', () => (alone9 && g1 === c1 && c1 !== dog1) ? c1 : null],
+          ]
+          // root (non-study) lanes, same treatment
+          const ROOT9 = [
+            [lnx.a_alone, 'A›B', () => (aP !== null && bP !== null && aP !== bP) ? aP : null],
+            [lnx.agree, 'A+B AGREE', () => (aP !== null && bP !== null && aP === bP) ? aP : null],
+            [laneRec && laneRec.c_all, 'MODEL C', () => c1],
+            [laneRec && laneRec.cma_all, 'GRAY', () => g1],
+            [laneRec && laneRec.c_alone, 'C ALONE', () => alone9 ? c1 : null],
+            [laneRec && laneRec.c_with, 'C+ONE', () => (aP !== null && bP !== null && aP !== bP && (c1 === aP || c1 === bP)) ? c1 : null],
+            [laneRec && laneRec.agree_dog, 'STAR DOG', () => star ? dog1 : null],
+          ]
+          const cellOf9 = (L, side) => {
+            if (!L) return null
+            const ck = (wAll ? 'w' : 'm') + ((side === dog1) ? '_dog' : '_fav')
+            if (L[ck] && L[ck].n !== undefined) return L[ck]
+            const gg = wAll ? L.w : L.m
+            if (gg && gg.n !== undefined) return gg
+            return (L.n !== undefined) ? L : null
+          }
+          const pushEV = (L, label, side) => {
+            if (side === null || side === undefined || !L || usedLanes.has(L)) return
+            const cell = cellOf9(L, side)
+            if (!cell || !cell.n || !(cell.roi_pct > 0)) return
+            chips.push([`➕ ${label} ${wAll ? 'W' : 'M'}`, nm(side), '', `${lv(cell)} ${side === dog1 ? '🐕' : '⭐'} n${cell.n}`,
+              cell.n < 12 ? '#8b949e' : '#3fb950'])
+          }
+          for (const [k, label, fire] of CAT9) pushEV(stx[k], label, fire())
+          for (const [L9, label, fire] of ROOT9) pushEV(L9, label, fire())
+          // pick-level price-band + 💎 stack lanes (men only, mirrors the Prices/Best logic)
+          if (!wAll) {
+            const bs9 = bestSig(match)
+            let top9 = null
+            const famsDog9 = new Set()
+            if (bs9) for (const e of BEST_SIGNALS) {
+              const sd = e.fire(bs9); if (sd == null) continue
+              const rb = (stx[e.key] || {}).m || {}; const nb = rb.n || 0
+              if (nb < BEST_N || 100 * rb.wins / nb < BEST_HIT || rb.roi_pct < BEST_ROI) continue
+              if (!top9 || rb.roi_pct > top9.roi) top9 = { side: sd, roi: rb.roi_pct }
+              if (sd === dog1) famsDog9.add(famOf(e.key))
+            }
+            if (top9) {
+              const o9 = am9(top9.side)
+              if (o9 != null && o9 >= 100 && o9 <= 250) pushEV(stx.price_dog_m, 'BEST@+100..250', top9.side)
+              else if (o9 != null && o9 >= -600 && o9 <= -300) pushEV(stx.price_chalk_m, 'BEST@−300..600', top9.side)
+            }
+            if (all109) {
+              const oA = am9(h109[0])
+              if (oA != null && oA >= -300 && oA < -200) pushEV(stx.all10_200_300_m, 'ALL10@−200..300', h109[0])
+              else if (oA != null && oA >= -200 && oA <= -140) pushEV(stx.all10_140_200_m, 'ALL10@−140..200', h109[0])
+            }
+            const oD = am9(dog1)
+            if (famsDog9.size >= 2 && oD != null && oD >= 100 && oD <= 250) pushEV(stx.blue2stack, '💎 BLUE ★2 DOG', dog1)
+          }
         }
         // GREEN-ONLY mode (2026-10-02, user ask): hide red/avoid signals and any chip
         // whose LIVE ROI is currently negative; keep green takes + not-yet-settled ones
@@ -1971,6 +2702,15 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#22d3ee', fontWeight: 700 }}
           title="SOS tracker (2026-09-26): this player's surface serve+return is not worse (within 2 pts) but their recent schedule is clearly tougher (median opponent rank ≤0.8× the other's). Backtest: they WIN 63-65% of these matches — but avg odds ~1.60 mean the market prices it almost exactly (flat ROI −3/−12%). A WIN-RATE tracker to watch, not a bet signal.">
           ◆ SOS: {match.sos === 'p1' ? match.player_1 : match.player_2} <span style={{ fontWeight: 400, opacity: 0.85 }}>· tougher slate, stats hold up — win-rate tracker</span>
+        </div>
+      ) : null}
+
+      {match.utr ? (
+        <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#93c5fd' }}
+          title="REAL UTR (2026-10-07): each player's current singles UTR from utrsports.net's public ratings (fetched fresh daily), with how their 3-MONTH form rating sits vs that established level in parentheses (+ = running hot, − = cold). FORWARD tracker only — current ratings can't be honestly backtested (today's rating already contains past results), so the utr_* lanes judge it on settles from today forward (🐕/⭐ Splits tab): utr_all (higher-rated side), utr_dog (market dog is the higher-rated player), utr_mom hot vs fade (the form-fade thesis says fade the hot side).">
+          📏 UTR: {match.player_1.split(' ').slice(-1)[0]} <b>{match.utr.p1}</b>{match.utr.p1_mom != null ? ` (${match.utr.p1_mom > 0 ? '+' : ''}${match.utr.p1_mom})` : ''}
+          {' vs '}{match.player_2.split(' ').slice(-1)[0]} <b>{match.utr.p2}</b>{match.utr.p2_mom != null ? ` (${match.utr.p2_mom > 0 ? '+' : ''}${match.utr.p2_mom})` : ''}
+          <span style={{ fontWeight: 400, opacity: 0.8 }}> · real ratings · forward tracker from today</span>
         </div>
       ) : null}
 

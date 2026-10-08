@@ -328,6 +328,14 @@ def get_tennis_today_matches(date: str = None, leagues: list = None, sportsbooks
             "start_time_utc": f.get("start_date"),
             "status": f.get("status"),
         })
+    # FALLBACK (2026-10-06): OpticOdds down/empty (e.g. dead key) -> use Polymarket's public
+    # Gamma feed so the board stays live. Auto-reverts to OpticOdds the moment it returns data.
+    if not matches:
+        try:
+            import polymarket_data
+            return polymarket_data.pm_today_matches(date, leagues)
+        except Exception as e:  # noqa: BLE001
+            print(f"[polymarket fallback] slate failed: {e}")
     return matches
 
 
@@ -356,9 +364,19 @@ def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False, lea
     """
     from odds_fetcher import PREFERRED_SPORTSBOOKS  # local import avoids a cycle at module load
 
-    if not OPTICODDS_API_KEY:
-        return {}
     date = date or todays_date_et()
+
+    def _pm_fallback():
+        # OpticOdds down/empty -> Polymarket's public Gamma odds (auto-reverts when OO returns).
+        try:
+            import polymarket_data
+            return polymarket_data.pm_moneyline_odds(date, leagues)
+        except Exception as e:  # noqa: BLE001
+            print(f"[polymarket fallback] odds failed: {e}")
+            return {}
+
+    if not OPTICODDS_API_KEY:
+        return _pm_fallback()
     # books to try, in preference order (2026-10-02): ITF passes Polymarket/Kalshi so the
     # ~30 ITF games only those venues price still get a line (else they'd show no odds).
     books = list(sportsbooks) + [b for b in PREFERRED_SPORTSBOOKS if b not in sportsbooks] \
@@ -375,7 +393,7 @@ def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False, lea
     headers = {"X-Api-Key": OPTICODDS_API_KEY}
     fixture_ids = _get_active_tennis_fixture_ids(date, leagues, sportsbooks)
     if not fixture_ids:
-        return {}
+        return _pm_fallback()
 
     odds_by_fixture = {}
     # OpticOdds caps 5 sportsbooks per odds request -> query in chunks of 5 books.
@@ -411,6 +429,8 @@ def get_tennis_moneyline_odds(date: str = None, force_refresh: bool = False, lea
                     odds_by_fixture[fid] = {"player_1": p1, "player_2": p2, "bookmaker": book}
                     break
 
+    if not odds_by_fixture:
+        return _pm_fallback()          # OpticOdds returned nothing -> Polymarket (don't cache empty)
     import json
     with open(cache_path, "w") as f:
         json.dump(odds_by_fixture, f)

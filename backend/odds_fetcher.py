@@ -1267,20 +1267,37 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
     rather than an error. Key includes start_date_utc, not just team names, for the same
     same-day-doubleheader/multi-game-series reason as get_market_snapshot's key.
     """
-    if not OPTICODDS_API_KEY:
-        return {}
-
     date = date or todays_date_et()
+
+    # POLYMARKET FALLBACK (2026-10-08, user "pull the polymarket mlb prices for the mlb
+    # tab"): same stopgap as tennis — when OpticOdds yields nothing (dead key / no
+    # fixtures / empty response), serve Polymarket's public MLB moneylines in the same
+    # shape. Auto-reverts the moment OpticOdds returns data. PM prices land in the
+    # "polymarket" panel + display odds only — "books" stays empty so Model E's
+    # best-price shop never treats a prediction market as a sportsbook.
+    def _pm_fallback():
+        try:
+            import polymarket_mlb
+            pm = polymarket_mlb.pm_mlb_moneyline(date)
+            if pm:
+                print(f"[mlb odds] Polymarket fallback: {len(pm)} games priced")
+            return pm
+        except Exception as _e:  # noqa: BLE001
+            print(f"[mlb pm fallback] {_e}")
+            return {}
+
+    if not OPTICODDS_API_KEY:
+        return _pm_fallback()
 
     if not force_refresh:
         cached = _read_cache(date)
-        if cached is not None:
+        if cached:
             return cached
 
     headers = {"X-Api-Key": OPTICODDS_API_KEY}
     fixture_ids = _get_active_fixture_ids(date)
     if not fixture_ids:
-        return {}
+        return _pm_fallback()
 
     fixtures_with_odds = []
     for i in range(0, len(fixture_ids), FIXTURE_BATCH_SIZE):
@@ -1430,6 +1447,8 @@ def get_moneyline_odds(date: str = None, force_refresh: bool = False) -> dict:
                 }
                 break
 
+    if not odds_by_matchup:
+        return _pm_fallback()   # key alive but no usable prices -> Polymarket (never cache empty)
     _write_cache(date, odds_by_matchup)
     return odds_by_matchup
 

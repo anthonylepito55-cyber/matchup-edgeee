@@ -23,7 +23,16 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "score",
-           "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w"]
+           "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
+           # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
+           # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
+           # serve; feeds the contrarian pf_c75_* lanes. See tennis_pure_form.py.
+           "pf_edge_p1",
+           # REAL UTR (2026-10-07): utr_edge_p1 = p1 singlesUtr - p2 singlesUtr (UTR's own
+           # public API, current ratings only -> FORWARD tracker, never retro-tested);
+           # utr_mom_p1 = (p1 3mo-vs-level) - (p2 3mo-vs-level) = who's running hotter
+           # than their established rating. See utr_data.py.
+           "utr_edge_p1", "utr_mom_p1"]
 
 
 def _read_log() -> pd.DataFrame:
@@ -74,6 +83,13 @@ def log_predictions(matches: list, date: str):
             continue  # a row must be gradeable for SOMETHING: a pick, a flag, or the A/B pair
         if not m.get("fixture_id"):
             continue
+        # CLOSING-LINE ONLY (2026-10-07, Tarvet case): never upsert from a match that is no
+        # longer "unplayed" -- Polymarket trades in-play, and a match that starts EARLY (or a
+        # postponed one with a stale schedule) would otherwise write a live price into the
+        # ledger as if it were pre-match. Existing rows stay as logged (= the closing line);
+        # a match first seen live simply never gets a priced row (no closing line exists).
+        if (m.get("status") or "unplayed") != "unplayed":
+            continue
         rows.append({
             "date": date, "fixture_id": m["fixture_id"], "league": m.get("league"),
             "tournament": m.get("tournament"), "round": m.get("round"),
@@ -118,10 +134,29 @@ def log_predictions(matches: list, date: str):
             # past game (display/post-mortem only, excluded from the forward lanes).
             "model_x_p1": mx.get("p1_prob"),
             "model_x_recon": False,
+            # PURE-RESULTS FORM edge (2026-10-06): p1 minus p2 quality-adjusted L10-on-
+            # surface form. Frozen like the models; drives the contrarian pf_c75_* lanes.
+            "pf_edge_p1": (m.get("pure_form") or {}).get("edge"),
+            # REAL UTR (2026-10-07): frozen at log time, forward lanes only (utr_data.py).
+            "utr_edge_p1": (m.get("utr") or {}).get("edge"),
+            "utr_mom_p1": (m.get("utr") or {}).get("mom"),
         })
+    log = _read_log()
+    # SELF-HEALING EARLY START (2026-10-07, Tarvet case): a match seen LIVE/completed while
+    # its logged start is still in the future (PM lists a resumption time, or the schedule is
+    # wrong) would stay upsertable -- pull its start back to now so the row freezes with the
+    # closing line it already holds. Suspended matches then can't re-log an in-play price.
+    if not log.empty:
+        _live_now = {m.get("fixture_id") for m in matches
+                     if m.get("fixture_id") and (m.get("status") or "unplayed") != "unplayed"}
+        _heal = log["fixture_id"].isin(_live_now) & (log["settled"] != True) \
+            & ~log["start_time_utc"].apply(_started)  # noqa: E712
+        if _heal.any():
+            log.loc[_heal, "start_time_utc"] = now
+            _write_log(log)
+            print(f"[tennis log] froze {int(_heal.sum())} early-started rows (live before listed start)")
     if not rows:
         return
-    log = _read_log()
     new = pd.DataFrame(rows)
     if log.empty:
         _write_log(new)
@@ -136,9 +171,9 @@ def log_predictions(matches: list, date: str):
 
 def settle(max_dates: int = 10):
     """Fill winners for unsettled rows whose match has started, from OpticOdds completed
-    fixtures (result.scores.*.total = sets won; player_1 is the home competitor)."""
-    if not OPTICODDS_API_KEY:
-        return
+    fixtures (result.scores.*.total = sets won; player_1 is the home competitor). Falls back
+    to Polymarket's resolved markets + per-set score for pm_-prefixed rows when OpticOdds is
+    down (2026-10-06)."""
     log = _read_log()
     if log.empty:
         return
@@ -185,6 +220,28 @@ def settle(max_dates: int = 10):
                 # backfill score on an already-settled row that predates score capture
                 log.loc[m, "score"] = score_str
                 changed = True
+    # POLYMARKET fallback (2026-10-06): settle pm_-prefixed rows from Polymarket's resolved
+    # markets (+ full per-set score) when OpticOdds returned no completed fixtures.
+    try:
+        import polymarket_data
+        pm = polymarket_data.pm_results()
+    except Exception as e:  # noqa: BLE001
+        pm = {}
+        print(f"[polymarket fallback] results failed: {e}")
+    for fid, r in (pm or {}).items():
+        m = log["fixture_id"] == fid
+        if not m.any():
+            continue
+        if not bool(log.loc[m, "settled"].iloc[0]) and r.get("p1_won") is not None:
+            log.loc[m, "p1_won"] = bool(r["p1_won"])
+            log.loc[m, "settled"] = True
+            if r.get("score"):
+                log.loc[m, "score"] = r["score"]
+            changed = True
+        elif r.get("score") and (log.loc[m, "score"].isna().iloc[0]
+                                 or not str(log.loc[m, "score"].iloc[0])):
+            log.loc[m, "score"] = r["score"]
+            changed = True
     if changed:
         _write_log(log)
 
@@ -251,17 +308,79 @@ def _elite_signals_for_row(r, mk1):
         if cond and side is not None:
             out.append({"label": label, **S(side)})
 
-    add("c75", c75 is not None, c75)
+    # c75 SPLIT BY SIDE (2026-10-07, user "make sure all the new signals for every board
+    # slip are added to the previous day tab"): the board chips are side-specific now, so
+    # the history line is too — a c75 favorite ✓ must not blend into the dog lane's day.
+    if c75 is not None and have_mkt:
+        add("c75 DOG" if c75 == dog1 else "c75 FAV", True, c75)
+    else:
+        add("c75", c75 is not None, c75)
     add("c50+c75", (c50 is not None and c75 is not None and c50 == c75), c75)
-    add("D-MA 2pt", dma_edge, dma)
+    # ⚄4-MC DOG (2026-10-08, promoted per user): all four sims on a +100..+250 dog
+    if (None not in (mcd, c50, c75, cu) and mcd == c50 == c75 == cu and c50 == dog1
+            and have_mkt):
+        _od4h = r.get("p1_odds") if c50 else r.get("p2_odds")
+        if _od4h is not None and not pd.isna(_od4h) and 100 <= float(_od4h) <= 250:
+            add("⚄4-MC DOG", True, c50)
+            if c1 is not None and g1 is not None and c1 != g1 and g1 != dog1:
+                add("⚔🐕FIGHT-FLIP", True, c50)
+    # ⚄4MC>MKT FAV -200..-300 (2026-10-08, user promotion)
+    _v4h = [r.get("mc_p1"), r.get("mc_c_p1"), r.get("mc_c75_p1"), r.get("mc_cutr_p1")]
+    if have_mkt and all(v is not None and not pd.isna(v) for v in _v4h):
+        _favh = not dog1
+        _mkfh = max(mk1, 1 - mk1)
+        if all((float(v) if _favh else 1 - float(v)) > _mkfh for v in _v4h):
+            _odfh = r.get("p1_odds") if _favh else r.get("p2_odds")
+            if _odfh is not None and not pd.isna(_odfh) and -300 <= float(_odfh) <= -200:
+                add("⚄4MC>MKT FAV", True, _favh)
+    # D-MA 2pt split (⭐✓ on the FAV half = one of the three backtest-positive favorite
+    # cells, women +5.4%; dog half men +1.8 / women +15.2 bt26).
+    if dma_edge and have_mkt:
+        add("D-MA2 DOG" if dma == dog1 else "⭐✓D-MA2 FAV", True, dma)
+    else:
+        add("D-MA 2pt", dma_edge, dma)
     all10 = [a, bb, c1, g1, d, dma, mcd, c50, c75, cu]
-    add("ALL-10", (all(x is not None for x in all10) and len(set(all10)) == 1), a)
+    all10_ok = all(x is not None for x in all10) and len(set(all10)) == 1
+    add("ALL-10", all10_ok, a)
+    # ⭐✓ ALL-10 PRICE (men, pick frozen at −140..−300 American) — the marked band.
+    if all10_ok and have_mkt and str(r.get("league") or "").lower() in ("atp", "itf_men"):
+        _od = r.get("p1_odds") if a else r.get("p2_odds")
+        if _od is not None and not pd.isna(_od) and -300 <= float(_od) <= -140:
+            add("⭐✓ALL10 PRICE", True, a)
     add("MC 4/4", (None not in (a, bb, c1, d, c50) and a == bb == c1 == d == c50), c1)
     add("FIGHT gray", (c1 is not None and g1 is not None and c1 != g1), g1)
-    add("GOLD 5pt+", d5, favp1)
-    add("GOLD", ((c1 is not None and g1 is not None and dog1 is not None and c1 == g1 == dog1)), c1)
-    if not any(s["label"] == "GOLD" for s in out):
-        add("GOLD", hate, favp1)
+    # ⭐✓ FADE-GOLD (gray-hated dog -> bet the FAVORITE): one of the three favorite cells
+    # positive in the gender×side backtest (M +2.7 / W +10.4 all-yrs).
+    add("⭐✓FADE-GOLD5+", d5, favp1)
+    add("GOLD DOG", ((c1 is not None and g1 is not None and dog1 is not None and c1 == g1 == dog1)), c1)
+    if not any(s["label"] == "GOLD DOG" for s in out) and not d5:
+        add("⭐✓FADE-GOLD", hate, favp1)
+    # ⭐✓ C-EDGE 5pt FAV (bt M +5.3 / W +10.9) + the dog half, from the frozen C prob.
+    _cp = r.get("model_c_p1")
+    if have_mkt and _cp is not None and not pd.isna(_cp):
+        _cpf = float(_cp)
+        _ce1 = _cpf - mk1 >= 0.05
+        _ce2 = (1 - _cpf) - (1 - mk1) >= 0.05
+        if _ce1 or _ce2:
+            _ceS = _ce1
+            add("C-EDGE5 DOG" if (_ceS == dog1) else "⭐✓C-EDGE5 FAV", True, _ceS)
+    # 🧊 FADE-FORM (pure-form overlay disagrees with the c75 pick), split dog/fav — the
+    # board/Best chip's lane, from the frozen pf_edge_p1.
+    _pfe = r.get("pf_edge_p1")
+    if c75 is not None and have_mkt and _pfe is not None and not pd.isna(_pfe):
+        if (float(_pfe) > 0) != c75:
+            add("🧊FADE-FORM DOG" if (c75 == dog1) else "🧊FADE-FORM FAV", True, c75)
+    # MC+GREEN (marked women signal): serve-MC agrees a plain green name.
+    _passfav = (None not in (a, bb, c1, g1) and have_mkt
+                and a != c1 and bb != c1 and g1 == c1 and c1 != dog1)
+    _star = (c1 is not None and g1 is not None and have_mkt and c1 == g1 == dog1)
+    if mcd is not None and g1 is not None and not _star and not hate and not _passfav:
+        add("MC+GREEN", mcd == g1, g1)
+    # 🔀 FADE 6-4 SPLIT: the 10 heads split exactly 6-4 -> the 4-minority side.
+    if all(x is not None for x in all10):
+        _n1 = sum(1 for x in all10 if x)
+        if _n1 in (4, 6):
+            add("FADE 6-4", True, _n1 == 4)
     add("FADE-A", (None not in (a, bb, c1) and a != bb and bb == c1), bb)
     add("C-ALONE+GRAY", (None not in (a, bb, c1, g1) and a != c1 and bb != c1 and g1 == c1), c1)
     add("D+GRAY DOG", (None not in (d, g1) and have_mkt and d == dog1 and g1 == dog1), dog1)
@@ -535,10 +654,26 @@ def get_ab25_record() -> dict:
     # PER-LANE PICK LISTS (2026-09-30, user ask "i want everything on each pick"): one
     # dedicated pass re-derives every lane's individual picks -- matchup, side, frozen price,
     # result -- so each card on the $25 tab can expand to show exactly what it bet.
+    # SIDE-SPLIT for the ROOT lanes too (2026-10-07, user "no favorite or dog icon on these"):
+    # the picks loop below walks every root lane with its exact side, so accumulate dog/fav +
+    # gender×side PnL here and merge it into the returned lane dicts -- the $25 cards then
+    # render their 🐕/⭐ and crossed lines exactly like the study lanes.
+    _sideagg = {}
+
     def _lane_picks():
         out = {}
 
         def put(key, r, side1, settled, won1):
+            if settled:
+                dd1, dd2 = _decimal(r.get("p1_odds")), _decimal(r.get("p2_odds"))
+                if dd1 and dd2:
+                    mk9 = (1 / dd1) / ((1 / dd1) + (1 / dd2))
+                    isdog = (side1 == (mk9 < 0.5))
+                    pnl9 = 25.0 * ((dd1 if side1 else dd2) - 1.0) if (won1 == side1) else -25.0
+                    g9 = "w" if str(r.get("league")) == "wta" else "m"
+                    b9 = _sideagg.setdefault(key, {"d": [], "f": [], "md": [], "mf": [], "wd": [], "wf": []})
+                    b9["d" if isdog else "f"].append(pnl9)
+                    b9[g9 + ("d" if isdog else "f")].append(pnl9)
             pr9 = r.get("p1_odds") if side1 else r.get("p2_odds")
             out.setdefault(key, []).append({
                 "d": str(r.get("date") or "")[5:],
@@ -808,7 +943,12 @@ def get_ab25_record() -> dict:
                     cma_edge_pending += 1
     # STUDY LANES (2026-09-28, user "i still want to live everything"): every configuration
     # examined today, forward-tested. Backtest citations in the frontend tooltips.
-    study = {k: {"v": [], "p": 0, "vm": [], "vw": []} for k in
+    # vd/vf = the PICK was a market DOG / FAVORITE (2026-10-06, user "split dog/fav with every
+    # single signal"); vmd/vmf/vwd/vwf = gender×side crossed cells so the Best/Prices tabs can
+    # gate a pick by its signal's record on THAT exact (gender, dog/fav) cell -- which drops
+    # losing favorite picks and keeps the dog edge. Populated generically in bet().
+    study = {k: {"v": [], "p": 0, "vm": [], "vw": [], "vd": [], "vf": [],
+                 "vmd": [], "vmf": [], "vwd": [], "vwf": []} for k in
              ("cvg_c", "cvg_gray", "gray_dog4", "grayhate_dog", "grayhate_fav",
               "abc_agree", "abc_dog", "c_alone_gray", "c_alone_gray_dog",
               "c_alone_gray_fav", "gold_names", "green_names", "all6_agree",
@@ -819,6 +959,10 @@ def get_ab25_record() -> dict:
               "mc_dog_big", "mc_4of4", "mc_gold", "mc_green", "mc_biggray",
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
+              # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
+              # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
+              # (c75 fav that recent form DISAGREES with, men +7.5%).
+              "mc_c75_dog", "mc_c75_fav", "c75fav_formfade",
               "model_x_all", "model_x_edge2", "mcc_c75_agree",
               "cc75_d_dog", "cc75_nod_dog", "dma_edge2", "all10_agree", "cc75_dog",
               "against_a",
@@ -834,7 +978,22 @@ def get_ab25_record() -> dict:
               "all10_price_m",
               # 🔀 FADE 6-4 SPLIT (2026-10-05, user): heads split 6-4 -> bet the 4-minority
               # side. Forward-tracked from registration (bt +80.7% men but n=17, unvalidated).
-              "split64_fade")}
+              "split64_fade",
+              # 🧊 PURE-FORM × mc_c75 (2026-10-06, user "wire that tracker"): on an mc_c75
+              # pick, split by whether the pure-results recent-form overlay AGREES or
+              # DISAGREES with the c75 side. Live edge is in the DISAGREE cell (men +18.2%,
+              # the market overvalues recent form); agree is flat/negative. m/w split as
+              # usual. Surfaced on the board/Best/Prices only where the cell's ROI is +.
+              "pf_c75_dis", "pf_c75_agr",
+              "utr_all", "utr_dog", "utr_mom_hot", "utr_mom_fade",
+              "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
+              # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
+              # favorites lose (−5%). The board/Best 🧊 tag reads these so it only greens on dogs.
+              "pf_c75_dis_dog", "pf_c75_dis_fav",
+              # 🔒 HIGH-HIT FAVORITE STACK candidates (2026-10-06, user "track all of these"):
+              # favorite + form-confirms, in a price band; ~85-91% hit + small +ROI in-sample,
+              # UNVALIDATED (tiny n / multiple-comparison) -- forward-tracked, not yet a take.
+              "pf_ghfav", "pf_ghfav_pr", "pf_c75fav_pr", "pf_a10fav_pr")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -844,6 +1003,7 @@ def get_ab25_record() -> dict:
                 continue
             i1, i2 = 1 / d1, 1 / d2
             mk1 = i1 / (i1 + i2)
+            dog1 = mk1 < 0.5           # defined up front: bet() reads it for the dog/fav split
             cp = float(r["model_c_p1"])
             cma = float(r["model_cma_p1"])
             c1, g1 = cp >= 0.5, cma >= 0.5
@@ -857,7 +1017,11 @@ def get_ab25_record() -> dict:
                     dec = d1 if side1 else d2
                     pnl9 = 25.0 * (dec - 1.0) if (won1 == side1) else -25.0
                     study[key]["v"].append(pnl9)
-                    study[key]["vw" if _isw else "vm"].append(pnl9)
+                    _g = "vw" if _isw else "vm"
+                    _sd = "vd" if (side1 == dog1) else "vf"   # pick is a market DOG iff side1==dog1
+                    study[key][_g].append(pnl9)
+                    study[key][_sd].append(pnl9)
+                    study[key][_g + _sd[1]].append(pnl9)      # gender×side: vmd/vmf/vwd/vwf
                 else:
                     study[key]["p"] += 1
 
@@ -997,6 +1161,67 @@ def get_ab25_record() -> dict:
                     _nt6 = sum(1 for x in _c6 if float(x) >= 0.5)   # heads on p1
                     if _nt6 in (4, 6):                              # exactly 6-4
                         bet("split64_fade", _nt6 == 4)             # take the 4-side (p1 iff 4 on p1)
+            # 🧊 PURE-FORM × mc_c75 (2026-10-06, user "wire that tracker"): on every mc_c75
+            # pick, bet the c75 side and bucket by whether the pure-results recent-form
+            # overlay agrees or disagrees with it. The live edge is in the DISAGREE bucket
+            # (market overvalues recent form); m/w split via bet(). pf_edge_p1 frozen at
+            # first serve; backfilled for pre-2026-10-06 games so the lane has sample now.
+            # FORWARD-ONLY (2026-10-06): the pf_* lanes exclude reconstructed rows, same as the
+            # mc_c75 lanes -- otherwise backfilled history inflates them. And FORM-FADE is split
+            # dog/fav because the edge is ALL in the dogs (forward dogs +72%, favorites −5%).
+            _recon_pf = bool(r.get("mc_c_recon")) if pd.notna(r.get("mc_c_recon")) else False
+            _c75v = r.get("mc_c75_p1")
+            _pfe = r.get("pf_edge_p1")
+            if pd.notna(_c75v) and pd.notna(_pfe) and not _recon_pf:
+                _c75s = float(_c75v) >= 0.5
+                _pf_agree = (float(_pfe) > 0) == _c75s
+                if _pf_agree:
+                    bet("pf_c75_agr", _c75s)
+                else:
+                    bet("pf_c75_dis", _c75s)                       # FORM-FADE (take the model side)
+                    bet("pf_c75_dis_dog" if (_c75s == dog1) else "pf_c75_dis_fav", _c75s)
+            # 📏 REAL-UTR lanes (2026-10-07, user "get real utr data ... do tests with it"):
+            # UTR's public API serves CURRENT ratings only -> these are FORWARD-ONLY lanes
+            # (a retro test with today's rating would leak the results it was built from).
+            # utr_all   = $25 on the higher-real-UTR side, every rated match (the judge:
+            #             does the real rating beat the market at all?)
+            # utr_dog   = the market DOG is the HIGHER-rated player by >=0.2 (the market
+            #             prices someone below their established level)
+            # utr_mom_hot/fade = 3mo form rating vs established level, gap >=0.2: back the
+            #             hotter side vs fade it (the form-fade thesis says fade wins).
+            _ue9 = r.get("utr_edge_p1")
+            _um9 = r.get("utr_mom_p1")
+            if pd.notna(_ue9) and float(_ue9) != 0:
+                _uS = float(_ue9) > 0
+                bet("utr_all", _uS)
+                if abs(float(_ue9)) >= 0.2 and _uS == dog1:
+                    bet("utr_dog", _uS)
+            if pd.notna(_um9) and abs(float(_um9)) >= 0.2:
+                bet("utr_mom_hot", float(_um9) > 0)
+                bet("utr_mom_fade", float(_um9) <= 0)
+            # 🔒 HIGH-HIT FAVORITE STACKS (2026-10-06, user "track all of these on the $25
+            # tab"): a heavy favorite that recent FORM confirms (form on the fav), in a sane
+            # price band -- candidates that scanned ~85-91% hit + small +ROI IN-SAMPLE.
+            # UNVALIDATED (tiny n, found by scanning many gate×price combos = multiple-
+            # comparison risk). Forward-tracked from today to see if they hold out of sample.
+            if pd.notna(_pfe) and not _recon_pf:
+                _favside = not dog1                        # the market favorite (p1-bool)
+                _formfav = (float(_pfe) > 0) == _favside    # recent form backs the favorite
+                _favimp = max(mk1, 1 - mk1)
+                if _formfav:
+                    if hate0:
+                        bet("pf_ghfav", _favside)                       # grayhate+form (any price)
+                        if 0.75 <= _favimp <= 0.88:
+                            bet("pf_ghfav_pr", _favside)                # + priced −300..−730
+                    if pd.notna(_c75v) and (float(_c75v) >= 0.5) == _favside and 0.78 <= _favimp <= 0.88:
+                        bet("pf_c75fav_pr", _favside)                   # c75 IS the fav + priced
+                    _allc = [ap, bp, r.get("model_c_p1"), r.get("model_cma_p1"), _dp9,
+                             r.get("model_dma_p1"), r.get("mc_p1"), r.get("mc_c_p1"),
+                             r.get("mc_c75_p1"), r.get("mc_cutr_p1")]
+                    if all(pd.notna(x) for x in _allc):
+                        _allsd = [float(x) >= 0.5 for x in _allc]
+                        if len(set(_allsd)) == 1 and _allsd[0] == _favside and 0.78 <= _favimp <= 0.88:
+                            bet("pf_a10fav_pr", _favside)               # ALL-10 on the fav + priced
             # MODEL D lanes (registered 2026-09-30, user "live test how D does"):
             # d_all = D's side every match; dma_all = D's gray head; d_gray_dog = D +
             # its gray on a market dog (bt decayed +9.3 -> +10.1 -> +1.1 -- this lane is
@@ -1073,7 +1298,20 @@ def get_ab25_record() -> dict:
             # three anchorings (c50 / c75 / cutr) are judged head-to-head (user 2026-10-02).
             _mc75 = r.get("mc_c75_p1")
             if pd.notna(_mc75) and not _recon:
-                bet("mc_c75_all", float(_mc75) >= 0.5)
+                _c75b = float(_mc75) >= 0.5
+                bet("mc_c75_all", _c75b)
+                # DOG/FAV split (2026-10-06, user "split it that way"): the c75 edge lives
+                # entirely in the dogs (men +34.6%); favorites are flat/neg (−6.7%). Splitting
+                # stops a dog-earned ROI from displaying on a favorite pick. c75 side is the
+                # market dog when its p1-bool matches dog1.
+                _c75dog = (_c75b == dog1)
+                bet("mc_c75_dog" if _c75dog else "mc_c75_fav", _c75b)
+                # POSITIVE-ROI FAVORITE SIGNAL (2026-10-06, user "find a positive roi favorite
+                # signal"): a c75 FAVORITE that recent FORM disagrees with = men +7.5% (n82) --
+                # the only favorite cell that pays. Form-backed favorites are −8%. Fade the form.
+                _pf75 = r.get("pf_edge_p1")
+                if (not _c75dog) and pd.notna(_pf75) and ((float(_pf75) > 0) != _c75b):
+                    bet("c75fav_formfade", _c75b)
             # user's take (2026-10-03): "I'm taking every game c-MC and c75 agree on" --
             # $25 on the agreed side whenever c50 and c75 land together (forward only).
             if pd.notna(_mcc0) and pd.notna(_mc75) and not _recon:
@@ -1099,6 +1337,40 @@ def get_ab25_record() -> dict:
             _mcutr = r.get("mc_cutr_p1")
             if pd.notna(_mcutr) and not _recon:
                 bet("mc_cutr_all", float(_mcutr) >= 0.5)
+            # ⚄⚄ ALL-4 MONTE CARLOS ON THE DOG (2026-10-08, user "a dog priced +100 to
+            # +250 like Aliona should have been on the best tab" — promoted on the
+            # measured cell: banded 15-15 +17.3%, outside the band 0-7): D-serve MC +
+            # c50 + c75 + cUTR all on the market underdog. mc4_dog = any price (the
+            # honest control); mc4_dog_band = +100..+250 only (the Best-tab signal).
+            if (pd.notna(_mc0) and pd.notna(_mcc0) and pd.notna(_mc75)
+                    and pd.notna(_mcutr) and not _recon):
+                _s4 = [float(_mc0) >= 0.5, float(_mcc0) >= 0.5,
+                       float(_mc75) >= 0.5, float(_mcutr) >= 0.5]
+                if len(set(_s4)) == 1 and _s4[0] == dog1:
+                    bet("mc4_dog", _s4[0])
+                    _od4 = r.get("p1_odds") if _s4[0] else r.get("p2_odds")
+                    if pd.notna(_od4) and 100 <= float(_od4) <= 250:
+                        bet("mc4_dog_band", _s4[0])
+                        # ⚔→🐕 FIGHT-FLIP (2026-10-08, user "gray fight favorites alone
+                        # get overpowered if all MCs are on the dog — change every bet
+                        # like that to the dog"): gray fights C onto the FAVORITE while
+                        # ALL FOUR sims take the banded dog -> bet the DOG. 10-6 +48.1%
+                        # banded at registration (men 7-2 +78%); outside the band 0-3.
+                        if c1 != g1 and g1 != dog1:
+                            bet("fight_mc4_dog", _s4[0])
+                # ⚄ ALL-4 MCs OVER THE MARKET on the FAVORITE (2026-10-08, user "add the
+                # -200 to -300 picks to the best tab" — promoted at n=6, 6-0 +41.8% in
+                # that pocket; any-price control is breakeven, -100/-200 loses -10%,
+                # >=10pt sim edges are 1-5: ONLY the -200..-300 band is marked).
+                _favb9 = not dog1
+                _mkf9 = max(mk1, 1 - mk1)
+                _pf49 = [float(v) if _favb9 else 1 - float(v)
+                         for v in (_mc0, _mcc0, _mc75, _mcutr)]
+                if all(p9 > _mkf9 for p9 in _pf49):
+                    bet("mc4ovr_fav", _favb9)
+                    _odf9 = r.get("p1_odds") if _favb9 else r.get("p2_odds")
+                    if pd.notna(_odf9) and -300 <= float(_odf9) <= -200:
+                        bet("mc4ovr_fav_band", _favb9)
             # MODEL X lanes (2026-10-03): x_all = $25 on Model X's side every match;
             # x_edge2 = only where X disagrees with the market by 2+ points (where a meta-
             # model could actually have an edge over the price).
@@ -1166,7 +1438,10 @@ def get_ab25_record() -> dict:
                         # the RED-flagged pass config (board highlights the name red)
                         bet("c_alone_gray_fav", c1)
     study_out = {k: {**agg(d["v"]), "pending": int(d["p"]),
-                     "m": agg(d["vm"]), "w": agg(d["vw"])} for k, d in study.items()}
+                     "m": agg(d["vm"]), "w": agg(d["vw"]),
+                     "dog": agg(d["vd"]), "fav": agg(d["vf"]),
+                     "m_dog": agg(d["vmd"]), "m_fav": agg(d["vmf"]),
+                     "w_dog": agg(d["vwd"]), "w_fav": agg(d["vwf"])} for k, d in study.items()}
     # PRICE-BAND Best-pick records (2026-10-05, user: live color-coded legend on the Prices
     # tab). For each settled MEN game: the Best pick (top gated signal) bucketed by its price
     # (dog +100..+250 / chalk −300..−600), plus the ALL-10 split (−200..−300 / −140..−200).
@@ -1258,21 +1533,206 @@ def get_ab25_record() -> dict:
     for _k, _v in _pb.items():
         study_out[_k] = {**agg(_v), "m": agg(_v), "w": agg([])}
 
+    # 🔵★2+ BLUE 2-STACK lane (2026-10-07, user "mark these ones too"): a men DOG priced
+    # +100..+250 whose Best pick carries 2+ DISTINCT signal FAMILIES under the side-aware
+    # gate (the Best tab's current logic). +55.5% (16-7, n23) at build -- the board's best
+    # measured cell. Auto-recomputes every call; the Best/Prices 💎 A+ badge reads this.
+    _FAM2 = {"mc_c75_dog": "mc", "mcc_c75_agree": "mc", "mc4_dog_band": "mc", "mc4ovr_fav_band": "mc", "fight_mc4_dog": "mc", "mc_4of4": "consensus",
+             "all10_agree": "consensus", "dma_edge2": "dma", "cvg_gray": "gray",
+             "mc_green": "gray", "goldfav_d5": "gold", "grayhate_fav": "gold",
+             "gold_names": "gold", "c_alone_gray": "calone", "fade_a": "fadea",
+             "fade_a_fav": "fadea"}
+
+    def _gate_sa(key, isdog, gen="m"):
+        o = study_out.get(key, {}).get(f"{gen}_{'dog' if isdog else 'fav'}") or {}
+        n = o.get("n") or 0
+        if n < 12 or o.get("roi_pct") is None:
+            return None
+        hit = 100 * o["wins"] / n
+        roi = o["roi_pct"]
+        return roi if ((hit >= 65 and roi >= 4) or roi >= 15) else None
+    _b2 = []
+    # 🤝 BOTH-TABS OVERLAP lanes (2026-10-07, user "when the favorites overlap mark it on
+    # the best tab"): a settled game where the Best-tab pick (side-aware gated signals)
+    # AND the ⭐ Picks sheet (c50+c75 agree & over the market) land on the SAME side.
+    # ovl_fav = that side is the market FAVORITE (replay: 19-3 +26.7%, the only favorite
+    # cell that has paid); ovl_dog = the dog half. Both genders; $25 flat.
+    _ovf = {"m": [], "w": []}
+    _ovd = {"m": [], "w": []}
+    # WOMEN'S dog price band (2026-10-08, user "mark the women ones too"): the women's
+    # Best pick on a +100..+250 market dog — the analogue of price_dog_m, gated on the
+    # women's side-aware cells. Feeds the 🔵 band badge + 💰 Prices tab for women.
+    _pdw = []
+    for _, rr in _sm.iterrows():
+        genb = "w" if str(rr.get("league")).lower() in ("wta", "itf_women") else "m"
+        d1b, d2b = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
+        if not d1b or not d2b:
+            continue
+        mkb = (1 / d1b) / ((1 / d1b) + (1 / d2b))
+        dgb = mkb < 0.5
+
+        def _bb2(c):
+            v = rr.get(c)
+            return None if (v is None or pd.isna(v)) else (float(v) >= 0.5)
+        c1b, g1b = _bb2("model_c_p1"), _bb2("model_cma_p1")
+        if c1b is None or g1b is None:
+            continue
+        ab, bbb, dbb = _bb2("model_a_p1"), _bb2("model_b_p1"), _bb2("model_d_p1")
+        dmab, c50b, c75b, cub, mcdb = (_bb2("model_dma_p1"), _bb2("mc_c_p1"),
+                                       _bb2("mc_c75_p1"), _bb2("mc_cutr_p1"), _bb2("mc_p1"))
+        gpb = float(rr["model_cma_p1"])
+        mdogb = mkb if dgb else 1 - mkb
+        gdogb = gpb if dgb else 1 - gpb
+        hateb = (mdogb - gdogb) >= 0.02
+        star0b = (c1b == g1b and g1b == dgb)
+        passfavb = (ab is not None and bbb is not None and ab != c1b and bbb != c1b
+                    and g1b == c1b and c1b != dgb)
+        fires = []
+
+        def _F(k, side):
+            if side is None:
+                return
+            roi = _gate_sa(k, side == dgb, genb)
+            if roi is not None:
+                fires.append((roi, k, side))
+        if c75b is not None and c75b == dgb:
+            _F("mc_c75_dog", c75b)
+        if c50b is not None and c75b is not None and c50b == c75b:
+            _F("mcc_c75_agree", c75b)
+        # ⚄⚄ all-4 MCs on a banded dog (2026-10-08, lockstep with _best_tab_side)
+        _mc4b0 = False
+        if (None not in (mcdb, c50b, c75b, cub) and mcdb == c50b == c75b == cub
+                and c50b == dgb):
+            _od4b = rr.get("p1_odds") if c50b else rr.get("p2_odds")
+            if pd.notna(_od4b) and 100 <= float(_od4b) <= 250:
+                _mc4b0 = True
+                _F("mc4_dog_band", c50b)
+                if c1b != g1b and g1b != dgb:
+                    _cf0 = study_out.get("fight_mc4_dog") or {}
+                    fires.append(((_cf0.get("roi_pct") or 48.0), "fight_mc4_dog", c50b))
+        if dmab is not None and pd.notna(rr.get("model_dma_p1")):
+            dpb = float(rr["model_dma_p1"])
+            if ((dpb if dmab else 1 - dpb) - (mkb if dmab else 1 - mkb)) >= 0.02:
+                _F("dma_edge2", dmab)
+        allvb = [ab, bbb, c1b, g1b, dbb, dmab, mcdb, c50b, c75b, cub]
+        if all(x is not None for x in allvb) and len(set(allvb)) == 1:
+            _F("all10_agree", ab)
+        if None not in (ab, bbb, dbb, c50b) and ab == bbb == c1b == dbb == c50b:
+            _F("mc_4of4", c1b)
+        if c1b != g1b and not (_mc4b0 and g1b != dgb):
+            _F("cvg_gray", g1b)
+        if mcdb is not None and (not star0b) and (not hateb) and (not passfavb) and mcdb == g1b:
+            _F("mc_green", g1b)
+        if (mdogb - gdogb) >= 0.05:
+            _F("goldfav_d5", not dgb)
+        if hateb:
+            _F("grayhate_fav", not dgb)
+        if star0b:
+            _F("gold_names", c1b)
+        elif hateb:
+            _F("gold_names", not dgb)
+        if None not in (ab, bbb) and ab != c1b and bbb != c1b and g1b == c1b:
+            _F("c_alone_gray", c1b)
+        if None not in (ab, bbb) and ab != bbb and bbb == c1b and bbb != dgb:
+            _F("fade_a_fav", bbb)
+        if None not in (ab, bbb) and ab != bbb and bbb == c1b:
+            _F("fade_a", bbb)
+        # the two MEN-FAVORITE price signals the Best tab also pushes (lockstep w/ frontend)
+        if genb == "m":
+            _favside = not dgb
+            _favod = rr.get("p1_odds") if _favside else rr.get("p2_odds")
+            _favod = float(_favod) if pd.notna(_favod) else None
+
+            def _Ffav(k, cond):
+                c9 = study_out.get(k, {}).get("m") or {}
+                if cond and (c9.get("n") or 0) >= 12 and (c9.get("roi_pct") or 0) > 0:
+                    fires.append((c9["roi_pct"], k, _favside))
+            allok = all(x is not None for x in allvb) and len(set(allvb)) == 1
+            _Ffav("all10_price_m", allok and allvb[0] == _favside
+                  and _favod is not None and -300 <= _favod <= -140)
+            _Ffav("cr5_coll_leanfav", hateb and None not in (ab, bbb, dbb)
+                  and ab == _favside and bbb == _favside and c1b == _favside
+                  and g1b == _favside and dbb == _favside
+                  and 0.65 <= max(mkb, 1 - mkb) <= 0.85)
+        # ⚄ 4-MC over-market fav -200..-300 (2026-10-08, lockstep w/ _best_tab_side)
+        _v4b = [rr.get("mc_p1"), rr.get("mc_c_p1"), rr.get("mc_c75_p1"), rr.get("mc_cutr_p1")]
+        if all(pd.notna(v) for v in _v4b):
+            _favb0 = not dgb
+            _mkf0 = max(mkb, 1 - mkb)
+            if all((float(v) if _favb0 else 1 - float(v)) > _mkf0 for v in _v4b):
+                _odf0 = rr.get("p1_odds") if _favb0 else rr.get("p2_odds")
+                if pd.notna(_odf0) and -300 <= float(_odf0) <= -200:
+                    _c40 = study_out.get("mc4ovr_fav_band") or {}
+                    fires.append(((_c40.get("roi_pct") or 0), "mc4ovr_fav_band", _favb0))
+        if not fires:
+            continue
+        fires.sort(reverse=True)
+        sp = fires[0][2]
+        kept = [f for f in fires if f[2] == sp]
+        won1b = bool(rr["p1_won"])
+        pnl25 = (25 * ((d1b if sp else d2b) - 1)) if (sp == won1b) else -25
+        # women's Best pick on a +100..+250 dog -> price_dog_w (user 2026-10-08)
+        if genb == "w" and sp == dgb:
+            _opw = float(rr["p1_odds"] if sp else rr["p2_odds"])
+            if 100 <= _opw <= 250:
+                _pdw.append(pnl25)
+        # 🤝 OVERLAP: does the ⭐ Picks sheet land on the SAME side? (c50+c75 agree,
+        # non-recon, and that side's c50 prob is OVER the market's implied)
+        _rc = bool(rr.get("mc_c_recon")) if pd.notna(rr.get("mc_c_recon")) else False
+        _c50v, _c75v = rr.get("mc_c_p1"), rr.get("mc_c75_p1")
+        if not _rc and pd.notna(_c50v) and pd.notna(_c75v):
+            _s50 = float(_c50v) >= 0.5
+            if _s50 == (float(_c75v) >= 0.5):
+                _cps = float(_c50v) if _s50 else 1 - float(_c50v)
+                _mps = mkb if _s50 else 1 - mkb
+                if _cps > _mps and _s50 == sp:
+                    if sp != dgb:
+                        _ovf[genb].append(pnl25)
+                    else:
+                        # DOG half gated to +100..+250 (2026-10-08, user "I only want the
+                        # +100 to +250 ones"): the overlap-dog edge lives in that band;
+                        # longer dogs (e.g. +614) are excluded from the lane AND the badge.
+                        _op9 = float(rr["p1_odds"] if sp else rr["p2_odds"])
+                        if 100 <= _op9 <= 250:
+                            _ovd[genb].append(pnl25)
+        # 🔵★2+ blue 2-stack: men dog +100..+250 with 2+ distinct families (unchanged)
+        if genb != "m":
+            continue
+        if len({_FAM2.get(f[1], f[1]) for f in kept}) < 2:
+            continue                       # need 2+ DISTINCT families
+        if sp != dgb:
+            continue                       # the pick must be the market DOG
+        op = float(rr["p1_odds"] if sp else rr["p2_odds"])
+        if not (100 <= op <= 250):
+            continue                       # blue band only
+        _b2.append(pnl25)
+    study_out["blue2stack"] = {**agg(_b2), "m": agg(_b2), "w": agg([])}
+    study_out["ovl_fav"] = {**agg(_ovf["m"] + _ovf["w"]), "m": agg(_ovf["m"]), "w": agg(_ovf["w"])}
+    study_out["ovl_dog"] = {**agg(_ovd["m"] + _ovd["w"]), "m": agg(_ovd["m"]), "w": agg(_ovd["w"])}
+    study_out["price_dog_w"] = {**agg(_pdw), "m": agg([]), "w": agg(_pdw)}
+
     def _mw(g):
         return {"m": agg(g["m"]), "w": agg(g["w"])}
+    _picks = _lane_picks()      # populates _sideagg -- must run before _sc merges below
+
+    def _sc(key):
+        b = _sideagg.get(key) or {}
+        return {"dog": agg(b.get("d") or []), "fav": agg(b.get("f") or []),
+                "m_dog": agg(b.get("md") or []), "m_fav": agg(b.get("mf") or []),
+                "w_dog": agg(b.get("wd") or []), "w_fav": agg(b.get("wf") or [])}
     return {"registered": "2026-09-28", "stake_usd": 25,
-            "picks": _lane_picks(),
-            "lanes": {k: {**agg(v), **_mw(lanes_g[k])} for k, v in lanes.items()},
+            "picks": _picks,
+            "lanes": {k: {**agg(v), **_mw(lanes_g[k]), **_sc(k)} for k, v in lanes.items()},
             "study": study_out,
-            "cma_all": {**agg(cma_all), "pending": int(cma_all_pending), **_mw(cma_all_g)},
-            "agree_dog": {**agg(agdog), "pending": int(agdog_pending), **_mw(agdog_g)},
+            "cma_all": {**agg(cma_all), "pending": int(cma_all_pending), **_mw(cma_all_g), **_sc("cma_all")},
+            "agree_dog": {**agg(agdog), "pending": int(agdog_pending), **_mw(agdog_g), **_sc("agree_dog")},
             "cma_edge": {**agg(cma_edge), "pending": int(cma_edge_pending),
                          **{k: agg(cme_g[k]) for k in _gs_keys}},
             "c_edge": {**agg(ce), "pending": int(ce_pending),
                        **{k: agg(ce_g[k]) for k in _gs_keys}},
-            "c_all": {**agg(call), "pending": int(call_pending), **_mw(call_g)},
-            "c_alone": {**agg(c_alone), "pending": int(c_alone_pending), **_mw(c_alone_g)},
-            "c_with": {**agg(c_with), "pending": int(c_with_pending), **_mw(c_with_g)},
+            "c_all": {**agg(call), "pending": int(call_pending), **_mw(call_g), **_sc("c_all")},
+            "c_alone": {**agg(c_alone), "pending": int(c_alone_pending), **_mw(c_alone_g), **_sc("c_alone")},
+            "c_with": {**agg(c_with), "pending": int(c_with_pending), **_mw(c_with_g), **_sc("c_with")},
             "pending": int(pending)}
 
 
@@ -1357,3 +1817,185 @@ def get_tennis_track_record() -> dict:
             "at_registration": {"n": 7, "win_pct": 57.1, "flat_roi_pct": -17.6, "through": "2026-09-26"},
         }
     return out
+
+
+def _best_tab_side(r, study, d1, d2, mk1):
+    """The 🏆 Best tab's pick for a FROZEN log row, or None — the server-side mirror of
+    BestPanel (2026-10-08, user "a separate tab that tracks daily profit taking every bet
+    on the best tab and on the prices tab"). Side-aware gates on the CURRENT lane records
+    (the tab's own gate moves daily — past days are a faithful reconstruction, not a
+    freeze; noted in the tab header). Returns (side_p1bool, all10_bool) or (None, False).
+    KEEP IN LOCKSTEP with TennisSection BEST_SIGNALS/BestPanel + the ovl post-pass."""
+    def b(col):
+        v = r.get(col)
+        return None if (v is None or pd.isna(v)) else (float(v) >= 0.5)
+    c1, g1 = b("model_c_p1"), b("model_cma_p1")
+    if c1 is None or g1 is None:
+        return None, False
+    dog1 = mk1 < 0.5
+    aP, bP, dP = b("model_a_p1"), b("model_b_p1"), b("model_d_p1")
+    dmaP, mcdS = b("model_dma_p1"), b("mc_p1")
+    mcS, c75, cuS = b("mc_c_p1"), b("mc_c75_p1"), b("mc_cutr_p1")
+    cma = float(r["model_cma_p1"])
+    mdog = mk1 if dog1 else 1 - mk1
+    gdog = cma if dog1 else 1 - cma
+    hate = (mdog - gdog) >= 0.02
+    star = (c1 == g1 == dog1)
+    passfav = (aP is not None and bP is not None and aP != c1 and bP != c1
+               and g1 == c1 and c1 != dog1)
+    dmaE = False
+    if dmaP is not None:
+        dv = float(r["model_dma_p1"])
+        dmaE = ((dv if dmaP else 1 - dv) - (mk1 if dmaP else 1 - mk1)) >= 0.02
+    gen = "w" if str(r.get("league", "")).lower() in ("wta", "itf_women") else "m"
+    a10l = [aP, bP, c1, g1, dP, dmaP, mcdS, mcS, c75, cuS]
+    all10 = all(x is not None for x in a10l) and len(set(a10l)) == 1
+
+    def gate(key, isdog):
+        c9 = (study.get(key) or {}).get(gen + ("_dog" if isdog else "_fav")) or {}
+        n = c9.get("n") or 0
+        if n < 12 or c9.get("roi_pct") is None:
+            return None
+        hit = 100.0 * c9["wins"] / n
+        roi = c9["roi_pct"]
+        return roi if ((hit >= 65 and roi >= 4) or roi >= 15) else None
+    fires = []
+
+    def F(k, s):
+        if s is None:
+            return
+        roi = gate(k, s == dog1)
+        if roi is not None:
+            fires.append((roi, k, s))
+    if c75 is not None and c75 == dog1:
+        F("mc_c75_dog", c75)
+    if mcdS is not None and not star and not hate and not passfav and mcdS == g1:
+        F("mc_green", g1)
+    if mcS is not None and c75 is not None and mcS == c75:
+        F("mcc_c75_agree", c75)
+    # ⚄⚄ all-4 MCs on a banded dog (2026-10-08, promoted per user)
+    _mc4band9 = False
+    if None not in (mcdS, mcS, c75, cuS) and mcdS == mcS == c75 == cuS and mcS == dog1:
+        _od4 = r.get("p1_odds") if mcS else r.get("p2_odds")
+        if pd.notna(_od4) and 100 <= float(_od4) <= 250:
+            _mc4band9 = True
+            F("mc4_dog_band", mcS)
+            # ⚔→🐕 FIGHT-FLIP (2026-10-08, user): gray fav overpowered by unanimous
+            # sims on a banded dog -> explicit DOG push (no n-floor; user mark).
+            if c1 != g1 and g1 != dog1:
+                _cf9 = study.get("fight_mc4_dog") or {}
+                fires.append(((_cf9.get("roi_pct") or 48.0), "fight_mc4_dog", mcS))
+    if dmaE:
+        F("dma_edge2", dmaP)
+    if all10:
+        F("all10_agree", a10l[0])
+    if None not in (aP, bP, dP, mcS) and aP == bP == c1 == dP and mcS == c1:
+        F("mc_4of4", c1)
+    # FIGHT gray-side is SUPPRESSED when its favorite is overpowered by all-4 sims on
+    # the banded dog (2026-10-08, user: the dog is the bet there, not gray's fav).
+    if c1 != g1 and not (_mc4band9 and g1 != dog1):
+        F("cvg_gray", g1)
+    if (mdog - gdog) >= 0.05:
+        F("goldfav_d5", not dog1)
+    if hate:
+        F("grayhate_fav", not dog1)
+    if None not in (aP, bP) and aP != bP and bP == c1:
+        if bP != dog1:
+            F("fade_a_fav", bP)
+        F("fade_a", bP)
+    if None not in (aP, bP) and aP != c1 and bP != c1 and g1 == c1:
+        F("c_alone_gray", c1)
+    if star:
+        F("gold_names", c1)
+    elif hate:
+        F("gold_names", not dog1)
+    if gen == "m":
+        favs = not dog1
+        favod = r.get("p1_odds") if favs else r.get("p2_odds")
+        favod = float(favod) if pd.notna(favod) else None
+        for key, cond in (
+                ("all10_price_m", all10 and a10l[0] == favs
+                 and favod is not None and -300 <= favod <= -140),
+                ("cr5_coll_leanfav", hate and None not in (aP, bP, dP)
+                 and aP == favs and bP == favs and c1 == favs and g1 == favs
+                 and dP == favs and 0.65 <= max(mk1, 1 - mk1) <= 0.85)):
+            c9 = (study.get(key) or {}).get("m") or {}
+            if cond and (c9.get("n") or 0) >= 12 and (c9.get("roi_pct") or 0) > 0:
+                fires.append((c9["roi_pct"], key, favs))
+    # ⚄ 4-MC OVER-MARKET FAV, -200..-300 (2026-10-08, user promotion at n=6): every
+    # sim prices the favorite above the market AND the price sits in the one pocket
+    # that paid. Explicit mark (no n-floor, ⚠ in the UI until the lane matures).
+    _v49 = [r.get("mc_p1"), r.get("mc_c_p1"), r.get("mc_c75_p1"), r.get("mc_cutr_p1")]
+    if all(pd.notna(v) for v in _v49):
+        _favb9 = not dog1
+        _mkf9 = max(mk1, 1 - mk1)
+        if all((float(v) if _favb9 else 1 - float(v)) > _mkf9 for v in _v49):
+            _odf9 = r.get("p1_odds") if _favb9 else r.get("p2_odds")
+            if pd.notna(_odf9) and -300 <= float(_odf9) <= -200:
+                _c49 = study.get("mc4ovr_fav_band") or {}
+                fires.append(((_c49.get("roi_pct") or 0), "mc4ovr_fav_band", _favb9))
+    if not fires:
+        return None, all10
+    fires.sort(reverse=True)
+    sp = fires[0][2]
+    od = float(r["p1_odds"] if sp else r["p2_odds"])
+    if sp == dog1 and od > 250:
+        return None, all10      # long-dog gate (2026-10-08): >+250 dogs never make the tab
+    return sp, all10
+
+
+def get_tab_profit(limit_dates: int = 21) -> dict:
+    """📊 Tab P/L (2026-10-08, user ask): flat 1u on EVERY 🏆 Best-tab pick vs EVERY 💰
+    Prices-tab pick (the sweet-priced subset), per day from the frozen ledger, so the two
+    tabs' daily profit can be compared head-to-head. Prices ⊆ Best by construction.
+    Sweet windows mirror the frontend: men +100..+250 / −600..−300 / ALL-10 −300..−140;
+    women +100..+250 (dog band only)."""
+    study = (get_ab25_record() or {}).get("study") or {}
+    log = _read_log()
+    log = log[(log["settled"] == True) & log["p1_won"].notna()  # noqa: E712
+              & log["p1_odds"].notna() & log["p2_odds"].notna()]
+    days = {}
+    for _, r in log.iterrows():
+        d1, d2 = _decimal(r["p1_odds"]), _decimal(r["p2_odds"])
+        if not d1 or not d2 or d1 <= 1.005 or d2 <= 1.005:
+            continue
+        mk1 = (1 / d1) / ((1 / d1) + (1 / d2))
+        sp, all10 = _best_tab_side(r, study, d1, d2, mk1)
+        if sp is None:
+            continue
+        od = float(r["p1_odds"] if sp else r["p2_odds"])
+        won = bool(r["p1_won"]) == sp
+        pnl = ((d1 if sp else d2) - 1.0) if won else -1.0
+        gen = "w" if str(r.get("league", "")).lower() in ("wta", "itf_women") else "m"
+        if gen == "w":
+            sweet = 100 <= od <= 250
+        else:
+            sweet = (100 <= od <= 250) or (-600 <= od <= -300) \
+                or (all10 and -300 <= od <= -140)
+        day = days.setdefault(str(r.get("date")), {
+            "best": {"n": 0, "w": 0, "pnl": 0.0},
+            "prices": {"n": 0, "w": 0, "pnl": 0.0}})
+        day["best"]["n"] += 1
+        day["best"]["w"] += int(won)
+        day["best"]["pnl"] += pnl
+        if sweet:
+            day["prices"]["n"] += 1
+            day["prices"]["w"] += int(won)
+            day["prices"]["pnl"] += pnl
+    out_days = []
+    for dt in sorted(days, reverse=True)[:limit_dates]:
+        d = days[dt]
+        for k in ("best", "prices"):
+            d[k]["pnl"] = round(d[k]["pnl"], 2)
+            n = d[k]["n"]
+            d[k]["roi_pct"] = round(100 * d[k]["pnl"] / n, 1) if n else None
+        out_days.append({"date": dt, **d})
+    tot = {k: {"n": sum(x[k]["n"] for x in out_days),
+               "w": sum(x[k]["w"] for x in out_days),
+               "pnl": round(sum(x[k]["pnl"] for x in out_days), 2)} for k in ("best", "prices")}
+    for k in ("best", "prices"):
+        n = tot[k]["n"]
+        tot[k]["roi_pct"] = round(100 * tot[k]["pnl"] / n, 1) if n else None
+    tot["best_days_won"] = sum(1 for x in out_days if x["best"]["pnl"] > x["prices"]["pnl"])
+    tot["prices_days_won"] = sum(1 for x in out_days if x["prices"]["pnl"] > x["best"]["pnl"])
+    return {"days": out_days, "totals": tot}
