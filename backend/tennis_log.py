@@ -576,6 +576,9 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
                      "recon": bool(r.get("mc_c_recon")) if pd.notna(r.get("mc_c_recon")) else False},
             "model_x": (lambda p: ({**p, "recon": bool(r.get("model_x_recon"))
                                      if pd.notna(r.get("model_x_recon")) else False} if p else None))(pickpct(r, "model_x_p1")),
+            # MC v2's frozen read per game (2026-10-08, user "put it on previous days tab").
+            # Frozen-log column only — never recomputed; null for games before 2026-10-08.
+            "mc2": pickpct(r, "mc2_p1"),
             # our headline pick (the favored side shown on the board) + the user's
             # c-MC+c75 take, for the daily hit % in results-history (2026-10-03). The board
             # headlines off prediction -> A -> B -> C (the old tour model is retired, so
