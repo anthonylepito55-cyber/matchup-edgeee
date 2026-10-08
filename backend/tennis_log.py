@@ -36,7 +36,12 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # MC v2 head (2026-10-08): frozen blend prob; display/watch-lane only.
            # mc2_recon=True marks a walk-forward BACKFILL (pre-match ratings only, result
            # never used) -- display-only, excluded from the mc2_* forward lanes.
-           "mc2_p1", "mc2_recon"]
+           "mc2_p1", "mc2_recon",
+           # FAV-VALUE fatigue freeze (2026-10-08): each side's settled matches + sets
+           # played in the prior 7 days, counted from THIS log's own settled rows at log
+           # time (the archive lags ~10d; our log is live). Lower-bound counts (we only
+           # see games we track) — the lane fires less, never falsely. Drives fav_value.
+           "p1_m7", "p1_sets7", "p2_m7", "p2_sets7"]
 
 
 def _read_log() -> pd.DataFrame:
@@ -71,6 +76,28 @@ def log_predictions(matches: list, date: str):
     prediction and live odds are logged -- a record row must be gradeable and priced."""
     rows = []
     now = datetime.now(timezone.utc).isoformat()
+    # 7-DAY LOAD MAP (fav_value lane, 2026-10-08): from our own settled rows. The
+    # measured market bias: heavy-load favorites outrun their implied (fatigue
+    # over-feared) — archive: all favs −5.2% vs heavy-load favs −0.9%.
+    load7 = {}
+    try:
+        _lg = _read_log()
+        if len(_lg):
+            _lg = _lg[_lg["p1_won"].notna()]
+            _cut = (pd.Timestamp(date) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+            _lg = _lg[(_lg["date"].astype(str).str[:10] >= _cut)
+                      & (_lg["date"].astype(str).str[:10] < str(date)[:10])]
+            for _r in _lg.itertuples():
+                _sc = str(getattr(_r, "score", "") or "")
+                _ns = sum(1 for t in _sc.replace(",", " ").split() if "-" in t)
+                if _ns < 2:
+                    _ns = 2
+                for _nm in (_r.player_1, _r.player_2):
+                    _e = load7.setdefault(str(_nm), [0, 0])
+                    _e[0] += 1
+                    _e[1] += _ns
+    except Exception:  # noqa: BLE001
+        load7 = {}
     for m in matches:
         pred = m.get("prediction") or {}
         odds = m.get("live_odds") or {}
@@ -146,6 +173,10 @@ def log_predictions(matches: list, date: str):
             "utr_mom_p1": (m.get("utr") or {}).get("mom"),
             "mc2_p1": (m.get("mc2") or {}).get("p1_prob"),
             "mc2_recon": False,
+            "p1_m7": load7.get(str(m.get("player_1")), [0, 0])[0],
+            "p1_sets7": load7.get(str(m.get("player_1")), [0, 0])[1],
+            "p2_m7": load7.get(str(m.get("player_2")), [0, 0])[0],
+            "p2_sets7": load7.get(str(m.get("player_2")), [0, 0])[1],
         })
     log = _read_log()
     # SELF-HEALING EARLY START (2026-10-07, Tarvet case): a match seen LIVE/completed while
@@ -1228,6 +1259,21 @@ def get_ab25_record() -> dict:
                     _od2 = r.get("p1_odds") if _m2b else r.get("p2_odds")
                     if pd.notna(_od2) and 100 <= float(_od2) <= 250:
                         bet("mc2_dog_band", _m2b)
+            # 💪 FAV-VALUE (2026-10-08, user "make a model that's precise with favorites"):
+            # the measured fatigue-residual favorite. Archive 2024-26: ALL favorites
+            # −5.2%, heavy-load favorites −0.9% (banded −0.1% vs −5.1%) — the market
+            # over-fears fatigue by ~4-5 ROI pts, which clears most of the vig; best
+            # available price must do the rest. Lane: market fav at −150..−400 whose
+            # frozen 7-day load (our own log) shows 3+ matches AND 2+ excess sets.
+            # WATCH-ONLY until the forward record speaks.
+            _fv_fav = not dog1
+            _fvo = r.get("p1_odds") if _fv_fav else r.get("p2_odds")
+            _fvm7 = r.get("p1_m7") if _fv_fav else r.get("p2_m7")
+            _fvs7 = r.get("p1_sets7") if _fv_fav else r.get("p2_sets7")
+            if (pd.notna(_fvo) and -400 <= float(_fvo) <= -150
+                    and pd.notna(_fvm7) and pd.notna(_fvs7)
+                    and float(_fvm7) >= 3 and float(_fvs7) - 2 * float(_fvm7) >= 2):
+                bet("fav_value", _fv_fav)
             # 🔒 HIGH-HIT FAVORITE STACKS (2026-10-06, user "track all of these on the $25
             # tab"): a heavy favorite that recent FORM confirms (form on the fav), in a sane
             # price band -- candidates that scanned ~85-91% hit + small +ROI IN-SAMPLE.
