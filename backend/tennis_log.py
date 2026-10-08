@@ -1259,6 +1259,26 @@ def get_ab25_record() -> dict:
                     _od2 = r.get("p1_odds") if _m2b else r.get("p2_odds")
                     if pd.notna(_od2) and 100 <= float(_od2) <= 250:
                         bet("mc2_dog_band", _m2b)
+            # 🟠 MC2 DOG-EDGE CELLS (2026-10-08, user picked 5-8pt as a watch band; the
+            # board paints those cards orange): three forward lanes adjudicate today's
+            # replay cells before any of them becomes a bet mark. Genuine mc2 rows only
+            # (recon excluded above via _m2rec). mc2e58_fav = take the FAVORITE when MC2
+            # prices the dog 5-8pts over market (+5.6% replay, neighbors negative =
+            # noise risk); mc2e35_dog_band = 3-5pt dog edge, dog at +100..+250 (+25.8%
+            # replay, n=58); c75_mc2e5_dog = c75's dog flip countersigned by a 5pt+ MC2
+            # edge (+27.1% replay, fading it -20.5% — the two-sided cell).
+            if pd.notna(_m29) and not _m2rec:
+                _d2g = float(_m29) if dog1 else 1 - float(_m29)
+                _mk2g = mk1 if dog1 else 1 - mk1
+                _e2g = _d2g - _mk2g
+                if 0.05 <= _e2g < 0.08:
+                    bet("mc2e58_fav", not dog1)
+                if 0.03 <= _e2g < 0.05:
+                    _od3 = r.get("p1_odds") if dog1 else r.get("p2_odds")
+                    if pd.notna(_od3) and 100 <= float(_od3) <= 250:
+                        bet("mc2e35_dog_band", dog1)
+                if _e2g >= 0.05 and pd.notna(r.get("mc_c75_p1")) and (float(r.get("mc_c75_p1")) >= 0.5) == dog1:
+                    bet("c75_mc2e5_dog", dog1)
             # 💪 FAV-VALUE (2026-10-08, user "make a model that's precise with favorites"):
             # the measured fatigue-residual favorite. Archive 2024-26: ALL favorites
             # −5.2%, heavy-load favorites −0.9% (banded −0.1% vs −5.1%) — the market

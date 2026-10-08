@@ -1978,12 +1978,32 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   const edge = marketFavoredProb != null ? favoredProb - marketFavoredProb : null
 
+  // 🟠 MC2 5-8pt DOG-EDGE GAMES (2026-10-08, user "start highlighting those games the
+  // full card orange so i can see those games"): MC2 prices the market DOG 5-8 points
+  // over the market. Replay context (retro month): taking the FAVORITE here ran +5.6%
+  // (114-42) — but the neighboring bands were negative (no dose-response), so this is
+  // a WATCH highlight, not a bet mark; the mc2e58_fav lane is scoring it live.
+  const mc2DogEdge = (() => {
+    if (!match.mc2 || match.mc2.p1_prob == null || !mc3 || mc3.market_p1 == null) return null
+    const d1 = mc3.market_p1 < 0.5
+    return (d1 ? match.mc2.p1_prob : 1 - match.mc2.p1_prob) - (d1 ? mc3.market_p1 : 1 - mc3.market_p1)
+  })()
+  const orange58 = mc2DogEdge != null && mc2DogEdge >= 0.05 && mc2DogEdge < 0.08
+
   return (
     <div className="game-card card-enter" style={{
-      background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${leagueColor}`,
+      background: orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
+      {orange58 ? (
+        <div className="mono" title={`🟠 MC2 5-8pt DOG-EDGE GAME: the calibrated MC v2 prices the market underdog ${(100 * mc2DogEdge).toFixed(1)} points above the market — the band you flagged. Replay on the backfilled month: taking the FAVORITE here went 114-42 (+5.6%), but the 3-5pt and 8-12pt neighbors were negative, so treat it as a watch cell: the mc2e58_fav lane is scoring the favorite live on the Splits tab before this ever becomes a bet mark. (Backing this dog in the same band ran −14.9%.)`}
+          style={{ fontSize: 9, fontWeight: 800, color: '#f0883e', marginBottom: 6, letterSpacing: '0.04em' }}>
+          🟠 MC2 DOG-EDGE 5-8 ({(100 * mc2DogEdge).toFixed(1)}pt) · fav-side watch cell +5.6% replay · lane tracking live
+        </div>
+      ) : null}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         {(() => {
           // TIER ribbon (2026-09-30, user ask): rank every pick by the validated hierarchy.
