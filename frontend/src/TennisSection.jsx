@@ -1580,7 +1580,7 @@ function HistoryPanel({ query, greenOnly = false }) {
             ) : null}
             {full ? (dayOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={m.card} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
+                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
               </div>
             ) : null) : d.matches.map((m, i) => (
               <div key={i} className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 11, flexWrap: 'wrap' }}>
@@ -2773,10 +2773,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       ) : null}
 
       {match.mc2 ? (
-        <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#c9a7fa' }}
-          title={`MC v2 (2026-10-08): the rebuilt Monte Carlo — surface Elo + opponent-adjusted serve/return ratings -> learned point probabilities -> exact Markov engine, with parameter uncertainty. Walk-forward 2024-26: AUC .692 vs market .722, calibration within ~1pt per decile. DISPLAY-ONLY: measured residual-vs-close == market minus vig, so it never bets alone; its mc2_* watch lanes earn (or don't) on the Splits tab, and its real product is the 🎲 Sets tab's anchored derivative prices. Components: Elo ${Math.round(100 * match.mc2.elo_p1)}% / Markov ${Math.round(100 * match.mc2.mkv_p1)}%; serve-rating samples n=${match.mc2.n1}/${match.mc2.n2}.`}>
-          🧮 MC2: {match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(100 * match.mc2.p1_prob)}%</b> — <b>{Math.round(100 * (1 - match.mc2.p1_prob))}%</b> {match.player_2.split(' ').slice(-1)[0]}
-          <span style={{ opacity: 0.75 }}> · elo {Math.round(100 * match.mc2.elo_p1)} / mkv {Math.round(100 * match.mc2.mkv_p1)} · display-only</span>
+        <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#c9a7fa', opacity: match.mc2.recon ? 0.75 : 1 }}
+          title={`MC v2 (2026-10-08): the rebuilt Monte Carlo — surface Elo + opponent-adjusted serve/return ratings -> learned point probabilities -> exact Markov engine, with parameter uncertainty. Walk-forward 2024-26: AUC .692 vs market .722, calibration within ~1pt per decile. DISPLAY-ONLY: measured residual-vs-close == market minus vig, so it never bets alone; its mc2_* watch lanes earn (or don't) on the Splits tab, and its real product is the 🎲 Sets tab's anchored derivative prices.${match.mc2.recon ? ' THIS GAME: ~ walk-forward BACKFILL — computed from the ratings as they stood the morning of the match (result and everything after excluded); honest but not a forward pick.' : match.mc2.elo_p1 != null ? ` Components: Elo ${Math.round(100 * match.mc2.elo_p1)}% / Markov ${Math.round(100 * match.mc2.mkv_p1)}%; serve-rating samples n=${match.mc2.n1}/${match.mc2.n2}.` : ''}`}>
+          {match.mc2.recon ? '~' : ''}🧮 MC2: {match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(100 * match.mc2.p1_prob)}%</b> — <b>{Math.round(100 * (1 - match.mc2.p1_prob))}%</b> {match.player_2.split(' ').slice(-1)[0]}
+          <span style={{ opacity: 0.75 }}>{match.mc2.recon ? ' · walk-forward backfill' : match.mc2.elo_p1 != null ? ` · elo ${Math.round(100 * match.mc2.elo_p1)} / mkv ${Math.round(100 * match.mc2.mkv_p1)}` : ''} · display-only</span>
         </div>
       ) : null}
 
