@@ -1610,6 +1610,19 @@ _TENNIS_TODAY_TTL = 90          # serve-stale window so the tab can poll without
 _tennis_today_refreshing = set()
 
 
+def _ue_pair(p1, p2, surface):
+    """Unforced-error profiles for both players (Tennis Abstract Match Charting Project,
+    as of today; tennis_ue.py). Only charted (mostly top-level) players have one."""
+    try:
+        import tennis_ue as _tue
+        a, b = _tue.profile(p1, None, surface), _tue.profile(p2, None, surface)
+        if a or b:
+            return {"p1": a, "p2": b}
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 def _te_surface(p1, p2, tournament, fallback, fallback_verified):
     """VERIFIED SURFACE (2026-10-09, user: Stefanini shown on clay, it's hard -- "that is
     just something we can't get wrong"). TennisExplorer's schedule (exact player pair ->
@@ -1930,6 +1943,7 @@ def _compute_tennis_today_inner(date: str = None):
             results.append({
                 **m,
                 "surface": surface, "surface_estimated": not _surf_ok, "surface_src": _surf_src,
+                "ue": _ue_pair(m["player_1"], m["player_2"], surface),
                 "best_of_5": best_of_5,
                 "live_odds": {
                     "player_1": odds_entry["player_1"], "player_2": odds_entry["player_2"],
@@ -1996,6 +2010,7 @@ def _compute_tennis_today_inner(date: str = None):
                         sos = "p1" if qp else "p2"
             results.append({
                 **m, "surface": surface, "surface_estimated": not _surf_ok2, "surface_src": _surf_src2,
+                "ue": _ue_pair(m["player_1"], m["player_2"], surface),
                 "best_of_5": False,
                 "live_odds": {"player_1": odds_entry["player_1"], "player_2": odds_entry["player_2"],
                               "bookmaker": odds_entry["bookmaker"]} if odds_entry else None,

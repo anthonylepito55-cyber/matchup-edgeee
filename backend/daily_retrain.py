@@ -174,6 +174,13 @@ def main():
         print("[step 0.6] Model X history backfill:", tennis_model_x.backfill_history())
     except Exception as e:  # noqa: BLE001
         print(f"[step 0.6] Model X retrain failed: {e} -- continuing")
+    # step 0.7 (2026-10-09): refresh unforced-error data -- GitHub MCP CSVs + newer charted
+    # matches from tennisabstract.com (robots-allowed /charting/ pages, rate-limited).
+    try:
+        import tennis_ue_refresh
+        print("[step 0.7] unforced-error refresh:", tennis_ue_refresh.refresh_all())
+    except Exception as e:  # noqa: BLE001
+        print(f"[step 0.7] unforced-error refresh failed: {e} -- continuing")
 
     print("=== Step 1: incremental game-log refresh + rebuild training data ===")
     build_training_data.build_full_training_set(SEASONS)

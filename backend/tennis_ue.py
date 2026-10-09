@@ -33,8 +33,8 @@ def norm(s):
     return re.sub(r"[^a-z]", "", s)
 
 
-def load():
-    if _CACHE["df"] is not None:
+def load(force=False):
+    if _CACHE["df"] is not None and not force:
         return _CACHE["df"]
     parts = []
     for g in ("m", "w"):
@@ -49,7 +49,17 @@ def load():
         tot["date"] = pd.to_datetime(tot["Date"], format="%Y%m%d", errors="coerce")
         tot["G"] = g.upper()
         parts.append(tot)
+    # site pulls newer than GitHub (tennis_ue_refresh.refresh_site) -- same columns
+    _ex = os.path.join(_DIR, "ta_extra.csv")
+    if os.path.exists(_ex):
+        X = pd.read_csv(_ex, dtype=str)
+        for c in ("serve_pts", "return_pts", "unforced", "unforced_fh", "unforced_bh", "winners", "sets"):
+            X[c] = pd.to_numeric(X[c], errors="coerce")
+        X["date"] = pd.to_datetime(X["Date"], format="%Y%m%d", errors="coerce")
+        X["Surface"] = None
+        parts.append(X)
     D = pd.concat(parts, ignore_index=True)
+    D = D.drop_duplicates(["match_id", "player"], keep="first")
     D["pts"] = D.serve_pts + D.return_pts
     D = D[(D.pts >= 40) & D.unforced.notna() & D.date.notna()].copy()
     D["sets"] = D["sets"].fillna(2).clip(lower=1)

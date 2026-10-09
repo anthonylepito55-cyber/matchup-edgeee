@@ -2429,6 +2429,17 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           rule: `better clutch server (+${Math.round(spDog * 10) / 10}pt) AND returner (+${Math.round(rpDog * 10) / 10}pt)` })
       }
     }
+    // 🧤 LOW-ERROR DOG (W) (2026-10-09, user "do it"): women, dog +100..+250 whose unforced
+    // errors per set over the last 5 charted matches (Tennis Abstract) are >= 2.26 lower
+    // than the favourite's. Backtest 2024-26 +11.1% (n=361); 2024 +4.5 / 2025 +14.1 /
+    // 2026 +13.0. Charted players only. Lane lowerr_dog_w.
+    const ueA = match.ue && match.ue.p1, ueB = match.ue && match.ue.p2
+    if (isW && ueA && ueB && ueA.ue_set_5 != null && ueB.ue_set_5 != null && !isNaN(odDog) && odDog >= 100 && odDog <= 250) {
+      const uDog = dog1 ? ueA.ue_set_5 : ueB.ue_set_5, uFav = dog1 ? ueB.ue_set_5 : ueA.ue_set_5
+      if (uFav - uDog >= 2.264) out.push({ n: '🧤 LOW-ERROR DOG (W)', who: nmDog, od: odDog, lane: 'lowerr_dog_w', g: 'w',
+        bt: 'bt 2024-26 +11.1% (n=361) · 2024 +4.5% · 2025 +14.1% · 2026 +13.0% · Tennis Abstract charting',
+        rule: `${Math.round(uDog * 10) / 10} UEs/set vs ${Math.round(uFav * 10) / 10} (last 5 charted)` })
+    }
     // MC2 DOG (2026-10-09, user "mark the games mc2 is on the dog"): MC2 picks the
     // market underdog. Frozen log 9/6-10/9 (pre-10/8 rows are the as-of replay, not
     // forward picks): men +9.2% (40-42, n=82), +100..+200 +19.2% (35-31, n=66); women
@@ -2520,7 +2531,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false }, pink_mc2_dog: { m: false, w: false },
     p_dog: { m: true, w: true }, p_fav: { m: true, w: true }, p_close: { m: true, w: true },
     p_close_t1: { m: true, w: true }, p_close_t2: { m: true, w: true }, p_close_t3: { m: true, w: true },
-    returner_dog_w: { w: true }, allround_dog_w: { w: true }, allround_dog_w_big: { w: true },
+    returner_dog_w: { w: true }, allround_dog_w: { w: true }, allround_dog_w_big: { w: true }, lowerr_dog_w: { w: true },
   }
   const gHL = (match.league === 'wta' || match.league === 'itf_women') ? 'w' : 'm'
   const hlWhy = (lane, g) => {
@@ -3996,6 +4007,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           </div>
         )
       })()}
+      {match.ue && (match.ue.p1 || match.ue.p2) ? (() => {
+        const f = (v, d = 1) => v == null ? '—' : (Math.round(v * Math.pow(10, d)) / Math.pow(10, d))
+        const one = (nm, u) => u ? (
+          <span>{(nm || '').split(' ').slice(-1)[0]}: <b style={{ color: 'var(--text-primary)' }}>{f(u.ue_set_5)}</b>/set · {f(u.ue_match_10)}/match · {f(u.ue_100_10)}/100pts{u.ue_100_surf10 != null ? ` (${match.surface} ${f(u.ue_100_surf10)})` : ''} · W/UE {f(u.wue_10, 2)} · FH {u.fh_share_10 != null ? Math.round(100 * u.fh_share_10) : '—'}% / BH {u.fh_share_10 != null ? 100 - Math.round(100 * u.fh_share_10) : '—'}% · {f(u.pts_10, 0)} pts/match · n={u.n_10}</span>
+        ) : <span>{(nm || '').split(' ').slice(-1)[0]}: not charted</span>
+        return (
+          <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}
+            title="UNFORCED ERRORS — Tennis Abstract Match Charting Project (charted matches only, mostly top-level; non-commercial data). '/set' = unforced errors per set over the last 5 charted matches; '/match', '/100pts', W/UE (winners per unforced error), forehand/backhand share of errors and points per match (match length) over the last 10; surface figure = last 10 on this court. Women: a +100..+250 dog with 2.26+ fewer UEs per set than the favourite was +11.1% (n=361), positive every year 2024-26 (🧤 LOW-ERROR DOG). Men: no edge from any UE metric.">
+            <b style={{ color: '#f0b072' }}>🧤 UNFORCED ERRORS</b> <span style={{ color: 'var(--text-tertiary)' }}>(charted)</span>{' '}
+            {one(match.player_1, match.ue.p1)} <span style={{ color: 'var(--text-tertiary)' }}>|</span> {one(match.player_2, match.ue.p2)}
+          </div>
+        )
+      })() : null}
       {match.model_x ? (() => {
         const mx = match.model_x
         const pct = v => `${Math.round(100 * v)}%`

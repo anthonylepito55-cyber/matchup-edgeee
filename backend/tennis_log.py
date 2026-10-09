@@ -24,7 +24,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
-           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "score",
+           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "ue_set5_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -177,6 +177,11 @@ def log_predictions(matches: list, date: str):
             # (52w, surface), from live Model C.
             "c_rp_diff_p1": ((mc.get("pf") or {}).get("d_c_rp")),
             "c_sp_diff_p1": ((mc.get("pf") or {}).get("d_c_sp")),
+            # LOW-ERROR DOG input (2026-10-09): p1 minus p2 unforced errors per set, last 5
+            # charted matches (Tennis Abstract MCP). None unless both players are charted.
+            "ue_set5_diff_p1": (lambda u: (u["p1"]["ue_set_5"] - u["p2"]["ue_set_5"])
+                                if (u and u.get("p1") and u.get("p2") and u["p1"].get("ue_set_5") is not None
+                                    and u["p2"].get("ue_set_5") is not None) else None)(m.get("ue")),
             # A/C version: 2 = rank-sign fix applied (2026-10-09). None = logged on the
             # reversed-rank A/C. Lets every A/C-based lane split before/after the fix.
             "ac_v": 2,
@@ -1168,7 +1173,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w", "allround_dog_w", "allround_dog_w_big",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w", "allround_dog_w", "allround_dog_w_big", "lowerr_dog_w",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1914,6 +1919,16 @@ def get_ab25_record() -> dict:
                 _dd9 = d1 if dog1 else d2
                 if 2.0 <= _dd9 <= 3.5 and (float(_rp9) if dog1 else -float(_rp9)) >= 4.5567:
                     bet("returner_dog_w", dog1)
+            # 🧤 LOW-ERROR DOG (W) (2026-10-09, user "do it"): women, dog +100..+250 whose
+            # unforced errors per set (last 5 charted matches) are >= 2.26 lower than the
+            # favourite's (the women's median gap). Backtest 2024-26 +11.1% (n=361);
+            # 2024 +4.5 / 2025 +14.1 / 2026 +13.0. Charted (top-level) players only.
+            _ue9 = r.get("ue_set5_diff_p1")
+            if _isw and _ue9 is not None and pd.notna(_ue9):
+                _dd7 = d1 if dog1 else d2
+                _dgap7 = (-float(_ue9)) if dog1 else float(_ue9)     # fav UE/set - dog UE/set
+                if 2.0 <= _dd7 <= 3.5 and _dgap7 >= 2.264:
+                    bet("lowerr_dog_w", dog1)
             # 🎾 ALL-ROUND DOG (W) (2026-10-09, user "yes", replaces RETURNER DOG on the board):
             # women, dog +100..+250 that is better than the favourite on BOTH serve-pressure
             # and return-pressure points won (52w surface). Backtest 2025-26: +10.2% (n=829;
