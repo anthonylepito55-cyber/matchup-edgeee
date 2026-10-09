@@ -1,0 +1,27 @@
+A) P-75 vs P, 2026 dogs in P's band joined to as-of serve sims: 6166
+
+MEN +100..+200: every dog 1368-2147 win 38.9% ROI   -7.6% (n=3515)
+   P bets (EV>=5%)             407-503 win 44.7% ROI   +8.2% (n=910)
+   P-75 bets                   486-699 win 41.0% ROI   +0.1% (n=1185)
+   P-50 bets                   596-907 win 39.7% ROI   -4.3% (n=1503)
+   P bets that P-75 DROPS      104-120 win 46.4% ROI   +9.9% (n=224)
+   P-75 bets that P doesn't    183-316 win 36.7% ROI  -10.1% (n=499)
+   log loss: market 0.6640 | P 0.6626 | P-75 0.6663 | serve sim 0.7856
+
+WOMEN +100..+250: every dog 1005-1646 win 37.9% ROI   -4.3% (n=2651)
+   P bets (EV>=5%)             412-488 win 45.8% ROI  +18.8% (n=900)
+   P-75 bets                   455-594 win 43.4% ROI  +12.6% (n=1049)
+   P-50 bets                   490-756 win 39.3% ROI   +1.7% (n=1246)
+   P bets that P-75 DROPS      75-78 win 49.0% ROI  +24.7% (n=153)
+   P-75 bets that P doesn't    118-184 win 39.1% ROI   +0.3% (n=302)
+   log loss: market 0.6624 | P 0.6549 | P-75 0.6557 | serve sim 0.7904
+
+B) SET SCORES, P's out-of-sample universe 2024-26, completed best-of-3 with a clean score: 19683
+   MEN   market-anchored  set-score log loss 1.3469 | predicted dog wins >=1 set 67.2% | predicted dog 2-0 18.4%
+   MEN   P-anchored       set-score log loss 1.3378 | predicted dog wins >=1 set 66.8% | predicted dog 2-0 18.8%
+   MEN   ACTUAL: dog wins >=1 set 59.8% | dog 2-0 22.4% | n=11075
+   MEN   on P's DOG BETS: dog wins >=1 set actual 64.9% | market-implied 66.7% | P-implied 74.5% || dog 2-0 actual 28.2% | mkt 18.0% | P 25.1% (n=2902)
+   WOMEN market-anchored  set-score log loss 1.3341 | predicted dog wins >=1 set 65.5% | predicted dog 2-0 17.3%
+   WOMEN P-anchored       set-score log loss 1.3091 | predicted dog wins >=1 set 64.8% | predicted dog 2-0 18.1%
+   WOMEN ACTUAL: dog wins >=1 set 58.3% | dog 2-0 22.1% | n=8608
+   WOMEN on P's DOG BETS: dog wins >=1 set actual 66.5% | market-implied 64.9% | P-implied 75.1% || dog 2-0 actual 28.9% | mkt 16.9% | P 26.1% (n=2934)
