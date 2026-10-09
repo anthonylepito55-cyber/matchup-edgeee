@@ -1,0 +1,141 @@
+idx,date,fixture_id,league,tournament,p1,p2,logged,true,src,settled
+0,2026-09-06,20260906972F2706,wta,"Montreux, Switzerland",Tatiana Pieri,Dalila Spiteri,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+1,2026-09-06,20260906C3427194,wta,"Montreux, Switzerland",Martina Trevisan,Julia Stusek,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+8,2026-09-07,202609071AEC55D0,wta,"Antalya 4, Turkiye",Lucia Bronzetti,Irene Burillo Escorihuela,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+9,2026-09-07,20260907654B6A43,wta,"Montreux, Switzerland",Deborah Chiesa,Lucija Ciric Bagaric,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+10,2026-09-07,202609077BD0A834,wta,"Antalya 4, Turkiye",Mia Ristic,Lina Gjorcheska,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+11,2026-09-07,202609078BECE5F5,wta,"Antalya 4, Turkiye",Sofya Lansere,Aurora Zantedeschi,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+12,2026-09-07,2026090644A74E84,wta,"Montreux, Switzerland",Mina Hodzic,Anastasiya Sobolieva,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+13,2026-09-07,202609061C94DF65,wta,"Montreux, Switzerland",Nuria Brancaccio,Francesca Curmi,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+16,2026-09-07,2026090724FDBB68,wta,"Antalya 4, Turkiye",Berfu Cengiz,Leyre Romero Gormaz,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+25,2026-09-08,20260907A12903CF,wta,"Antalya 4, Turkiye",Federica Urgesi,Miriam Bulgaru,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+26,2026-09-08,202609078FD2FB49,wta,"Antalya 4, Turkiye",Francesca Jones,Raluka Serban,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+27,2026-09-08,20260906105B467B,wta,"Montreux, Switzerland",Alice Tubello,Barbora Palicova,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+28,2026-09-08,2026090795D14908,wta,"Antalya 4, Turkiye",Yasmine Kabbaj,Cagla Buyukakcay,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+29,2026-09-08,2026090879FCAEA6,wta,"Antalya 4, Turkiye",Nastasja Schunk,Alicia Herrero Linana,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+30,2026-09-08,20260906E7F8CBC4,wta,"Montreux, Switzerland",Fiona Ferro,Mona Barthel,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+31,2026-09-08,20260906E3577CDA,wta,"Montreux, Switzerland",Simona Waltert,Rebeka Masarova,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+33,2026-09-08,20260908DA821876,wta,"Montreux, Switzerland",Martina Trevisan,Jennifer Ruggeri,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+41,2026-09-09,20260909272D6859,wta,"Antalya 4, Turkiye",Lina Gjorcheska,Aurora Zantedeschi,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+42,2026-09-09,202609096D2A2C69,wta,"Antalya 4, Turkiye",Alevtina Ibragimova,Leyre Romero Gormaz,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+43,2026-09-09,2026090966B19ED7,wta,"Antalya 4, Turkiye",Irene Burillo Escorihuela,Miriam Bulgaru,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+44,2026-09-09,20260909125A0CA9,wta,"Montreux, Switzerland",Nuria Brancaccio,Dalma Galfi,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+56,2026-09-10,2026090967389BDF,wta,"Montreux, Switzerland",Lucija Ciric Bagaric,Lucie Havlickova,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,False
+57,2026-09-10,20260909EB5E18BF,wta,"Montreux, Switzerland",Fiona Ferro,Barbora Palicova,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+58,2026-09-10,2026091093008B5B,wta,"Montreux, Switzerland",Simona Waltert,Despina Papamichail,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+63,2026-09-11,202609118CCCBEA1,wta,"Montreux, Switzerland",Anastasiya Sobolieva,Noma Noha Akugue,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+64,2026-09-11,202609119A69002C,wta,"Antalya 4, Turkiye",Aurora Zantedeschi,Alevtina Ibragimova,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+65,2026-09-11,202609112953268C,wta,"Montreux, Switzerland",Fiona Ferro,Lucie Havlickova,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+66,2026-09-11,202609116CF760BE,wta,"Montreux, Switzerland",Simona Waltert,Dalma Galfi,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+71,2026-09-12,20260912C83BBA9D,wta,"Antalya 4, Turkiye",Alevtina Ibragimova,Alicia Herrero Linana,Hard,Clay,TennisExplorer /antalya-5-wta/2026/wta-women/,True
+73,2026-09-12,2026091258D5F142,wta,"Montreux, Switzerland",Dalma Galfi,Fiona Ferro,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+80,2026-09-13,2026091369001487,wta,"Montreux, Switzerland",Fiona Ferro,Noma Noha Akugue,Hard,Clay,TennisExplorer /montreux-wta/2026/wta-women/,True
+81,2026-09-13,20260913B345A3AD,wta,"Caldas da Rainha, Portugal",Georgina Garcia Perez,Ariana Arseneault,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+82,2026-09-13,20260913948AF71B,wta,"Valencia, Spain",Diletta Cherubini,Isabella Shinikova,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+83,2026-09-13,20260913DC08C2A3,wta,"Caldas da Rainha, Portugal",Oceane Dodin,Reese Brantmeier,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+84,2026-09-13,20260913CE9AC6EF,wta,"Caldas da Rainha, Portugal",Zhibek Kulambayeva,Malaika Rapolu,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+95,2026-09-14,202609145707258D,wta,"Ljubljana, Slovenia",Lea Boskovic,Raluka Serban,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+96,2026-09-14,20260914203C25A2,wta,"Valencia, Spain",Nastasja Schunk,Dalila Jakupovic,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+97,2026-09-14,20260914DB318A24,wta,"Caldas da Rainha, Portugal",Elena Malygina,Gabriella Da Silva Fick,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+98,2026-09-14,202609144F11C809,wta,"Ljubljana, Slovenia",Deborah Chiesa,Lucija Ciric Bagaric,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+99,2026-09-14,20260914A2272A60,wta,"Ljubljana, Slovenia",Miriam Bulgaru,Lina Gjorcheska,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+100,2026-09-14,20260914184B2505,wta,"Valencia, Spain",Nuria Brancaccio,Despina Papamichail,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+101,2026-09-14,20260914464370EE,wta,"Valencia, Spain",Francesca Curmi,Veronika Erjavec,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+104,2026-09-14,20260914D4F72800,wta,"Caldas da Rainha, Portugal",Erika Andreeva,Viktoria Hruncakova,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+108,2026-09-14,20260914F0270940,wta,"Caldas da Rainha, Portugal",Sinja Kraus,Mia Pohankova,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+116,2026-09-15,20260915D0A6597B,wta,"Ljubljana, Slovenia",Anastasiya Sobolieva,Lea Boskovic,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+117,2026-09-15,20260915F394A530,wta,"Ljubljana, Slovenia",Lucie Havlickova,Aurora Zantedeschi,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+118,2026-09-15,202609142C196C85,wta,"Caldas da Rainha, Portugal",Aoi Ito,Gabriela Knutson,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+119,2026-09-15,2026091459A1076F,wta,"Valencia, Spain",Jennifer Ruggeri,Eva Vedder,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+120,2026-09-15,202609153E2212B6,wta,"Ljubljana, Slovenia",Lucija Ciric Bagaric,Laura Samson,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+121,2026-09-15,20260914034E74EE,wta,"Caldas da Rainha, Portugal",Katherine Sebov,Victoria Jimenez Kasintseva,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+122,2026-09-15,202609151E56B332,wta,"Valencia, Spain",Oksana Selekhmeteva,Nastasja Schunk,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+123,2026-09-15,202609158D056397,wta,"Caldas da Rainha, Portugal",Caroline Werner,Malaika Rapolu,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+124,2026-09-15,202609149BEA47E2,wta,"Caldas da Rainha, Portugal",Elena Micic,Anouk Koevermans,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+126,2026-09-15,2026091469411FEA,wta,"Valencia, Spain",Leyre Romero Gormaz,Martina Trevisan,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+127,2026-09-15,202609146DF3E44A,wta,"Valencia, Spain",Mina Hodzic,Rebeka Masarova,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+128,2026-09-15,2026091513D09B3B,wta,"Caldas da Rainha, Portugal",Ayla Aksu,Elena Malygina,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+129,2026-09-15,202609153299EB25,wta,"Ljubljana, Slovenia",Pia Lovric,Dalma Galfi,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+131,2026-09-15,20260914F2994D86,wta,"Valencia, Spain",Angela Fita Boluda,Yasmine Kabbaj,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+138,2026-09-16,20260916D1FCFB6F,wta,"Valencia, Spain",Jennifer Ruggeri,Despina Papamichail,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+139,2026-09-16,2026091625B939E8,wta,"Ljubljana, Slovenia",Lucie Havlickova,Ekaterine Gorgodze,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+140,2026-09-16,202609167E3AC93B,wta,"Ljubljana, Slovenia",Francesca Jones,Mona Barthel,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+141,2026-09-16,202609165C4B9364,wta,"Ljubljana, Slovenia",Weronika Falkowska,Laura Samson,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+142,2026-09-16,20260916C92DDCF5,wta,"Valencia, Spain",Martina Trevisan,Clara Burel,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,False
+143,2026-09-16,20260916476B86B1,wta,"Ljubljana, Slovenia",Miriam Bulgaru,Mia Ristic,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+144,2026-09-16,202609166116E400,wta,"Ljubljana, Slovenia",Alice Tubello,Dalma Galfi,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+145,2026-09-16,2026091629CB0815,wta,"Caldas da Rainha, Portugal",Susan Bandecchi,Viktoria Hruncakova,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+150,2026-09-17,2026091809765097,wta,"Ljubljana, Slovenia",Anastasiya Sobolieva,Laura Samson,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+151,2026-09-17,2026091895123E96,wta,"Ljubljana, Slovenia",Mona Barthel,Mia Ristic,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+152,2026-09-17,202609169EF020C2,wta,"Caldas da Rainha, Portugal",Noma Noha Akugue,Malaika Rapolu,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+153,2026-09-17,2026091841D7DB7C,wta,"Ljubljana, Slovenia",Noemi Basiletti,Ekaterine Gorgodze,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+154,2026-09-17,20260917468D09D6,wta,"Valencia, Spain",Alicia Herrero Linana,Rebeka Masarova,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+156,2026-09-17,2026091677513EE7,wta,"Caldas da Rainha, Portugal",Anouk Koevermans,Gabriela Knutson,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+165,2026-09-18,202609188698BB5E,wta,"Caldas da Rainha, Portugal",Malaika Rapolu,Gabriela Knutson,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+166,2026-09-18,202609185A9BC99F,wta,"Valencia, Spain",Yasmine Kabbaj,Despina Papamichail,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+167,2026-09-18,202609186E976AB0,wta,"Valencia, Spain",Irene Burillo Escorihuela,Alicia Herrero Linana,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+168,2026-09-18,20260918879AFC9C,wta,"Caldas da Rainha, Portugal",Susan Bandecchi,Lisa Pigato,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+180,2026-09-19,20260919ED5EDAA2,wta,"Caldas da Rainha, Portugal",Mia Pohankova,Gabriela Knutson,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+181,2026-09-19,20260919ED16E6D7,wta,"Ljubljana, Slovenia",Mona Barthel,Noemi Basiletti,Hard,Clay,TennisExplorer /ljubljana-wta/2026/wta-women/,True
+183,2026-09-19,20260919C61559E4,wta,"Valencia, Spain",Alicia Herrero Linana,Yasmine Kabbaj,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+190,2026-09-20,2026092041D67DB3,wta,"Porto, Portugal",Gabriella Da Silva Fick,Valentina Steiner,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+191,2026-09-20,2026092058502BF3,wta,"Caldas da Rainha, Portugal",Gabriela Knutson,Lisa Pigato,Clay,Hard,TennisExplorer /caldas-da-rainha/2026/wta-women/,True
+192,2026-09-20,2026092067568E10,wta,"Valencia, Spain",Alicia Herrero Linana,Clara Burel,Hard,Clay,TennisExplorer /valencia-wta/2026/wta-women/,True
+208,2026-09-21,2026092164F831A8,wta,"Porto, Portugal",Sahaja Yamalapalli,Naiktha Bains,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+211,2026-09-21,20260921043E8CBD,wta,"Porto, Portugal",Lizette Cabrera,Sinja Kraus,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+213,2026-09-21,20260921599D44FF,wta,"Porto, Portugal",Susan Bandecchi,Oceane Dodin,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+241,2026-09-22,202609215C035A47,wta,"Porto, Portugal",Mina Hodzic,Elena Malygina,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+242,2026-09-22,20260922731E7D64,wta,"Porto, Portugal",Sahaja Yamalapalli,Katie Swan,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+244,2026-09-22,2026092104B20303,wta,"Porto, Portugal",Katherine Sebov,Gabriela Knutson,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+247,2026-09-22,2026092246084852,wta,"Porto, Portugal",Victoria Jimenez Kasintseva,Naiktha Bains,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+248,2026-09-22,20260922F406D713,wta,"Porto, Portugal",Valentina Steiner,Caroline Werner,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+249,2026-09-22,20260922DBCB47CC,wta,"Porto, Portugal",Erika Andreeva,Reese Brantmeier,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+264,2026-09-23,2026092321DF97D0,wta,"Porto, Portugal",Oceane Dodin,Elena Malygina,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+297,2026-09-24,20260924FC3323A0,wta,"Porto, Portugal",Veronika Podrez,Mia Pohankova,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+300,2026-09-24,20260924A49B6CB9,wta,"Porto, Portugal",Naiktha Bains,Reese Brantmeier,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+303,2026-09-24,202609245DB5DAC0,wta,"Porto, Portugal",Valentina Steiner,Katie Swan,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+322,2026-09-25,202609254E603D6B,wta,"Porto, Portugal",Elena Malygina,Sinja Kraus,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+323,2026-09-25,202609258F3FBDBB,wta,"Porto, Portugal",Maria Timofeeva,Gabriela Knutson,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+324,2026-09-25,20260925BA7A98F5,wta,"Porto, Portugal",Mia Pohankova,Katie Swan,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+337,2026-09-26,202609260226F300,wta,"Porto, Portugal",Reese Brantmeier,Sinja Kraus,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+342,2026-09-26,20260926D2B187BC,wta,"Porto, Portugal",Maria Timofeeva,Mia Pohankova,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+360,2026-09-27,2026092767626AF8,atp_challenger,"Bari, Italy ",Filip Misolic,Oleksandr Ovcharenko,Hard,Clay,TennisExplorer /bari-challenger/2026/atp-men/,True
+361,2026-09-27,20260927AEC937A2,atp_challenger,"Bari, Italy ",Duje Ajdukovic,Imanol Lopez Morillo,Hard,Clay,TennisExplorer /bari-challenger/2026/atp-men/,True
+368,2026-09-27,202609278657D40E,atp_challenger,"Bari, Italy ",Federico Arnaboldi,Federico Iannaccone,Hard,Clay,TennisExplorer /bari-challenger/2026/atp-men/,True
+369,2026-09-27,202609278DC4F965,atp_challenger,"Bari, Italy ",Kai Wehnelt,Pierluigi Basile,Hard,Clay,TennisExplorer /bari-challenger/2026/atp-men/,True
+371,2026-09-27,20260927593CC3CC,wta,"Porto, Portugal",Maria Timofeeva,Reese Brantmeier,Clay,Hard,TennisExplorer /porto-wta/2026/wta-women/,True
+375,2026-09-27,20260927EEA5DB05,atp_challenger,"Bari, Italy ",John Sperle,Giuseppe La Vela,Hard,Clay,TennisExplorer /bari-challenger/2026/atp-men/,True
+376,2026-09-27,202609270BFD4EC5,atp_challenger,"Bari, Italy ",Luis Carlos Alvarez,Svyatoslav Gulin,Hard,Clay,TennisExplorer /bari-challenger/2026/atp-men/ (same city this week),True
+476,2026-09-28,20260928941527AF,atp_challenger,"Curitiba, Brazil",Pedro Sakamoto,Santiago De la Fuente,Hard,Clay,TennisExplorer /curitiba-challenger/2026/atp-men/,True
+553,2026-09-29,20260928AEA25B7B,atp_challenger,"Bari, Italy ",Samuele Pieri,Andrej Martin,Hard,Clay,TennisExplorer /bari-challenger/2026/atp-men/,True
+587,2026-09-29,202609289B1A580E,atp_challenger,"Curitiba, Brazil",Joao Lucas Da Silva,Murkel Dellien,Hard,Clay,TennisExplorer /curitiba-challenger/2026/atp-men/ (same city this week),True
+683,2026-09-30,202609303BC6CFCD,atp_challenger,"Curitiba, Brazil",Joao Lucas Da Silva,Matheus Pucinelli De Almeida,Hard,Clay,TennisExplorer /curitiba-challenger/2026/atp-men/ (same city this week),True
+854,2026-10-04,202610045B82C68C,wta,"Samsun, Turkiye",Maria Golovina,Elena Micic,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+855,2026-10-04,20261004CAAB0376,wta,"Samsun, Turkiye",Noma Noha Akugue,Ilay Yoruk,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+867,2026-10-04,2026100468F653BC,wta,"Samsun, Turkiye",Anastasia Tikhonova,Mariia Tkacheva,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+869,2026-10-04,202610048E7ADCAE,wta,"Samsun, Turkiye",Fiona Crawley,Alana Smith,Clay,Hard,TennisExplorer /samsun/2026/wta-women/ (same city this week),False
+877,2026-10-04,20261004A91A5927,wta,"Samsun, Turkiye",Dalila Jakupovic,Lucija Ciric Bagaric,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+932,2026-10-05,2026100540F0E41F,wta,"Samsun, Turkiye",Mariia Tkacheva,Mariam Bolkvadze,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+933,2026-10-05,202610054D3B64FC,wta,"Samsun, Turkiye",Noma Noha Akugue,Elena Micic,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+952,2026-10-05,202610052A2AAF8E,wta,"Samsun, Turkiye",Dalma Galfi,Julia Grabher,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+970,2026-10-05,20261005656272FF,wta,"Samsun, Turkiye",Lucia Bronzetti,Fiona Crawley,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+971,2026-10-05,20261005C9F3FD74,wta,"Samsun, Turkiye",Alana Smith,Dalila Jakupovic,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+976,2026-10-05,202610058A520EBF,wta,"Samsun, Turkiye",Polina Iatcenko,Suzan Lamens,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+989,2026-10-05,20261005744FA9D0,wta,"Samsun, Turkiye",Dominika Salkova,Himeno Sakatsume,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1020,2026-10-06,2026100584854560,wta,"Samsun, Turkiye",Emiliana Arango,Ayla Aksu,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1021,2026-10-06,2026100591C157F5,wta,"Samsun, Turkiye",Antonia Ruzic,Alicia Dudeney,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1023,2026-10-06,20261006ED799A00,wta,"Samsun, Turkiye",Teodora Kostovic,Noma Noha Akugue,Clay,Hard,TennisExplorer /samsun/2026/wta-women/ (same city this week),False
+1029,2026-10-06,202610053FBABD35,wta,"Samsun, Turkiye",Lucrezia Stefanini,Carole Monnet,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1030,2026-10-06,20261005FF01050E,wta,"Samsun, Turkiye",Lola Radivojevic,Oksana Selekhmeteva,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1051,2026-10-06,20261005BA5D5E80,wta,"Samsun, Turkiye",Simona Waltert,Melisa Ercan,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1063,2026-10-06,202610065448E2CE,wta,"Samsun, Turkiye",Bianca Andreescu,Alana Smith,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1067,2026-10-06,2026100534E40286,wta,"Samsun, Turkiye",Elena Pridankina,Anna Blinkova,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1072,2026-10-06,202610058B29B0B7,wta,"Samsun, Turkiye",Cagla Buyukakcay,Linda Klimovicova,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1075,2026-10-06,202610060979672D,wta,"Samsun, Turkiye",Leolia Jeanjean,Mariam Bolkvadze,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1080,2026-10-06,202610075B178EA2,wta,"Samsun, Turkiye",Polina Iatcenko,Dalma Galfi,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1081,2026-10-06,20261007C9EDCA6A,wta,"Samsun, Turkiye",Alicia Dudeney,Ayla Aksu,Clay,Hard,TennisExplorer /samsun/2026/wta-women/ (same city this week),True
+1082,2026-10-06,20261007D2ED5805,wta,"Samsun, Turkiye",Viktoria Hruncakova,Himeno Sakatsume,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1120,2026-10-07,pm_1127456,atp,Villena,Abedallah Shelbayh,David Jorda Sanchis,Clay,Hard,TennisExplorer /villena-challenger/2026/atp-men/,True
+1121,2026-10-07,pm_1143564,wta,Samsun,Fiona Crawley,Oksana Selekhmeteva,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1122,2026-10-07,pm_1143565,wta,Samsun,Lucrezia Stefanini,Noma Noha Akugue,Clay,Hard,TennisExplorer /samsun/2026/wta-women/,True
+1124,2026-10-07,pm_1138107,atp,Villena,Dominic Stephan Stricker,Laslo Djere,Clay,Hard,TennisExplorer /villena-challenger/2026/atp-men/,True

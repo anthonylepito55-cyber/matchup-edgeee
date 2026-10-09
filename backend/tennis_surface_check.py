@@ -58,10 +58,11 @@ def _tour_surface(path):
     return surf
 
 
-def refresh(days=(0, 1, -1)):
-    """Build pair -> (surface, tournament path) for today and the neighbouring days."""
+def refresh(days=(0, 1, -1), base=None):
+    """Build pair -> (surface, tournament path) for today (or `base`, for history audits)
+    and the neighbouring days."""
     pairs = {}
-    now = datetime.now(timezone.utc)
+    now = base or datetime.now(timezone.utc)
     for dd in days:
         d = now + timedelta(days=dd)
         for typ in TYPES:
