@@ -2283,8 +2283,26 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         bt: 'found live 9/28-10/8 19-3 +32.4% (n=22) · ⚠ bt 2026 −15.1% (166-129, n=295)',
         rule: `C ${Math.round((dog1 ? 1 - mc3.p1_prob : mc3.p1_prob) * 1000) / 10}% (coin flip) · c75 ${Math.round(c75fav * 1000) / 10}% on the favourite` })
     }
+    // MC2 DOG (2026-10-09, user "mark the games mc2 is on the dog"): MC2 picks the
+    // market underdog. Frozen log 9/6-10/9 (pre-10/8 rows are the as-of replay, not
+    // forward picks): men +9.2% (40-42, n=82), +100..+200 +19.2% (35-31, n=66); women
+    // -5.2% (32-48, n=80), +100..+200 -4.5% (n=64). Archive backtest: every MC2 betting
+    // cell ~ -5%. Women are shown as WATCH, not TAKE. Lane pink_mc2_dog.
+    if (match.mc2 && match.mc2.p1_prob != null && !isNaN(odDog) && (match.mc2.p1_prob >= 0.5) === dog1) {
+      const inBand = odDog >= 100 && odDog <= 200
+      const mcDog = Math.round((dog1 ? match.mc2.p1_prob : 1 - match.mc2.p1_prob) * 1000) / 10
+      out.push(isW
+        ? { n: 'MC2 DOG (W) ⚠', who: nmDog, od: odDog, lane: 'pink_mc2_dog', g: 'w', watch: true,
+            bt: `women log ${inBand ? '+100..+200 −4.5% (n=64)' : 'all dogs −5.2% (32-48, n=80)'} · archive MC2 cells ≈ −5%`,
+            rule: `MC2 ${mcDog}% on the dog` }
+        : { n: 'MC2 DOG (men)', who: nmDog, od: odDog, lane: 'pink_mc2_dog', g: 'm',
+            bt: `men log ${inBand ? '+100..+200 +19.2% (35-31, n=66)' : 'all dogs +9.2% (40-42, n=82)'} · ⚠ mostly replay pre-10/8 · archive MC2 cells ≈ −5%`,
+            rule: `MC2 ${mcDog}% on the dog` })
+    }
     return out.length ? out : null
   })()
+  // only TAKE cells paint the card; WATCH cells (women's MC2 dog) show as a line only
+  const pinkFill = !!(pinkCells && pinkCells.some(c => !c.watch))
   // 🪤 BAIT-FAVORITE GREEN (2026-10-08, user "I want all these games highlighted green
   // full card on the board"): ALL FOUR sims (c50/c75/cUTR/serve-MC) price the favorite
   // >=6pts below the no-vig market (>=4pts women) AND the dog is +100..+200 -> the
@@ -2402,10 +2420,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: blackC75W ? 'rgba(8,10,14,0.92)' : baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : purpleCGF ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : pinkCells ? 'rgba(247,120,186,0.13)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: blackC75W ? '2px solid #e8e8ea' : baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : purpleCGF ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : pinkCells ? '1px solid rgba(247,120,186,0.85)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${blackC75W ? '#f0f0f2' : baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : purpleCGF ? '#bc8cff' : tier1Blue ? '#58a6ff' : pinkCells ? '#f778ba' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : purpleCGF ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : pinkCells ? '0 0 16px rgba(247,120,186,0.28)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: blackC75W ? 'rgba(8,10,14,0.92)' : baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : purpleCGF ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : pinkFill ? 'rgba(247,120,186,0.13)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: blackC75W ? '2px solid #e8e8ea' : baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : purpleCGF ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : pinkFill ? '1px solid rgba(247,120,186,0.85)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${blackC75W ? '#f0f0f2' : baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : purpleCGF ? '#bc8cff' : tier1Blue ? '#58a6ff' : pinkFill ? '#f778ba' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : purpleCGF ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : pinkFill ? '0 0 16px rgba(247,120,186,0.28)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {match.book_prices && (match.book_prices.p1 || match.book_prices.p2) ? (() => {
@@ -2535,7 +2553,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           <div key={'pk' + j} className="mono"
             title={`🩷 PINK WATCH — ${pc.n}: ${pc.rule}. Found in the 2026-10-09 consensus / 2-of-3 backtests (walk-forward, true gender, one row per match, closing odds). ${pc.bt}. Unproven live: the lane ${pc.lane} scores every one of these flat from the frozen log, and the color stays only if that record holds.`}
             style={{ fontSize: 9, fontWeight: 800, color: '#f778ba', marginBottom: 6, letterSpacing: '0.03em', textShadow: '0 0 8px rgba(247,120,186,0.45)' }}>
-            🩷 {pc.n} → <span style={{ fontSize: 12, fontWeight: 900, color: '#ffe3f1' }}>TAKE {(pc.who || '').split(' ').slice(-1)[0].toUpperCase()} {pc.od > 0 ? '+' : ''}{pc.od}</span>
+            🩷 {pc.n} → <span style={{ fontSize: 12, fontWeight: 900, color: pc.watch ? '#c9a3b8' : '#ffe3f1' }}>{pc.watch ? 'WATCH' : 'TAKE'} {(pc.who || '').split(' ').slice(-1)[0].toUpperCase()} {pc.od > 0 ? '+' : ''}{pc.od}</span>
             <span style={{ fontWeight: 400, color: '#ffc6e2' }}> · {pc.rule} · {pc.bt} · {live}</span>
           </div>
         )

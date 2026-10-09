@@ -1103,7 +1103,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m",
+              "pink_cclose_c75fav_m", "pink_mc2_dog",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1793,6 +1793,10 @@ def get_ab25_record() -> dict:
                 _c75f9 = (1 - float(_c759)) if dog1 else float(_c759)
                 if _c75f9 >= 0.55:
                     bet("pink_cclose_c75fav_m", not dog1)
+            # 🩷 MC2 DOG (2026-10-09): MC2 picks the market dog (men TAKE / women WATCH on the card).
+            _m29 = r.get("mc2_p1")
+            if _m29 is not None and pd.notna(_m29) and (float(_m29) >= 0.5) == dog1:
+                bet("pink_mc2_dog", dog1)
             # one bet per gated game on the dog (coin-flip takes precedence)
             if "coinflip_c_dog" in _gate_hit:
                 bet("coinflip_c_dog", dog1)
