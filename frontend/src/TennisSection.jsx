@@ -2140,10 +2140,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : (purpleCGF || purpleCE5 || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : (purpleCGF || purpleCE5 || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      background: baitGreen ? 'rgba(63,185,80,0.13)' : (purpleCGF || purpleCE5 || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? '1px solid rgba(63,185,80,0.85)' : (purpleCGF || purpleCE5 || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
       padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : (purpleCGF || purpleCE5 || purpleFGW) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      boxShadow: baitGreen ? '0 0 16px rgba(63,185,80,0.26)' : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {!baitGreen && purpleCGF ? (
@@ -2209,19 +2209,20 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         </div>
       ) : null}
       {baitGreen ? (
-        <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Replay month at the 6pt discount: dogs 39-37 (51.3%) +23.4% — women +40.1%, men +13.6% — with clean dose-response (deeper discount = worse favorite, better dog). +200..+250 bait dogs LOSE -42.5%, which is why this only fires through +200. Live record = the bait_dog lane (Splits tab), gender-split, auto-updating. Smallest head-gap on this card: ${baitGreen.gap}pts.`}
+        <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Evidence (remeasured 2026-10-08): as-of 3-sim backtest men +6.1% (130-163, n=293) / women +1.6% (91-125, n=216), against -5.1% (n=1,432) for the same banded dogs with NO signal and -14.5% (n=358) for out-of-band +200..+400 dogs -- the signal and the price gate both earn. Live bait_dog lane men +11.2% (24-27) / women +29.7% (17-15). The cell is bet as ONE cell: its PRIME/REST sub-tiering is refuted (bt and live disagree on which half is better in both genders). Smallest head-gap on this card: ${baitGreen.gap}pts.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#3fb950', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(63,185,80,0.5)' }}>
           🪤 BAIT FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaffea', textShadow: '0 0 10px #3fb950' }}>TAKE {baitGreen.dogName.split(' ').slice(-1)[0].toUpperCase()} +{baitGreen.dogOdds}</span> · discount {baitGreen.gap}pt+
           {(() => {
-            // live record of THIS CARD'S OWN CELL (2026-10-08, user "which specific
-            // category it lands in"): PRIME games read bait_dog_prime, the rest read
-            // bait_dog_rest — each shown as this match's gender cell + the cell total.
-            const key = baitGreen.prime ? 'bait_dog_prime' : 'bait_dog_rest'
-            const st = ((laneRec && laneRec.study) || {})[key] || {}
+            // WHOLE-CELL numbers (2026-10-08 correction): the PRIME/REST split is not
+            // real -- backtest and live disagree on which half is better in BOTH genders
+            // (M: bt PRIME +7.4% vs live REST +28.2%; W: bt REST +10.0% vs live PRIME
+            // +83.4%). So this reads the undifferentiated bait_dog lane and the
+            // whole-cell as-of backtest; the band is a label, not a ranking.
+            const st = ((laneRec && laneRec.study) || {}).bait_dog || {}
             const c = (baitGreen.isW ? st.w : st.m) || {}
             const n = c.n || 0
-            const nm = baitGreen.prime ? 'PRIME' : 'GREEN'
-            const tot = st.n ? ` · ${nm} all ${st.roi_pct > 0 ? '+' : ''}${Math.round(st.roi_pct * 10) / 10}% (${st.wins}-${st.n - st.wins})` : ''
+            const nm = 'CELL'
+            const tot = st.n ? ` · cell all ${st.roi_pct > 0 ? '+' : ''}${Math.round(st.roi_pct * 10) / 10}% (${st.wins}-${st.n - st.wins})` : ''
             // AS-OF BACKTEST of this cell (2026-10-08): 3-sim approximation -- the real
             // bait needs all 4 sims and cUTR can't be rebuilt historically, so this runs
             // serve-MC + c50 + c75 on as-of profiles. Whole cell: M +6.1% (130-163,
@@ -2229,14 +2230,12 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             // (n=117). REST: M +4.3% (n=125) / W +10.0% (n=99). Controls: the same
             // banded dogs WITHOUT the signal run -5.1% (n=1,432) and out-of-band
             // +200..+400 runs -14.5% (n=358) -> the signal and the band both earn.
-            const bt3 = baitGreen.prime
-              ? (baitGreen.isW ? '-5.5% (n=117)' : '+7.4% (n=168)')
-              : (baitGreen.isW ? '+10.0% (n=99)' : '+4.3% (n=125)')
-            return <span style={{ color: '#d9ffe3', fontWeight: 400 }} title={`FULL-LOG record of this card's exact cell — for sim-based signals like this one, no multi-year archive backtest can exist (historical sim states were never saved), so this auto-updating frozen-log record IS both the backtest and the live number. Cell (${nm} = ${baitGreen.prime ? 'dog +100..+150 with the full 6pt+ discount' : 'the rest of the green cell: dog +150..+200, or +100..+150 at the women-only 4-6pt discount'}), at frozen closing odds: this match's gender first, the whole cell after. Auto-updates as games settle.`}>
+            const bt3 = baitGreen.isW ? '+1.6% (91-125)' : '+6.1% (130-163)'
+            return <span style={{ color: '#d9ffe3', fontWeight: 400 }} title={`THE WHOLE GREEN CELL, both numbers, for this match's gender. bt3 = as-of backtest of a 3-sim approximation (serve-MC + c50 + c75 replayed on rebuilt historical profiles; the live cell also needs cUTR, which anchors on current-only ratings and cannot be rebuilt): men +6.1% (130-163, n=293), women +1.6% (91-125, n=216). Controls: the same banded dogs WITHOUT the signal run -5.1% (n=1,432) and out-of-band +200..+400 dogs run -14.5% (n=358), so both the signal and the price gate earn their keep. live = the bait_dog lane at frozen closing odds, auto-updating. NO SUB-TIERING: the old PRIME/REST split is refuted -- backtest and live disagree on which half is better in BOTH genders (men bt favours PRIME +7.4% while live favours REST +28.2%; women bt favours REST +10.0% while live favours PRIME +83.4%), which is what noise looks like. Bet the cell, not the sub-tier.`}>
               {` · ${nm} bt3 ${baitGreen.isW ? 'W' : 'M'} ${bt3}`}
               {n ? ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} log ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} tracking`}{tot}
             </span>
-          })()}{baitGreen.prime ? <span style={{ color: '#eaffea', background: baitGreen.isW ? 'rgba(227,179,65,0.40)' : 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, textShadow: baitGreen.isW ? '0 0 8px #e3b341' : '0 0 8px #3fb950' }} title={`⭐ PRIME tier: dog +100..+150 AND the full 6pt+ discount — the fattest measured slice of the green cell (replay +31.0%, 27-19, 58.7% win at near-even money${baitGreen.isW ? '; 🔥 = women’s match, 12-3 +83% in replay — but n=15, a priority hint, not its own cell' : ''}). Take PRIME greens first.`}>⭐ PRIME{baitGreen.isW ? ' 🔥⚠' : ''}</span> : null}
+          })()}<span style={{ color: 'var(--text-tertiary)', fontWeight: 400, marginLeft: 6, fontSize: 8.5 }} title={`Price band, shown as a LABEL only -- it is not a ranking. The old PRIME tier (dog +100..+150 with a 6pt+ discount) was built on a 12-3 live run; the as-of backtest puts women's PRIME at -5.5% (n=117) while men's is +7.4% (n=168), and the live records point the opposite way in both genders. There is no evidence that one band of this cell beats the other, so every green card is weighted the same now.`}>{baitGreen.prime ? 'band +100/+150' : 'band +150/+200'}</span>
           {(() => {
             // TIER-1 CONFIRMATION ON GREEN CARDS (2026-10-08): green outranks blue, so a
             // bedrock cell backing the SAME player would otherwise be invisible here.
