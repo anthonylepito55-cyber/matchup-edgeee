@@ -1731,6 +1731,65 @@ def _x_flat(ma, mb, mc, md, mk1, surface, league, rnd):
     }
 
 
+# 🏦 BEST PRICE PER SIDE (2026-10-08, the "execution lever"). Every tennis card was priced
+# off ONE book -- 61 of 63 off FanDuel -- and FanDuel is not even a venue the user can bet
+# (tennis_scanner.USER_BETTABLE = Kalshi + Polymarket (USA)). Every study on 2026-10-08
+# ended at "breakeven at the close, profitable at a better price", so the card now carries,
+# per side: the best price at the user's OWN venues (Kalshi taker fee priced in, exactly as
+# the price scanner does) and the best price anywhere, with the sharp fair prob for context.
+# Uses tennis_scanner's quote-sanity rules (both sides quoted, two-way sum in range).
+_TENNIS_BP_CACHE = {"at": 0.0, "key": None, "data": {}}
+
+
+def _tennis_best_prices(fixture_ids):
+    import tennis_scanner as _ts
+    key = tuple(sorted(fixture_ids))
+    now = time.time()
+    if _TENNIS_BP_CACHE["key"] == key and now - _TENNIS_BP_CACHE["at"] < 120:
+        return _TENNIS_BP_CACHE["data"]
+    data = _ts._fetch_prices(list(fixture_ids))
+    _TENNIS_BP_CACHE.update({"at": now, "key": key, "data": data})
+    return data
+
+
+def _am_from_decimal(d):
+    if not d or d <= 1:
+        return None
+    return round((d - 1) * 100) if d >= 2 else round(-100 / (d - 1))
+
+
+def _summarize_book_prices(by_book, p1, p2):
+    import tennis_scanner as _ts
+    out = {}
+    fair1, n_sharp = _ts._fair_prob_p1(by_book, p1, p2)
+    for key, me, opp in (("p1", p1, p2), ("p2", p2, p1)):
+        best_user = best_any = None
+        n_books = 0
+        for book in _ts.BETTABLE_BOOKS:
+            q = by_book.get(book, {})
+            d, d_opp = _ts._decimal(q.get(me)), _ts._decimal(q.get(opp))
+            if d is None or d_opp is None:
+                continue
+            pair_sum = 1 / d + 1 / d_opp
+            if not (_ts.BOOK_SUM_RANGE[0] <= pair_sum <= _ts.BOOK_SUM_RANGE[1]):
+                continue
+            n_books += 1
+            implied = 1 / d
+            if book == "Kalshi":
+                implied = implied + _ts.KALSHI_FEE_RATE * implied * (1 - implied)
+            row = {"book": book, "price": q.get(me), "implied": round(implied, 4),
+                   "eff_price": _am_from_decimal(1 / implied)}
+            if best_any is None or implied < best_any["implied"]:
+                best_any = row
+            if book in _ts.USER_BETTABLE and (best_user is None or implied < best_user["implied"]):
+                best_user = row
+        fair = None if fair1 is None else round(fair1 if key == "p1" else 1 - fair1, 4)
+        out[key] = {"best_user": best_user, "best_any": best_any, "fair": fair,
+                    "n_books": n_books}
+    out["n_sharp"] = n_sharp
+    return out
+
+
 def _compute_tennis_today(date: str = None):
     # Serialize behind the shared heavy-compute lock (OOM fix, see _today_compute_lock).
     with _today_compute_lock:
@@ -2064,6 +2123,20 @@ def _compute_tennis_today_inner(date: str = None):
                 r["mc2"] = None
     except Exception as _e_tma:  # noqa: BLE001 -- never let the display models break the slate
         print(f"[tennis models] {_e_tma}")
+
+    # 🏦 best-price attach (see _summarize_book_prices). Unplayed matches only; started
+    # matches keep their frozen line, and PM-sourced fixtures simply get nothing.
+    try:
+        _bp_rows = [r for r in results if r.get("status") == "unplayed" and r.get("fixture_id")
+                    and not str(r.get("fixture_id")).startswith("pm_")]
+        if _bp_rows:
+            _bp = _tennis_best_prices([r["fixture_id"] for r in _bp_rows])
+            for r in _bp_rows:
+                _bb = _bp.get(r["fixture_id"])
+                if _bb:
+                    r["book_prices"] = _summarize_book_prices(_bb, r["player_1"], r["player_2"])
+    except Exception as _e_bp:  # noqa: BLE001 -- pricing must never break the slate
+        print(f"[tennis best price] {_e_bp}")
 
     # Background real-UTR sweep for any slate player without a fresh rating (1 req/s,
     # single worker; ratings land in the disk cache for the next recompute).

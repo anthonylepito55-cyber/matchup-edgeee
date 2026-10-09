@@ -2277,6 +2277,35 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : (purpleCGF || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
+      {match.book_prices && (match.book_prices.p1 || match.book_prices.p2) ? (() => {
+        // 🏦 EXECUTION (2026-10-08): the board's price is one book's (almost always
+        // FanDuel), which is not a venue the user can bet. This shows, per player, the
+        // best price at the user's OWN venues (Kalshi + Polymarket (USA), Kalshi taker fee
+        // priced in) and its gap to the sharp fair (Pinnacle/Circa, de-vigged). Positive =
+        // you are being paid more than fair; negative = you pay the vig.
+        const bp = match.book_prices
+        const cell = (k, nm) => {
+          const sd = bp[k] || {}
+          const b = sd.best_user || null
+          const any = sd.best_any || null
+          const use = b || any
+          if (!use) return null
+          const pr = use.eff_price != null ? use.eff_price : use.price
+          const gap = sd.fair != null ? Math.round(1000 * (sd.fair - use.implied)) / 10 : null
+          const col = gap == null ? 'var(--text-secondary)' : gap >= 1 ? '#3fb950' : gap > -1 ? '#e3b341' : '#f85149'
+          const venue = use.book === 'Polymarket (USA)' ? 'PM' : use.book
+          return <span key={k} style={{ marginRight: 10 }}>
+            <b>{nm.split(' ').slice(-1)[0]}</b>{` ${pr > 0 ? '+' : ''}${pr} ${venue}`}{!b ? ' (not your book)' : ''}
+            {gap != null ? <span style={{ color: col, fontWeight: 800 }}>{` ${gap > 0 ? '+' : ''}${gap}pt vs fair`}</span> : null}
+          </span>
+        }
+        return (
+          <div className="mono" style={{ fontSize: 9, marginBottom: 5, color: 'var(--text-secondary)' }}
+            title={`BEST PRICE AT YOUR BOOKS. Board price: ${(match.live_odds || {}).bookmaker || 'one book'} -- not a venue you can bet. Shown per player: the best price across your own venues (Kalshi + Polymarket (USA); Kalshi's ~0.07*p*(1-p) taker fee is priced in, so that number is what you really pay), and how many points that price sits ABOVE (+, you are paid more than fair) or BELOW (-, you pay the vig) the sharp fair from Pinnacle/Circa. "(not your book)" = no Kalshi/PM quote, so the best price shown is at a book you can't use. ${bp.n_sharp ? bp.n_sharp + ' sharp book(s) in the fair.' : 'No sharp book quoting -- no fair available.'}`}>
+            {'🏦 '}{cell('p1', match.player_1)}{cell('p2', match.player_2)}
+          </div>
+        )
+      })() : null}
       {markVerdict ? (
         <div className="mono" style={{ fontSize: 9, fontWeight: 900, marginBottom: 5, letterSpacing: '0.04em',
           color: markVerdict.ok === null ? 'var(--text-tertiary)' : markVerdict.ok ? '#3fb950' : '#f85149' }}
@@ -2470,8 +2499,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         return (
           <div className="mono" title={`🟠 MC2 5-8pt DOG-EDGE: MC v2 prices the market dog ${(100 * mc2DogEdge).toFixed(1)} points above the market. WHO TO TAKE (replay month, by gender): MEN — the FAVORITE (+10.0%, 37-15; the dog itself ran −34%). WOMEN — whichever side c75 holds (10-1, +73.4% — n=11, treat as a lead not a law; the favorite blindly ran −29.7%). Dog outside +100..+200 = NO PLAY (favorites over long dogs −3%, the dogs −20%). LIVE = the forward mc2e58_fav lane for this gender (favorite side), building from 2026-10-08.`}
             style={{ fontSize: 9, fontWeight: 800, color: '#f0883e', marginBottom: 6, letterSpacing: '0.04em' }}>
-            🟠 MC2 DOG-EDGE 5-8 ({(100 * mc2DogEdge).toFixed(1)}pt) → {nm9 ? <span style={{ fontSize: 12, fontWeight: 900, color: '#fff3e8', textShadow: '0 0 10px #f0883e' }}>TAKE {nm9.split(' ').slice(-1)[0].toUpperCase()}{od9 != null && !isNaN(od9) ? ` ${od9 > 0 ? '+' : ''}${od9}` : ''}</span> : <span style={{ fontWeight: 700, color: 'var(--text-tertiary)' }}>NO PLAY (dog out of +100..+200)</span>}
-            {nm9 ? <span style={{ color: '#ffd9b8', fontWeight: 400 }}> · {isW9 ? 'W rule: c75\u2019s side · replay +73.4% (10-1) ⚠ n=11' : 'M rule: favorite · replay +10.0% (37-15)'}{n9 ? ` · LIVE ${isW9 ? 'W' : 'M'} ${c9.roi_pct > 0 ? '+' : ''}${Math.round(c9.roi_pct * 10) / 10}% (${c9.wins}-${n9 - c9.wins})` : ' · LIVE tracking'}</span> : null}
+            🟠 MC2 DOG-EDGE 5-8 ({(100 * mc2DogEdge).toFixed(1)}pt) · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span>{' · archive: back fav M −6.7% (n=6,151) / W −5.9% (n=3,574), every year negative'}
+            <span style={{ color: '#ffd9b8', fontWeight: 400 }}>{n9 ? ` · lane ${isW9 ? 'W' : 'M'} ${c9.roi_pct > 0 ? '+' : ''}${Math.round(c9.roi_pct * 10) / 10}% (${c9.wins}-${n9 - c9.wins})` : ''}</span>
           </div>
         )
       })() : null}
