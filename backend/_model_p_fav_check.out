@@ -1,0 +1,33 @@
+MODEL P on the FAVOURITE (same out-of-sample 2024-26 games; dog was +100..+200)
+
+MEN: every favourite 7017-4480 win 61.0% ROI   -6.1% (n=11497)
+  fav -100..-200: all 4222-3071 win 57.9% ROI   -6.5% (n=7293)
+     P fav EV > 0%  1493-787 win 65.5% ROI   +6.5% (n=2280)
+     P fav EV > 3%  1168-584 win 66.7% ROI   +8.6% (n=1752)
+     P fav EV > 5%  972-478 win 67.0% ROI   +9.4% (n=1450)
+  fav shorter than -200: all 2792-1408 win 66.5% ROI   -5.4% (n=4200)
+     P fav EV > 0%  714-242 win 74.7% ROI   +6.7% (n=956)
+     P fav EV > 3%  494-153 win 76.4% ROI   +9.2% (n=647)
+     P fav EV > 5%  376-108 win 77.7% ROI  +11.2% (n=484)
+  by year, fav -100..-200, P fav EV > 3%:
+     2024 353-168 win 67.8% ROI  +10.5% (n=521)
+     2025 471-241 win 66.2% ROI   +7.9% (n=712)
+     2026 344-175 win 66.3% ROI   +7.8% (n=519)
+
+WOMEN: every favourite 4340-2822 win 60.6% ROI   -6.9% (n=7162)
+  fav -100..-200: all 2567-1842 win 58.2% ROI   -5.9% (n=4409)
+     P fav EV > 0%  1223-516 win 70.3% ROI  +14.3% (n=1739)
+     P fav EV > 3%  1062-414 win 72.0% ROI  +17.1% (n=1476)
+     P fav EV > 5%  956-374 win 71.9% ROI  +17.0% (n=1330)
+  fav shorter than -200: all 1769-975 win 64.5% ROI   -8.5% (n=2744)
+     P fav EV > 0%  633-203 win 75.7% ROI   +7.7% (n=836)
+     P fav EV > 3%  508-161 win 75.9% ROI   +8.1% (n=669)
+     P fav EV > 5%  432-125 win 77.6% ROI  +10.5% (n=557)
+  by year, fav -100..-200, P fav EV > 3%:
+     2024 330-112 win 74.7% ROI  +21.6% (n=442)
+     2025 422-178 win 70.3% ROI  +14.4% (n=600)
+     2026 310-124 win 71.4% ROI  +16.1% (n=434)
+
+LIVE frozen log, P-lite on the FAVOURITE (fav -100..-200, dog +100..+200): 200 games
+  M: every fav 78-73 ROI  -14.0% (n=151) | P fav EV>0 28-25 ROI  -11.2% (n=53) | EV>3% 19-18 ROI  -12.7% (n=37) | P says no 50-48 ROI  -15.5% (n=98)
+  W: every fav 26-23 ROI  -12.2% (n=49) | P fav EV>0 10-8 ROI   -9.3% (n=18) | EV>3% 8-6 ROI   -6.8% (n=14) | P says no 16-15 ROI  -13.9% (n=31)
