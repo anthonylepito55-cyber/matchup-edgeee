@@ -2015,6 +2015,24 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const isW = match.league === 'wta' || match.league === 'itf_women'
     return { name: c1 ? match.player_1 : match.player_2, od, isW }
   })()
+  // 💜 C-EDGE5 DEEP FAV (2026-10-08, user "mark both men and women games highlighted
+  // purple as well with the live roi and backtested roi and how many games"): raw C
+  // prices the favorite >=5pts over the market, fav at -150..-200 — the strongest
+  // favorite cell in the whole walk-forward backtest. 2026: MEN +11.7% (466-194,
+  // n=660, biggest positive fav sample ever scanned), WOMEN +6.9% (40-19, n=59);
+  // 3yr: M +8.1% (n=1,902), W +14.3% (n=238). ce5_deep_fav lane = live judge.
+  const purpleCE5 = (() => {
+    if (!mc3 || mc3.p1_prob == null || mc3.market_p1 == null) return null
+    const dog1 = mc3.market_p1 < 0.5
+    const fav1 = !dog1
+    const cf = fav1 ? mc3.p1_prob : 1 - mc3.p1_prob
+    const mf = fav1 ? mc3.market_p1 : 1 - mc3.market_p1
+    if (cf - mf < 0.05) return null
+    const od = match.live_odds ? Number(fav1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+    if (od == null || isNaN(od) || od < -200 || od > -150) return null
+    const isW = match.league === 'wta' || match.league === 'itf_women'
+    return { name: fav1 ? match.player_1 : match.player_2, od, isW, edge: Math.round(100 * (cf - mf)) }
+  })()
   const tier1Blue = (() => {
     if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
     const c1 = mc3.p1_prob >= 0.5
@@ -2084,10 +2102,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : purpleCGF ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : purpleCGF ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : purpleCGF ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : purpleCGF ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : (purpleCGF || purpleCE5) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : (purpleCGF || purpleCE5) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : (purpleCGF || purpleCE5) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : (purpleCGF || purpleCE5) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {!baitGreen && purpleCGF ? (
@@ -2102,7 +2120,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
-      {!baitGreen && tier1Blue && !purpleCGF ? (
+      {!baitGreen && !purpleCGF && purpleCE5 ? (
+        <div className="mono" title={`💜 C-EDGE5 DEEP FAVORITE (your mark, 2026-10-08): raw Model C prices this favorite ${purpleCE5.edge} points ABOVE the no-vig market, and the price is -150..-200 — the strongest favorite cell in the entire walk-forward backtest. 2026 backtest: MEN +11.7% ROI, 466-194 (70.6% win, n=660 — the largest positive favorite sample ever scanned here); WOMEN +6.9%, 40-19 (n=59). Three-year: men +8.1% (n=1,902), women +14.3% (n=238), positive every year. The LANE number is the live frozen-log record for this match's gender (ce5_deep_fav, frozen closing odds, auto-updating as games settle).`}
+          style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
+          💜 C-EDGE5 FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCE5.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCE5.od}</span> · C +{purpleCE5.edge}pt over mkt · bt26 {purpleCE5.isW ? 'W +6.9% (40-19, n=59)' : 'M +11.7% (466-194, n=660)'} · 3yr {purpleCE5.isW ? '+14.3% (n=238)' : '+8.1% (n=1,902)'}
+          {(() => {
+            const st = ((laneRec && laneRec.study) || {}).ce5_deep_fav || {}
+            const c = (purpleCE5.isW ? st.w : st.m) || {}
+            const n = c.n || 0
+            return <span style={{ color: '#e9dcff', fontWeight: 400 }}>{n ? ` · LIVE ${purpleCE5.isW ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ' · LIVE tracking'}</span>
+          })()}
+        </div>
+      ) : null}
+      {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 ? (
         <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. Backtest 2026: GRAY 4pt+ DOG M +11.1%/W +35.1% · STAR/TIER-1 M +12%/W +34.7% · C-ALONE+GRAY M +13.3%/W +44.4% · FADE-A DOG+GRAY M +19.8%/W +23.3% · C-EDGE5 FAV women +11.0% (held 3 straight years). Live: gray_dog4 +11.0% (58), tier1 +11.0%, priced-star-dog +14.5%, c-alone+gray +6.1%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
           🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.join(' + ')} · bt26 {tier1Blue.fav ? 'W fav +11.0%' : (tier1Blue.isW ? 'W +34..44%' : 'M +11..20%')} · live +6..15%

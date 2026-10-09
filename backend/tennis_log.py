@@ -1042,7 +1042,7 @@ def get_ab25_record() -> dict:
               # the replay tour surfaced (orange band fav, 3-5pt banded dog, c75 dog
               # countersigned 5pt+); and the 🪤 bait-favorite dog (all-sim discount).
               "fav_value", "mc2e58_fav", "mc2e35_dog_band", "c75_mc2e5_dog", "bait_dog",
-              "bait_dog_prime", "bait_dog_rest", "cgf_shallow_fav")}
+              "bait_dog_prime", "bait_dog_rest", "cgf_shallow_fav", "ce5_deep_fav")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -1321,6 +1321,20 @@ def get_ab25_record() -> dict:
                     _cg_o = r.get("p1_odds") if _cg_c1 else r.get("p2_odds")
                     if pd.notna(_cg_o) and -150 <= float(_cg_o) <= -100:
                         bet("cgf_shallow_fav", _cg_c1)
+            # 💜 CE5-DEEP (2026-10-08, user "mark both men and women... purple with the
+            # live roi and backtested roi"): raw C prices the FAVORITE >=5pts over the
+            # market AND the fav is -150..-200 — the strongest favorite cell in the
+            # full backtest (2026: men +11.7% on 466-194/n=660; women +6.9% on 40-19;
+            # 3yr +8.1%/+14.3%). This lane is the live judge for the purple mark.
+            _ce_c = r.get("model_c_p1")
+            if pd.notna(_ce_c):
+                _ce_fav1 = not dog1
+                _ce_cf = float(_ce_c) if _ce_fav1 else 1 - float(_ce_c)
+                _ce_mf = mk1 if _ce_fav1 else 1 - mk1
+                _ce_o = r.get("p1_odds") if _ce_fav1 else r.get("p2_odds")
+                if (_ce_cf - _ce_mf >= 0.05 and pd.notna(_ce_o)
+                        and -200 <= float(_ce_o) <= -150):
+                    bet("ce5_deep_fav", _ce_fav1)
             # 💪 FAV-VALUE (2026-10-08, user "make a model that's precise with favorites"):
             # the measured fatigue-residual favorite. Archive 2024-26: ALL favorites
             # −5.2%, heavy-load favorites −0.9% (banded −0.1% vs −5.1%) — the market
