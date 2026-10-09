@@ -523,7 +523,7 @@ def predict_c(name1, name2, surface, market_p1=None):
     out = {"p1_prob": round(prob, 4), "p2_prob": round(1 - prob, 4),
            "trained_at": mdl.get("trained_at"), "thin": bool(c1 is None or c2 is None)}
     # Model P inputs (2026-10-09): p1-minus-p2 stat diffs, same definitions as training.
-    out["pf"] = {k: float(f.get(k) or 0.0) for k in ("d_vs_band", "d_m_perf", "d_m_won", "d_c_rp")}
+    out["pf"] = {k: float(f.get(k) or 0.0) for k in ("d_vs_band", "d_m_perf", "d_m_won", "d_c_rp", "d_c_sp")}
     # rank gap in the TRAINING convention (log p1 rank - log p2 rank, + = p1 worse). The
     # live f["d_lrank"] above is the reverse (rank-sign bug found 2026-10-09), so P builds
     # its own from the ranks and stays correct whether or not that bug is fixed.

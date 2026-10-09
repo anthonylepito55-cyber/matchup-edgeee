@@ -2411,11 +2411,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // more return-PRESSURE points (break points and tight points on serve, 52w surface)
     // than the favourite -- the top third of the gap. Backtest 2025-26 +6.3% (n=751);
     // 2025 +2.8%, 2026 +12.1%; every +100..+250 women's dog -7.5%. Lane returner_dog_w.
-    if (isW && mc3.pf && mc3.pf.d_c_rp != null && !isNaN(odDog) && odDog >= 100 && odDog <= 250) {
+    // 🎾 ALL-ROUND DOG (W) (2026-10-09, user "yes"): REPLACES the RETURNER DOG line -- the
+    // returner edge came almost entirely from dogs that are ALSO the better clutch servers
+    // (better returner only: -10%). Women, dog +100..+250, better than the favourite on
+    // BOTH serve-pressure and return-pressure points won (52w surface). Tier 1 any margin:
+    // +10.2% (n=829; 2025 +8.9 / 2026 +12.6). Tier 2 both gaps above the median (3.08 / 3.11):
+    // +27.5% (n=199; 2025 +28.6 / 2026 +24.9). Lanes allround_dog_w / allround_dog_w_big.
+    if (isW && mc3.pf && mc3.pf.d_c_rp != null && mc3.pf.d_c_sp != null && !isNaN(odDog) && odDog >= 100 && odDog <= 250) {
       const rpDog = dog1 ? mc3.pf.d_c_rp : -mc3.pf.d_c_rp
-      if (rpDog >= 4.5567) out.push({ n: '🎾 RETURNER DOG (W)', who: nmDog, od: odDog, lane: 'returner_dog_w', g: 'w',
-        bt: 'bt 2025-26 +6.3% (n=751) · 2025 +2.8% · 2026 +12.1% · every dog −7.5%',
-        rule: `wins ${Math.round(rpDog * 10) / 10}pt more return-pressure points` })
+      const spDog = dog1 ? mc3.pf.d_c_sp : -mc3.pf.d_c_sp
+      if (rpDog > 0 && spDog > 0) {
+        const big = spDog >= 3.0798 && rpDog >= 3.1104
+        out.push({ n: big ? '🎾 ALL-ROUND DOG (W) · T2' : '🎾 ALL-ROUND DOG (W) · T1', who: nmDog, od: odDog,
+          lane: big ? 'allround_dog_w_big' : 'allround_dog_w', g: 'w',
+          bt: big ? 'bt 2025-26 T2 +27.5% (n=199) · 2025 +28.6% · 2026 +24.9% · every dog −7.5%'
+                  : 'bt 2025-26 T1 +10.2% (n=829) · 2025 +8.9% · 2026 +12.6% · every dog −7.5%',
+          rule: `better clutch server (+${Math.round(spDog * 10) / 10}pt) AND returner (+${Math.round(rpDog * 10) / 10}pt)` })
+      }
     }
     // MC2 DOG (2026-10-09, user "mark the games mc2 is on the dog"): MC2 picks the
     // market underdog. Frozen log 9/6-10/9 (pre-10/8 rows are the as-of replay, not
@@ -2508,7 +2520,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false }, pink_mc2_dog: { m: false, w: false },
     p_dog: { m: true, w: true }, p_fav: { m: true, w: true }, p_close: { m: true, w: true },
     p_close_t1: { m: true, w: true }, p_close_t2: { m: true, w: true }, p_close_t3: { m: true, w: true },
-    returner_dog_w: { w: true },
+    returner_dog_w: { w: true }, allround_dog_w: { w: true }, allround_dog_w_big: { w: true },
   }
   const gHL = (match.league === 'wta' || match.league === 'itf_women') ? 'w' : 'm'
   const hlWhy = (lane, g) => {
