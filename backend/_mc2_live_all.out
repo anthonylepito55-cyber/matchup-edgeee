@@ -1,0 +1,33 @@
+mc2 cols: ['mc2_p1', 'mc2_recon']
+settled with MC2: 948 (2026-09-06..2026-10-09) | real forward picks 26 | replay 922
+
+ALL (n=948): picks winner 63.9% vs market fav 65.9% | Brier MC2 0.2234 vs mkt 0.2125 | logloss 0.6371 vs 0.6121
+   bet every MC2 pick        606-342 ROI   -4.4% (n=948)
+   MC2 on the FAVOURITE      533-250 ROI   -5.7% (n=783)   | fav -100..-200 164-128 ROI   -7.6% (n=292)
+   MC2 FLIPS to the DOG      73-92 ROI   +1.5% (n=165)   | dog +100..+200 62-71 ROI   +6.6% (n=133)
+
+REAL FORWARD only (10/8+) (n=26): picks winner 57.7% vs market fav 53.8% | Brier MC2 0.2692 vs mkt 0.2571 | logloss 0.7403 vs 0.7125
+   bet every MC2 pick        15-11 ROI  -10.6% (n=26)
+   MC2 on the FAVOURITE      11-8 ROI  -21.1% (n=19)   | fav -100..-200 n=4 (thin)
+   MC2 FLIPS to the DOG      n=7 (thin)   | dog +100..+200 n=7 (thin)
+
+replay only (n=922): picks winner 64.1% vs market fav 66.3% | Brier MC2 0.2222 vs mkt 0.2112 | logloss 0.6342 vs 0.6093
+   bet every MC2 pick        591-331 ROI   -4.2% (n=922)
+   MC2 on the FAVOURITE      522-242 ROI   -5.3% (n=764)   | fav -100..-200 162-126 ROI   -7.5% (n=288)
+   MC2 FLIPS to the DOG      69-89 ROI   +0.8% (n=158)   | dog +100..+200 58-68 ROI   +6.0% (n=126)
+
+MEN all (n=504): picks winner 65.7% vs market fav 66.1% | Brier MC2 0.2241 vs mkt 0.2116 | logloss 0.6395 vs 0.6116
+   bet every MC2 pick        331-173 ROI   -1.4% (n=504)
+   MC2 on the FAVOURITE      290-130 ROI   -3.5% (n=420)   | fav -100..-200 93-70 ROI   -6.0% (n=163)
+   MC2 FLIPS to the DOG      41-43 ROI   +9.0% (n=84)   | dog +100..+200 36-32 ROI  +18.7% (n=68)
+
+WOMEN all (n=444): picks winner 61.9% vs market fav 65.8% | Brier MC2 0.2227 vs mkt 0.2135 | logloss 0.6344 vs 0.6126
+   bet every MC2 pick        275-169 ROI   -7.9% (n=444)
+   MC2 on the FAVOURITE      243-120 ROI   -8.2% (n=363)   | fav -100..-200 71-58 ROI   -9.6% (n=129)
+   MC2 FLIPS to the DOG      32-49 ROI   -6.3% (n=81)   | dog +100..+200 26-39 ROI   -6.0% (n=65)
+
+calibration (all, MC2's prob on its own pick):
+   MC2 says 50-60%: actually won 57.6% (n=502)
+   MC2 says 60-70%: actually won 65.4% (n=280)
+   MC2 says 70-80%: actually won 79.7% (n=133)
+   MC2 says 80-90%: actually won 84.4% (n=32)
