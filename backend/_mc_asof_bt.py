@@ -31,7 +31,7 @@ import pandas as pd
 import tennis_model_a as T
 
 SAMPLE = int(sys.argv[1]) if len(sys.argv) > 1 else 2400
-NSIM = 3000
+NSIM = 2000
 rng = np.random.default_rng(11)
 
 # ---- clean walk-forward C for 2026 (the anchor), from the backtest rig -------------

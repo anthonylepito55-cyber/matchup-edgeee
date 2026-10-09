@@ -2135,15 +2135,21 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // (replay +31.0%, 27-19, 58.7% win). 🔥 adds when it's a women's match (12-3,
     // +83% replay — but n=15, so the flame is a priority hint, not its own cell).
     const prime = dogOdds <= 150 && gap >= 6
-    return { gap, dogOdds, isW, prime, dogName }
+    // MC CONFIRMATION (2026-10-08): does c75 actually FLIP to this dog (dog prob > 50%),
+    // or does it merely discount the favorite? Measured both ways, both genders:
+    //   flips      -> as-of bt M +15.6% (n=195) / W +4.6% (n=142); live M +23.1% (42) / W +59.7% (23)
+    //   no flip    -> as-of bt M -12.9% (n=98)  / W -4.2% (n=74);  live M -53.0% (6)  / W -47.1% (9)
+    // Four independent measurements agree, so this is a real gate, not a sub-tier.
+    const c75Flip = mc3.mc_c75_p1 != null ? ((mc3.mc_c75_p1 >= 0.5) === (mc3.market_p1 < 0.5)) : null
+    return { gap, dogOdds, isW, prime, dogName, c75Flip }
   })()
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? 'rgba(63,185,80,0.13)' : (purpleCGF || purpleCE5 || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? '1px solid rgba(63,185,80,0.85)' : (purpleCGF || purpleCE5 || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : (purpleCGF || purpleCE5 || purpleFGW) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? '0 0 16px rgba(63,185,80,0.26)' : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : (purpleCGF || purpleCE5 || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : (purpleCGF || purpleCE5 || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : (purpleCGF || purpleCE5 || purpleFGW) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {!baitGreen && purpleCGF ? (
@@ -2212,6 +2218,17 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Evidence (remeasured 2026-10-08): as-of 3-sim backtest men +6.1% (130-163, n=293) / women +1.6% (91-125, n=216), against -5.1% (n=1,432) for the same banded dogs with NO signal and -14.5% (n=358) for out-of-band +200..+400 dogs -- the signal and the price gate both earn. Live bait_dog lane men +11.2% (24-27) / women +29.7% (17-15). The cell is bet as ONE cell: its PRIME/REST sub-tiering is refuted (bt and live disagree on which half is better in both genders). Smallest head-gap on this card: ${baitGreen.gap}pts.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#3fb950', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(63,185,80,0.5)' }}>
           🪤 BAIT FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaffea', textShadow: '0 0 10px #3fb950' }}>TAKE {baitGreen.dogName.split(' ').slice(-1)[0].toUpperCase()} +{baitGreen.dogOdds}</span> · discount {baitGreen.gap}pt+
+          {baitGreen.c75Flip === false ? (
+            <span style={{ color: '#ffd7d5', background: 'rgba(248,81,73,0.55)', borderRadius: 4, padding: '0 6px', marginLeft: 8, fontWeight: 900 }}
+              title={`MC REFUSES THIS DOG - the bait pattern fires (every sim prices the favourite below the market) BUT c75 still has the FAVOURITE ahead: no sim actually flips to this dog. Measured both ways, both genders - when c75 FLIPS, the bait dog runs as-of bt M +15.6% (n=195) / W +4.6% (n=142) and live M +23.1% (42) / W +59.7% (23); when it does NOT flip, as here, it runs as-of bt M -12.9% (n=98) / W -4.2% (n=74) and live M -53.0% (6) / W -47.1% (9). Four independent measurements agree. NO BET.`}>
+              {'⛔ MC REFUSES · NO BET (bt M −12.9% · live −49.5%)'}
+            </span>
+          ) : baitGreen.c75Flip === true ? (
+            <span style={{ color: '#eaffea', background: 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, fontWeight: 900, textShadow: '0 0 8px #3fb950' }}
+              title={`MC CONFIRMS - c75 does not merely discount the favourite, it FLIPS outright to this dog. That conjunction is the strongest version of the cell in both evidence layers and both genders: as-of bt M +15.6% (98-97, n=195) / W +4.6% (64-78, n=142); live M +23.1% (22-20) / W +59.7% (15-8), combined live +36.1% (37-28). Without the flip the same pattern LOSES (bt M -12.9%, live -49.5%).`}>
+              {'✓ MC CONFIRMS '}{baitGreen.isW ? '(bt W +4.6% · live +59.7%)' : '(bt M +15.6% · live +23.1%)'}
+            </span>
+          ) : null}
           {(() => {
             // WHOLE-CELL numbers (2026-10-08 correction): the PRIME/REST split is not
             // real -- backtest and live disagree on which half is better in BOTH genders
