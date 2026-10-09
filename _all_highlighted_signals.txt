@@ -1,0 +1,62 @@
+EVERY HIGHLIGHTED SIGNAL - CORRECTED BACKTEST + LIVE   (2026-10-08)
+========================================================================================================================
+BACKTEST: walk-forward, archive closing odds, TRUE gender (slug map, 100% coverage),
+          ONE row per match. Shown as 2026, with all-years underneath where measured.
+'no archive bt' = needs live sim state / current-only ratings that cannot be rebuilt
+          historically (cUTR anchors on current sUTR; the 4-sim bait needs cUTR).
+LIVE:     frozen prediction log at frozen closing odds, auto-updating as games settle.
+* priced star dog shares tier-1's measured cell (nearest equivalent).
+
+MARK                                                  bt26 M            LIVE M              bt26 W            LIVE W
+------------------------------------------------------------------------------------------------------------------------
+GREEN bait dog PRIME (+100/+150, 6pt+)         no archive bt       16-18 +2.8%       no archive bt       12-3 +83.4%
+GREEN bait dog REST of cell                    no archive bt        8-9 +28.2%       no archive bt       5-12 -17.8%
+GREEN bait dog whole cell                      no archive bt      24-27 +11.2%       no archive bt      17-15 +29.7%
+PURPLE CGF C-alone+gold fav -100/-150         +17.0% (96-48)        11-9 -3.7%       +1.7% (46-34)        3-1 +33.7%
+    all-years                                +8.1% (288-180)                      +10.1% (169-103)                  
+PURPLE CE5 C-edge5 fav -150/-200            +10.8% (327-139)      19-21 -23.9%     +5.0% (208-106)       6-10 -40.8%
+    all-years                                +5.9% (974-479)                      +10.8% (593-253)                  
+PURPLE FGW fade-gold fav W -200/-300                       -                 -     +4.4% (359-131)        22-7 +6.8%
+    all-years                                              -                      +5.9% (1011-344)                  
+BLUE gray 4pt+ dog                           +3.8% (370-406)      21-19 +15.1%    +17.5% (284-247)      11-11 +12.7%
+    all-years                             +13.5% (1131-1054)                      +26.5% (829-623)                  
+BLUE tier-1 dog                              +3.2% (353-390)      18-16 +15.8%    +20.5% (265-219)        8-8 +13.1%
+    all-years                              +14.1% (1084-995)                      +28.8% (767-554)                  
+BLUE priced star dog *                       +3.2% (353-390)      18-17 +14.6%    +20.5% (265-219)        8-7 +26.5%
+    all-years                              +14.1% (1084-995)                      +28.8% (767-554)                  
+BLUE C-alone+gray dog                        +3.3% (163-188)      13-11 +19.5%    +17.1% (116-108)         5-6 +6.4%
+    all-years                               +15.9% (484-463)                      +32.6% (346-255)                  
+BLUE fade-A dog+gray                          +13.6% (58-49)         3-3 +0.2%      +29.4% (52-35)        1-2 -36.1%
+    all-years                               +14.0% (156-134)                      +29.6% (153-102)                  
+BLUE C-edge5 fav (women only)                              -                 -     +5.6% (783-317)                 -
+    all-years                                              -                      +9.0% (2353-850)                  
+ORANGE MC2 5-8pt dog-edge -> fav          MC2 cells all ~-5%        1-2 -56.2%  MC2 cells all ~-5%                 -
+WATCH MC2 3-5pt banded dog                    MC2 dogs -6.2%       1-0 +102.0%      MC2 dogs -5.7%                 -
+WATCH c75 dog + MC2 5pt+ countersign          c75 dog +11.2%                 -      c75 dog +10.0%                 -
+WATCH fav_value (fatigue favorites)      -0.9% vs -5.2% base                 -                                     -
+STAR fade-gold fav (all prices)                        +1.0%      191-92 -4.2%               +3.5%      81-45 -12.0%
+    all-years                                          +2.7%                                +10.4%                  
+STAR D-MA2 edge fav (all prices)                       -0.9%      111-62 -2.0%               +2.0%       43-27 -8.5%
+    all-years                                          +1.3%                                 +4.3%                  
+OVL overlap dog (both tabs agree)              no archive bt      32-28 +25.2%       no archive bt      12-10 +38.9%
+FIGHT-FLIP dog                                 no archive bt       14-7 +50.7%       no archive bt        4-4 +20.8%
+FORM-FADE dog                                  no archive bt      24-20 +32.7%       no archive bt        8-6 +51.1%
+4-MC dog banded                                no archive bt       19-20 +9.5%       no archive bt        8-8 +17.9%
+MC-GREEN women                                 no archive bt       65-30 -1.5%       no archive bt        25-7 +4.6%
+ALL-10 fav -140/-300 men                       no archive bt       49-21 +4.2%                   -                 -
+BLUE2 diamond (men dog +100/250, 2+ fam)       no archive bt      16-12 +25.4%                   -                 -
+CANDIDATE c75 banded dog (unmarked)         +11.2% (132-139)      41-41 +24.6%      +10.0% (78-87)      14-17 +16.7%
+
+HEADLINES
+  1. Men's dog cells decayed to ~+3% in 2026 (all-years +13..+16%); women's hold at
+     +17..+21% (all-years +26..+33%) -> women are the stronger half of every bedrock cell.
+  2. PURPLE CE5 survived the gender fix (M +10.8% / W +5.0% in 2026, positive all-years
+     both genders) BUT its live arm is -23.9% M / -40.8% W on 56 settles -> unresolved.
+  3. PURPLE CGF men -100/-150 is the strongest 2026 favorite cell measured (+17.0%),
+     live -3.7% on 20 -> promising, unproven.
+  4. PURPLE FGW fell from +16.9% (a WTA-only artifact) to +4.4%; live +6.8% -> the ONLY
+     favorite mark where backtest and live agree.
+  5. c75 banded dogs (UNMARKED candidate): bt M +11.2% / W +10.0%, live M +24.4% /
+     W +20.7% -> the single best-supported sim cell on the board.
+  6. Every MC2 betting cell is ~-5% on huge archive samples; expect the orange and
+     mc2* watch lanes to regress toward that.
