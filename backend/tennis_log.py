@@ -563,6 +563,18 @@ def _tag_watch_signals(out, r, mk1, dog1, gray_p1, c1, have_mkt):
     return out
 
 
+def _sr_asof(r):
+    try:
+        import tennis_context as _tcx
+        d = pd.Timestamp(str(r.get("date"))[:10])
+        sf = str(r.get("surface") or "Hard")
+        a = _tcx.context_asof(r.get("player_1"), sf, d)
+        b = _tcx.context_asof(r.get("player_2"), sf, d)
+        return {"p1": a, "p2": b} if (a or b) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _p_hist(r, mk1):
     try:
         import tennis_model_p as _tp
@@ -757,6 +769,9 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             "live_odds": ({"player_1": p1o, "player_2": p2o,
                            "bookmaker": str(r.get("bookmaker") or "")} if p1o is not None and p2o is not None else None),
             "model_a": ma, "model_b": mb, "model_c": mcd, "model_d": md,
+            # SERVE/RETURN as it stood BEFORE this match (2026-10-09, user "I want to see
+            # serve/return stats on the previous day page") -- tennis_context.context_asof.
+            "tr_context": _sr_asof(r),
         }
         rec = {
             "p1": str(r.get("player_1") or ""), "p2": str(r.get("player_2") or ""),

@@ -1788,6 +1788,24 @@ function HistoryPanel({ query, greenOnly = false }) {
                       ? <span style={{ color: '#e3b341' }}> · missed: {m.postmortem.missed_info.join(', ')}</span> : null}
                   </div>
                 ) : null}
+                {m.card && m.card.tr_context && (m.card.tr_context.p1 || m.card.tr_context.p2) ? (() => {
+                  // 🎾 SERVE / RETURN as it stood BEFORE the match (2026-10-09, user "I want to see
+                  // serve/return stats on the previous day page"): 52w on this surface (or last 20),
+                  // only matches before the match date -- no hindsight.
+                  const one = (nm, c) => {
+                    if (!c || !c.surface_stats) return <span>{(nm || '').split(' ').slice(-1)[0]}: —</span>
+                    const st = c.surface_stats
+                    return (
+                      <span>{(nm || '').split(' ').slice(-1)[0]}: 1stSv {st.sv1 ?? '—'}% · 2ndSv {st.sv2 ?? '—'}% · <b>Hold {st.sgw ?? '—'}%</b> · Ret1 {st.r1 ?? '—'}% · Ret2 {st.r2 ?? '—'}% · <b>Break {st.rgw ?? '—'}%</b> <span style={{ opacity: 0.7 }}>({c.surface_used.toLowerCase()} {st.window}, n={st.n})</span></span>
+                    )
+                  }
+                  return (
+                    <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 50, color: 'var(--text-tertiary)' }}
+                      title="SERVE / RETURN as it stood before this match: 1st/2nd serve points won, service games held, return points won vs 1st/2nd serve, return games broken -- 52 weeks on this surface (or the last 20 there), using only matches before the match date.">
+                      🎾 {one(m.p1, m.card.tr_context.p1)} <span style={{ opacity: 0.6 }}>|</span> {one(m.p2, m.card.tr_context.p2)}
+                    </div>
+                  )
+                })() : null}
               </div>
             ))}
           </div>
@@ -1946,7 +1964,10 @@ function TrContextRow({ name, ctx }) {
       {s.sv1 != null ? ` 1stSv ${s.sv1}%` : ''}
       {s.sv2 != null ? ` · 2ndSv ${s.sv2}%` : ''}
       {s.sgw != null ? ` · SGW ${s.sgw}%${s.sgw_pct != null ? ` (p${s.sgw_pct} ${pool})` : ''}` : ''}
+      {s.r1 != null ? ` · Ret1 ${s.r1}%` : ''}
+      {s.r2 != null ? ` · Ret2 ${s.r2}%` : ''}
       {s.rgw != null ? ` · RGW ${s.rgw}%${s.rgw_pct != null ? ` (p${s.rgw_pct} ${pool})` : ''}` : ''}
+      {ctx.asof ? ` · as of ${ctx.asof} (pre-match)` : ''}
       {` · win ${(s.win * 100).toFixed(0)}% (${s.n})`}
       {vt && (vt.w + vt.l) > 0 ? ` · vs top-200: ${vt.w}-${vt.l}` : ''}
       {ctx.clutch != null ? ` · clutch ${(ctx.clutch * 100).toFixed(0)}%` : ''}
