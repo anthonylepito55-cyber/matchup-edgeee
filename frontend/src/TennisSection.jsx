@@ -2070,6 +2070,44 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return { name: dog1 ? match.player_1 : match.player_2, od,
              pct: Math.round(100 * (dog1 ? mc3.mc_c75_p1 : 1 - mc3.mc_c75_p1)) }
   })()
+  // LEVEL x ROUND for dog marks (2026-10-08, measured on 3,822 marked-dog fires,
+  // banded +100..+200, true gender, one row per match):
+  //   TOUR  M +16.7% all / +15.8% 2026 (n=384/114) | W +43.1% / +40.0% (n=289/71)
+  //   CH    M +10.8% all / -1.1% 2026 (n=766/290)  | W +39.5% (n=141)
+  //   ITF   M +13.1% / +8.4% (n=218/93)            | W +19.4% / +7.9% (n=439/183)
+  //   SLAM  M +11.7% (n=104)                       | W +21.6% (n=74)
+  //   round: M early +12.0% / late +17.7%; W early +32.6% / late +9.9%
+  //   level x round: TOUR EARLY +27.2% (n=622), ITF EARLY +21.8% (n=500),
+  //                  CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157)
+  // The headline: the dog edges are NOT an ITF/soft-book artifact -- TOUR is the
+  // strongest level AND the only one that held into 2026. Men's challengers died.
+  const lvlNote = (() => {
+    const lg = String(match.league || '')
+    const L = (lg === 'atp' || lg === 'wta') ? 'TOUR'
+      : lg.includes('challenger') ? 'CH'
+      : lg.includes('itf') ? 'ITF' : null
+    if (!L) return null
+    const isW9 = lg === 'wta' || lg === 'itf_women'
+    const rd = String(match.round || '').toLowerCase()
+    const late = /final|semi|quarter|1\/4|1\/2/.test(rd)
+    let tone = '#8b949e', tag = '', note = ''
+    if (L === 'TOUR') {
+      tone = '#3fb950'; tag = 'TOUR ★ premium'
+      note = isW9 ? 'bt +43.1% all / +40.0% 2026 (n=289/71)' : 'bt +16.7% all / +15.8% 2026 (n=384/114)'
+    } else if (L === 'CH') {
+      if (!isW9) { tone = '#f85149'; tag = 'CHALLENGER ⚠'; note = 'men bt +10.8% all but −1.1% in 2026 (n=766/290) — this level died' }
+      else { tone = '#3fb950'; tag = 'CHALLENGER'; note = 'women bt +39.5% (n=141, 2026 thin)' }
+    } else {
+      tone = late ? '#e3b341' : '#58a6ff'
+      tag = late ? 'ITF late-round ⚠' : 'ITF early-round'
+      note = late ? 'ITF LATE rounds only +3.2% (n=157) — weakest slice'
+                  : (isW9 ? 'women ITF bt +19.4% all / +7.9% 2026 (n=439/183)' : 'men ITF bt +13.1% all / +8.4% 2026 (n=218/93)')
+    }
+    const rnote = isW9
+      ? (late ? 'women late rounds +9.9% (n=114) vs early +32.6% (n=829)' : 'women EARLY rounds are the strong half: +32.6% (n=829)')
+      : (late ? 'men late rounds +17.7% (n=191), slightly better than early +12.0%' : 'men early rounds +12.0% (n=1,281)')
+    return { tag, note, tone, rnote, late }
+  })()
   const tier1Blue = (() => {
     if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
     const c1 = mc3.p1_prob >= 0.5
@@ -2170,6 +2208,12 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
+      {lvlNote && (blackC75W || baitGreen || (tier1Blue && !tier1Blue.fav)) ? (
+        <div className="mono" style={{ fontSize: 8.5, fontWeight: 700, marginBottom: 5, color: lvlNote.tone, letterSpacing: '0.03em' }}
+          title={`LEVEL x ROUND, measured 2026-10-08 on 3,822 marked-dog fires (banded +100..+200, true gender, one row per match). By level: TOUR men +16.7% all-years / +15.8% in 2026 (n=384/114), women +43.1% / +40.0% (n=289/71) -- the strongest level AND the only one that held into 2026. CHALLENGER men +10.8% all-years but -1.1% in 2026 (n=766/290), i.e. that level has died; women +39.5% (n=141, 2026 thin). ITF men +13.1% / +8.4%, women +19.4% / +7.9%. SLAMS men +11.7%, women +21.6%. By round: men early +12.0% (n=1,281) / late +17.7% (n=191); women early +32.6% (n=829) / late +9.9% (n=114). Level x round: TOUR EARLY +27.2% (n=622) is the best big cell, ITF EARLY +21.8% (n=500), CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157). HEADLINE: these dog edges are NOT a soft-book ITF artifact -- they are strongest where the liquidity is. ${lvlNote.rnote}.`}>
+          {'🏟 '}{lvlNote.tag}{' · '}{lvlNote.note}{lvlNote.late ? ' · late round' : ' · early round'}
+        </div>
+      ) : null}
       {blackC75W ? (
         <div className="mono" title={`WOMEN c75 DOG - the single best-evidenced sim cell on the board. As-of backtest (production simulate_match replayed on rebuilt historical profiles, the FULL 20,871-match 2026 universe): women, c75 on the market underdog, dog priced +100 or longer = +8.1% ROI (748-1020, n=1,768). It pays at EVERY price and improves as the price lengthens: +100/+150 +3.1%, +150/+200 +8.0%, +200/+250 +12.3%, +250/+400 +19.4%, +400 and longer +67.1%. Odds-on dogs (under +100) are near-flat (+1.4%, n=411), so the mark starts at +100. Live lane mc_c75_dog women: +16.7% (14-17). Men's equivalent is weaker (+5.1%, n=2,308). c75 = the Monte Carlo anchored 75% to Model C; the anchor weight is what earns (serve-MC alone loses ~10%).`}
           style={{ fontSize: 9, fontWeight: 800, color: '#f0f0f2', marginBottom: 6, letterSpacing: '0.05em', background: 'linear-gradient(90deg, rgba(255,255,255,0.10), transparent)', padding: '3px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.35)' }}>
