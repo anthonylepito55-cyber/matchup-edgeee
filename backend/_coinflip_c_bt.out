@@ -1,0 +1,49 @@
+
+=== CALONE (dog +100..+250) ===
+  MEN all                      245-261  win 48.4% vs mkt 40.6  ROI  +12.6%  (n=506)
+  MEN C margin < 2pt (coin flip) n=33 (thin)
+  MEN C margin >= 2pt            233-240  win 49.3% vs mkt 40.5  ROI  +14.9%  (n=473)
+  MEN challenger               128-143  win 47.2% vs mkt 40.7  ROI   +8.9%  (n=271)
+  MEN not challenger           117-118  win 49.8% vs mkt 40.4  ROI  +16.9%  (n=235)
+    2025: all 134-117  win 53.4% vs mkt 40.5  ROI  +25.4%  (n=251) | challenger 72-55  win 56.7% vs mkt 41.0  ROI  +31.8%  (n=127)
+    2026: all 111-144  win 43.5% vs mkt 40.6  ROI   +0.0%  (n=255) | challenger 56-88  win 38.9% vs mkt 40.5  ROI  -11.3%  (n=144)
+  WOMEN all                      172-153  win 52.9% vs mkt 40.1  ROI  +24.1%  (n=325)
+  WOMEN C margin < 2pt (coin flip) n=16 (thin)
+  WOMEN C margin >= 2pt            166-143  win 53.7% vs mkt 40.0  ROI  +26.4%  (n=309)
+  WOMEN challenger               29-24  win 54.7% vs mkt 41.0  ROI  +29.3%  (n=53)
+  WOMEN not challenger           143-129  win 52.6% vs mkt 40.0  ROI  +23.1%  (n=272)
+    2025: all 98-74  win 57.0% vs mkt 40.6  ROI  +31.8%  (n=172) | challenger n=22 (thin)
+    2026: all 74-79  win 48.4% vs mkt 39.6  ROI  +15.5%  (n=153) | challenger n=31 (thin)
+
+=== TIER1 (dog +100..+250) ===
+  MEN all                      517-520  win 49.9% vs mkt 41.4  ROI  +13.3%  (n=1037)
+  MEN C margin < 2pt (coin flip) 17-28  win 37.8% vs mkt 42.2  ROI  -17.0%  (n=45)
+  MEN C margin >= 2pt            500-492  win 50.4% vs mkt 41.3  ROI  +14.7%  (n=992)
+  MEN challenger               271-274  win 49.7% vs mkt 41.4  ROI  +12.7%  (n=545)
+  MEN not challenger           246-246  win 50.0% vs mkt 41.4  ROI  +14.0%  (n=492)
+    2025: all 278-238  win 53.9% vs mkt 41.3  ROI  +23.1%  (n=516) | challenger 148-116  win 56.1% vs mkt 41.4  ROI  +28.2%  (n=264)
+    2026: all 239-282  win 45.9% vs mkt 41.5  ROI   +3.6%  (n=521) | challenger 123-158  win 43.8% vs mkt 41.4  ROI   -1.9%  (n=281)
+  WOMEN all                      381-298  win 56.1% vs mkt 41.0  ROI  +29.1%  (n=679)
+  WOMEN C margin < 2pt (coin flip) n=21 (thin)
+  WOMEN C margin >= 2pt            372-286  win 56.5% vs mkt 41.0  ROI  +30.2%  (n=658)
+  WOMEN challenger               65-47  win 58.0% vs mkt 41.6  ROI  +35.7%  (n=112)
+  WOMEN not challenger           316-251  win 55.7% vs mkt 40.9  ROI  +27.8%  (n=567)
+    2025: all 212-146  win 59.2% vs mkt 41.4  ROI  +34.8%  (n=358) | challenger 31-21  win 59.6% vs mkt 42.0  ROI  +35.3%  (n=52)
+    2026: all 169-152  win 52.6% vs mkt 40.6  ROI  +22.7%  (n=321) | challenger 34-26  win 56.7% vs mkt 41.3  ROI  +36.0%  (n=60)
+
+=== GRAY4 (dog +100..+250) ===
+  MEN all                      555-557  win 49.9% vs mkt 41.4  ROI  +13.2%  (n=1112)
+  MEN challenger               285-288  win 49.7% vs mkt 41.4  ROI  +12.5%  (n=573)
+  MEN not challenger           270-269  win 50.1% vs mkt 41.4  ROI  +14.0%  (n=539)
+    2025: all 301-259  win 53.8% vs mkt 41.3  ROI  +22.6%  (n=560) | challenger 154-123  win 55.6% vs mkt 41.4  ROI  +26.9%  (n=277)
+    2026: all 254-298  win 46.0% vs mkt 41.5  ROI   +3.7%  (n=552) | challenger 131-165  win 44.3% vs mkt 41.5  ROI   -1.0%  (n=296)
+  WOMEN all                      416-347  win 54.5% vs mkt 40.9  ROI  +25.3%  (n=763)
+  WOMEN challenger               69-49  win 58.5% vs mkt 41.3  ROI  +37.2%  (n=118)
+  WOMEN not challenger           347-298  win 53.8% vs mkt 40.9  ROI  +23.2%  (n=645)
+    2025: all 235-174  win 57.5% vs mkt 41.2  ROI  +30.9%  (n=409) | challenger 34-22  win 60.7% vs mkt 41.5  ROI  +39.5%  (n=56)
+    2026: all 181-173  win 51.1% vs mkt 40.6  ROI  +19.0%  (n=354) | challenger 35-27  win 56.5% vs mkt 41.1  ROI  +35.1%  (n=62)
+
+=== SUN-SHAPED: men, challenger, +100..+250, C margin < 2pt, gray 4pt+ ===
+  n=24 (thin)
+  ...and A + B both on the favourite (C-ALONE shape):
+  n=18 (thin)

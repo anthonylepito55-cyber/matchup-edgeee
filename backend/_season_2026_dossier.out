@@ -1,0 +1,239 @@
+615127 rows parsed
+rolling features done
+h2h done
+two-sided matches: 167035
+core (priced + featured): 110350
+A prep reused
+B rollups done
+B core: 97243
+A core 110350 | B core 97243
+615127 rows parsed
+52w window done
+season block done
+h2h done
+two-sided: 167035
+C core: 122354  features: 35
+C core 122354
+615127 rows parsed
+52w window done
+season block done
+C prep reused
+ewm block done
+opponent-form block done
+season/platform block done
+D rolls done
+D core: 141610  features: 29
+model A walk-forward fitted
+model B walk-forward fitted
+model C walk-forward fitted
+model D walk-forward fitted
+
+rows: 2026 10362 | 2025 14006
+
+==============================================================================================================
+Q1  WHAT MAKES A DOG WIN MORE OFTEN (raw win rate, bottom vs top fifth of the stat) -- biggest spreads
+
+  MEN
+    d_vs_band                dog wins 21.9% (mkt 29.1) bottom fifth -> 44.9% (mkt 40.4) top fifth
+    d_sutr                   dog wins 24.4% (mkt 25.4) bottom fifth -> 43.2% (mkt 42.5) top fifth
+    gapm_C                   dog wins 27.0% (mkt 36.2) bottom fifth -> 41.9% (mkt 37.0) top fifth
+    gap_B                    dog wins 42.3% (mkt 41.7) bottom fifth -> 28.6% (mkt 28.9) top fifth
+    gapm_D                   dog wins 29.5% (mkt 35.8) bottom fifth -> 42.1% (mkt 38.5) top fifth
+    gap_A                    dog wins 41.8% (mkt 40.8) bottom fifth -> 29.3% (mkt 31.3) top fifth
+    d_m_won                  dog wins 27.7% (mkt 31.5) bottom fifth -> 39.8% (mkt 37.8) top fifth
+    d_c_sp                   dog wins 28.2% (mkt 32.4) bottom fifth -> 39.5% (mkt 38.7) top fifth
+    gapm_A                   dog wins 31.7% (mkt 31.4) bottom fifth -> 42.9% (mkt 41.7) top fifth
+    d_c_sgw                  dog wins 26.8% (mkt 31.4) bottom fifth -> 37.9% (mkt 38.2) top fifth
+    d_lvl_win                dog wins 28.2% (mkt 29.6) bottom fifth -> 39.2% (mkt 39.1) top fifth
+    d_m_meff                 dog wins 28.0% (mkt 31.1) bottom fifth -> 38.7% (mkt 38.0) top fifth
+    d_lrank                  dog wins 38.6% (mkt 41.2) bottom fifth -> 28.1% (mkt 28.0) top fifth
+    d_m_second_serve_points  dog wins 29.0% (mkt 31.8) bottom fifth -> 39.4% (mkt 37.8) top fifth
+
+  WOMEN
+    d_vs_band                dog wins 15.1% (mkt 26.4) bottom fifth -> 48.3% (mkt 39.0) top fifth
+    d_sutr                   dog wins 22.4% (mkt 22.1) bottom fifth -> 43.9% (mkt 41.6) top fifth
+    gapm_C                   dog wins 23.8% (mkt 35.6) bottom fifth -> 44.3% (mkt 35.6) top fifth
+    d_m_won                  dog wins 22.0% (mkt 29.5) bottom fifth -> 42.0% (mkt 36.6) top fifth
+    gapm_D                   dog wins 27.6% (mkt 35.0) bottom fifth -> 43.7% (mkt 37.0) top fifth
+    d_lrank                  dog wins 38.1% (mkt 40.2) bottom fifth -> 22.1% (mkt 25.1) top fifth
+    gap_B                    dog wins 41.8% (mkt 41.5) bottom fifth -> 25.9% (mkt 26.2) top fifth
+    d_m_meff                 dog wins 25.5% (mkt 29.1) bottom fifth -> 41.3% (mkt 36.8) top fifth
+    gap_A                    dog wins 41.9% (mkt 41.0) bottom fifth -> 27.0% (mkt 27.6) top fifth
+    d_m_perf                 dog wins 26.3% (mkt 33.5) bottom fifth -> 40.4% (mkt 33.8) top fifth
+    d_form_win               dog wins 38.9% (mkt 32.8) bottom fifth -> 25.8% (mkt 33.7) top fifth
+    gapm_A                   dog wins 28.5% (mkt 29.4) bottom fifth -> 41.4% (mkt 41.3) top fifth
+    d_lvl_meff               dog wins 25.5% (mkt 27.4) bottom fifth -> 37.9% (mkt 37.6) top fifth
+    gap_C                    dog wins 28.7% (mkt 38.0) bottom fifth -> 40.0% (mkt 31.8) top fifth
+
+==============================================================================================================
+Q2  BEATS THE PRICE in 2026 (|z|>=2)   + = dog underpriced (back dog)   - = favourite underpriced (back fav)
+  G stat (dog minus fav)     end  | 2026 dogwin  mkt  beat     z  dogROI  favROI     n | 2025 beat dogROI     n
+  W d_vs_band                HIGH |      48.3%  39.0  +9.3  +5.3 +18.8%  -20.6%    795 |  +13.7  +31.7%   1017
+  W gapm_C                   HIGH |      44.3%  35.6  +8.7  +5.3 +17.0%  -19.7%    858 |  +11.6  +27.4%   1171
+  W gap_C                    HIGH |      40.0%  31.8  +8.2  +5.1 +19.6%  -18.5%    858 |  +10.8  +26.6%   1103
+  W d_m_perf                 HIGH |      40.4%  33.8  +6.7  +4.1  +8.7%  -16.6%    858 |   +7.1  +12.2%   1122
+  W gapm_D                   HIGH |      43.7%  37.0  +6.7  +4.0  +9.7%  -17.0%    851 |   +9.7  +20.6%   1187
+  W d_form_win               LOW  |      38.9%  32.8  +6.1  +3.8 +10.9%  -15.8%    850 |   +5.9  +10.3%   1141
+  M gapm_C                   HIGH |      41.9%  37.0  +4.9  +3.6  +6.3%  -14.1%   1215 |  +11.4  +26.2%   1459
+  W d_m_won                  HIGH |      42.0%  36.6  +5.4  +3.3  +4.6%  -15.3%    858 |   +8.1  +14.8%   1053
+  M d_vs_band                HIGH |      44.9%  40.4  +4.5  +3.1  +5.2%  -13.7%   1138 |   +8.9  +16.8%   1297
+  M gap_C                    HIGH |      38.3%  34.1  +4.2  +3.0  +6.7%  -12.5%   1215 |  +10.1  +22.4%   1401
+  W d_l20                    LOW  |      34.2%  30.1  +4.1  +2.6  +5.6%  -12.1%    872 |   -1.1  -11.5%   1184
+  W d_m_meff                 HIGH |      41.3%  36.8  +4.5  +2.6  +5.9%  -13.2%    783 |   +6.3   +9.9%   1159
+  M gapm_D                   HIGH |      42.1%  38.5  +3.6  +2.5  +1.3%  -12.5%   1205 |   +9.1  +17.2%   1394
+  M d_m_perf                 HIGH |      39.2%  35.7  +3.5  +2.5  +3.2%  -11.7%   1212 |   +6.7  +16.1%   1346
+  W d_m_return_2nd_serve_points HIGH |      38.8%  35.1  +3.7  +2.2  +4.7%  -11.8%    784 |   +1.4   -2.6%   1252
+  W d_r2                     HIGH |      39.0%  35.6  +3.4  +2.0  +4.2%  -11.1%    841 |   -2.5  -13.2%   1206
+  M d_m_return_2nd_serve_points LOW  |      30.8%  33.5  -2.7  -2.0 -15.3%   -2.8%   1177 |   -2.9  -17.0%   1557
+  W d_c_bpconv               LOW  |      29.9%  33.2  -3.3  -2.1 -17.9%   -1.5%    783 |   -2.4  -14.2%   1567
+  M d_m_return_1st_serve_points LOW  |      30.7%  33.4  -2.8  -2.1 -17.6%   -2.9%   1177 |   -2.0  -14.1%   1496
+  W d_form_srv               HIGH |      31.1%  34.6  -3.5  -2.2 -19.7%   -1.7%    762 |   -7.3  -30.0%    965
+  W d_lrank                  HIGH |      22.1%  25.1  -2.9  -2.2 -23.6%   -2.8%    858 |   -2.1  -16.4%   1308
+  M d_m_second_serve_points  LOW  |      29.0%  31.8  -2.9  -2.2 -15.6%   -2.8%   1177 |   -2.2  -13.0%   1812
+  M d_c_bpcre_pg             LOW  |      31.0%  34.1  -3.1  -2.3 -16.3%   -2.3%   1177 |   -1.8  -11.6%   1547
+  W d_m_return_2nd_serve_points LOW  |      27.7%  31.4  -3.7  -2.4 -22.2%   -1.3%    784 |   -4.6  -22.3%   1390
+  W d_m_meff                 LOW  |      25.5%  29.1  -3.6  -2.4 -22.8%   -1.7%    783 |   -6.4  -27.3%   1376
+  M d_c_rgw                  LOW  |      30.5%  33.7  -3.2  -2.4 -16.6%   -2.0%   1177 |   -2.5  -15.9%   1442
+  M d_m_dr                   LOW  |      28.4%  31.5  -3.1  -2.4 -16.8%   -2.3%   1177 |   -3.3  -17.1%   1657
+  M d_m_meff                 LOW  |      28.0%  31.1  -3.2  -2.5 -16.5%   -2.0%   1177 |   -4.2  -19.3%   1722
+  M d_c_bpsav                LOW  |      29.4%  32.8  -3.4  -2.7 -18.7%   -2.0%   1175 |   -0.2   -8.1%   1568
+  W d_c_rgw                  LOW  |      28.4%  32.6  -4.3  -2.7 -21.6%   -0.2%    783 |   -4.6  -20.3%   1355
+  M d_c_sp                   LOW  |      28.2%  32.4  -4.2  -2.8 -20.2%   -0.5%    841 |   -1.9  -13.8%   1536
+  W d_c_sp                   LOW  |      24.7%  29.5  -4.8  -2.8 -25.9%   -0.0%    595 |   -4.6  -22.5%   1018
+  M d_form_win               HIGH |      32.2%  36.1  -3.9  -3.0 -14.6%   -0.6%   1202 |   -4.6  -18.4%   1518
+  W d_c_rp                   LOW  |      27.2%  32.5  -5.3  -3.0 -24.8%   +1.2%    595 |   -2.7  -15.0%   1070
+  M d_sn_vol                 HIGH |      32.9%  37.2  -4.2  -3.1 -19.9%   -0.7%   1108 |   -0.1   -9.4%   1538
+  M d_m_won                  LOW  |      27.7%  31.5  -3.9  -3.1 -17.5%   -0.7%   1215 |   -3.8  -19.9%   1641
+  W d_c_bpcre_pg             LOW  |      27.1%  31.9  -4.9  -3.1 -23.0%   +0.8%    783 |   -3.8  -18.9%   1418
+  M d_form_srv               HIGH |      31.4%  35.9  -4.5  -3.4 -17.3%   +0.3%   1153 |   -0.8   -8.1%   1372
+  M d_c_bpdef_pg             HIGH |      27.9%  32.2  -4.3  -3.4 -19.9%   -0.6%   1177 |   -1.4  -10.5%   1817
+  M d_c_sgw                  LOW  |      26.8%  31.4  -4.6  -3.7 -21.2%   -0.1%   1177 |   -2.4  -14.5%   1779
+  M d_m_perf                 LOW  |      30.0%  34.8  -4.9  -3.8 -20.7%   +0.5%   1212 |   -4.5  -19.6%   1416
+  W d_m_perf                 LOW  |      26.3%  33.5  -7.2  -4.8 -24.5%   +4.9%    858 |   -8.9  -35.1%    990
+  M gap_C                    LOW  |      31.6%  37.9  -6.3  -4.8 -24.0%   +2.5%   1215 |   -6.8  -24.2%   1694
+  M gapm_D                   LOW  |      29.5%  35.8  -6.2  -4.9 -25.0%   +2.3%   1205 |   -5.5  -20.0%   1575
+  W gapm_D                   LOW  |      27.6%  35.0  -7.4  -4.9 -27.5%   +4.6%    851 |  -10.0  -34.9%   1086
+  W d_m_won                  LOW  |      22.0%  29.5  -7.5  -5.4 -32.3%   +4.4%    858 |   -6.2  -29.4%   1039
+  W d_form_win               HIGH |      25.8%  33.7  -7.9  -5.5 -34.6%   +4.6%    850 |   -7.5  -30.0%   1014
+  M d_vs_band                LOW  |      21.9%  29.1  -7.2  -6.0 -29.2%   +3.8%   1145 |   -5.7  -25.3%   1480
+  W gap_C                    LOW  |      28.7%  38.0  -9.4  -6.2 -32.3%   +7.7%    858 |  -10.4  -35.8%   1250
+  M gapm_C                   LOW  |      27.0%  36.2  -9.3  -7.4 -33.0%   +6.9%   1215 |   -7.0  -24.7%   1671
+  W gapm_C                   LOW  |      23.8%  35.6 -11.8  -8.3 -40.6%  +11.0%    858 |  -11.5  -40.5%   1264
+  W d_vs_band                LOW  |      15.1%  26.4 -11.3  -9.3 -55.8%   +8.3%    800 |   -9.8  -46.5%   1102
+
+  ...of those, SAME DIRECTION in 2025 (>=1pt):
+  G stat (dog minus fav)     end  | 2026 dogwin  mkt  beat     z  dogROI  favROI     n | 2025 beat dogROI     n
+  W d_vs_band                HIGH |      48.3%  39.0  +9.3  +5.3 +18.8%  -20.6%    795 |  +13.7  +31.7%   1017
+  W gapm_C                   HIGH |      44.3%  35.6  +8.7  +5.3 +17.0%  -19.7%    858 |  +11.6  +27.4%   1171
+  W gap_C                    HIGH |      40.0%  31.8  +8.2  +5.1 +19.6%  -18.5%    858 |  +10.8  +26.6%   1103
+  W d_m_perf                 HIGH |      40.4%  33.8  +6.7  +4.1  +8.7%  -16.6%    858 |   +7.1  +12.2%   1122
+  W gapm_D                   HIGH |      43.7%  37.0  +6.7  +4.0  +9.7%  -17.0%    851 |   +9.7  +20.6%   1187
+  W d_form_win               LOW  |      38.9%  32.8  +6.1  +3.8 +10.9%  -15.8%    850 |   +5.9  +10.3%   1141
+  M gapm_C                   HIGH |      41.9%  37.0  +4.9  +3.6  +6.3%  -14.1%   1215 |  +11.4  +26.2%   1459
+  W d_m_won                  HIGH |      42.0%  36.6  +5.4  +3.3  +4.6%  -15.3%    858 |   +8.1  +14.8%   1053
+  M d_vs_band                HIGH |      44.9%  40.4  +4.5  +3.1  +5.2%  -13.7%   1138 |   +8.9  +16.8%   1297
+  M gap_C                    HIGH |      38.3%  34.1  +4.2  +3.0  +6.7%  -12.5%   1215 |  +10.1  +22.4%   1401
+  W d_m_meff                 HIGH |      41.3%  36.8  +4.5  +2.6  +5.9%  -13.2%    783 |   +6.3   +9.9%   1159
+  M gapm_D                   HIGH |      42.1%  38.5  +3.6  +2.5  +1.3%  -12.5%   1205 |   +9.1  +17.2%   1394
+  M d_m_perf                 HIGH |      39.2%  35.7  +3.5  +2.5  +3.2%  -11.7%   1212 |   +6.7  +16.1%   1346
+  W d_m_return_2nd_serve_points HIGH |      38.8%  35.1  +3.7  +2.2  +4.7%  -11.8%    784 |   +1.4   -2.6%   1252
+  M d_m_return_2nd_serve_points LOW  |      30.8%  33.5  -2.7  -2.0 -15.3%   -2.8%   1177 |   -2.9  -17.0%   1557
+  W d_c_bpconv               LOW  |      29.9%  33.2  -3.3  -2.1 -17.9%   -1.5%    783 |   -2.4  -14.2%   1567
+  M d_m_return_1st_serve_points LOW  |      30.7%  33.4  -2.8  -2.1 -17.6%   -2.9%   1177 |   -2.0  -14.1%   1496
+  W d_form_srv               HIGH |      31.1%  34.6  -3.5  -2.2 -19.7%   -1.7%    762 |   -7.3  -30.0%    965
+  W d_lrank                  HIGH |      22.1%  25.1  -2.9  -2.2 -23.6%   -2.8%    858 |   -2.1  -16.4%   1308
+  M d_m_second_serve_points  LOW  |      29.0%  31.8  -2.9  -2.2 -15.6%   -2.8%   1177 |   -2.2  -13.0%   1812
+  M d_c_bpcre_pg             LOW  |      31.0%  34.1  -3.1  -2.3 -16.3%   -2.3%   1177 |   -1.8  -11.6%   1547
+  W d_m_return_2nd_serve_points LOW  |      27.7%  31.4  -3.7  -2.4 -22.2%   -1.3%    784 |   -4.6  -22.3%   1390
+  W d_m_meff                 LOW  |      25.5%  29.1  -3.6  -2.4 -22.8%   -1.7%    783 |   -6.4  -27.3%   1376
+  M d_c_rgw                  LOW  |      30.5%  33.7  -3.2  -2.4 -16.6%   -2.0%   1177 |   -2.5  -15.9%   1442
+  M d_m_dr                   LOW  |      28.4%  31.5  -3.1  -2.4 -16.8%   -2.3%   1177 |   -3.3  -17.1%   1657
+  M d_m_meff                 LOW  |      28.0%  31.1  -3.2  -2.5 -16.5%   -2.0%   1177 |   -4.2  -19.3%   1722
+  W d_c_rgw                  LOW  |      28.4%  32.6  -4.3  -2.7 -21.6%   -0.2%    783 |   -4.6  -20.3%   1355
+  M d_c_sp                   LOW  |      28.2%  32.4  -4.2  -2.8 -20.2%   -0.5%    841 |   -1.9  -13.8%   1536
+  W d_c_sp                   LOW  |      24.7%  29.5  -4.8  -2.8 -25.9%   -0.0%    595 |   -4.6  -22.5%   1018
+  M d_form_win               HIGH |      32.2%  36.1  -3.9  -3.0 -14.6%   -0.6%   1202 |   -4.6  -18.4%   1518
+  W d_c_rp                   LOW  |      27.2%  32.5  -5.3  -3.0 -24.8%   +1.2%    595 |   -2.7  -15.0%   1070
+  M d_m_won                  LOW  |      27.7%  31.5  -3.9  -3.1 -17.5%   -0.7%   1215 |   -3.8  -19.9%   1641
+  W d_c_bpcre_pg             LOW  |      27.1%  31.9  -4.9  -3.1 -23.0%   +0.8%    783 |   -3.8  -18.9%   1418
+  M d_c_bpdef_pg             HIGH |      27.9%  32.2  -4.3  -3.4 -19.9%   -0.6%   1177 |   -1.4  -10.5%   1817
+  M d_c_sgw                  LOW  |      26.8%  31.4  -4.6  -3.7 -21.2%   -0.1%   1177 |   -2.4  -14.5%   1779
+  M d_m_perf                 LOW  |      30.0%  34.8  -4.9  -3.8 -20.7%   +0.5%   1212 |   -4.5  -19.6%   1416
+  W d_m_perf                 LOW  |      26.3%  33.5  -7.2  -4.8 -24.5%   +4.9%    858 |   -8.9  -35.1%    990
+  M gap_C                    LOW  |      31.6%  37.9  -6.3  -4.8 -24.0%   +2.5%   1215 |   -6.8  -24.2%   1694
+  M gapm_D                   LOW  |      29.5%  35.8  -6.2  -4.9 -25.0%   +2.3%   1205 |   -5.5  -20.0%   1575
+  W gapm_D                   LOW  |      27.6%  35.0  -7.4  -4.9 -27.5%   +4.6%    851 |  -10.0  -34.9%   1086
+  W d_m_won                  LOW  |      22.0%  29.5  -7.5  -5.4 -32.3%   +4.4%    858 |   -6.2  -29.4%   1039
+  W d_form_win               HIGH |      25.8%  33.7  -7.9  -5.5 -34.6%   +4.6%    850 |   -7.5  -30.0%   1014
+  M d_vs_band                LOW  |      21.9%  29.1  -7.2  -6.0 -29.2%   +3.8%   1145 |   -5.7  -25.3%   1480
+  W gap_C                    LOW  |      28.7%  38.0  -9.4  -6.2 -32.3%   +7.7%    858 |  -10.4  -35.8%   1250
+  M gapm_C                   LOW  |      27.0%  36.2  -9.3  -7.4 -33.0%   +6.9%   1215 |   -7.0  -24.7%   1671
+  W gapm_C                   LOW  |      23.8%  35.6 -11.8  -8.3 -40.6%  +11.0%    858 |  -11.5  -40.5%   1264
+  W d_vs_band                LOW  |      15.1%  26.4 -11.3  -9.3 -55.8%   +8.3%    800 |   -9.8  -46.5%   1102
+
+  tests run: 324 | expected |z|>=2 by luck alone: ~15 | found: 52 | replicated in 2025: 47
+
+==============================================================================================================
+CONTEXT (dog side, 2026 vs 2025)
+  MEN by band
+    <+120        dog wins 46.7% vs mkt 46.0 beat  +0.7 dogROI  -5.5% favROI  -7.9% n= 1656 | 2025 beat  -0.3 dogROI  -7.3% n=2120
+    +120-150     dog wins 38.8% vs mkt 40.1 beat  -1.2 dogROI  -9.6% favROI  -4.8% n= 1264 | 2025 beat  +0.4 dogROI  -5.6% n=1625
+    +150-200     dog wins 34.0% vs mkt 34.3 beat  -0.4 dogROI  -7.5% favROI  -6.2% n= 1266 | 2025 beat  -0.4 dogROI  -7.8% n=1634
+    +200-250     dog wins 26.5% vs mkt 29.0 beat  -2.5 dogROI -14.5% favROI  -3.3% n=  709 | 2025 beat  +0.2 dogROI  -5.8% n=933
+    +250-350     dog wins 19.9% vs mkt 23.8 beat  -3.9 dogROI -21.8% favROI  -1.7% n=  623 | 2025 beat  -0.0 dogROI  -6.4% n=896
+    +350-500     dog wins 19.2% vs mkt 18.5 beat  +0.7 dogROI  -2.8% favROI  -7.2% n=  339 | 2025 beat  -0.2 dogROI  -7.9% n=443
+    +500+        dog wins 11.1% vs mkt 11.8 beat  -0.7 dogROI  -7.7% favROI  -4.2% n=  216 | 2025 beat  +1.2 dogROI  -0.6% n=308
+  WOMEN by band
+    <+120        dog wins 44.8% vs mkt 46.1 beat  -1.4 dogROI  -9.7% favROI  -4.4% n= 1083 | 2025 beat  -0.4 dogROI  -7.7% n=1513
+    +120-150     dog wins 38.4% vs mkt 40.0 beat  -1.6 dogROI -10.5% favROI  -4.3% n=  769 | 2025 beat  +0.4 dogROI  -5.7% n=1029
+    +150-200     dog wins 37.5% vs mkt 34.2 beat  +3.3 dogROI  +2.6% favROI -11.3% n=  818 | 2025 beat  -1.8 dogROI -11.7% n=1139
+    +200-250     dog wins 31.1% vs mkt 28.9 beat  +2.2 dogROI  +0.6% favROI  -9.6% n=  479 | 2025 beat  -1.1 dogROI -10.2% n=702
+    +250-350     dog wins 23.2% vs mkt 23.8 beat  -0.6 dogROI  -9.9% favROI  -5.9% n=  531 | 2025 beat  -1.4 dogROI -12.6% n=834
+    +350-500     dog wins 13.3% vs mkt 18.2 beat  -4.8 dogROI -31.3% favROI  -1.0% n=  300 | 2025 beat  -4.4 dogROI -27.9% n=488
+    +500+        dog wins  8.4% vs mkt 11.9 beat  -3.5 dogROI -34.9% favROI  -2.3% n=  309 | 2025 beat  -1.7 dogROI -19.6% n=342
+  MEN by level
+    challenger   dog wins 33.2% vs mkt 35.6 beat  -2.4 dogROI -13.4% favROI  -3.3% n= 3285 | 2025 beat  +0.2 dogROI  -6.4% n=3841
+    itf          dog wins 39.0% vs mkt 35.7 beat  +3.2 dogROI  +1.0% favROI -12.3% n= 1381 | 2025 beat  -0.5 dogROI  -7.6% n=2373
+    slam         dog wins 28.5% vs mkt 32.7 beat  -4.2 dogROI -16.7% favROI  +1.0% n=  375 | 2025 beat  +1.2 dogROI  -1.3% n=398
+    tour         dog wins 35.0% vs mkt 35.0 beat  -0.0 dogROI  -6.9% favROI  -5.8% n=  974 | 2025 beat  -0.2 dogROI  -6.6% n=1284
+  WOMEN by level
+    challenger   dog wins 32.0% vs mkt 33.3 beat  -1.3 dogROI  -8.7% favROI  -4.0% n=  696 | 2025 beat  +0.6 dogROI  -4.0% n=844
+    itf          dog wins 34.8% vs mkt 33.9 beat  +0.8 dogROI  -6.5% favROI  -8.5% n= 2487 | 2025 beat  -2.2 dogROI -15.0% n=3687
+    slam         dog wins 27.0% vs mkt 31.9 beat  -4.9 dogROI -24.7% favROI  +1.3% n=  278 | 2025 beat  -0.3 dogROI  -7.2% n=352
+    tour         dog wins 31.7% vs mkt 33.9 beat  -2.2 dogROI -16.0% favROI  -2.8% n=  804 | 2025 beat  +0.9 dogROI  -6.5% n=1145
+  MEN by surf
+    Clay         dog wins 34.5% vs mkt 35.4 beat  -0.9 dogROI  -8.9% favROI  -5.4% n= 2886 | 2025 beat  +0.8 dogROI  -4.3% n=3574
+    Grass        dog wins 35.2% vs mkt 35.7 beat  -0.5 dogROI  -9.4% favROI  -5.1% n=  233 | 2025 beat  -2.6 dogROI  -6.4% n=240
+    Hard         dog wins 34.5% vs mkt 35.2 beat  -0.8 dogROI  -9.9% favROI  -5.7% n= 2951 | 2025 beat  -0.6 dogROI  -8.6% n=4138
+  WOMEN by surf
+    Clay         dog wins 33.7% vs mkt 33.7 beat  -0.1 dogROI  -9.0% favROI  -6.6% n= 1895 | 2025 beat  -1.4 dogROI -13.6% n=2592
+    Grass        dog wins 31.1% vs mkt 34.2 beat  -3.1 dogROI -19.6% favROI  -1.5% n=  119 | 2025 beat  -0.8 dogROI  -5.2% n=154
+    Hard         dog wins 33.0% vs mkt 33.5 beat  -0.6 dogROI  -9.8% favROI  -5.9% n= 2271 | 2025 beat  -0.9 dogROI  -9.9% n=3299
+  MEN by rnd
+    early        dog wins 34.0% vs mkt 35.1 beat  -1.1 dogROI -10.0% favROI  -5.0% n= 5351 | 2025 beat  +0.0 dogROI  -6.5% n=6942
+    semi         dog wins 38.4% vs mkt 36.6 beat  +1.8 dogROI  -3.8% favROI  -9.8% n=  443 | 2025 beat  -0.4 dogROI  -8.3% n=626
+    final        dog wins 37.6% vs mkt 36.7 beat  +0.9 dogROI  -7.9% favROI  -9.1% n=  279 | 2025 beat  +0.2 dogROI  -4.8% n=391
+  WOMEN by rnd
+    early        dog wins 32.9% vs mkt 33.3 beat  -0.4 dogROI -10.1% favROI  -6.2% n= 3814 | 2025 beat  -0.8 dogROI -10.3% n=5281
+    semi         dog wins 34.5% vs mkt 36.6 beat  -2.1 dogROI  -9.5% favROI  -2.9% n=  307 | 2025 beat  -1.3 dogROI -13.4% n=477
+    final        dog wins 39.3% vs mkt 36.9 beat  +2.3 dogROI  -0.7% favROI  -9.9% n=  168 | 2025 beat  -6.8 dogROI -27.8% n=289
+  MEN by month
+    1            dog wins 32.9% vs mkt 35.7 beat  -2.8 dogROI -17.7% favROI  -2.9% n=  638 | 2025 beat  -4.1 dogROI -15.5% n=542
+    2            dog wins 31.4% vs mkt 34.4 beat  -3.0 dogROI -15.1% favROI  -2.1% n=  691 | 2025 beat  -0.5 dogROI  -8.2% n=677
+    3            dog wins 33.7% vs mkt 34.4 beat  -0.7 dogROI  -6.8% favROI  -5.4% n=  760 | 2025 beat  +1.0 dogROI  -5.8% n=703
+    4            dog wins 34.8% vs mkt 35.5 beat  -0.7 dogROI -10.8% favROI  -6.6% n=  792 | 2025 beat  +1.2 dogROI  -1.9% n=739
+    5            dog wins 37.1% vs mkt 35.4 beat  +1.7 dogROI  -3.9% favROI  -9.4% n=  699 | 2025 beat  +1.9 dogROI  -0.6% n=758
+    6            dog wins 36.3% vs mkt 36.2 beat  +0.1 dogROI  -7.8% favROI  -6.7% n=  647 | 2025 beat  -0.4 dogROI  -6.9% n=727
+    7            dog wins 36.8% vs mkt 35.2 beat  +1.6 dogROI  -2.1% favROI  -8.9% n=  714 | 2025 beat  +0.3 dogROI  -5.7% n=786
+    8            dog wins 34.9% vs mkt 36.2 beat  -1.3 dogROI  -9.4% favROI  -4.7% n=  621 | 2025 beat  -0.3 dogROI -10.0% n=780
+    9            dog wins 31.9% vs mkt 34.7 beat  -2.8 dogROI -12.2% favROI  -2.3% n=  489 | 2025 beat  -1.6 dogROI -12.7% n=793
+  WOMEN by month
+    1            dog wins 33.0% vs mkt 34.4 beat  -1.4 dogROI -14.3% favROI  -5.0% n=  418 | 2025 beat  -1.3 dogROI  -7.7% n=391
+    2            dog wins 30.2% vs mkt 32.8 beat  -2.6 dogROI -15.6% favROI  -2.4% n=  560 | 2025 beat  +2.7 dogROI  -2.4% n=399
+    3            dog wins 32.0% vs mkt 34.4 beat  -2.5 dogROI -18.6% favROI  -3.2% n=  460 | 2025 beat  -0.9 dogROI -11.4% n=518
+    4            dog wins 30.9% vs mkt 32.7 beat  -1.8 dogROI -15.2% favROI  -4.6% n=  586 | 2025 beat  +2.6 dogROI  -3.0% n=535
+    5            dog wins 36.4% vs mkt 33.6 beat  +2.8 dogROI  -2.0% favROI -10.9% n=  610 | 2025 beat  -3.5 dogROI -21.4% n=598
+    6            dog wins 35.4% vs mkt 34.7 beat  +0.7 dogROI  -0.9% favROI  -6.8% n=  475 | 2025 beat  +0.1 dogROI  -5.4% n=499
+    7            dog wins 31.6% vs mkt 33.2 beat  -1.6 dogROI -14.8% favROI  -4.7% n=  541 | 2025 beat  -1.5 dogROI -10.2% n=679
+    8            dog wins 36.7% vs mkt 34.3 beat  +2.4 dogROI  +0.6% favROI -10.1% n=  362 | 2025 beat  -2.1 dogROI -13.7% n=577
+    9            dog wins 34.7% vs mkt 33.2 beat  +1.5 dogROI  +0.6% favROI  -8.2% n=  268 | 2025 beat  -3.3 dogROI -15.2% n=590
