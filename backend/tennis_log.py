@@ -563,7 +563,7 @@ def _p_signals(r, mk1):
         out.append({"label": f"{pre}Ⓟ DOG", "side": hp["dog"], "hit": bool((hp["dog"] == 1) == p1won),
                     "recon": hp["recon"]})
     if hp.get("close"):
-        out.append({"label": f"{pre}Ⓟ CLOSE", "side": hp["fav"], "hit": bool((hp["fav"] == 1) == p1won),
+        out.append({"label": f"{pre}Ⓟ CLOSE T{hp.get('close_tier', 1)}", "side": hp["fav"], "hit": bool((hp["fav"] == 1) == p1won),
                     "recon": hp["recon"]})
     elif hp["fav_bet"]:
         out.append({"label": f"{pre}Ⓟ FAV⚠", "side": hp["fav"], "hit": bool((hp["fav"] == 1) == p1won),
@@ -1150,7 +1150,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close", "p_close_t1", "p_close_t2", "p_close_t3",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1874,8 +1874,10 @@ def get_ab25_record() -> dict:
                 _fdc = d2 if _ps9 else d1
                 if _pp9 is not None and pd.notna(_pp9) and (1 + 100 / 150) <= _fdc <= 2.0:
                     _mf9 = (1 - mk1) if _ps9 else mk1
-                    if (1 - float(_pp9)) - _mf9 >= 0.03:
+                    _ce9 = (1 - float(_pp9)) - _mf9
+                    if _ce9 >= 0.03:
                         bet("p_close", not _ps9)
+                        bet("p_close_t3" if _ce9 >= 0.15 else ("p_close_t2" if _ce9 >= 0.10 else "p_close_t1"), not _ps9)
                 # P FAVOURITE (2026-10-09, user call): fav -100..-200, P fav EV >= 3%.
                 _pf9 = r.get("model_p_fev")
                 _fd9 = d2 if _ps9 else d1

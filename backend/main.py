@@ -2241,7 +2241,8 @@ def tennis_model_p_record():
         "rules": {"dog": "men dog +100..+200 / women dog +100..+250, P EV >= 5%", "fav": "fav -100..-200 (dog in P's band), P fav EV >= 3%", "close": "fav -100..-150, P reads it >= 3pt above the market"}}
     try:
         st = (tennis_log.get_ab25_record().get("study") or {})
-        out["lanes"] = {k: st.get(k) for k in ("p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close")}
+        out["lanes"] = {k: st.get(k) for k in ("p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close",
+                                               "p_close_t1", "p_close_t2", "p_close_t3")}
     except Exception:  # noqa: BLE001
         out["lanes"] = {}
     rows = []
@@ -2270,7 +2271,8 @@ def tennis_model_p_record():
                 _mf = None if _mk1 is None else ((1 - _mk1) if dog == 1 else _mk1)
                 if (_pp is not None and pd.notna(_pp) and _mf is not None and pd.notna(fo)
                         and -150 <= float(fo) <= -100 and (1 - float(_pp)) - _mf >= _tmp.CLOSE_EDGE):
-                    rows.append({**base, "side": "close", "pick": r["player_2"] if dog == 1 else r["player_1"],
+                    _ce = (1 - float(_pp)) - _mf
+                    rows.append({**base, "side": "close", "tier": _tmp.close_tier(_ce), "pick": r["player_2"] if dog == 1 else r["player_1"],
                                  "odds": int(fo), "p": round(1 - float(_pp), 4), "ev": round((1 - float(_pp)) - _mf, 4),
                                  "won": (None if won1 is None else bool(won1 == (dog != 1)))})
                 elif fev is not None and pd.notna(fev) and float(fev) >= _tmp.EV_FAV and pd.notna(fo) and -200 <= float(fo) <= -100:

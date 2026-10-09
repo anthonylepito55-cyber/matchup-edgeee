@@ -54,6 +54,14 @@ BAND = {"M": 3.0, "W": 3.5}
 CLOSE_EDGE = 0.03
 
 
+# CLOSE TIERS (2026-10-09, user "yes" to splitting by edge). Disjoint, out-of-sample
+# 2024-26 (_close_tiers.out): T1 3-10pt  M 59.7% hit +2.2% (580) | W 63.8% +9.6% (257)
+#                             T2 10-15pt M 62.5% +7.5% (168)    | W 62.2% +7.1% (143)
+#                             T3 15pt+   M 80.2% +37.6% (121)   | W 77.5% +32.9% (187)
+def close_tier(edge):
+    return 3 if edge >= 0.15 else (2 if edge >= 0.10 else 1)
+
+
 def _close(p_fav, mkt_fav, fod):
     return bool(fod is not None and (1 + 100 / 150) <= fod <= 2.0
                 and (p_fav - mkt_fav) >= CLOSE_EDGE)
@@ -163,7 +171,8 @@ def predict_p(mc, md, market_p1, league, p1_odds, p2_odds):
             "ev": round(float(ev), 4), "bet": bool(ev >= art.get("ev_bet", EV_BET)), "g": G,
             "fav": 2 if dog1 else 1, "p_fav": round(float(1 - p), 4),
             "fav_ev": (round(float(fev), 4) if fev is not None else None), "fav_bet": fav_bet,
-            "close": _close(1 - p, 1 - mk, fod), "close_edge": round(float((1 - p) - (1 - mk)), 4)}
+            "close": _close(1 - p, 1 - mk, fod), "close_edge": round(float((1 - p) - (1 - mk)), 4),
+            "close_tier": close_tier(float((1 - p) - (1 - mk)))}
 
 
 # ---------------------------------------------------------------------------------------
@@ -251,4 +260,5 @@ def history_p(r, mk1):
             "ev": round(ev, 4), "bet": bool(ev >= EV_BET), "g": G,
             "fav": 2 if dog1 else 1, "fav_ev": (round(fev, 4) if fev is not None else None),
             "fav_bet": bool(fev is not None and 1.5 <= fo <= 2.0 and fev >= EV_FAV), "recon": recon,
-            "close": _close(1 - p, 1 - mk, fo), "close_edge": round(1 - p - (1 - mk), 4)}
+            "close": _close(1 - p, 1 - mk, fo), "close_edge": round(1 - p - (1 - mk), 4),
+            "close_tier": close_tier(1 - p - (1 - mk))}
