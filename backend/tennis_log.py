@@ -1042,7 +1042,8 @@ def get_ab25_record() -> dict:
               # the replay tour surfaced (orange band fav, 3-5pt banded dog, c75 dog
               # countersigned 5pt+); and the 🪤 bait-favorite dog (all-sim discount).
               "fav_value", "mc2e58_fav", "mc2e35_dog_band", "c75_mc2e5_dog", "bait_dog",
-              "bait_dog_prime", "bait_dog_rest", "cgf_shallow_fav", "ce5_deep_fav")}
+              "bait_dog_prime", "bait_dog_rest", "cgf_shallow_fav", "ce5_deep_fav",
+              "fadegold_pocket_w")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -1335,6 +1336,21 @@ def get_ab25_record() -> dict:
                 if (_ce_cf - _ce_mf >= 0.05 and pd.notna(_ce_o)
                         and -200 <= float(_ce_o) <= -150):
                     bet("ce5_deep_fav", _ce_fav1)
+            # 💜 FADE-GOLD POCKET W (2026-10-08, user "highlight it the same color as the
+            # other favorites"): women only — gray hates the dog >=2pts (FADE-GOLD fires)
+            # AND the favorite is -200..-300. The band-split tiebreaker showed the
+            # women's all-price -11.5% live record is shallow bands + deep chalk
+            # bleeding around a healthy pocket: live -200..-300 = 23-8 ~+4.5%,
+            # bt26 -200..-250 +16.9% (54-13) — live and backtest CONVERGE here.
+            if pd.notna(r.get("model_cma_p1")):
+                _fg_wom = "wta" in str(r.get("league") or "") or "itf_women" in str(r.get("league") or "")
+                if _fg_wom:
+                    _fg_mdog = mk1 if dog1 else 1 - mk1
+                    _fg_gdog = float(r.get("model_cma_p1")) if dog1 else 1 - float(r.get("model_cma_p1"))
+                    _fg_o = r.get("p1_odds") if not dog1 else r.get("p2_odds")
+                    if (_fg_mdog - _fg_gdog >= 0.02 and pd.notna(_fg_o)
+                            and -300 <= float(_fg_o) <= -200):
+                        bet("fadegold_pocket_w", not dog1)
             # 💪 FAV-VALUE (2026-10-08, user "make a model that's precise with favorites"):
             # the measured fatigue-residual favorite. Archive 2024-26: ALL favorites
             # −5.2%, heavy-load favorites −0.9% (banded −0.1% vs −5.1%) — the market

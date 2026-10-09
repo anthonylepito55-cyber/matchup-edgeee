@@ -2033,6 +2033,21 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const isW = match.league === 'wta' || match.league === 'itf_women'
     return { name: fav1 ? match.player_1 : match.player_2, od, isW, edge: Math.round(100 * (cf - mf)) }
   })()
+  // 💜 FADE-GOLD POCKET W (2026-10-08, user order): women's FADE-GOLD (gray hates
+  // the dog >=2pts) with the favorite at -200..-300 — the band where backtest AND
+  // live converge (bt26 +16.9% at -200..-250, 54-13; live pocket 23-8 ~+4.5%),
+  // while the shallow slices (-100..-200) run -20..-30% live and deep chalk -11%.
+  const purpleFGW = (() => {
+    if (!mc3 || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
+    if (!(match.league === 'wta' || match.league === 'itf_women')) return null
+    const dog1 = mc3.market_p1 < 0.5
+    const mdog = dog1 ? mc3.market_p1 : 1 - mc3.market_p1
+    const gdog = dog1 ? mc3.market_aware_p1 : 1 - mc3.market_aware_p1
+    if (mdog - gdog < 0.02) return null
+    const od = match.live_odds ? Number(dog1 ? match.live_odds.player_2 : match.live_odds.player_1) : null
+    if (od == null || isNaN(od) || od < -300 || od > -200) return null
+    return { name: dog1 ? match.player_2 : match.player_1, od, hate: Math.round(100 * (mdog - gdog)) }
+  })()
   const tier1Blue = (() => {
     if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
     const c1 = mc3.p1_prob >= 0.5
@@ -2102,10 +2117,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : (purpleCGF || purpleCE5) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : (purpleCGF || purpleCE5) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : (purpleCGF || purpleCE5) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : (purpleCGF || purpleCE5) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : (purpleCGF || purpleCE5 || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : (purpleCGF || purpleCE5 || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : (purpleCGF || purpleCE5 || purpleFGW) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {!baitGreen && purpleCGF ? (
@@ -2132,7 +2147,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
-      {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 ? (
+      {!baitGreen && !purpleCGF && !purpleCE5 && purpleFGW ? (
+        <div className="mono" title={`💜 FADE-GOLD POCKET (women, your mark 2026-10-08): the gray line prices this market dog ${purpleFGW.hate} points BELOW her market number (gray HATES the dog), and the favorite sits in the -200..-300 pocket — the one price band where the backtest AND the live log agree this favorite earns. Backtest 2026 (-200..-250): +16.9%, 54-13 (80.6% win); 3-year +13.4% (n=233). Live pocket: 23-8, ~+4.5%. OUT of this band the same signal LOSES live (-20% at -100/-150, -30% at -150/-200, -11% past -300) — the band IS the mark. The LANE number is the live record of this exact banded cell (fadegold_pocket_w), auto-updating.`}
+          style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
+          💜 FADE-GOLD POCKET W → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleFGW.name.split(' ').slice(-1)[0].toUpperCase()} {purpleFGW.od}</span> · gray hates dog {purpleFGW.hate}pt · bt26 +16.9% (54-13) · live pocket +4.5% (23-8)
+          {(() => {
+            const st = ((laneRec && laneRec.study) || {}).fadegold_pocket_w || {}
+            const c = st.w && st.w.n ? st.w : st
+            const n = c.n || 0
+            return <span style={{ color: '#e9dcff', fontWeight: 400 }}>{n ? ` · LANE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ' · LANE tracking'}</span>
+          })()}
+        </div>
+      ) : null}
+      {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 && !purpleFGW ? (
         <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. Backtest 2026: GRAY 4pt+ DOG M +11.1%/W +35.1% · STAR/TIER-1 M +12%/W +34.7% · C-ALONE+GRAY M +13.3%/W +44.4% · FADE-A DOG+GRAY M +19.8%/W +23.3% · C-EDGE5 FAV women +11.0% (held 3 straight years). Live: gray_dog4 +11.0% (58), tier1 +11.0%, priced-star-dog +14.5%, c-alone+gray +6.1%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
           🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.join(' + ')} · bt26 {tier1Blue.fav ? 'W fav +11.0%' : (tier1Blue.isW ? 'W +34..44%' : 'M +11..20%')} · live +6..15%
@@ -2158,12 +2185,36 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}{baitGreen.prime ? <span style={{ color: '#eaffea', background: 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, textShadow: '0 0 8px #3fb950' }} title={`⭐ PRIME tier: dog +100..+150 AND the full 6pt+ discount — the fattest measured slice of the green cell (replay +31.0%, 27-19, 58.7% win at near-even money${baitGreen.isW ? '; 🔥 = women’s match, 12-3 +83% in replay — but n=15, a priority hint, not its own cell' : ''}). Take PRIME greens first.`}>⭐ PRIME{baitGreen.isW ? ' 🔥' : ''}</span> : null}
         </div>
       ) : null}
-      {orange58 ? (
-        <div className="mono" title={`🟠 MC2 5-8pt DOG-EDGE GAME: the calibrated MC v2 prices the market underdog ${(100 * mc2DogEdge).toFixed(1)} points above the market — the band you flagged. Replay on the backfilled month: taking the FAVORITE here went 114-42 (+5.6%), but the 3-5pt and 8-12pt neighbors were negative, so treat it as a watch cell: the mc2e58_fav lane is scoring the favorite live on the Splits tab before this ever becomes a bet mark. (Backing this dog in the same band ran −14.9%.)`}
-          style={{ fontSize: 9, fontWeight: 800, color: '#f0883e', marginBottom: 6, letterSpacing: '0.04em' }}>
-          🟠 MC2 DOG-EDGE 5-8 ({(100 * mc2DogEdge).toFixed(1)}pt) · fav-side watch cell +5.6% replay · lane tracking live
-        </div>
-      ) : null}
+      {orange58 ? (() => {
+        // 🟠 WHO TO TAKE (2026-10-08, user "make the orange ones clear on who to take
+        // with live roi and backtested for each gender"): measured on the replay month,
+        // orange + dog +100..+200 splits by gender — MEN: take the FAVORITE (+10.0%,
+        // 37-15; blind c75-following is worse at +6.1%). WOMEN: take c75's SIDE
+        // (10-1, +73.4% — tiny n, ⚠; taking the fav blindly is −29.7%). Dog outside
+        // +100..+200: no play (fav over long dogs ran −3%, the dogs themselves −20%).
+        const lo9 = match.live_odds || {}
+        const d1 = mc3 && mc3.market_p1 != null ? mc3.market_p1 < 0.5 : null
+        const dOd = d1 == null ? null : Number(d1 ? lo9.player_1 : lo9.player_2)
+        const isW9 = match.league === 'wta' || match.league === 'itf_women'
+        const inBand = dOd != null && !isNaN(dOd) && dOd >= 100 && dOd <= 200
+        let pickP1 = null
+        if (inBand) {
+          if (!isW9) pickP1 = !d1
+          else if (mc3.mc_c75_p1 != null) pickP1 = mc3.mc_c75_p1 >= 0.5
+        }
+        const nm9 = pickP1 == null ? null : (pickP1 ? match.player_1 : match.player_2)
+        const od9 = pickP1 == null ? null : Number(pickP1 ? lo9.player_1 : lo9.player_2)
+        const st9 = ((laneRec && laneRec.study) || {}).mc2e58_fav || {}
+        const c9 = (isW9 ? st9.w : st9.m) || {}
+        const n9 = c9.n || 0
+        return (
+          <div className="mono" title={`🟠 MC2 5-8pt DOG-EDGE: MC v2 prices the market dog ${(100 * mc2DogEdge).toFixed(1)} points above the market. WHO TO TAKE (replay month, by gender): MEN — the FAVORITE (+10.0%, 37-15; the dog itself ran −34%). WOMEN — whichever side c75 holds (10-1, +73.4% — n=11, treat as a lead not a law; the favorite blindly ran −29.7%). Dog outside +100..+200 = NO PLAY (favorites over long dogs −3%, the dogs −20%). LIVE = the forward mc2e58_fav lane for this gender (favorite side), building from 2026-10-08.`}
+            style={{ fontSize: 9, fontWeight: 800, color: '#f0883e', marginBottom: 6, letterSpacing: '0.04em' }}>
+            🟠 MC2 DOG-EDGE 5-8 ({(100 * mc2DogEdge).toFixed(1)}pt) → {nm9 ? <span style={{ fontSize: 12, fontWeight: 900, color: '#fff3e8', textShadow: '0 0 10px #f0883e' }}>TAKE {nm9.split(' ').slice(-1)[0].toUpperCase()}{od9 != null && !isNaN(od9) ? ` ${od9 > 0 ? '+' : ''}${od9}` : ''}</span> : <span style={{ fontWeight: 700, color: 'var(--text-tertiary)' }}>NO PLAY (dog out of +100..+200)</span>}
+            {nm9 ? <span style={{ color: '#ffd9b8', fontWeight: 400 }}> · {isW9 ? 'W rule: c75\u2019s side · bt +73.4% (10-1) ⚠ n=11' : 'M rule: favorite · bt +10.0% (37-15)'}{n9 ? ` · LIVE ${isW9 ? 'W' : 'M'} ${c9.roi_pct > 0 ? '+' : ''}${Math.round(c9.roi_pct * 10) / 10}% (${c9.wins}-${n9 - c9.wins})` : ' · LIVE tracking'}</span> : null}
+          </div>
+        )
+      })() : null}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         {(() => {
           // TIER ribbon (2026-09-30, user ask): rank every pick by the validated hierarchy.
