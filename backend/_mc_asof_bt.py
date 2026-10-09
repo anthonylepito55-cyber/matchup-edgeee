@@ -139,7 +139,12 @@ for wk, g in cand.groupby("wk"):
             ok = ok or out[name] is not None
         if ok:
             rows.append(out)
-    print(f"  {wk.date()}  cum rows {len(rows)}", flush=True)
+    # CHECKPOINT EVERY BUCKET (2026-10-08): write the rows so far, so a run that is
+    # stopped early is still fully usable (the first version held everything in memory
+    # and lost 12,491 simulated matches when it was killed).
+    if rows:
+        pd.DataFrame(rows).to_parquet("data_cache/_mc_asof_bt_rows.parquet")
+    print(f"  {wk.date()}  cum rows {len(rows)} (checkpointed)", flush=True)
 
 D = pd.DataFrame(rows)
 D.to_parquet("data_cache/_mc_asof_bt_rows.parquet")

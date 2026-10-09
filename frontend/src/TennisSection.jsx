@@ -2053,6 +2053,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     if (od == null || isNaN(od) || od < -300 || od > -200) return null
     return { name: dog1 ? match.player_2 : match.player_1, od, hate: Math.round(100 * (mdog - gdog)) }
   })()
+  // ⚫ WOMEN c75 DOG (2026-10-08, user "mark every women c75 dog ... highlight it black").
+  // As-of backtest (production simulate_match on rebuilt historical profiles, 19,576
+  // matches scored): WOMEN, c75 on the market dog, dog >= +100 -> +8.8% ROI
+  // (710-952, n=1,662). It pays at EVERY price and improves as the price lengthens
+  // (+100/150 +4.2%, +150/200 +10.9%, +200/250 +10.8%, +250/400 +27.8%, +400+ +64.4%),
+  // but odds-on dogs (under +100) are NEGATIVE (-1.2%, n=307) -> hence the >= +100 gate.
+  // Live lane mc_c75_dog women: +16.7% (14-17). Men's equivalent is weaker (+6.5%).
+  const blackC75W = (() => {
+    if (!mc3 || mc3.mc_c75_p1 == null || mc3.market_p1 == null) return null
+    if (!(match.league === 'wta' || match.league === 'itf_women')) return null
+    const dog1 = mc3.market_p1 < 0.5
+    if ((mc3.mc_c75_p1 >= 0.5) !== dog1) return null
+    const od = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+    if (od == null || isNaN(od) || od < 100) return null
+    return { name: dog1 ? match.player_1 : match.player_2, od,
+             pct: Math.round(100 * (dog1 ? mc3.mc_c75_p1 : 1 - mc3.mc_c75_p1)) }
+  })()
   const tier1Blue = (() => {
     if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
     const c1 = mc3.p1_prob >= 0.5
@@ -2146,12 +2163,30 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : (purpleCGF || purpleCE5 || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : (purpleCGF || purpleCE5 || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : (purpleCGF || purpleCE5 || purpleFGW) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: blackC75W ? 'rgba(8,10,14,0.92)' : baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : (purpleCGF || purpleCE5 || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: blackC75W ? '2px solid #e8e8ea' : baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : (purpleCGF || purpleCE5 || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${blackC75W ? '#f0f0f2' : baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : (purpleCGF || purpleCE5 || purpleFGW) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : (purpleCGF || purpleCE5 || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
+      {blackC75W ? (
+        <div className="mono" title={`WOMEN c75 DOG - the single best-evidenced sim cell on the board. As-of backtest (production simulate_match replayed on rebuilt historical profiles, the FULL 20,871-match 2026 universe): women, c75 on the market underdog, dog priced +100 or longer = +8.1% ROI (748-1020, n=1,768). It pays at EVERY price and improves as the price lengthens: +100/+150 +3.1%, +150/+200 +8.0%, +200/+250 +12.3%, +250/+400 +19.4%, +400 and longer +67.1%. Odds-on dogs (under +100) are near-flat (+1.4%, n=411), so the mark starts at +100. Live lane mc_c75_dog women: +16.7% (14-17). Men's equivalent is weaker (+5.1%, n=2,308). c75 = the Monte Carlo anchored 75% to Model C; the anchor weight is what earns (serve-MC alone loses ~10%).`}
+          style={{ fontSize: 9, fontWeight: 800, color: '#f0f0f2', marginBottom: 6, letterSpacing: '0.05em', background: 'linear-gradient(90deg, rgba(255,255,255,0.10), transparent)', padding: '3px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.35)' }}>
+          {'⚫ WOMEN c75 DOG → '}
+          <span style={{ fontSize: 12, fontWeight: 900, color: '#ffffff', textShadow: '0 0 10px rgba(255,255,255,0.65)' }}>
+            {'TAKE '}{blackC75W.name.split(' ').slice(-1)[0].toUpperCase()}{' +'}{blackC75W.od}
+          </span>
+          {` · c75 ${blackC75W.pct}% · bt +8.1% (748-1020, n=1,768) · any price ≥+100 · longer = better`}
+          {(() => {
+            const st = ((laneRec && laneRec.study) || {}).mc_c75_dog || {}
+            const c = st.w || {}
+            const nn = c.n || 0
+            return <span style={{ color: '#d6d6da', fontWeight: 400 }}>
+              {nn ? ` · LIVE W ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})` : ' · LIVE W tracking'}
+            </span>
+          })()}
+        </div>
+      ) : null}
       {!baitGreen && purpleCGF ? (
         <div className="mono" title={`💜 C-ALONE+GOLD SHALLOW FAVORITE (your mark, 2026-10-08): Model C alone against A and B, the gray line confirms C, and C's side is a -100..-150 favorite. Walk-forward backtest at archive odds - MEN: -1.5% (2024) -> +10.9% (2025) -> +13.4% (2026, 122-67, n=189), improving three straight years. WOMEN: all-years +10.1% (169-103, n=272) but 2026 only +1.7% (46-34, n=80) — the women's half has faded to ~flat. HONESTY: the live all-price lane is men -9.1% (62 settles) / women +7.9% (13) - live has NOT yet confirmed the backtest; the banded cgf_shallow_fav lane now scores this exact mark forward and its record shows here as it settles.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
