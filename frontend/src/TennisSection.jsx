@@ -3067,8 +3067,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <span className="mono" style={{
           fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: surfaceColor,
           border: `1px solid ${surfaceColor}`, borderRadius: 4, padding: '2px 6px',
-        }} title={match.surface_estimated ? 'No exact tournament match in historical data — defaulted to the tour’s most common surface' : undefined}>
-          {match.surface.toUpperCase()}{match.surface_estimated ? '?' : ''}
+        }} title={match.surface_estimated ? `⚠ SURFACE UNVERIFIED — no schedule source confirmed this court (${match.surface_src || 'city history / default'}). Models used ${match.surface}; check before betting.` : `Surface verified: ${match.surface_src || 'schedule'}`}>
+          {match.surface.toUpperCase()}{match.surface_estimated ? ' ⚠ UNVERIFIED' : ' ✓'}
         </span>
         {fmtPT(match.start_time_utc) ? (
           <span className="mono" title={`Scheduled start, Pacific time. Cards are ordered by start time (live games on top).`}

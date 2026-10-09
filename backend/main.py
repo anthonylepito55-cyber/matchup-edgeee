@@ -1610,6 +1610,22 @@ _TENNIS_TODAY_TTL = 90          # serve-stale window so the tab can poll without
 _tennis_today_refreshing = set()
 
 
+def _te_surface(p1, p2, tournament, fallback, fallback_verified):
+    """VERIFIED SURFACE (2026-10-09, user: Stefanini shown on clay, it's hard -- "that is
+    just something we can't get wrong"). TennisExplorer's schedule (exact player pair ->
+    tournament page "(prize, SURFACE, gender)"), else the same-city event this week for
+    men's ITF futures. Returns (surface, verified, source). If TE can't confirm, keeps the
+    caller's fallback and its own verified flag (TennisRatio schedule = verified)."""
+    try:
+        import tennis_surface_check as _tsc
+        s, src = _tsc.resolve(p1, p2, tournament)
+        if s:
+            return s, True, src
+    except Exception:  # noqa: BLE001
+        pass
+    return fallback, bool(fallback_verified), ("TennisRatio schedule" if fallback_verified else "unverified (city history / default)")
+
+
 def _tennis_freeze_models(r, lr):
     """Overwrite a STARTED card's model outputs with the values frozen in the log at first
     serve (2026-10-06, user "can't have them changing mid match") so the pick, signals and
@@ -1820,6 +1836,23 @@ def _compute_tennis_today_inner(date: str = None):
     all_matches = get_tennis_today_matches(date)
 
     results = []
+    # SURFACE FROM TODAY'S SCHEDULE FIRST (2026-10-09, user "u put stefanini match on clay
+    # and it's a hardcourt match"): the tour path took the surface from the tournament
+    # CITY's most recent past event, and Samsun's earlier event was clay -- this week's is
+    # hard. TennisRatio's live schedule carries the real surface per pairing, so it now
+    # wins for every card; the city lookup is only a fallback.
+    _tr_surf_all = {}
+    try:
+        import tennisratio_ingest as _tri0
+        for _t0 in ("atp", "wta"):
+            for _mt0 in _tri0.fetch_today_matches(_t0):
+                _k0 = frozenset((tennis_context._norm_name(_mt0.get("player1_name")),
+                                 tennis_context._norm_name(_mt0.get("player2_name"))))
+                _s0 = (_mt0.get("surface") or "").title()
+                if _s0:
+                    _tr_surf_all[_k0] = _s0
+    except Exception:  # noqa: BLE001
+        _tr_surf_all = {}
     for league, history_fn in (("atp", get_atp_match_history), ("wta", get_wta_match_history)):
         league_matches = [m for m in all_matches if m["league"] == league]
         if not league_matches:
@@ -1840,10 +1873,16 @@ def _compute_tennis_today_inner(date: str = None):
             meta = lookup_tournament_metadata(m["tournament"], tournament_meta)
             surface = meta["surface"] if meta else "Hard"  # most common surface tour-wide; reasonable default
             surface_known = meta is not None
-            if not surface_known:
+            _ks = frozenset((tennis_context._norm_name(m["player_1"]), tennis_context._norm_name(m["player_2"])))
+            _tr_hit = _ks in _tr_surf_all
+            if _tr_hit:
+                surface, surface_known = _tr_surf_all[_ks], True
+            elif not surface_known:
                 _ts = tennis_context.get_tournament_surface(m.get("tournament"))
                 if _ts:
                     surface, surface_known = _ts, True
+            surface, _surf_ok, _surf_src = _te_surface(m["player_1"], m["player_2"], m.get("tournament"),
+                                                       surface, _tr_hit)
             best_of_5 = bool(meta and meta.get("series") == "Grand Slam" and league == "atp")
 
             prediction = None   # retired model -- Models A/B are the tab's models now
@@ -1890,7 +1929,7 @@ def _compute_tennis_today_inner(date: str = None):
 
             results.append({
                 **m,
-                "surface": surface, "surface_estimated": not surface_known,
+                "surface": surface, "surface_estimated": not _surf_ok, "surface_src": _surf_src,
                 "best_of_5": best_of_5,
                 "live_odds": {
                     "player_1": odds_entry["player_1"], "player_2": odds_entry["player_2"],
@@ -1930,6 +1969,8 @@ def _compute_tennis_today_inner(date: str = None):
             surface = (tr_today_surface.get(_key)
                        or tennis_context.get_tournament_surface(m.get("tournament"))
                        or "Hard")
+            surface, _surf_ok2, _surf_src2 = _te_surface(m["player_1"], m["player_2"], m.get("tournament"),
+                                                         surface, _key in tr_today_surface)
             odds_entry = live_odds.get(m["fixture_id"])
             ctx1 = tennis_context.get_context(m["player_1"], surface)
             ctx2 = tennis_context.get_context(m["player_2"], surface)
@@ -1954,7 +1995,7 @@ def _compute_tennis_today_inner(date: str = None):
                     if qp != qr:
                         sos = "p1" if qp else "p2"
             results.append({
-                **m, "surface": surface, "surface_estimated": _key not in tr_today_surface,
+                **m, "surface": surface, "surface_estimated": not _surf_ok2, "surface_src": _surf_src2,
                 "best_of_5": False,
                 "live_odds": {"player_1": odds_entry["player_1"], "player_2": odds_entry["player_2"],
                               "bookmaker": odds_entry["bookmaker"]} if odds_entry else None,
@@ -2457,6 +2498,7 @@ def _compute_tennis_itf_inner(date: str):
             continue
         od = odds.get(m["fixture_id"])
         surf = _tctx.get_tournament_surface(m.get("tournament")) or "Hard"
+        surf, _surf_ok3, _surf_src3 = _te_surface(m["player_1"], m["player_2"], m.get("tournament"), surf, False)
         _mk1 = None
         _corrupt = False
         if od and od.get("player_1") is not None and od.get("player_2") is not None:
@@ -2540,7 +2582,7 @@ def _compute_tennis_itf_inner(date: str):
             mc2 = _tm2.predict(p1, p2, surf, market_p1=_mk1)
         except Exception:  # noqa: BLE001
             mc2 = None
-        cards.append({**m, "surface": surf, "best_of_5": False,
+        cards.append({**m, "surface": surf, "surface_estimated": not _surf_ok3, "surface_src": _surf_src3, "best_of_5": False,
                       "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
                                      "bookmaker": od.get("bookmaker")} if od else None),
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,

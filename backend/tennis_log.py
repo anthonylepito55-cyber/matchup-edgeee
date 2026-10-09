@@ -24,7 +24,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
-           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "score",
+           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -1231,6 +1231,11 @@ def get_ab25_record() -> dict:
 
             _lg9 = str(r.get("league") or "")
             _isw = ("wta" in _lg9) or ("itf_women" in _lg9)
+            # WRONG-SURFACE rows (2026-10-09): models ran on the wrong court -> not a valid
+            # pick; excluded from every live lane (row kept, flagged surface_bad).
+            _sb9 = r.get("surface_bad")
+            if _sb9 is not None and not pd.isna(_sb9) and bool(_sb9):
+                continue
             # BLUE GATES (2026-10-09, lockstep with TennisSection tier1Blue): from 10-09
             # forward, a coin-flip C (C < 52% on the dog) no longer counts for
             # C-ALONE+GRAY / TIER-1 / STAR, and men's challenger stats dog marks are

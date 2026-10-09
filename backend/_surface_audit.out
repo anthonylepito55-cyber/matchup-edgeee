@@ -1,0 +1,34 @@
+TE pairs indexed: 565
+cards: 131 {'MATCH': 103, 'WRONG': 3, 'NO_TE': 25}
+
+WRONG SURFACE (board vs TennisExplorer):
+   today wta | Samsun, Turkiye | Ayla Aksu vs Fiona Crawley | board Clay -> TE Hard | /samsun/2026/wta-women/ | completed
+   itf itf_women | None | Anika Jaskova vs Chiara Fornasieri | board Hard -> TE Clay | /szekesfehervar-itf/2026/wta-women/ | unplayed
+   itf itf_women | None | Joelle Lilly Sophie Steur vs Maria Andrienko | board Hard -> TE Clay | /santa-margherita-di-pula-13-itf/2026/wta-women/ | live
+
+NOT VERIFIED:
+   today atp_challenger | Antofagasta, Chile | Thiago Seyboth Wild vs Felipe Meligeni Alves | board Clay | unplayed
+   today atp_challenger | Antofagasta, Chile | Matheus Pucinelli De Almeida vs Joao Lucas Da Silva | board Clay | unplayed
+   itf itf_men | M15 Burgas | Iannis Miletich vs Jan Kupcic | board Hard | unplayed
+   itf itf_men | M25 Kigali | Max Houkes vs Alec Beckley | board Clay | unplayed
+   itf itf_men | M25 Kigali | Calvin Hemery vs Marlon Vankan | board Clay | unplayed
+   itf itf_men | M15 Monastir | Kris Van Wyk vs Mathys Picard | board Hard | unplayed
+   itf itf_men | None | Loann Massard vs Jelle Sels | board Hard | unplayed
+   itf itf_men | M15 Pontevedra | Matisse Bobichon vs Daniil Sarksian | board Hard | unplayed
+   itf itf_men | M25 Santa Margherita di Pula | Stefano D'Agostino vs Andrey Chepelev | board Clay | live
+   itf itf_men | M15 Quito | Matteo Covato vs Felipe de Dios | board Clay | unplayed
+   itf itf_men | M15+H Rodez | Daniel Jade vs Adrien Gobat | board Hard | unplayed
+   itf itf_men | M15 Quito | Alex Hernandez vs Tristan McCormick | board Clay | unplayed
+   itf itf_men | M15 Quito | Lucas Andrade da Silva vs Daniel Salazar | board Clay | unplayed
+   itf itf_men | M15 Quito | Victor Bini vs Manuel Mouilleron Salvo | board Clay | unplayed
+   itf itf_men | M25 Luan | Mert Alkaya vs Nino Ehrenschneider | board Hard | unplayed
+   itf itf_men | M25 Luan | Matthew Dellavedova vs Yanki Erel | board Hard | unplayed
+   itf itf_men | None | Stefan Vujic vs Philip Sekulic | board Hard | unplayed
+   itf itf_women | None | Ipek Oz vs Alice Tubello | board Hard | unplayed
+   itf itf_men | None | Zane Stevens vs Casey Hoole | board Hard | unplayed
+   itf itf_women | None | Rositsa Dencheva vs Ane Mintegi Del Olmo | board Hard | unplayed
+   itf itf_women | None | Alena Kovackova vs Anastasiia Sobolieva | board Hard | unplayed
+   itf itf_women | None | Polina Skliar vs Tiphanie Lemaitre | board Hard | unplayed
+   itf itf_women | None | Denisa Zoldakova vs Zuzanna Pawlikowska | board Hard | unplayed
+   itf itf_women | W35 Las Vegas, NV | Emma Kamper vs Diletta Cherubini | board Hard | unplayed
+   itf itf_women | W50 Lexington, SC | Astra Sharma vs Bella Bergqvist Larsson | board Hard | unplayed
