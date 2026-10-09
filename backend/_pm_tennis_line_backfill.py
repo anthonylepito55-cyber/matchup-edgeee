@@ -22,7 +22,7 @@ import requests
 
 H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 GAMMA, CLOB = "https://gamma-api.polymarket.com", "https://clob.polymarket.com"
-OUT = "data_cache/pm_tennis_lines.parquet"
+OUT = "data_cache/pm_tennis_lines_v2.parquet"
 START = sys.argv[1] if len(sys.argv) > 1 else "2026-05-01"
 END = sys.argv[2] if len(sys.argv) > 2 else datetime.now(timezone.utc).strftime("%Y-%m-%d")
 MIN_VOL = 500.0
@@ -108,8 +108,12 @@ def path(row):
     def at(sec_before):
         c = [p for t, p in pts if t <= t0 - sec_before]
         return c[-1] if c else None
+    # FULL PATH kept (2026-10-09): Polymarket tennis markets usually OPEN at a placeholder
+    # near 50/50 before anyone trades, so pts[0] is not a real line. The analysis defines
+    # the real early line from the path (e.g. first quote >= 1h after trading starts).
     return {"open": pts[0][1], "open_t": pts[0][0], "p24": at(86400), "p6": at(6 * 3600),
-            "p1h": at(3600), "close": pts[-1][1], "close_t": pts[-1][0], "n_pts": len(pts)}
+            "p1h": at(3600), "close": pts[-1][1], "close_t": pts[-1][0], "n_pts": len(pts),
+            "path": json.dumps(pts)}
 
 
 def main():
