@@ -2236,11 +2236,12 @@ def tennis_model_p_record():
     import tennis_model_p as _tmp
     out = {"backtest": {
         "dog": {"m": "+14.2% (n=3,235) [+100..+200]", "w": "+23.9% (n=2,996) [+100..+250; +200..+250 slice +27.2%, n=666]", "base_m": "-7.4% (n=11,497)", "base_w": "-6.2% (n=8,748)"},
-        "fav": {"m": "+8.6% (n=1,752)", "w": "+17.1% (n=1,476)", "live_proxy_m": "-12.7% (n=37)", "live_proxy_w": "-6.8% (n=14)"}},
-        "rules": {"dog": "men dog +100..+200 / women dog +100..+250, P EV >= 5%", "fav": "fav -100..-200 (dog in P's band), P fav EV >= 3%"}}
+        "fav": {"m": "+8.6% (n=1,752)", "w": "+17.1% (n=1,476)", "live_proxy_m": "-12.7% (n=37)", "live_proxy_w": "-6.8% (n=14)"},
+        "close": {"m": "+8.2% (n=869, 63.1% hit)", "w": "+16.4% (n=587, 67.8% hit)", "live_proxy_m": "+2.6% (n=38)", "live_proxy_w": "-23.2% (n=14)"}},
+        "rules": {"dog": "men dog +100..+200 / women dog +100..+250, P EV >= 5%", "fav": "fav -100..-200 (dog in P's band), P fav EV >= 3%", "close": "fav -100..-150, P reads it >= 3pt above the market"}}
     try:
         st = (tennis_log.get_ab25_record().get("study") or {})
-        out["lanes"] = {k: st.get(k) for k in ("p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250")}
+        out["lanes"] = {k: st.get(k) for k in ("p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close")}
     except Exception:  # noqa: BLE001
         out["lanes"] = {}
     rows = []
@@ -2263,7 +2264,16 @@ def tennis_model_p_record():
                                  "won": (None if won1 is None else bool(won1 == (dog == 1)))})
                 fev = r.get("model_p_fev")
                 fo = r["p2_odds"] if dog == 1 else r["p1_odds"]
-                if fev is not None and pd.notna(fev) and float(fev) >= _tmp.EV_FAV and pd.notna(fo) and -200 <= float(fo) <= -100:
+                _pp = r.get("model_p_prob")
+                _d1 = _tmp._dec(r["p1_odds"]); _d2 = _tmp._dec(r["p2_odds"])
+                _mk1 = ((1 / _d1) / ((1 / _d1) + (1 / _d2))) if (_d1 and _d2) else None
+                _mf = None if _mk1 is None else ((1 - _mk1) if dog == 1 else _mk1)
+                if (_pp is not None and pd.notna(_pp) and _mf is not None and pd.notna(fo)
+                        and -150 <= float(fo) <= -100 and (1 - float(_pp)) - _mf >= _tmp.CLOSE_EDGE):
+                    rows.append({**base, "side": "close", "pick": r["player_2"] if dog == 1 else r["player_1"],
+                                 "odds": int(fo), "p": round(1 - float(_pp), 4), "ev": round((1 - float(_pp)) - _mf, 4),
+                                 "won": (None if won1 is None else bool(won1 == (dog != 1)))})
+                elif fev is not None and pd.notna(fev) and float(fev) >= _tmp.EV_FAV and pd.notna(fo) and -200 <= float(fo) <= -100:
                     rows.append({**base, "side": "fav", "pick": r["player_2"] if dog == 1 else r["player_1"],
                                  "odds": int(fo), "p": (None if pd.isna(r.get("model_p_prob")) else round(1 - float(r["model_p_prob"]), 4)),
                                  "ev": float(fev), "won": (None if won1 is None else bool(won1 == (dog != 1)))})

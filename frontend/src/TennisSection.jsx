@@ -1446,7 +1446,9 @@ function ModelPStrip({ matches }) {
     const lo = m.live_odds || {}
     if (p.bet) rows.push({ side: 'dog', who: p.dog === 1 ? m.player_1 : m.player_2, opp: p.dog === 1 ? m.player_2 : m.player_1,
       od: p.dog === 1 ? lo.player_1 : lo.player_2, pr: p.p_dog, ev: p.ev, t: m.start_time_utc, st: m.status, lg: m.league })
-    if (p.fav_bet) rows.push({ side: 'fav', who: p.fav === 1 ? m.player_1 : m.player_2, opp: p.fav === 1 ? m.player_2 : m.player_1,
+    if (p.close) rows.push({ side: 'close', who: p.fav === 1 ? m.player_1 : m.player_2, opp: p.fav === 1 ? m.player_2 : m.player_1,
+      od: p.fav === 1 ? lo.player_1 : lo.player_2, pr: p.p_fav, ev: p.close_edge, t: m.start_time_utc, st: m.status, lg: m.league })
+    else if (p.fav_bet) rows.push({ side: 'fav', who: p.fav === 1 ? m.player_1 : m.player_2, opp: p.fav === 1 ? m.player_2 : m.player_1,
       od: p.fav === 1 ? lo.player_1 : lo.player_2, pr: p.p_fav, ev: p.fav_ev, t: m.start_time_utc, st: m.status, lg: m.league })
   }
   rows.sort((a, b) => String(a.t || '').localeCompare(String(b.t || '')))
@@ -1455,16 +1457,16 @@ function ModelPStrip({ matches }) {
     <div style={{ margin: '12px 0', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(45,212,191,0.55)', background: 'rgba(45,212,191,0.06)' }}>
       <div className="mono" style={{ fontSize: 11, fontWeight: 800, color: '#2dd4bf', letterSpacing: '0.04em', marginBottom: 6 }}
         title="Model P = the profit model: an offset model on the market (it starts from the price and only learns where the price is wrong). DOG bets: +100..+200 dogs with P EV ≥ 5% — backtest 2024-26 men +14.2% (n=3,235), women +21.4% (n=2,442). FAV bets: −100..−200 favourites with P EV ≥ 3% — backtest men +8.6%, women +17.1%, but the live check before shipping was negative. Full record on the Ⓟ Model P tab.">
-        Ⓟ MODEL P TODAY · {rows.filter(r => r.side === 'dog').length} dog · {rows.filter(r => r.side === 'fav').length} fav
+        Ⓟ MODEL P TODAY · {rows.filter(r => r.side === 'dog').length} dog · {rows.filter(r => r.side === 'close').length} close · {rows.filter(r => r.side === 'fav').length} fav
         <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> · dogs M +100..+200 / W +100..+250 · dog bt M +14.2% / W +23.9% · fav bt M +8.6% / W +17.1% (⚠ live check negative) · record on the Ⓟ Model P tab</span>
       </div>
       {rows.length ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {rows.map((r, i) => (
             <span key={i} className="mono" style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap',
-              border: `1px solid ${r.side === 'dog' ? 'rgba(45,212,191,0.7)' : 'rgba(227,179,65,0.7)'}`, color: r.side === 'dog' ? '#2dd4bf' : '#e3b341' }}
+              border: `1px solid ${r.side === 'dog' ? 'rgba(45,212,191,0.7)' : r.side === 'close' ? 'rgba(94,234,212,0.9)' : 'rgba(227,179,65,0.7)'}`, color: r.side === 'dog' ? '#2dd4bf' : r.side === 'close' ? '#5eead4' : '#e3b341' }}
               title={`${r.who} vs ${r.opp} · ${String(r.lg || '').toUpperCase()} · P ${Math.round(r.pr * 1000) / 10}%`}>
-              {r.side === 'dog' ? 'Ⓟ' : 'Ⓟ FAV⚠'} <b style={{ color: 'var(--text-primary)' }}>{(r.who || '').split(' ').slice(-1)[0]}</b> {r.od > 0 ? '+' : ''}{r.od} · EV {r.ev >= 0 ? '+' : ''}{Math.round(r.ev * 1000) / 10}% · {r.st === 'live' ? 'LIVE' : tm(r.t)}
+              {r.side === 'dog' ? 'Ⓟ' : r.side === 'close' ? 'Ⓟ CLOSE' : 'Ⓟ FAV⚠'} <b style={{ color: 'var(--text-primary)' }}>{(r.who || '').split(' ').slice(-1)[0]}</b> {r.od > 0 ? '+' : ''}{r.od} · {r.side === 'close' ? `+${Math.round(r.ev * 1000) / 10}pt over mkt` : `EV ${r.ev >= 0 ? '+' : ''}${Math.round(r.ev * 1000) / 10}%`} · {r.st === 'live' ? 'LIVE' : tm(r.t)}
             </span>
           ))}
         </div>
@@ -1503,10 +1505,10 @@ function ModelPPanel() {
   const row = (p, i) => (
     <div key={i} className="mono" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '5px 4px', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 11 }}>
       <span style={{ minWidth: 70, color: 'var(--text-tertiary)', fontSize: 9 }}>{p.date} {String(p.league || '').toUpperCase()}</span>
-      <span style={{ padding: '0 6px', borderRadius: 6, fontSize: 9, fontWeight: 700, border: `1px solid ${p.side === 'dog' ? '#2dd4bf88' : '#e3b34188'}`, color: p.side === 'dog' ? '#2dd4bf' : '#e3b341' }}>{p.side === 'dog' ? 'Ⓟ DOG' : 'Ⓟ FAV ⚠'}</span>
+      <span style={{ padding: '0 6px', borderRadius: 6, fontSize: 9, fontWeight: 700, border: `1px solid ${p.side === 'dog' ? '#2dd4bf88' : p.side === 'close' ? '#5eead4aa' : '#e3b34188'}`, color: p.side === 'dog' ? '#2dd4bf' : p.side === 'close' ? '#5eead4' : '#e3b341' }}>{p.side === 'dog' ? 'Ⓟ DOG' : p.side === 'close' ? 'Ⓟ CLOSE' : 'Ⓟ FAV ⚠'}</span>
       <b style={{ color: 'var(--text-primary)' }}>{p.pick}</b>
       <span>{p.odds > 0 ? '+' : ''}{p.odds}</span>
-      <span style={{ color: 'var(--text-tertiary)' }}>P {p.p != null ? Math.round(p.p * 1000) / 10 : '—'}% · EV {p.ev >= 0 ? '+' : ''}{Math.round(p.ev * 1000) / 10}%</span>
+      <span style={{ color: 'var(--text-tertiary)' }}>P {p.p != null ? Math.round(p.p * 1000) / 10 : '—'}% · {p.side === 'close' ? `+${Math.round(p.ev * 1000) / 10}pt over mkt` : `EV ${p.ev >= 0 ? '+' : ''}${Math.round(p.ev * 1000) / 10}%`}</span>
       <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>{p.p1} vs {p.p2}{p.score ? ` · ${p.score}` : ''}</span>
       {p.won == null ? <span style={{ color: 'var(--text-tertiary)' }}>pending</span>
         : <span style={{ fontWeight: 800, color: p.won ? '#3fb950' : '#f85149' }}>{p.won ? '✓ WON' : '✗ LOST'}</span>}
@@ -1520,11 +1522,13 @@ function ModelPPanel() {
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>backtest 2024-26 (out of sample)</div>
       <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
         Ⓟ DOG bets: men <b style={{ color: '#3fb950' }}>{d.backtest.dog.m}</b> · women <b style={{ color: '#3fb950' }}>{d.backtest.dog.w}</b> <span style={{ color: 'var(--text-tertiary)' }}>(every +100..+200 dog: men {d.backtest.dog.base_m}, women {d.backtest.dog.base_w})</span><br />
+        Ⓟ CLOSE (−100..−150, P 3pt+ over market): men <b style={{ color: '#3fb950' }}>{d.backtest.close && d.backtest.close.m}</b> · women <b style={{ color: '#3fb950' }}>{d.backtest.close && d.backtest.close.w}</b> <span style={{ color: '#e3b341' }}>⚠ live check: men {d.backtest.close && d.backtest.close.live_proxy_m}, women {d.backtest.close && d.backtest.close.live_proxy_w}</span><br />
         Ⓟ FAV bets: men <b style={{ color: '#3fb950' }}>{d.backtest.fav.m}</b> · women <b style={{ color: '#3fb950' }}>{d.backtest.fav.w}</b> <span style={{ color: '#e3b341' }}>⚠ live check before shipping was negative: men {d.backtest.fav.live_proxy_m}, women {d.backtest.fav.live_proxy_w} — favourite edges have failed live 4 times; the lane below decides</span>
       </div>
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>live lanes — flat $25, from 2026-10-09</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {lane(L.p_dog, 'Ⓟ DOG bets (EV ≥ 5%)', 'the main bet')}
+        {lane(L.p_close, 'Ⓟ CLOSE (−100..−150, P 3pt+ over mkt)', 'close favourites')}
         {lane(L.p_fav, 'Ⓟ FAV bets (EV ≥ 3%) ⚠', 'favourite side')}
         {lane(L.p_dog_w250, 'Ⓟ women +200..+250 (new slice)', 'extension check')}
         {lane(L.p_dog_any, 'every P-positive dog (EV > 0)', 'wider net')}
@@ -2477,7 +2481,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     gray_dog4: { m: true, w: true }, mc_c75_dog: { m: true, w: true }, fade_a_dog_gray: { m: true, w: true },
     pink_fadeb_dog_m: { m: true }, pink_wcons_dog: { w: true }, pink_wall9_fav: { w: true },
     pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false }, pink_mc2_dog: { m: false, w: false },
-    p_dog: { m: true, w: true }, p_fav: { m: true, w: true },
+    p_dog: { m: true, w: true }, p_fav: { m: true, w: true }, p_close: { m: true, w: true },
   }
   const gHL = (match.league === 'wta' || match.league === 'itf_women') ? 'w' : 'm'
   const hlWhy = (lane, g) => {
@@ -2526,7 +2530,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const od = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
     return { ...mp, who: dog1 ? match.player_1 : match.player_2, od: od == null || isNaN(od) ? null : od }
   })()
-  const hlP = (!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.fav_bet) && hlOK('p_fav', gHL))
+  const hlP = (!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.close) && hlOK('p_close', gHL))
+    || (!!(pModel && pModel.fav_bet && !pModel.close) && hlOK('p_fav', gHL))
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -2736,7 +2741,25 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           </div>
         )
       })() : null}
-      {pModel && pModel.fav_bet ? (() => {
+      {pModel && pModel.close ? (() => {
+        const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+        const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
+        const st = (((laneRec && laneRec.study) || {}).p_close) || {}
+        const c = st[gHL] || {}
+        const live = c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from today'
+        const ok = hlOK('p_close', gHL)
+        const mf = 1 - pModel.mkt_dog
+        return (
+          <div className="mono"
+            title={`Ⓟ CLOSE — a close favourite (−100..−150) that Model P reads ${Math.round(pModel.close_edge * 1000) / 10}pt above the market: P ${Math.round(pModel.p_fav * 1000) / 10}% vs market ${Math.round(mf * 1000) / 10}%. Out-of-sample 2024-26 (3pt+): men 63.1% hit, +8.2% (n=869); women 67.8% hit, +16.4% (n=587); every year positive, and the bigger the gap the better (10pt+: men +20.1%, women +21.7%). Live check before shipping: men +2.6% (n=38), women −23.2% (n=14). Lane p_close decides. Take the best price — at these odds a few cents matter.`}
+            style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: '#5eead4', opacity: ok ? 1 : 0.85 }}>
+            {ok ? null : noHL(hlWhy('p_close', gHL))}
+            Ⓟ CLOSE → <span style={{ fontSize: 12, fontWeight: 900, color: '#e6fffb', textShadow: '0 0 8px rgba(94,234,212,0.5)' }}>TAKE {fname}{fodd != null && !isNaN(fodd) ? ` ${fodd}` : ''}</span>
+            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_fav * 1000) / 10}% vs mkt {Math.round(mf * 1000) / 10}% (+{Math.round(pModel.close_edge * 1000) / 10}pt) · bt {gHL === 'w' ? 'W +16.4% (n=587, 67.8% hit)' : 'M +8.2% (n=869, 63.1% hit)'} · live check {gHL === 'w' ? '−23.2% (14)' : '+2.6% (38)'} · {live}</span>
+          </div>
+        )
+      })() : null}
+      {pModel && pModel.fav_bet && !pModel.close ? (() => {
         const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
         const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
         const st = (((laneRec && laneRec.study) || {}).p_fav) || {}

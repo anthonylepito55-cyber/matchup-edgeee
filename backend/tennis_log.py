@@ -562,7 +562,10 @@ def _p_signals(r, mk1):
     if hp["bet"]:
         out.append({"label": f"{pre}Ⓟ DOG", "side": hp["dog"], "hit": bool((hp["dog"] == 1) == p1won),
                     "recon": hp["recon"]})
-    if hp["fav_bet"]:
+    if hp.get("close"):
+        out.append({"label": f"{pre}Ⓟ CLOSE", "side": hp["fav"], "hit": bool((hp["fav"] == 1) == p1won),
+                    "recon": hp["recon"]})
+    elif hp["fav_bet"]:
         out.append({"label": f"{pre}Ⓟ FAV⚠", "side": hp["fav"], "hit": bool((hp["fav"] == 1) == p1won),
                     "recon": hp["recon"]})
     return out
@@ -1147,7 +1150,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1866,6 +1869,13 @@ def get_ab25_record() -> dict:
                     bet("p_dog_any", _ps9)
                 else:
                     bet("p_pass", _ps9)
+                # Ⓟ CLOSE (2026-10-09): fav -100..-150 that P reads >= 3pt above market.
+                _pp9 = r.get("model_p_prob")
+                _fdc = d2 if _ps9 else d1
+                if _pp9 is not None and pd.notna(_pp9) and (1 + 100 / 150) <= _fdc <= 2.0:
+                    _mf9 = (1 - mk1) if _ps9 else mk1
+                    if (1 - float(_pp9)) - _mf9 >= 0.03:
+                        bet("p_close", not _ps9)
                 # P FAVOURITE (2026-10-09, user call): fav -100..-200, P fav EV >= 3%.
                 _pf9 = r.get("model_p_fev")
                 _fd9 = d2 if _ps9 else d1

@@ -47,6 +47,16 @@ EV_FAV = 0.03
 # (+200..+250 slice +27.2% n=666, every year +, 2026 +35.3%); men stay +100..+200 (men's
 # +200..+250 went -0.2% in 2026). Max decimal odds per gender:
 BAND = {"M": 3.0, "W": 3.5}
+# Ⓟ CLOSE (2026-10-09, user "mark the 3pt and up ones"): a -100..-150 favourite that P
+# reads >= 3pt above the market. Out-of-sample 2024-26: men 63.1% hit +8.2% (n=869),
+# women 67.8% hit +16.4% (n=587); every year positive. Live ~P check (9/28-10/9): men
+# +2.6% (n=38), women -23.2% (n=14). Lane p_close.
+CLOSE_EDGE = 0.03
+
+
+def _close(p_fav, mkt_fav, fod):
+    return bool(fod is not None and (1 + 100 / 150) <= fod <= 2.0
+                and (p_fav - mkt_fav) >= CLOSE_EDGE)
 _CACHE = {"mtime": None, "art": None}
 
 
@@ -152,7 +162,8 @@ def predict_p(mc, md, market_p1, league, p1_odds, p2_odds):
     return {"dog": 1 if dog1 else 2, "p_dog": round(float(p), 4), "mkt_dog": round(float(mk), 4),
             "ev": round(float(ev), 4), "bet": bool(ev >= art.get("ev_bet", EV_BET)), "g": G,
             "fav": 2 if dog1 else 1, "p_fav": round(float(1 - p), 4),
-            "fav_ev": (round(float(fev), 4) if fev is not None else None), "fav_bet": fav_bet}
+            "fav_ev": (round(float(fev), 4) if fev is not None else None), "fav_bet": fav_bet,
+            "close": _close(1 - p, 1 - mk, fod), "close_edge": round(float((1 - p) - (1 - mk)), 4)}
 
 
 # ---------------------------------------------------------------------------------------
@@ -239,4 +250,5 @@ def history_p(r, mk1):
     return {"dog": 1 if dog1 else 2, "p_dog": round(p, 4), "p_fav": round(1 - p, 4), "mkt_dog": round(mk, 4),
             "ev": round(ev, 4), "bet": bool(ev >= EV_BET), "g": G,
             "fav": 2 if dog1 else 1, "fav_ev": (round(fev, 4) if fev is not None else None),
-            "fav_bet": bool(fev is not None and 1.5 <= fo <= 2.0 and fev >= EV_FAV), "recon": recon}
+            "fav_bet": bool(fev is not None and 1.5 <= fo <= 2.0 and fev >= EV_FAV), "recon": recon,
+            "close": _close(1 - p, 1 - mk, fo), "close_edge": round(1 - p - (1 - mk), 4)}
