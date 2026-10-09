@@ -1,0 +1,27 @@
+BACKTEST 2026: C AND c75 both on the market dog -- by how far BOTH sit above the market
+
+MEN: all 529-614 win 46.3% vs implied 41.2% | ROI   +6.6% (n=1143)
+    0- 5pt over market: 40-30 win 57.1% vs implied 48.2% | ROI  +10.3% (n=70)
+    5-10pt over market: 104-121 win 46.2% vs implied 45.6% | ROI   -5.5% (n=225)
+   10-15pt over market: 124-127 win 49.4% vs implied 43.1% | ROI   +7.6% (n=251)
+   15-20pt over market: 111-146 win 43.2% vs implied 40.4% | ROI   -1.0% (n=257)
+   20-30pt over market: 104-146 win 41.6% vs implied 37.4% | ROI   +5.7% (n=250)
+   30- +pt over market: 46-44 win 51.1% vs implied 31.8% | ROI  +55.1% (n=90)
+
+WOMEN: all 385-447 win 46.3% vs implied 39.5% | ROI  +10.8% (n=832)
+    0- 5pt over market: 24-20 win 54.5% vs implied 48.6% | ROI   +4.9% (n=44)
+    5-10pt over market: 68-57 win 54.4% vs implied 46.0% | ROI  +10.3% (n=125)
+   10-15pt over market: 69-91 win 43.1% vs implied 43.3% | ROI   -7.7% (n=160)
+   15-20pt over market: 80-89 win 47.3% vs implied 40.8% | ROI   +6.3% (n=169)
+   20-30pt over market: 96-127 win 43.0% vs implied 35.9% | ROI  +13.2% (n=223)
+   30- +pt over market: 48-63 win 43.2% vs implied 28.4% | ROI  +42.1% (n=111)
+
+LIVE frozen log (2026-09-28..2026-10-09): C AND c75 on the dog
+  M: all 36-45 win 44.4% vs implied 39.9% | ROI   +8.7% (n=81)
+      0-10pt: 11-10 win 52.4% vs implied 46.2% | ROI  +10.6% (n=21)
+     10-20pt: 14-19 win 42.4% vs implied 42.1% | ROI   -7.7% (n=33)
+     20- +pt: 11-16 win 40.7% vs implied 32.4% | ROI  +27.3% (n=27)
+  W: all 14-23 win 37.8% vs implied 37.0% | ROI   -5.3% (n=37)
+      0-10pt: n=9 (thin)
+     10-20pt: 4-8 win 33.3% vs implied 39.2% | ROI  -20.7% (n=12)
+     20- +pt: 7-9 win 43.8% vs implied 30.1% | ROI  +20.6% (n=16)
