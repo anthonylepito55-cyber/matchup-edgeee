@@ -2065,14 +2065,27 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const isW = match.league === 'wta' || match.league === 'itf_women'
     // each cell carries its OWN 2026 walk-forward backtest record + the live lane key,
     // so the tag can cite this exact cell for this exact gender (2026-10-08 user ask).
+    // Every TIER-1 cell: positive in BOTH the corrected walk-forward backtest AND the
+    // live frozen log. bm/bw = 2026 bt (M/W), am/aw = all-years bt, lane = live record.
+    // All numbers remeasured 2026-10-08 with true gender + one row per match.
     const cells = []
     const star = c1 === g1 && g1 === dog1
     const alone = aP !== null && bP !== null && aP !== c1 && bP !== c1
-    if (alone && g1 === c1 && c1 === dog1) cells.push({ n: 'C-ALONE+GRAY', bm: '+3.3% (163-188)', bw: '+17.1% (116-108)', lane: 'c_alone_gray_dog' })
-    if (star && (alone || gdog - mdog >= 0.04)) cells.push({ n: 'TIER-1', bm: '+3.2% (353-390)', bw: '+20.5% (265-219)', lane: 'tier1' })
-    else if (star) cells.push({ n: 'STAR C+GRAY DOG', bm: '+3.2% (353-390)', bw: '+20.5% (265-219)', lane: 'stardog_prime' })
-    if (g1 === dog1 && gdog - mdog >= 0.04) cells.push({ n: 'GRAY 4pt+ DOG', bm: '+3.8% (370-406)', bw: '+17.5% (284-247)', lane: 'gray_dog4' })
-    if (aP !== null && bP !== null && aP !== c1 && bP === c1 && c1 === dog1 && g1 === c1) cells.push({ n: 'FADE-A DOG+GRAY', bm: '+13.6% (58-49)', bw: '+29.4% (52-35)', lane: 'fade_a_dog_gray' })
+    if (alone && g1 === c1 && c1 === dog1) cells.push({ n: 'C-ALONE+GRAY', bm: '+3.3% (163-188)', bw: '+17.1% (116-108)', am: '+15.9% (n=947)', aw: '+32.6% (n=601)', lane: 'c_alone_gray_dog' })
+    if (star && (alone || gdog - mdog >= 0.04)) cells.push({ n: 'TIER-1', bm: '+3.2% (353-390)', bw: '+20.5% (265-219)', am: '+14.1% (n=2,079)', aw: '+28.8% (n=1,321)', lane: 'tier1' })
+    else if (star) cells.push({ n: 'STAR C+GRAY DOG', bm: '+3.2% (353-390)', bw: '+20.5% (265-219)', am: '+14.1% (n=2,079)', aw: '+28.8% (n=1,321)', lane: 'stardog_prime' })
+    if (g1 === dog1 && gdog - mdog >= 0.04) cells.push({ n: 'GRAY 4pt+ DOG', bm: '+3.8% (370-406)', bw: '+17.5% (284-247)', am: '+13.5% (n=2,185)', aw: '+26.5% (n=1,452)', lane: 'gray_dog4' })
+    // c75 BANDED DOG (2026-10-08): promoted into the bedrock family -- the as-of sim
+    // backtest (production simulate_match on rebuilt historical profiles) makes it the
+    // ONLY sim cell positive in both layers for both genders: bt26 M +11.2% (n=271) /
+    // W +10.0% (n=165), live M +24.6% (41-41) / W +16.7% (14-17).
+    if (mc3.mc_c75_p1 != null && (mc3.mc_c75_p1 >= 0.5) === dog1) {
+      const od75 = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+      if (od75 != null && !isNaN(od75) && od75 >= 100 && od75 <= 200) {
+        cells.push({ n: 'c75 DOG +100/+200', bm: '+11.2% (132-139)', bw: '+10.0% (78-87)', am: 'n/a (2026 sample)', aw: 'n/a (2026 sample)', lane: 'mc_c75_dog' })
+      }
+    }
+    if (aP !== null && bP !== null && aP !== c1 && bP === c1 && c1 === dog1 && g1 === c1) cells.push({ n: 'FADE-A DOG+GRAY', bm: '+13.6% (58-49)', bw: '+29.4% (52-35)', am: '+14.0% (n=290)', aw: '+29.6% (n=255)', lane: 'fade_a_dog_gray' })
     if (cells.length) {
       const nm2 = dog1 ? match.player_1 : match.player_2
       const od2 = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
@@ -2086,7 +2099,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         const nm2 = favS ? match.player_1 : match.player_2
         const od2 = match.live_odds ? Number(favS ? match.live_odds.player_1 : match.live_odds.player_2) : null
         return { side: favS, name: nm2, od: isNaN(od2) ? null : od2, isW, fav: true,
-                 cells: [{ n: 'C-EDGE5 FAV (W)', bm: null, bw: '+5.6% (783-317)', lane: null }] }
+                 cells: [{ n: 'C-EDGE5 FAV (W)', bm: null, bw: '+5.6% (783-317)',
+                            am: null, aw: '+9.0% (n=3,203)', lane: null }] }
       }
     }
     return null
@@ -2168,18 +2182,20 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         </div>
       ) : null}
       {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 && !purpleFGW ? (
-        <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.map(c => `${c.n} [bt26 ${tier1Blue.isW ? 'W ' + (c.bw || 'n/a') : 'M ' + (c.bm || 'n/a')}]`).join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. Backtest REMEASURED 2026-10-08 — two defects fixed: (1) gender, the old split filed every women's ITF match as MEN (31% of its men's bucket) and counted only WTA women; (2) double-counting, the old rig scored both orientations of every match. True-gender, one-row-per-match 2026 numbers: GRAY 4pt+ DOG M +3.8%/W +17.5% · TIER-1 M +3.2%/W +20.5% · C-ALONE+GRAY M +3.3%/W +17.1% · FADE-A DOG+GRAY M +13.6%/W +29.4% · C-EDGE5 FAV W +5.6%. All-years (more stable): men dogs +12.7..+15.9%, women dogs +26.5..+33.1%. **The men's dog edge has decayed to ~+3% in 2026 while the women's holds at +17..+21% — the women's half is now the stronger side of every bedrock cell.** Live: gray_dog4 M +15.1%/W +12.7%, tier1 M +15.8%, priced-star-dog M +14.6%/W +26.5%, c-alone+gray M +19.5%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
+        <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.map(c => `${c.n} [bt26 ${tier1Blue.isW ? 'W ' + (c.bw || 'n/a') : 'M ' + (c.bm || 'n/a')}]`).join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. TIER-1 = positive in BOTH the corrected backtest and the live log. Roster (2026 bt | all-years bt | live): c75 DOG +100/+200 M +11.2% (n=271) | 2026-sample only | live +24.6% (41-41) · GRAY 4pt+ DOG M +3.8%/W +17.5% | M +13.5% (n=2,185)/W +26.5% (n=1,452) | live M +15.1%/W +12.7% · TIER-1 M +3.2%/W +20.5% | M +14.1% (n=2,079)/W +28.8% (n=1,321) | live M +15.8%/W +13.1% · C-ALONE+GRAY M +3.3%/W +17.1% | M +15.9% (n=947)/W +32.6% (n=601) | live M +19.5%/W +6.4% · FADE-A DOG+GRAY M +13.6%/W +29.4% | M +14.0% (n=290)/W +29.6% (n=255) | live thin (n=9) · C-EDGE5 FAV W +5.6% | +9.0% (n=3,203) | live tracking. NOTE the 2026-vs-all-years gap on the men's side (+3% vs +14%): the men's dog edge has DECAYED this season while the women's held. Backtest REMEASURED 2026-10-08 — two defects fixed: (1) gender, the old split filed every women's ITF match as MEN (31% of its men's bucket) and counted only WTA women; (2) double-counting, the old rig scored both orientations of every match. True-gender, one-row-per-match 2026 numbers: GRAY 4pt+ DOG M +3.8%/W +17.5% · TIER-1 M +3.2%/W +20.5% · C-ALONE+GRAY M +3.3%/W +17.1% · FADE-A DOG+GRAY M +13.6%/W +29.4% · C-EDGE5 FAV W +5.6%. All-years (more stable): men dogs +12.7..+15.9%, women dogs +26.5..+33.1%. **The men's dog edge has decayed to ~+3% in 2026 while the women's holds at +17..+21% — the women's half is now the stronger side of every bedrock cell.** Live: gray_dog4 M +15.1%/W +12.7%, tier1 M +15.8%, priced-star-dog M +14.6%/W +26.5%, c-alone+gray M +19.5%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
           🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.map(c => c.n).join(' + ')}
           {(() => {
             const lead = tier1Blue.cells[0]
             const bt = tier1Blue.isW ? lead.bw : lead.bm
+            const ba = tier1Blue.isW ? lead.aw : lead.am
             const st = lead.lane ? (((laneRec && laneRec.study) || {})[lead.lane] || {}) : {}
             const c = (tier1Blue.isW ? st.w : st.m) || {}
             const nn = c.n || 0
             const g = tier1Blue.isW ? 'W' : 'M'
             return <span style={{ color: '#d6e9ff', fontWeight: 400 }}>
               {bt ? ` · bt26 ${g} ${bt}` : ''}
+              {ba ? ` · 3yr ${ba}` : ''}
               {nn ? ` · LIVE ${g} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})` : ` · LIVE ${g} tracking`}
             </span>
           })()}
@@ -2203,6 +2219,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
               {n ? ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} log ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} tracking`}{tot}
             </span>
           })()}{baitGreen.prime ? <span style={{ color: '#eaffea', background: 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, textShadow: '0 0 8px #3fb950' }} title={`⭐ PRIME tier: dog +100..+150 AND the full 6pt+ discount — the fattest measured slice of the green cell (replay +31.0%, 27-19, 58.7% win at near-even money${baitGreen.isW ? '; 🔥 = women’s match, 12-3 +83% in replay — but n=15, a priority hint, not its own cell' : ''}). Take PRIME greens first.`}>⭐ PRIME{baitGreen.isW ? ' 🔥' : ''}</span> : null}
+          {(() => {
+            // TIER-1 CONFIRMATION ON GREEN CARDS (2026-10-08): green outranks blue, so a
+            // bedrock cell backing the SAME player would otherwise be invisible here.
+            if (!tier1Blue || tier1Blue.fav) return null
+            if (tier1Blue.name !== baitGreen.dogName) return null
+            const lead = tier1Blue.cells[0]
+            const bt = baitGreen.isW ? lead.bw : lead.bm
+            const st = lead.lane ? (((laneRec && laneRec.study) || {})[lead.lane] || {}) : {}
+            const c = (baitGreen.isW ? st.w : st.m) || {}
+            const nn = c.n || 0
+            const names = tier1Blue.cells.map(x => x.n).join('+')
+            const g = baitGreen.isW ? 'W' : 'M'
+            return <span style={{ color: '#aee5ff', fontWeight: 700 }}
+              title={`TIER-1 CONFIRMATION: the same player is also backed by ${names} - cells positive in BOTH the corrected backtest AND the live log. Lead cell ${lead.n}: bt26 ${g} ${bt}${nn ? `, live ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})` : ''}. Two independent families on one side is the strongest configuration on the board.`}>
+              {' · 🏛 +TIER-1 '}{names}{bt ? ` (bt26 ${g} ${bt.split(' ')[0]}` : ''}{nn ? `, live ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}%)` : (bt ? ')' : '')}
+            </span>
+          })()}
         </div>
       ) : null}
       {orange58 ? (() => {
