@@ -1,0 +1,25 @@
+BACKTEST 2024-26 (out of sample): CLOSE FAVOURITES -100..-150, back the fav when P reads it X pts above the market
+
+MEN: every -100..-150 fav 1206-935 hit 56.3% ROI   -3.6% (n=2141)
+   P  3pt+ above market: 548-321 hit 63.1% ROI   +8.2% (n=869)
+        2024 173-90 hit 65.8% ROI  +12.7% (n=263) | 2025 229-134 hit 63.1% ROI   +8.2% (n=363) | 2026 146-97 hit 60.1% ROI   +3.2% (n=243)
+   P  5pt+ above market: 411-239 hit 63.2% ROI   +8.5% (n=650)
+        2024 127-63 hit 66.8% ROI  +14.4% (n=190) | 2025 171-107 hit 61.5% ROI   +5.5% (n=278) | 2026 113-69 hit 62.1% ROI   +6.8% (n=182)
+   P  8pt+ above market: 268-146 hit 64.7% ROI  +11.1% (n=414)
+        2024 85-38 hit 69.1% ROI  +18.5% (n=123) | 2025 108-68 hit 61.4% ROI   +5.2% (n=176) | 2026 75-40 hit 65.2% ROI  +12.3% (n=115)
+   P 10pt+ above market: 202-87 hit 69.9% ROI  +20.1% (n=289)
+        2024 64-25 hit 71.9% ROI  +23.2% (n=89) | 2025 81-45 hit 64.3% ROI  +10.5% (n=126) | 2026 57-17 hit 77.0% ROI  +32.7% (n=74)
+
+WOMEN: every -100..-150 fav 727-606 hit 54.5% ROI   -6.4% (n=1333)
+   P  3pt+ above market: 398-189 hit 67.8% ROI  +16.4% (n=587)
+        2024 136-46 hit 74.7% ROI  +28.3% (n=182) | 2025 153-83 hit 64.8% ROI  +11.3% (n=236) | 2026 109-60 hit 64.5% ROI  +10.7% (n=169)
+   P  5pt+ above market: 345-155 hit 69.0% ROI  +18.4% (n=500)
+        2024 109-38 hit 74.1% ROI  +27.3% (n=147) | 2025 138-69 hit 66.7% ROI  +14.4% (n=207) | 2026 98-48 hit 67.1% ROI  +15.2% (n=146)
+   P  8pt+ above market: 269-116 hit 69.9% ROI  +19.9% (n=385)
+        2024 88-26 hit 77.2% ROI  +32.5% (n=114) | 2025 107-52 hit 67.3% ROI  +15.4% (n=159) | 2026 74-38 hit 66.1% ROI  +13.5% (n=112)
+   P 10pt+ above market: 234-96 hit 70.9% ROI  +21.7% (n=330)
+        2024 80-23 hit 77.7% ROI  +33.4% (n=103) | 2025 90-42 hit 68.2% ROI  +17.0% (n=132) | 2026 64-31 hit 67.4% ROI  +15.7% (n=95)
+
+LIVE frozen log 9/28-10/9, ~P lite, -100..-150 favourites (141 games)
+  M: every fav 54-48 hit 52.9% ROI   -5.9% (n=102) | 3pt+ 22-16 hit 57.9% ROI   +2.6% (n=38) | 5pt+ 15-11 hit 57.7% ROI   +1.2% (n=26)
+  W: every fav 18-21 hit 46.2% ROI  -17.1% (n=39) | 3pt+ 6-8 hit 42.9% ROI  -23.2% (n=14) | 5pt+ 6-7 hit 46.2% ROI  -17.3% (n=13)
