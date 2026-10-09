@@ -229,9 +229,13 @@ def log_predictions(matches: list, date: str):
 def _pair_key(a, b):
     import unicodedata
 
+    # word order + hyphens ignored (2026-10-09): feeds disagree on name order, e.g. OpticOdds
+    # "Tian Jialin" vs Polymarket "Jialin Tian" -- the order-sensitive key let that twin in
+    # and double-counted it in every lane.
     def n(x):
         x = unicodedata.normalize("NFKD", str(x or ""))
-        return " ".join("".join(c for c in x if not unicodedata.combining(c)).lower().split())
+        x = "".join(c for c in x if not unicodedata.combining(c)).lower().replace("-", " ")
+        return " ".join(sorted(x.split()))
     return tuple(sorted((n(a), n(b))))
 
 
