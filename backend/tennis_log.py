@@ -1101,6 +1101,7 @@ def get_ab25_record() -> dict:
               "d_all", "dma_all", "d_gray_dog", "d_alone", "mc_all", "mc_dog",
               "mc_dog_big", "mc_4of4", "mc_gold", "mc_green", "mc_biggray",
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
+              "coinflip_c_dog", "mchall_dog_marks",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1163,6 +1164,16 @@ def get_ab25_record() -> dict:
 
             _lg9 = str(r.get("league") or "")
             _isw = ("wta" in _lg9) or ("itf_women" in _lg9)
+            # BLUE GATES (2026-10-09, lockstep with TennisSection tier1Blue): from 10-09
+            # forward, a coin-flip C (C < 52% on the dog) no longer counts for
+            # C-ALONE+GRAY / TIER-1 / STAR, and men's challenger stats dog marks are
+            # NO BET. Those games go to coinflip_c_dog / mchall_dog_marks (one bet per
+            # game on the dog) instead, so the downgrade is itself tested forward.
+            _fwd9 = str(r.get("date") or "")[:10] >= "2026-10-09"
+            _cdog9 = cp if (mk1 < 0.5) else 1 - cp
+            _coin9 = _fwd9 and _cdog9 < 0.52
+            _mch9 = _fwd9 and (not _isw) and ("challenger" in _lg9)
+            _gate_hit = set()
 
             def bet(key, side1):
                 if settled:
@@ -1184,7 +1195,10 @@ def get_ab25_record() -> dict:
             mdog = mk1 if dog1 else 1 - mk1
             gdog = cma if dog1 else 1 - cma
             if gdog - mdog >= 0.04 and (g1 == dog1):   # gray 4pt+ ON the dog (2026 +9.1%)
-                bet("gray_dog4", dog1)
+                if _mch9:
+                    _gate_hit.add("mchall_dog_marks")
+                else:
+                    bet("gray_dog4", dog1)
             if mdog - gdog >= 0.02:            # gray-hated dog (dog bt -25..-28%, fav +2..4%)
                 bet("grayhate_dog", dog1)
                 bet("grayhate_fav", not dog1)
@@ -1211,7 +1225,9 @@ def get_ab25_record() -> dict:
                 # is "dog decimal >= 2.0" (plus-money), NOT a 2.0-3.0 cap (the live cap
                 # was an 18-bet artifact). Longer price = higher ROI + higher variance.
                 _ddec = d1 if dog1 else d2
-                if _ddec >= 2.0:
+                if _ddec >= 2.0 and (_coin9 or _mch9):
+                    _gate_hit.add("coinflip_c_dog" if _coin9 else "mchall_dog_marks")
+                elif _ddec >= 2.0:
                     bet("stardog_prime", dog1)
                     # APEX DOG (2026-10-02): the maximal validated stack -- C-alone+gray
                     # dog AND priced (>=2.0). Live +47.6% (and +70.8% on the men's half);
@@ -1255,7 +1271,10 @@ def get_ab25_record() -> dict:
                 _tk, _ts = "tier_avoid", c1
             else:
                 _tk, _ts = "tier_nobet", g1
-            if str(r.get("date") or "") >= "2026-09-30":
+            if _tk in ("tier1", "tier2") and (_coin9 or _mch9):
+                _gate_hit.add("coinflip_c_dog" if _coin9 else "mchall_dog_marks")
+                _tk = None
+            if _tk and str(r.get("date") or "") >= "2026-09-30":
                 bet(_tk, _ts)
             # ⚖️ CONFLICT RESOLVERS as their own auto-updating lanes (2026-10-05). Each bets
             # the gender-specific side its board badge tells you to trust, so the badge can
@@ -1735,11 +1754,18 @@ def get_ab25_record() -> dict:
                         bet("all6_agree", c1)
                 if a1 != c1 and b1 != c1 and g1 == c1:
                     bet("c_alone_gray", c1)
-                    if c1 == dog1:
+                    if c1 == dog1 and (_coin9 or _mch9):
+                        _gate_hit.add("coinflip_c_dog" if _coin9 else "mchall_dog_marks")
+                    elif c1 == dog1:
                         bet("c_alone_gray_dog", c1)
                     else:
                         # the RED-flagged pass config (board highlights the name red)
                         bet("c_alone_gray_fav", c1)
+            # one bet per gated game on the dog (coin-flip takes precedence)
+            if "coinflip_c_dog" in _gate_hit:
+                bet("coinflip_c_dog", dog1)
+            elif "mchall_dog_marks" in _gate_hit:
+                bet("mchall_dog_marks", dog1)
     study_out = {k: {**agg(d["v"]), "pending": int(d["p"]),
                      "m": agg(d["vm"]), "w": agg(d["vw"]),
                      "dog": agg(d["vd"]), "fav": agg(d["vf"]),

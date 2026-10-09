@@ -2132,6 +2132,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       : (late ? 'men late rounds +17.7% (n=191), slightly better than early +12.0%' : 'men early rounds +12.0% (n=1,281)')
     return { tag, note, tone, rnote, late }
   })()
+  // BLUE GATES (2026-10-09, user "Ship" after the 2026 season dossier + Sun/Kachmazov):
+  //  (1) COIN-FLIP C: C-ALONE+GRAY / TIER-1 / STAR need C to back the dog by >= 2pt
+  //      (C >= 52% on the dog). Sun fired both on C = 50.01%. Backtest 2025-26, men
+  //      tier-1 dogs +100..+250: C margin <2pt -17.0% (n=45) vs >=2pt +14.7% (n=992).
+  //  (2) MEN'S CHALLENGER: the stats dog marks are THIN / NO BET there. 2026 (2025):
+  //      C-ALONE -11.3% n=144 (+31.8%), TIER-1 -1.9% n=281 (+28.2%), GRAY 4pt+ -1.0%
+  //      n=296 (+26.9%). Women's challengers still +35% -- untouched.
+  // Gated cells are not dropped silently: they land in blueDropped and the card shows
+  // a ⚠ line naming them. Lanes: coinflip_c_dog / mchall_dog_marks (tennis_log.py).
+  let blueDropped = null
   const tier1Blue = (() => {
     if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
     const c1 = mc3.p1_prob >= 0.5
@@ -2150,6 +2160,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const cells = []
     const star = c1 === g1 && g1 === dog1
     const alone = aP !== null && bP !== null && aP !== c1 && bP !== c1
+    const cdogG = dog1 ? mc3.p1_prob : 1 - mc3.p1_prob
+    const coinC = cdogG < 0.52
+    const mChall = !isW && String(match.league || '').includes('challenger')
+    const dropped = []
+    const C_DEP = new Set(['C-ALONE+GRAY', 'TIER-1', 'STAR C+GRAY DOG'])
+    const MCH = new Set(['C-ALONE+GRAY', 'TIER-1', 'STAR C+GRAY DOG', 'GRAY 4pt+ DOG'])
+    const gate = () => {
+      for (let i = cells.length - 1; i >= 0; i--) {
+        const n = cells[i].n
+        if (coinC && C_DEP.has(n)) { dropped.push({ n, why: 'coin' }); cells.splice(i, 1) }
+        else if (mChall && MCH.has(n)) { dropped.push({ n, why: 'mchall' }); cells.splice(i, 1) }
+      }
+    }
     if (alone && g1 === c1 && c1 === dog1) cells.push({ n: 'C-ALONE+GRAY', bm: '+3.3% (163-188)', bw: '+17.1% (116-108)', am: '+15.9% (n=947)', aw: '+32.6% (n=601)', lane: 'c_alone_gray_dog' })
     if (star && (alone || gdog - mdog >= 0.04)) cells.push({ n: 'TIER-1', bm: '+3.2% (353-390)', bw: '+20.5% (265-219)', am: '+14.1% (n=2,079)', aw: '+28.8% (n=1,321)', lane: 'tier1' })
     else if (star) cells.push({ n: 'STAR C+GRAY DOG', bm: '+3.2% (353-390)', bw: '+20.5% (265-219)', am: '+14.1% (n=2,079)', aw: '+28.8% (n=1,321)', lane: 'stardog_prime' })
@@ -2166,6 +2189,13 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       }
     }
     if (aP !== null && bP !== null && aP !== c1 && bP === c1 && c1 === dog1 && g1 === c1) cells.push({ n: 'FADE-A DOG+GRAY', bm: '+13.6% (58-49)', bw: '+29.4% (52-35)', am: '+14.0% (n=290)', aw: '+29.6% (n=255)', lane: 'fade_a_dog_gray' })
+    gate()
+    if (dropped.length) {
+      const nmD = dog1 ? match.player_1 : match.player_2
+      const odD = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+      blueDropped = { cells: dropped, name: nmD, od: isNaN(odD) ? null : odD, cdog: cdogG,
+                      coin: dropped.some(d => d.why === 'coin'), mchall: dropped.some(d => d.why === 'mchall') }
+    }
     if (cells.length) {
       const nm2 = dog1 ? match.player_1 : match.player_2
       const od2 = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
@@ -2427,6 +2457,15 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
+      {blueDropped && !blackC75W ? (
+        <div className="mono"
+          title={`BLUE GATES (2026-10-09). ${blueDropped.coin ? `COIN-FLIP C: C has ${(blueDropped.name || '').split(' ').slice(-1)[0]} at ${Math.round(blueDropped.cdog * 1000) / 10}% — C-ALONE / TIER-1 / STAR need C at 52%+ on the dog. Backtest 2025-26 men tier-1 dogs +100..+250: C under 52% −17.0% (n=45) vs 52%+ +14.7% (n=992). ` : ''}${blueDropped.mchall ? "MEN'S CHALLENGER: the stats dog marks stopped working in 2026 — C-ALONE −11.3% (n=144), TIER-1 −1.9% (n=281), GRAY 4pt+ −1.0% (n=296); in 2025 the same cells were +31.8 / +28.2 / +26.9%. Women's challengers still +35% and are not gated. " : ''}The dropped marks are tracked forward in their own lanes so the downgrade gets proven or reversed.`}
+          style={{ fontSize: 9, fontWeight: 700, color: '#e3b341', marginBottom: 6, padding: '3px 7px', border: '1px dashed rgba(227,179,65,0.6)', borderRadius: 6 }}>
+          ⚠ THIN · NO BET on {blueDropped.cells.map(c => c.n).join(' + ')} for {(blueDropped.name || '').split(' ').slice(-1)[0].toUpperCase()}{blueDropped.od != null ? ` ${blueDropped.od > 0 ? '+' : ''}${blueDropped.od}` : ''}
+          {blueDropped.coin ? <span style={{ fontWeight: 400 }}> · C coin-flip ({Math.round(blueDropped.cdog * 1000) / 10}%): bt C&lt;52% −17.0% (n=45) vs +14.7% (n=992)</span> : null}
+          {blueDropped.mchall ? <span style={{ fontWeight: 400 }}> · men's challenger 2026: C-ALONE −11.3% (n=144) · TIER-1 −1.9% (n=281) · GRAY4 −1.0% (n=296)</span> : null}
+        </div>
+      ) : null}
       {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 && !purpleFGW ? (
         <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.map(c => `${c.n} [bt26 ${tier1Blue.isW ? 'W ' + (c.bw || 'n/a') : 'M ' + (c.bm || 'n/a')}]`).join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. BLUE FAMILY LIVE ROI (replay of every blue card on the frozen log, one bet per card, flat 1u at frozen odds, 2026-10-08): ALL +12.4% (103-91, +24.1u) | MEN +23.6% (51-44) | WOMEN +1.6% (52-47). Per leading cell: c75 DOG +24.4% (65-59, n=124 - carries the family), TIER-1 +11.2% (28-28), GRAY 4pt+ +11.0% (29-29), C-ALONE+GRAY +6.1% (15-17), FADE-A -0.9% (4-4, thin), and ⚠ C-EDGE5 FAV W -14.7% (27-21) - the ONE blue cell losing live despite a +5.6%/+9.0% backtest, which is why it is tagged with a warning and is the family's demotion candidate. TIER-1 = positive in BOTH the corrected backtest and the live log. Roster (2026 bt | all-years bt | live): c75 DOG +100/+200 M +1.7% (n=2,009) / W +4.6% (n=1,409) | any price >=+100 M +5.1% / W +8.1% | live M +24.6% (41-41) / W +16.7% (14-17) · GRAY 4pt+ DOG M +3.8%/W +17.5% | M +13.5% (n=2,185)/W +26.5% (n=1,452) | live M +15.1%/W +12.7% · TIER-1 M +3.2%/W +20.5% | M +14.1% (n=2,079)/W +28.8% (n=1,321) | live M +15.8%/W +13.1% · C-ALONE+GRAY M +3.3%/W +17.1% | M +15.9% (n=947)/W +32.6% (n=601) | live M +19.5%/W +6.4% · FADE-A DOG+GRAY M +13.6%/W +29.4% | M +14.0% (n=290)/W +29.6% (n=255) | live thin (n=9) · C-EDGE5 FAV W +5.6% | +9.0% (n=3,203) | live tracking. NOTE the 2026-vs-all-years gap on the men's side (+3% vs +14%): the men's dog edge has DECAYED this season while the women's held. Backtest REMEASURED 2026-10-08 — two defects fixed: (1) gender, the old split filed every women's ITF match as MEN (31% of its men's bucket) and counted only WTA women; (2) double-counting, the old rig scored both orientations of every match. True-gender, one-row-per-match 2026 numbers: GRAY 4pt+ DOG M +3.8%/W +17.5% · TIER-1 M +3.2%/W +20.5% · C-ALONE+GRAY M +3.3%/W +17.1% · FADE-A DOG+GRAY M +13.6%/W +29.4% · C-EDGE5 FAV W +5.6%. All-years (more stable): men dogs +12.7..+15.9%, women dogs +26.5..+33.1%. **The men's dog edge has decayed to ~+3% in 2026 while the women's holds at +17..+21% — the women's half is now the stronger side of every bedrock cell.** Live: gray_dog4 M +15.1%/W +12.7%, tier1 M +15.8%, priced-star-dog M +14.6%/W +26.5%, c-alone+gray M +19.5%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
@@ -2564,8 +2603,15 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const alone = aP !== null && bP !== null && aP !== c1 && bP !== c1
           const hate = (mdog - gdog) >= 0.02
           const isW = match.league === 'wta'
+          const cdogR = dog1 ? mc3.p1_prob : 1 - mc3.p1_prob
+          const mChR = !(match.league === 'wta' || match.league === 'itf_women') && String(match.league || '').includes('challenger')
           let tier
-          if (star && (alone || (gdog - mdog) >= 0.04)) {
+          if (star && (cdogR < 0.52 || mChR)) {
+            // BLUE GATES (2026-10-09): coin-flip C or a men's challenger -> no tier bet.
+            tier = { t: 'TIER · THIN', c: '#e3b341', bg: 'transparent', tip: cdogR < 0.52
+              ? `C only ${Math.round(cdogR * 1000) / 10}% on the dog — a coin flip, not a pick. Men tier-1 dogs with C under 52%: −17.0% (n=45) vs +14.7% (n=992) at 52%+. No bet.`
+              : "Men's challenger: the stats dog marks died in 2026 — C-ALONE −11.3% (n=144), TIER-1 −1.9% (n=281), GRAY 4pt+ −1.0% (n=296); 2025 was +27..+32%. No bet." }
+          } else if (star && (alone || (gdog - mdog) >= 0.04)) {
             // TIER 1 edge is MEN-only live (men +57% / women -13%), so only the men's
             // multi-★ dog glows; women's is demoted to a muted "weak" tag (2026-10-05).
             tier = isW
