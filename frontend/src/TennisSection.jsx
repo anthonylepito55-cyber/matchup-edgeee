@@ -2257,8 +2257,15 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const roi = n2 ? c.roi_pct : (all ? all.roi_pct : null)
     const rec = n2 ? `${c.wins}-${n2 - c.wins}` : (all ? `${all.wins}-${all.n - all.wins}` : null)
     const src = n2 ? (isW9 ? 'W' : 'M') : 'all'
-    if (roi == null) return { label, txt: 'no settles yet', ok: null }
-    return { label, ok: roi > 0, src, rec,
+    // TOP-3 CELLS (3-week post-mortem 2026-09-18..10-08, 524 marked picks): there is a
+    // clean break at +24% -- PURPLE CGF +38.2% (7-2), GREEN bait MC-confirms +33.3%
+    // (38-30), BLUE c75 dog +24.6% (68-61) -- then everything else sits at +15.4% or
+    // below (c-alone+gray +15.4, tier1 +14.5, gray4 +14.2, BLACK women c75 +12.8,
+    // FGW +3.3) and two are negative (fade-A -11.9, MC-refuses -49.5, CE5 -30.0).
+    const TOP3 = { cgf_shallow_fav: '3wk +38.2% (7-2)', cgf_premium: '3wk +38.2% (7-2)',
+                   bait_mcflip: '3wk +33.3% (38-30)', mc_c75_dog: '3wk +24.6% (68-61)' }
+    if (roi == null) return { label, txt: 'no settles yet', ok: null, top3: TOP3[lane] || null }
+    return { label, ok: roi > 0, src, rec, top3: TOP3[lane] || null,
              txt: `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec})` }
   })()
 
@@ -2278,6 +2285,13 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           {' '}{markVerdict.label}{' · '}
           {markVerdict.ok === null ? 'tracking' : (markVerdict.ok ? 'POSITIVE CELL ' : 'NEGATIVE CELL ')}
           {markVerdict.ok === null ? '' : `${markVerdict.src} ${markVerdict.txt}`}
+          {markVerdict.top3 ? (
+            <span style={{ marginLeft: 8, color: '#1a1a1a', background: 'linear-gradient(90deg,#ffd76e,#e3b341)',
+              borderRadius: 4, padding: '0 7px', fontWeight: 900, textShadow: 'none' }}
+              title={`TOP-3 CELL. Over the 3-week post-mortem (2026-09-18..10-08, 524 marked picks) exactly three cells cleared +24%: PURPLE C-ALONE+GOLD +38.2% (7-2), GREEN bait with MC confirming +33.3% (38-30), and BLUE c75 banded dog +24.6% (68-61). Everything else sat at +15.4% or lower, and three cells were negative (fade-A -11.9%, bait MC-refuses -49.5%, C-EDGE5 -30.0%). Caveat: the CGF cell is only n=9 live, so its +38.2% is the least settled of the three -- c75 dog (n=129) and bait-confirms (n=68) carry the real weight.`}>
+              {'★ TOP-3 CELL · '}{markVerdict.top3}
+            </span>
+          ) : null}
         </div>
       ) : null}
       {lvlNote && (blackC75W || baitGreen || (tier1Blue && !tier1Blue.fav)) ? (
