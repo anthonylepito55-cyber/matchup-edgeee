@@ -2239,7 +2239,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           </span>
           {` · c75 ${blackC75W.pct}% · bt +8.1% (748-1020, n=1,768) · any price ≥+100 · longer = better`}
           {(() => {
-            const st = ((laneRec && laneRec.study) || {}).mc_c75_dog || {}
+            const st = ((laneRec && laneRec.study) || {}).c75_dog_100plus || {}
             const c = st.w || {}
             const nn = c.n || 0
             return <span style={{ color: '#d6d6da', fontWeight: 400 }}>
@@ -2253,7 +2253,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
           💜 C-ALONE+GOLD FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCGF.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCGF.od}</span> · gray +{purpleCGF.gray}pt{purpleCGF.premium ? ` · C +${purpleCGF.cE}pt` : ''} · bt {purpleCGF.isW ? (purpleCGF.premium ? '+26.4% (133-47, n=180)' : '+22.2% (n=298)') : (purpleCGF.premium ? '+31.0% (69-24, n=93)' : '+24.4% (n=133)')}{purpleCGF.premium ? ' ★' : ''}
           {(() => {
-            const st = ((laneRec && laneRec.study) || {}).cgf_shallow_fav || {}
+            const st = ((laneRec && laneRec.study) || {})[
+              purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav'] || {}
             const c = (purpleCGF.isW ? st.w : st.m) || {}
             const n = c.n || 0
             return <span style={{ color: '#e9dcff', fontWeight: 400 }}>{n ? ` · LANE ${purpleCGF.isW ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ' · LANE tracking'}</span>
@@ -2333,7 +2334,11 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             // (M: bt PRIME +7.4% vs live REST +28.2%; W: bt REST +10.0% vs live PRIME
             // +83.4%). So this reads the undifferentiated bait_dog lane and the
             // whole-cell as-of backtest; the band is a label, not a ranking.
-            const st = ((laneRec && laneRec.study) || {}).bait_dog || {}
+            // read the lane that matches THIS card's verdict (lockstep with the
+            // ✓/⛔ gate): flip -> bait_mcflip, no-flip -> bait_noflip.
+            const st = ((laneRec && laneRec.study) || {})[
+              baitGreen.c75Flip === true ? 'bait_mcflip'
+              : baitGreen.c75Flip === false ? 'bait_noflip' : 'bait_dog'] || {}
             const c = (baitGreen.isW ? st.w : st.m) || {}
             const n = c.n || 0
             const nm = 'CELL'

@@ -1042,7 +1042,8 @@ def get_ab25_record() -> dict:
               # the replay tour surfaced (orange band fav, 3-5pt banded dog, c75 dog
               # countersigned 5pt+); and the 🪤 bait-favorite dog (all-sim discount).
               "fav_value", "mc2e58_fav", "mc2e35_dog_band", "c75_mc2e5_dog", "bait_dog",
-              "bait_dog_prime", "bait_dog_rest", "cgf_shallow_fav", "ce5_deep_fav",
+              "bait_dog_prime", "bait_dog_rest", "cgf_shallow_fav", "cgf_premium", "ce5_deep_fav",
+              "bait_mcflip", "bait_noflip", "c75_dog_100plus",
               "fadegold_pocket_w")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
@@ -1060,7 +1061,8 @@ def get_ab25_record() -> dict:
             settled = bool(r["settled"]) and pd.notna(r["p1_won"])
             won1 = bool(r["p1_won"]) if settled else None
 
-            _isw = str(r.get("league")) == "wta"
+            _lg9 = str(r.get("league") or "")
+            _isw = ("wta" in _lg9) or ("itf_women" in _lg9)
 
             def bet(key, side1):
                 if settled:
@@ -1308,11 +1310,36 @@ def get_ab25_record() -> dict:
                         bet("bait_dog_prime", dog1)
                     else:
                         bet("bait_dog_rest", dog1)
-            # 💜 CGF-SHALLOW (2026-10-08, user "mark both men and women, purple full
-            # slip"): C ALONE against A and B, gray confirms, C's side is a -100..-150
-            # FAVORITE. Backtest arc: men -1.5 -> +10.9 -> +13.4% (2026, n=189);
-            # women +18.6/+21.8 then -19.6% in 2026. Live (all prices) -9.1% men /
-            # +7.9% women -- UNCONFIRMED, user marked anyway; this lane is the judge.
+                    # MC GATE (2026-10-08): does c75 actually FLIP to the dog, or merely
+                    # discount the favourite? Full as-of universe: flip M +1.9%
+                    # (n=1,492) / W +2.4% (n=1,153); no-flip M -5.3% (n=793) /
+                    # W -13.2% (n=631); the UNGATED cell is negative (M -0.6%, W -3.1%).
+                    # The card shows ✓ MC CONFIRMS vs ⛔ MC REFUSES · NO BET off this.
+                    if (float(r.get("mc_c75_p1")) >= 0.5) == dog1:
+                        bet("bait_mcflip", dog1)
+                    else:
+                        bet("bait_noflip", dog1)
+            # ⚫ C75 DOG >= +100 (2026-10-08): the BLACK card's exact cell -- c75 on the
+            # market dog at +100 or longer. Full as-of universe: W +8.1% (748-1020,
+            # n=1,768) and it improves as the price lengthens; M +5.1% (n=2,308).
+            # Odds-on dogs (<+100) are excluded (near-flat +1.4%). The women's cell is
+            # the mark; the lane's gender split keeps both halves honest.
+            if pd.notna(r.get("mc_c75_p1")):
+                _c75d = (float(r.get("mc_c75_p1")) >= 0.5) == dog1
+                _c75o = r.get("p1_odds") if dog1 else r.get("p2_odds")
+                if _c75d and pd.notna(_c75o) and float(_c75o) >= 100:
+                    bet("c75_dog_100plus", dog1)
+            # 💜 CGF (2026-10-08, GATED by its own dissection -- _cgf_deep_bt.py, 740
+            # in-band fires): C ALONE against A and B, gray confirms, C's side is the
+            # FAVORITE, and now three evidence-backed gates that must stay in LOCKSTEP
+            # with purpleCGF in TennisSection.jsx:
+            #   gray >= 5pt over market  (<2pt ran M -6.3% / W -34.5%; 5pt+ M +12.1% / W +20.6%)
+            #   NOT challenger level     (M +2.6% n=260 / W -12.0% n=32)
+            #   band: men -100..-150     (men -150..-200 is only +0.7%, n=414)
+            #         women -100..-200   (women -150..-200 is +14.7%, n=225)
+            # Gated cell: M +24.4% (n=133) / W +22.2% (n=298); with C >= 5pt too
+            # (the ★ premium tier) M +31.0% (n=93) / W +26.4% (n=180), all 3 years
+            # positive both genders. cgf_premium = the starred sub-cell.
             _cg_a = r.get("model_a_p1"); _cg_b = r.get("model_b_p1")
             _cg_c = r.get("model_c_p1"); _cg_g = r.get("model_cma_p1")
             if all(pd.notna(v) for v in (_cg_a, _cg_b, _cg_c, _cg_g)):
@@ -1320,8 +1347,17 @@ def get_ab25_record() -> dict:
                 if ((float(_cg_a) >= 0.5) != _cg_c1 and (float(_cg_b) >= 0.5) != _cg_c1
                         and (float(_cg_g) >= 0.5) == _cg_c1 and _cg_c1 != dog1):
                     _cg_o = r.get("p1_odds") if _cg_c1 else r.get("p2_odds")
-                    if pd.notna(_cg_o) and -150 <= float(_cg_o) <= -100:
+                    _cg_lg = str(r.get("league") or "")
+                    _cg_wom = "wta" in _cg_lg or "itf_women" in _cg_lg
+                    _cg_favp = mk1 if _cg_c1 else 1 - mk1
+                    _cg_gray = (float(_cg_g) if _cg_c1 else 1 - float(_cg_g)) - _cg_favp
+                    _cg_cedge = (float(_cg_c) if _cg_c1 else 1 - float(_cg_c)) - _cg_favp
+                    _cg_lo = -200 if _cg_wom else -150
+                    if (pd.notna(_cg_o) and _cg_lo <= float(_cg_o) <= -100
+                            and _cg_gray >= 0.05 and "challenger" not in _cg_lg):
                         bet("cgf_shallow_fav", _cg_c1)
+                        if _cg_cedge >= 0.05:
+                            bet("cgf_premium", _cg_c1)
             # 💜 CE5-DEEP (2026-10-08, user "mark both men and women... purple with the
             # live roi and backtested roi"): raw C prices the FAVORITE >=5pts over the
             # market AND the fav is -150..-200 — the strongest favorite cell in the
