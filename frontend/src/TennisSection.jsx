@@ -2099,17 +2099,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return { name: dog1 ? match.player_1 : match.player_2, od,
              pct: Math.round(100 * (dog1 ? mc3.mc_c75_p1 : 1 - mc3.mc_c75_p1)) }
   })()
-  // LEVEL x ROUND for dog marks (2026-10-08, measured on 3,822 marked-dog fires,
-  // banded +100..+200, true gender, one row per match):
-  //   TOUR  M +16.7% all / +15.8% 2026 (n=384/114) | W +43.1% / +40.0% (n=289/71)
-  //   CH    M +10.8% all / -1.1% 2026 (n=766/290)  | W +39.5% (n=141)
-  //   ITF   M +13.1% / +8.4% (n=218/93)            | W +19.4% / +7.9% (n=439/183)
-  //   SLAM  M +11.7% (n=104)                       | W +21.6% (n=74)
-  //   round: M early +12.0% / late +17.7%; W early +32.6% / late +9.9%
-  //   level x round: TOUR EARLY +27.2% (n=622), ITF EARLY +21.8% (n=500),
-  //                  CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157)
-  // The headline: the dog edges are NOT an ITF/soft-book artifact -- TOUR is the
-  // strongest level AND the only one that held into 2026. Men's challengers died.
   const lvlNote = (() => {
     const lg = String(match.league || '')
     const L = (lg === 'atp' || lg === 'wta') ? 'TOUR'
@@ -2228,6 +2217,50 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const c75Flip = mc3.mc_c75_p1 != null ? ((mc3.mc_c75_p1 >= 0.5) === (mc3.market_p1 < 0.5)) : null
     return { gap, dogOdds, isW, prime, dogName, c75Flip }
   })()
+  // LEVEL x ROUND for dog marks (2026-10-08, measured on 3,822 marked-dog fires,
+  // banded +100..+200, true gender, one row per match):
+  //   TOUR  M +16.7% all / +15.8% 2026 (n=384/114) | W +43.1% / +40.0% (n=289/71)
+  //   CH    M +10.8% all / -1.1% 2026 (n=766/290)  | W +39.5% (n=141)
+  //   ITF   M +13.1% / +8.4% (n=218/93)            | W +19.4% / +7.9% (n=439/183)
+  //   SLAM  M +11.7% (n=104)                       | W +21.6% (n=74)
+  //   round: M early +12.0% / late +17.7%; W early +32.6% / late +9.9%
+  //   level x round: TOUR EARLY +27.2% (n=622), ITF EARLY +21.8% (n=500),
+  //                  CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157)
+  // The headline: the dog edges are NOT an ITF/soft-book artifact -- TOUR is the
+  // strongest level AND the only one that held into 2026. Men's challengers died.
+  // ✓/✗ CELL VERDICT (2026-10-08, user "make those positive cells on the picks so I know
+  // which they are"): every mark already prints its own lane number, but you have to read
+  // it. This resolves the card's dominant mark to its lane and states the verdict outright,
+  // straight from the live frozen log, so it keeps itself honest as games settle.
+  // 5-day family records that motivated it: c75 dog +31.1% (44-34) · GREEN MC-confirms
+  // +24.1% (30-27) · gray4 +22.1% · tier1 +13.2% · BLACK women c75 +12.1% · c-alone+gray
+  // -11.7% · GREEN MC-refuses -56.7% (2-9) · CE5 -48.8% (10-21) · FGW -6.2% (12-6).
+  const markVerdict = (() => {
+    const study = (laneRec && laneRec.study) || {}
+    const isW9 = match.league === 'wta' || match.league === 'itf_women'
+    let lane = null, label = null
+    if (blackC75W) { lane = 'c75_dog_100plus'; label = 'WOMEN c75 DOG' }
+    else if (baitGreen) {
+      if (baitGreen.c75Flip === false) { lane = 'bait_noflip'; label = 'BAIT (MC refuses)' }
+      else { lane = 'bait_mcflip'; label = 'BAIT (MC confirms)' }
+    } else if (purpleCGF) { lane = purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav'; label = 'C-ALONE+GOLD' }
+    else if (purpleFGW) { lane = 'fadegold_pocket_w'; label = 'FADE-GOLD POCKET' }
+    else if (purpleCE5) { lane = 'ce5_deep_fav'; label = 'C-EDGE5 (watch)' }
+    else if (tier1Blue && tier1Blue.cells && tier1Blue.cells[0] && tier1Blue.cells[0].lane) {
+      lane = tier1Blue.cells[0].lane; label = tier1Blue.cells[0].n
+    }
+    if (!lane) return null
+    const o = study[lane] || {}
+    const c = (isW9 ? o.w : o.m) || {}
+    const n2 = c.n || 0
+    const all = o.n ? o : null
+    const roi = n2 ? c.roi_pct : (all ? all.roi_pct : null)
+    const rec = n2 ? `${c.wins}-${n2 - c.wins}` : (all ? `${all.wins}-${all.n - all.wins}` : null)
+    const src = n2 ? (isW9 ? 'W' : 'M') : 'all'
+    if (roi == null) return { label, txt: 'no settles yet', ok: null }
+    return { label, ok: roi > 0, src, rec,
+             txt: `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec})` }
+  })()
 
   return (
     <div className="game-card card-enter" style={{
@@ -2237,6 +2270,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : (purpleCGF || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
+      {markVerdict ? (
+        <div className="mono" style={{ fontSize: 9, fontWeight: 900, marginBottom: 5, letterSpacing: '0.04em',
+          color: markVerdict.ok === null ? 'var(--text-tertiary)' : markVerdict.ok ? '#3fb950' : '#f85149' }}
+          title={`CELL VERDICT -- the live frozen-log record of THIS card's own cell (${markVerdict.label}), for this match's gender where that cell has settles, otherwise the whole cell. It updates itself as games settle, so a cell that stops paying stops showing green. 5-day family records (2026-10-04..08, 308 marked picks): c75 dog +31.1% (44-34) | BAIT MC-confirms +24.1% (30-27) | gray4 +22.1% | tier1 +13.2% | BLACK women c75 +12.1% | c-alone+gray -11.7% | BAIT MC-refuses -56.7% (2-9) | CE5 -48.8% (10-21) | FADE-GOLD -6.2% (12-6, a 67% win rate that still loses because -200/-300 needs ~70%).`}>
+          {markVerdict.ok === null ? '○' : markVerdict.ok ? '✓' : '✗'}
+          {' '}{markVerdict.label}{' · '}
+          {markVerdict.ok === null ? 'tracking' : (markVerdict.ok ? 'POSITIVE CELL ' : 'NEGATIVE CELL ')}
+          {markVerdict.ok === null ? '' : `${markVerdict.src} ${markVerdict.txt}`}
+        </div>
+      ) : null}
       {lvlNote && (blackC75W || baitGreen || (tier1Blue && !tier1Blue.fav)) ? (
         <div className="mono" style={{ fontSize: 8.5, fontWeight: 700, marginBottom: 5, color: lvlNote.tone, letterSpacing: '0.03em' }}
           title={`LEVEL x ROUND, measured 2026-10-08 on 3,822 marked-dog fires (banded +100..+200, true gender, one row per match). By level: TOUR men +16.7% all-years / +15.8% in 2026 (n=384/114), women +43.1% / +40.0% (n=289/71) -- the strongest level AND the only one that held into 2026. CHALLENGER men +10.8% all-years but -1.1% in 2026 (n=766/290), i.e. that level has died; women +39.5% (n=141, 2026 thin). ITF men +13.1% / +8.4%, women +19.4% / +7.9%. SLAMS men +11.7%, women +21.6%. By round: men early +12.0% (n=1,281) / late +17.7% (n=191); women early +32.6% (n=829) / late +9.9% (n=114). Level x round: TOUR EARLY +27.2% (n=622) is the best big cell, ITF EARLY +21.8% (n=500), CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157). HEADLINE: these dog edges are NOT a soft-book ITF artifact -- they are strongest where the liquidity is. ${lvlNote.rnote}.`}>

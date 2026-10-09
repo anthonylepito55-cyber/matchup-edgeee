@@ -6,10 +6,12 @@ signal actually SEPARATE the marked winners from the marked losers?
 import numpy as np
 import pandas as pd
 
+import sys
+START = sys.argv[1] if len(sys.argv) > 1 else "2026-10-04"
 LOG = "data_cache/_ec2_log_now.parquet"
 df = pd.read_parquet(LOG)
 df["d"] = df["date"].astype(str).str[:10]
-d = df[(df["d"] >= "2026-10-04") & df["p1_won"].notna()
+d = df[(df["d"] >= START) & df["p1_won"].notna()
        & df["p1_odds"].notna() & df["p2_odds"].notna()].copy()
 
 
@@ -108,7 +110,7 @@ for r in d.itertuples():
         })
 R = pd.DataFrame(rows)
 R.to_parquet("data_cache/_loss_postmortem.parquet")
-print(f"marked picks, 2026-10-04..08: {len(R)}  "
+print(f"marked picks, {START}..10-08: {len(R)}  "
       f"({int(R.won.sum())} won / {int((~R.won).sum())} lost)\n")
 
 print("=== EVERY LOSING MARKED PICK ===")
