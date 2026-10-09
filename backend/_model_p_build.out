@@ -1,0 +1,89 @@
+P universe (+100..+200 dogs): 26010 | by year {2022: 3111, 2023: 4240, 2024: 5521, 2025: 7437, 2026: 5701}
+
+==================== MEN ====================
+
+  2024: train 4737 rows | logloss market 0.6651 vs P 0.6546
+     every +100..+200 dog   1365-2150 win 38.8% ROI   -7.9% (n=3515)
+     P bets, EV >  0%     641-762 win 45.7% ROI   +9.8% (n=1403)
+     P bets, EV >  3%     561-633 win 47.0% ROI  +12.9% (n=1194)
+     P bets, EV >  5%     515-547 win 48.5% ROI  +16.6% (n=1062)
+     P bets, EV >  8%     436-451 win 49.2% ROI  +18.8% (n=887)
+     P bets, EV > 12%     354-361 win 49.5% ROI  +20.0% (n=715)
+     P passes (EV <= 0)     724-1388 win 34.3% ROI  -19.6% (n=2112)
+
+  2025: train 8252 rows | logloss market 0.6647 vs P 0.6546
+     every +100..+200 dog   1746-2718 win 39.1% ROI   -6.9% (n=4464)
+     P bets, EV >  0%     756-857 win 46.9% ROI  +13.4% (n=1613)
+     P bets, EV >  3%     649-704 win 48.0% ROI  +16.4% (n=1353)
+     P bets, EV >  5%     578-628 win 47.9% ROI  +17.0% (n=1206)
+     P bets, EV >  8%     489-504 win 49.2% ROI  +21.1% (n=993)
+     P bets, EV > 12%     373-376 win 49.8% ROI  +23.3% (n=749)
+     P passes (EV <= 0)     990-1861 win 34.7% ROI  -18.4% (n=2851)
+  2026 model weights (std units): {'intercept': np.float64(-0.013), 'd_vs_band': np.float64(0.096), 'g_C': np.float64(0.149), 'g_gray': np.float64(0.074), 'g_Dma': np.float64(0.263), 'd_form_win': np.float64(0.066), 'd_m_perf': np.float64(0.105), 'd_m_won': np.float64(-0.223), 'd_sutr': np.float64(-0.083), 'd_lrank': np.float64(0.074), 'is_chall': np.float64(-0.001), 'is_itf': np.float64(-0.002)}
+
+  2026: train 12716 rows | logloss market 0.6640 vs P 0.6624
+     every +100..+200 dog   1369-2149 win 38.9% ROI   -7.6% (n=3518)
+     P bets, EV >  0%     570-730 win 43.8% ROI   +6.3% (n=1300)
+     P bets, EV >  3%     484-601 win 44.6% ROI   +8.2% (n=1085)
+     P bets, EV >  5%     430-537 win 44.5% ROI   +8.1% (n=967)
+     P bets, EV >  8%     349-445 win 44.0% ROI   +7.0% (n=794)
+     P bets, EV > 12%     264-340 win 43.7% ROI   +6.8% (n=604)
+     P passes (EV <= 0)     799-1419 win 36.0% ROI  -15.8% (n=2218)
+
+==================== WOMEN ====================
+
+  2024: train 2614 rows | logloss market 0.6742 vs P 0.6283
+     every +100..+200 dog   826-1180 win 41.2% ROI   -2.4% (n=2006)
+     P bets, EV >  0%     421-331 win 56.0% ROI  +34.1% (n=752)
+     P bets, EV >  3%     393-292 win 57.4% ROI  +37.6% (n=685)
+     P bets, EV >  5%     366-273 win 57.3% ROI  +37.2% (n=639)
+     P bets, EV >  8%     329-237 win 58.1% ROI  +40.0% (n=566)
+     P bets, EV > 12%     296-197 win 60.0% ROI  +44.9% (n=493)
+     P passes (EV <= 0)     405-849 win 32.3% ROI  -24.3% (n=1254)
+
+  2025: train 4620 rows | logloss market 0.6596 vs P 0.6481
+     every +100..+200 dog   1137-1836 win 38.2% ROI   -8.9% (n=2973)
+     P bets, EV >  0%     597-644 win 48.1% ROI  +15.7% (n=1241)
+     P bets, EV >  3%     554-581 win 48.8% ROI  +17.2% (n=1135)
+     P bets, EV >  5%     524-541 win 49.2% ROI  +18.5% (n=1065)
+     P bets, EV >  8%     479-496 win 49.1% ROI  +18.6% (n=975)
+     P bets, EV > 12%     423-426 win 49.8% ROI  +20.7% (n=849)
+     P passes (EV <= 0)     540-1192 win 31.2% ROI  -26.6% (n=1732)
+  2026 model weights (std units): {'intercept': np.float64(-0.017), 'd_vs_band': np.float64(0.214), 'g_C': np.float64(0.326), 'g_gray': np.float64(-0.036), 'g_Dma': np.float64(0.193), 'd_form_win': np.float64(-0.06), 'd_m_perf': np.float64(0.147), 'd_m_won': np.float64(-0.237), 'd_sutr': np.float64(-0.149), 'd_lrank': np.float64(0.134), 'is_chall': np.float64(-0.01), 'is_itf': np.float64(-0.069)}
+
+  2026: train 7593 rows | logloss market 0.6711 vs P 0.6654
+     every +100..+200 dog   859-1324 win 39.3% ROI   -5.4% (n=2183)
+     P bets, EV >  0%     397-473 win 45.6% ROI  +11.4% (n=870)
+     P bets, EV >  3%     363-426 win 46.0% ROI  +12.6% (n=789)
+     P bets, EV >  5%     336-402 win 45.5% ROI  +12.0% (n=738)
+     P bets, EV >  8%     307-354 win 46.4% ROI  +14.5% (n=661)
+     P bets, EV > 12%     261-304 win 46.2% ROI  +14.6% (n=565)
+     P passes (EV <= 0)     462-851 win 35.2% ROI  -16.6% (n=1313)
+
+==================== POOLED 2024-26 (all out-of-sample) ====================
+
+MEN: every dog 4480-7017 win 39.0% ROI   -7.4% (n=11497)
+   EV >  0%  1967-2349 win 45.6% ROI  +10.1% (n=4316)
+   EV >  3%  1694-1938 win 46.6% ROI  +12.8% (n=3632)
+   EV >  5%  1523-1712 win 47.1% ROI  +14.2% (n=3235)
+   EV >  8%  1274-1400 win 47.6% ROI  +16.1% (n=2674)
+   EV > 12%  991-1077 win 47.9% ROI  +17.3% (n=2068)
+   by EV quintile (low -> high):
+     Q1  EV -0.797..-0.219  697-1603 win 30.3% ROI  -28.3% (n=2300)
+     Q2  EV -0.219..-0.107  838-1461 win 36.5% ROI  -14.8% (n=2299)
+     Q3  EV -0.107..-0.012  862-1437 win 37.5% ROI  -12.7% (n=2299)
+     Q4  EV -0.012..+0.105  985-1314 win 42.8% ROI   +2.0% (n=2299)
+     Q5  EV +0.105..+1.422  1098-1202 win 47.7% ROI  +16.7% (n=2300)
+
+WOMEN: every dog 2822-4340 win 39.4% ROI   -6.0% (n=7162)
+   EV >  0%  1415-1448 win 49.4% ROI  +19.2% (n=2863)
+   EV >  3%  1310-1299 win 50.2% ROI  +21.2% (n=2609)
+   EV >  5%  1226-1216 win 50.2% ROI  +21.4% (n=2442)
+   EV >  8%  1115-1087 win 50.6% ROI  +22.9% (n=2202)
+   EV > 12%  980-927 win 51.4% ROI  +25.1% (n=1907)
+   by EV quintile (low -> high):
+     Q1  EV -0.871..-0.307  346-1087 win 24.1% ROI  -42.9% (n=1433)
+     Q2  EV -0.307..-0.144  482-950 win 33.7% ROI  -20.9% (n=1432)
+     Q3  EV -0.144..-0.000  579-853 win 40.4% ROI   -4.6% (n=1432)
+     Q4  EV -0.000..+0.196  657-775 win 45.9% ROI   +8.9% (n=1432)
+     Q5  EV +0.196..+1.476  758-675 win 52.9% ROI  +29.4% (n=1433)

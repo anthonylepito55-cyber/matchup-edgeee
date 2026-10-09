@@ -22,7 +22,8 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "bookmaker", "logged_at", "settled", "p1_won", "sr_dog", "sos",
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
-           "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v", "score",
+           "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
+           "model_p_dog", "model_p_prob", "model_p_ev", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -166,6 +167,10 @@ def log_predictions(matches: list, date: str):
             "model_x_p1": mx.get("p1_prob"),
             # which Model X made this pick: 2 = market-free X (2026-10-09+). Old rows = None.
             "model_x_v": (2 if mx.get("p1_prob") is not None else None),
+            # MODEL P (2026-10-09): dog side (1/2), P's dog win prob, EV at the logged price.
+            "model_p_dog": (m.get("model_p") or {}).get("dog"),
+            "model_p_prob": (m.get("model_p") or {}).get("p_dog"),
+            "model_p_ev": (m.get("model_p") or {}).get("ev"),
             "model_x_recon": False,
             # PURE-RESULTS FORM edge (2026-10-06): p1 minus p2 quality-adjusted L10-on-
             # surface form. Frozen like the models; drives the contrarian pf_c75_* lanes.
@@ -1105,7 +1110,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1810,6 +1815,17 @@ def get_ab25_record() -> dict:
                     and _xv9 is not None and pd.notna(_xv9) and int(_xv9) == 2
                     and (float(_x9) >= 0.5) == dog1):
                 bet("x_dog", dog1)
+            # Ⓟ MODEL P lanes (2026-10-09): P's bet rule (EV >= 5%) on +100..+200 dogs, plus
+            # every P-positive dog (EV > 0) and P's passes (EV <= 0) for contrast.
+            _pe9, _pd9 = r.get("model_p_ev"), r.get("model_p_dog")
+            if _pe9 is not None and pd.notna(_pe9) and _pd9 is not None and pd.notna(_pd9):
+                _ps9 = int(_pd9) == 1
+                if float(_pe9) >= 0.05:
+                    bet("p_dog", _ps9)
+                if float(_pe9) > 0:
+                    bet("p_dog_any", _ps9)
+                else:
+                    bet("p_pass", _ps9)
             # one bet per gated game on the dog (coin-flip takes precedence)
             if "coinflip_c_dog" in _gate_hit:
                 bet("coinflip_c_dog", dog1)

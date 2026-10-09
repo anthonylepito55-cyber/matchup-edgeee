@@ -2373,6 +2373,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     gray_dog4: { m: true, w: true }, mc_c75_dog: { m: true, w: true }, fade_a_dog_gray: { m: true, w: true },
     pink_fadeb_dog_m: { m: true }, pink_wcons_dog: { w: true }, pink_wall9_fav: { w: true },
     pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false }, pink_mc2_dog: { m: false, w: false },
+    p_dog: { m: true, w: true },
   }
   const gHL = (match.league === 'wta' || match.league === 'itf_women') ? 'w' : 'm'
   const hlWhy = (lane, g) => {
@@ -2409,6 +2410,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
              x: dog1 ? mx.p1_prob : 1 - mx.p1_prob, mk: dog1 ? mk : 1 - mk, recon: !!mx.recon,
              live: c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking (from today, new X only)' }
   })()
+  // Ⓟ MODEL P (2026-10-09, user "build it but only +100 to +200"): the profit model -- an
+  // offset model on the market for +100..+200 dogs (tennis_model_p.py). Bet rule EV >= 5%.
+  // Walk-forward 2024-26 (strict two-level): EV>5% men +14.2% (n=3,235), women +21.4%
+  // (n=2,442) vs every dog -7.4% / -6.0%; positive every year. Lane p_dog. Colors teal
+  // only through the highlight gate (needs its own positive live record).
+  const pModel = (() => {
+    const mp = match.model_p
+    if (!mp || mp.ev == null) return null
+    const dog1 = mp.dog === 1
+    const od = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+    return { ...mp, who: dog1 ? match.player_1 : match.player_2, od: od == null || isNaN(od) ? null : od }
+  })()
+  const hlP = !!(pModel && pModel.bet) && hlOK('p_dog', gHL)
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -2471,10 +2485,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: hlBlack ? 'rgba(8,10,14,0.92)' : hlGreen ? (false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : hlPurple ? 'rgba(188,140,255,0.13)' : hlBlue ? 'rgba(88,166,255,0.11)' : hlPink ? 'rgba(247,120,186,0.13)' : hlOrange ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: hlBlack ? '2px solid #e8e8ea' : hlGreen ? (false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : hlPurple ? '1px solid rgba(188,140,255,0.85)' : hlBlue ? '1px solid rgba(88,166,255,0.80)' : hlPink ? '1px solid rgba(247,120,186,0.85)' : hlOrange ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${hlBlack ? '#f0f0f2' : hlGreen ? (false ? '#f85149' : '#3fb950') : hlPurple ? '#bc8cff' : hlBlue ? '#58a6ff' : hlPink ? '#f778ba' : hlOrange ? '#f0883e' : leagueColor}`,
-      boxShadow: hlBlack ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : hlGreen ? (false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : hlPurple ? '0 0 18px rgba(188,140,255,0.30)' : hlBlue ? '0 0 16px rgba(88,166,255,0.25)' : hlPink ? '0 0 16px rgba(247,120,186,0.28)' : hlOrange ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: hlBlack ? 'rgba(8,10,14,0.92)' : hlGreen ? (false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : hlPurple ? 'rgba(188,140,255,0.13)' : hlBlue ? 'rgba(88,166,255,0.11)' : hlP ? 'rgba(45,212,191,0.11)' : hlPink ? 'rgba(247,120,186,0.13)' : hlOrange ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: hlBlack ? '2px solid #e8e8ea' : hlGreen ? (false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : hlPurple ? '1px solid rgba(188,140,255,0.85)' : hlBlue ? '1px solid rgba(88,166,255,0.80)' : hlP ? '1px solid rgba(45,212,191,0.80)' : hlPink ? '1px solid rgba(247,120,186,0.85)' : hlOrange ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${hlBlack ? '#f0f0f2' : hlGreen ? (false ? '#f85149' : '#3fb950') : hlPurple ? '#bc8cff' : hlBlue ? '#58a6ff' : hlP ? '#2dd4bf' : hlPink ? '#f778ba' : hlOrange ? '#f0883e' : leagueColor}`,
+      boxShadow: hlBlack ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : hlGreen ? (false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : hlPurple ? '0 0 18px rgba(188,140,255,0.30)' : hlBlue ? '0 0 16px rgba(88,166,255,0.25)' : hlP ? '0 0 16px rgba(45,212,191,0.25)' : hlPink ? '0 0 16px rgba(247,120,186,0.28)' : hlOrange ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {match.book_prices && (match.book_prices.p1 || match.book_prices.p2) ? (() => {
@@ -2597,6 +2611,25 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
+      {pModel ? (() => {
+        const st = (((laneRec && laneRec.study) || {}).p_dog) || {}
+        const c = st[gHL] || {}
+        const live = c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from today'
+        const bt = gHL === 'w' ? 'bt 2024-26 W +21.4% (n=2,442)' : 'bt 2024-26 M +14.2% (n=3,235)'
+        const nm = (pModel.who || '').split(' ').slice(-1)[0].toUpperCase()
+        const odS = pModel.od != null ? ` ${pModel.od > 0 ? '+' : ''}${pModel.od}` : ''
+        return (
+          <div className="mono"
+            title={`Ⓟ MODEL P — the profit model: an offset model on the market (it starts from the price and only learns where the price is wrong), +100..+200 dogs only, separate men/women weights. P gives ${nm} ${Math.round(pModel.p_dog * 1000) / 10}% vs the market's ${Math.round(pModel.mkt_dog * 1000) / 10}% → EV ${pModel.ev >= 0 ? '+' : ''}${Math.round(pModel.ev * 1000) / 10}% at this price. Bet rule EV ≥ 5%. Strict walk-forward 2024-26: EV>5% men +14.2% (n=3,235), women +21.4% (n=2,442), vs backing every +100..+200 dog −7.4% / −6.0%; positive every year, monotone by EV. Live lane p_dog is the judge.`}
+            style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: pModel.bet ? '#2dd4bf' : 'var(--text-tertiary)', opacity: pModel.bet ? (hlP ? 1 : 0.8) : 0.6 }}>
+            {pModel.bet && !hlP ? noHL(hlWhy('p_dog', gHL)) : null}
+            Ⓟ MODEL P → {pModel.bet
+              ? <span style={{ fontSize: 12, fontWeight: 900, color: '#d5fbf5', textShadow: '0 0 8px rgba(45,212,191,0.5)' }}>TAKE {nm}{odS}</span>
+              : <span style={{ fontWeight: 700 }}>PASS on {nm}{odS}</span>}
+            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_dog * 1000) / 10}% vs mkt {Math.round(pModel.mkt_dog * 1000) / 10}% · EV {pModel.ev >= 0 ? '+' : ''}{Math.round(pModel.ev * 1000) / 10}%{pModel.bet ? ` · ${bt} · ${live}` : ' (needs ≥ +5%)'}</span>
+          </div>
+        )
+      })() : null}
       {xDog ? (
         <div className="mono"
           title={`✖ X DOG — the market-free Model X (C + D stacker; the market and the gray heads were removed from its inputs on 2026-10-09) picks the underdog here: X ${Math.round(xDog.x * 1000) / 10}% vs market ${Math.round(xDog.mk * 1000) / 10}%. Walk-forward on the frozen log, dog picks +12.5% (57-63, n=120); X picks the dog on about 21% of games. Not a card color until its own live lane (x_dog) is positive.${xDog.recon ? ' This one is a walk-forward backfill (~), not a pre-match pick.' : ''}`}

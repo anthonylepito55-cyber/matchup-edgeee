@@ -2081,6 +2081,15 @@ def _compute_tennis_today_inner(date: str = None):
                                                        r.get("round")))
             except Exception:  # noqa: BLE001
                 r["model_x"] = None
+            # MODEL P (2026-10-09, user "build it but only +100 to +200"): the profit model --
+            # an offset model on the market for +100..+200 dogs. See tennis_model_p.py.
+            try:
+                import tennis_model_p as _tmp
+                _lo = r.get("live_odds") or {}
+                r["model_p"] = _tmp.predict_p(mc, md, _mk1, r.get("league"),
+                                              _lo.get("player_1"), _lo.get("player_2"))
+            except Exception:  # noqa: BLE001
+                r["model_p"] = None
             # PURE-RESULTS FORM overlay (2026-10-06, user): quality- + competitiveness-
             # adjusted last-10-on-surface form, NO serve stats. Logged + forward-tracked as
             # a CONTRARIAN overlay on mc_c75 (men mc_c75 + form DISAGREES = +live edge; the
@@ -2412,6 +2421,12 @@ def _compute_tennis_itf_inner(date: str):
         except Exception:  # noqa: BLE001
             model_x = None
         try:
+            import tennis_model_p as _tmp
+            model_p = _tmp.predict_p(mc, md, _mk1, m.get("league"),
+                                     (od or {}).get("player_1"), (od or {}).get("player_2"))
+        except Exception:  # noqa: BLE001
+            model_p = None
+        try:
             ctx1 = _tctx.get_context(p1, surf)
             ctx2 = _tctx.get_context(p2, surf)
         except Exception:  # noqa: BLE001
@@ -2445,7 +2460,7 @@ def _compute_tennis_itf_inner(date: str):
                       "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
                                      "bookmaker": od.get("bookmaker")} if od else None),
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
-                      "model_i": model_i, "model_x": model_x, "market_corrupt": _corrupt,
+                      "model_i": model_i, "model_x": model_x, "model_p": model_p, "market_corrupt": _corrupt,
                       "mc2": mc2,
                       "tr_context": {"p1": ctx1, "p2": ctx2}})
     # LOG ITF TO THE LEDGER (2026-10-08): ITF cards were never logged (only mislabeled
