@@ -354,7 +354,10 @@ def _feats(p1, p2, surface, h):
         "d_oppq": d(p2["oppq"], p1["oppq"]),
         "d_v100": d(p1["v100"], p2["v100"]),
         "d_rust": d(p2["days_off"], p1["days_off"]),
-        "d_lrank": (np.log(min(max(p2["rank"] or 0, 1), 2000)) - np.log(min(max(p1["rank"] or 0, 1), 2000))
+        # RANK-SIGN FIX (2026-10-09): training (_tennis_model_a_build.py) defines the gap as
+        # log(p1 rank) - log(p2 rank) (+ = p1 worse); live had it reversed, which left Model A
+        # at 51.7% live (n=718) vs ~61% for B/C/D. Now matches training.
+        "d_lrank": (np.log(min(max(p1["rank"] or 0, 1), 2000)) - np.log(min(max(p2["rank"] or 0, 1), 2000))
                     if (p1["rank"] and p2["rank"]) else 0.0),
         "f_h2h_n": min(n, 20),
         "f_h2h_share": (w1 / n - 0.5) if n else 0.0,
@@ -505,7 +508,8 @@ def predict_c(name1, name2, surface, market_p1=None):
     v1 = (c1 or {}).get(f"m_bw{b2i}")
     v2 = (c2 or {}).get(f"m_bw{b1i}")
     f["d_vs_band"] = d(v1, v2)
-    f["d_lrank"] = (np.log(min(max(p2.get("rank") or 0, 1), 2000)) - np.log(min(max(p1.get("rank") or 0, 1), 2000))
+    # RANK-SIGN FIX (2026-10-09): training convention log(p1 rank) - log(p2 rank).
+    f["d_lrank"] = (np.log(min(max(p1.get("rank") or 0, 1), 2000)) - np.log(min(max(p2.get("rank") or 0, 1), 2000))
                     if (p1.get("rank") and p2.get("rank")) else 0.0)
     n = h["n"] if h else 0
     w1 = h["wins"].get(s1, 0) if h else 0

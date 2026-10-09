@@ -23,7 +23,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
-           "model_p_dog", "model_p_prob", "model_p_ev", "score",
+           "model_p_dog", "model_p_prob", "model_p_ev", "ac_v", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -171,6 +171,9 @@ def log_predictions(matches: list, date: str):
             "model_p_dog": (m.get("model_p") or {}).get("dog"),
             "model_p_prob": (m.get("model_p") or {}).get("p_dog"),
             "model_p_ev": (m.get("model_p") or {}).get("ev"),
+            # A/C version: 2 = rank-sign fix applied (2026-10-09). None = logged on the
+            # reversed-rank A/C. Lets every A/C-based lane split before/after the fix.
+            "ac_v": 2,
             "model_x_recon": False,
             # PURE-RESULTS FORM edge (2026-10-06): p1 minus p2 quality-adjusted L10-on-
             # surface form. Frozen like the models; drives the contrarian pf_c75_* lanes.
