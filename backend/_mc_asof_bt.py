@@ -66,8 +66,10 @@ cand["_k"] = keys
 cand = cand[cand["_k"].isin(cleanC.keys())]
 # one row per match (the rig has both orientations; keep the lexicographically-first side)
 cand = cand[cand["player_slug"].astype(str) < cand["rival_slugname"].astype(str)]
-lvls = cand["tournament_level"].astype(str).str.lower()
-cand["isW"] = lvls.str.contains("wom") | lvls.str.contains("wta")
+# TRUE GENDER (2026-10-08 fix): tournament_level says only "futures" for ITF, so a
+# level-based rule files every women's ITF match as MEN. Use the slug gender map.
+_GM = pd.read_parquet("data_cache/_slug_gender.parquet")["g"].to_dict()
+cand["isW"] = cand["player_slug"].astype(str).map(_GM).eq("W")
 print(f"candidate 2026 matches: {len(cand)}  (W {int(cand['isW'].sum())})", flush=True)
 if len(cand) > SAMPLE:
     cand = cand.iloc[rng.choice(len(cand), SAMPLE, replace=False)]
