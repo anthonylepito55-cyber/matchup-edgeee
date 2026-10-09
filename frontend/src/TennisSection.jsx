@@ -2099,8 +2099,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         const nm2 = favS ? match.player_1 : match.player_2
         const od2 = match.live_odds ? Number(favS ? match.live_odds.player_1 : match.live_odds.player_2) : null
         return { side: favS, name: nm2, od: isNaN(od2) ? null : od2, isW, fav: true,
-                 cells: [{ n: 'C-EDGE5 FAV (W)', bm: null, bw: '+5.6% (783-317)',
-                            am: null, aw: '+9.0% (n=3,203)', lane: null }] }
+                 cells: [{ n: 'C-EDGE5 FAV (W) ⚠', bm: null, bw: '+5.6% (783-317)',
+                            am: null, aw: '+9.0% (n=3,203)', lane: null,
+                            lv: '-14.7% (27-21)' }] }
       }
     }
     return null
@@ -2182,7 +2183,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         </div>
       ) : null}
       {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 && !purpleFGW ? (
-        <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.map(c => `${c.n} [bt26 ${tier1Blue.isW ? 'W ' + (c.bw || 'n/a') : 'M ' + (c.bm || 'n/a')}]`).join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. TIER-1 = positive in BOTH the corrected backtest and the live log. Roster (2026 bt | all-years bt | live): c75 DOG +100/+200 M +11.2% (n=271) | 2026-sample only | live +24.6% (41-41) · GRAY 4pt+ DOG M +3.8%/W +17.5% | M +13.5% (n=2,185)/W +26.5% (n=1,452) | live M +15.1%/W +12.7% · TIER-1 M +3.2%/W +20.5% | M +14.1% (n=2,079)/W +28.8% (n=1,321) | live M +15.8%/W +13.1% · C-ALONE+GRAY M +3.3%/W +17.1% | M +15.9% (n=947)/W +32.6% (n=601) | live M +19.5%/W +6.4% · FADE-A DOG+GRAY M +13.6%/W +29.4% | M +14.0% (n=290)/W +29.6% (n=255) | live thin (n=9) · C-EDGE5 FAV W +5.6% | +9.0% (n=3,203) | live tracking. NOTE the 2026-vs-all-years gap on the men's side (+3% vs +14%): the men's dog edge has DECAYED this season while the women's held. Backtest REMEASURED 2026-10-08 — two defects fixed: (1) gender, the old split filed every women's ITF match as MEN (31% of its men's bucket) and counted only WTA women; (2) double-counting, the old rig scored both orientations of every match. True-gender, one-row-per-match 2026 numbers: GRAY 4pt+ DOG M +3.8%/W +17.5% · TIER-1 M +3.2%/W +20.5% · C-ALONE+GRAY M +3.3%/W +17.1% · FADE-A DOG+GRAY M +13.6%/W +29.4% · C-EDGE5 FAV W +5.6%. All-years (more stable): men dogs +12.7..+15.9%, women dogs +26.5..+33.1%. **The men's dog edge has decayed to ~+3% in 2026 while the women's holds at +17..+21% — the women's half is now the stronger side of every bedrock cell.** Live: gray_dog4 M +15.1%/W +12.7%, tier1 M +15.8%, priced-star-dog M +14.6%/W +26.5%, c-alone+gray M +19.5%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
+        <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.map(c => `${c.n} [bt26 ${tier1Blue.isW ? 'W ' + (c.bw || 'n/a') : 'M ' + (c.bm || 'n/a')}]`).join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. BLUE FAMILY LIVE ROI (replay of every blue card on the frozen log, one bet per card, flat 1u at frozen odds, 2026-10-08): ALL +12.4% (103-91, +24.1u) | MEN +23.6% (51-44) | WOMEN +1.6% (52-47). Per leading cell: c75 DOG +24.4% (65-59, n=124 - carries the family), TIER-1 +11.2% (28-28), GRAY 4pt+ +11.0% (29-29), C-ALONE+GRAY +6.1% (15-17), FADE-A -0.9% (4-4, thin), and ⚠ C-EDGE5 FAV W -14.7% (27-21) - the ONE blue cell losing live despite a +5.6%/+9.0% backtest, which is why it is tagged with a warning and is the family's demotion candidate. TIER-1 = positive in BOTH the corrected backtest and the live log. Roster (2026 bt | all-years bt | live): c75 DOG +100/+200 M +11.2% (n=271) | 2026-sample only | live +24.6% (41-41) · GRAY 4pt+ DOG M +3.8%/W +17.5% | M +13.5% (n=2,185)/W +26.5% (n=1,452) | live M +15.1%/W +12.7% · TIER-1 M +3.2%/W +20.5% | M +14.1% (n=2,079)/W +28.8% (n=1,321) | live M +15.8%/W +13.1% · C-ALONE+GRAY M +3.3%/W +17.1% | M +15.9% (n=947)/W +32.6% (n=601) | live M +19.5%/W +6.4% · FADE-A DOG+GRAY M +13.6%/W +29.4% | M +14.0% (n=290)/W +29.6% (n=255) | live thin (n=9) · C-EDGE5 FAV W +5.6% | +9.0% (n=3,203) | live tracking. NOTE the 2026-vs-all-years gap on the men's side (+3% vs +14%): the men's dog edge has DECAYED this season while the women's held. Backtest REMEASURED 2026-10-08 — two defects fixed: (1) gender, the old split filed every women's ITF match as MEN (31% of its men's bucket) and counted only WTA women; (2) double-counting, the old rig scored both orientations of every match. True-gender, one-row-per-match 2026 numbers: GRAY 4pt+ DOG M +3.8%/W +17.5% · TIER-1 M +3.2%/W +20.5% · C-ALONE+GRAY M +3.3%/W +17.1% · FADE-A DOG+GRAY M +13.6%/W +29.4% · C-EDGE5 FAV W +5.6%. All-years (more stable): men dogs +12.7..+15.9%, women dogs +26.5..+33.1%. **The men's dog edge has decayed to ~+3% in 2026 while the women's holds at +17..+21% — the women's half is now the stronger side of every bedrock cell.** Live: gray_dog4 M +15.1%/W +12.7%, tier1 M +15.8%, priced-star-dog M +14.6%/W +26.5%, c-alone+gray M +19.5%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
           🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.map(c => c.n).join(' + ')}
           {(() => {
@@ -2193,10 +2194,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             const c = (tier1Blue.isW ? st.w : st.m) || {}
             const nn = c.n || 0
             const g = tier1Blue.isW ? 'W' : 'M'
+            // family-level live ROI: replay of EVERY blue-highlighted card on the frozen
+            // log, one bet per card, flat 1u at frozen odds (measured 2026-10-08):
+            // all +12.4% (103-91, +24.1u) | men +23.6% (51-44) | women +1.6% (52-47).
+            const fam = tier1Blue.isW ? '+1.6% (52-47)' : '+23.6% (51-44)'
             return <span style={{ color: '#d6e9ff', fontWeight: 400 }}>
               {bt ? ` · bt26 ${g} ${bt}` : ''}
               {ba ? ` · 3yr ${ba}` : ''}
-              {nn ? ` · LIVE ${g} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})` : ` · LIVE ${g} tracking`}
+              {nn ? ` · LIVE ${g} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})`
+                  : (lead.lv ? ` · LIVE ${g} ${lead.lv}` : ` · LIVE ${g} tracking`)}
+              <span style={{ color: '#8ab4e8' }}>{` · BLUE ${g} fam ${fam}`}</span>
             </span>
           })()}
         </div>
