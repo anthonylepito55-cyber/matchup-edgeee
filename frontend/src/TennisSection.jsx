@@ -1989,6 +1989,47 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return (d1 ? match.mc2.p1_prob : 1 - match.mc2.p1_prob) - (d1 ? mc3.market_p1 : 1 - mc3.market_p1)
   })()
   const orange58 = mc2DogEdge != null && mc2DogEdge >= 0.05 && mc2DogEdge < 0.08
+  // 🏛 TIER-1 BEDROCK BLUE (2026-10-08, user "make sure these are full highlighted"):
+  // the cells positive in BOTH the 2024-26 walk-forward backtest AND the live log —
+  // GRAY 4pt+ DOG (bt26 M +11.1/W +35.1, live +11.0%), STAR/TIER-1 dogs (M +12/W +34.7,
+  // live +11-14.5%), C-ALONE+GRAY DOG (M +13.3/W +44.4, live +6.1%), FADE-A DOG+GRAY
+  // (M +19.8/W +23.3, live thin), and the women's C-EDGE5 FAV (+11.0% held 3 years).
+  // Full-card blue; bait-green outranks it when both fire.
+  const tier1Blue = (() => {
+    if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
+    const c1 = mc3.p1_prob >= 0.5
+    const g1 = mc3.market_aware_p1 >= 0.5
+    const dog1 = mc3.market_p1 < 0.5
+    const mdog = dog1 ? mc3.market_p1 : 1 - mc3.market_p1
+    const gdog = dog1 ? mc3.market_aware_p1 : 1 - mc3.market_aware_p1
+    const aP = ma3 && ma3.p1_prob != null ? ma3.p1_prob >= 0.5 : null
+    const bP = mb3 && mb3.p1_prob != null ? mb3.p1_prob >= 0.5 : null
+    const isW = match.league === 'wta' || match.league === 'itf_women'
+    const cells = []
+    const star = c1 === g1 && g1 === dog1
+    const alone = aP !== null && bP !== null && aP !== c1 && bP !== c1
+    if (g1 === dog1 && gdog - mdog >= 0.04) cells.push('GRAY 4pt+ DOG')
+    if (star && (alone || gdog - mdog >= 0.04)) cells.push('TIER-1')
+    else if (star) cells.push('STAR C+GRAY DOG')
+    if (alone && g1 === c1 && c1 === dog1) cells.push('C-ALONE+GRAY')
+    if (aP !== null && bP !== null && aP !== c1 && bP === c1 && c1 === dog1 && g1 === c1) cells.push('FADE-A DOG+GRAY')
+    if (cells.length) {
+      const nm2 = dog1 ? match.player_1 : match.player_2
+      const od2 = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+      return { side: dog1, name: nm2, od: isNaN(od2) ? null : od2, cells, isW, fav: false }
+    }
+    if (isW) {
+      const favS = !dog1
+      const cfav = favS ? mc3.p1_prob : 1 - mc3.p1_prob
+      const mfav = favS ? mc3.market_p1 : 1 - mc3.market_p1
+      if (cfav - mfav >= 0.05) {
+        const nm2 = favS ? match.player_1 : match.player_2
+        const od2 = match.live_odds ? Number(favS ? match.live_odds.player_1 : match.live_odds.player_2) : null
+        return { side: favS, name: nm2, od: isNaN(od2) ? null : od2, cells: ['C-EDGE5 FAV (W)'], isW, fav: true }
+      }
+    }
+    return null
+  })()
   // 🪤 BAIT-FAVORITE GREEN (2026-10-08, user "I want all these games highlighted green
   // full card on the board"): ALL FOUR sims (c50/c75/cUTR/serve-MC) price the favorite
   // >=6pts below the no-vig market (>=4pts women) AND the dog is +100..+200 -> the
@@ -2023,12 +2064,18 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
+      {!baitGreen && tier1Blue ? (
+        <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. Backtest 2026: GRAY 4pt+ DOG M +11.1%/W +35.1% · STAR/TIER-1 M +12%/W +34.7% · C-ALONE+GRAY M +13.3%/W +44.4% · FADE-A DOG+GRAY M +19.8%/W +23.3% · C-EDGE5 FAV women +11.0% (held 3 straight years). Live: gray_dog4 +11.0% (58), tier1 +11.0%, priced-star-dog +14.5%, c-alone+gray +6.1%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
+          style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
+          🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.join(' + ')} · bt26 {tier1Blue.fav ? 'W fav +11.0%' : (tier1Blue.isW ? 'W +34..44%' : 'M +11..20%')} · live +6..15%
+        </div>
+      ) : null}
       {baitGreen ? (
         <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Replay month at the 6pt discount: dogs 39-37 (51.3%) +23.4% — women +40.1%, men +13.6% — with clean dose-response (deeper discount = worse favorite, better dog). +200..+250 bait dogs LOSE -42.5%, which is why this only fires through +200. Live record = the bait_dog lane (Splits tab), gender-split, auto-updating. Smallest head-gap on this card: ${baitGreen.gap}pts.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#3fb950', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(63,185,80,0.5)' }}>
