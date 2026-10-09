@@ -1,0 +1,25 @@
+BACKTEST 2026: P's dog universe joined to as-of c75 (6166 dogs)
+
+MEN +100..+200: every dog 1368-2147 win 38.9% ROI   -7.6% (n=3515)
+   P bet AND c75 on the dog     255-302 win 45.8% ROI   +7.7% (n=557)
+   P bet, c75 AGAINST           152-201 win 43.1% ROI   +8.8% (n=353)
+   c75 on the dog, P no bet     199-301 win 39.8% ROI  -10.4% (n=500)
+   neither                      762-1343 win 36.2% ROI  -13.7% (n=2105)
+     ...P EV 10%+ AND c75       202-237 win 46.0% ROI   +8.4% (n=439)
+
+WOMEN +100..+250: every dog 1005-1646 win 37.9% ROI   -4.3% (n=2651)
+   P bet AND c75 on the dog     224-250 win 47.3% ROI  +17.2% (n=474)
+   P bet, c75 AGAINST           188-238 win 44.1% ROI  +20.6% (n=426)
+   c75 on the dog, P no bet     122-181 win 40.3% ROI   -7.0% (n=303)
+   neither                      471-977 win 32.5% ROI  -18.1% (n=1448)
+     ...P EV 10%+ AND c75       196-221 win 47.0% ROI  +17.3% (n=417)
+
+LIVE frozen log (2026-09-28..2026-10-09), ~P replay + logged c75: 403 dogs in P's band
+  M: every dog 118-159 win 42.6% ROI   +0.2% (n=277)
+     P bet AND c75 on dog     17-16 win 51.5% ROI  +20.1% (n=33)
+     P bet, c75 against       7-4 win 63.6% ROI  +56.7% (n=11)
+     c75 on dog, P no bet     23-19 win 54.8% ROI  +24.8% (n=42)
+  W: every dog 56-70 win 44.4% ROI  +13.2% (n=126)
+     P bet AND c75 on dog     12-11 win 52.2% ROI  +38.0% (n=23)
+     P bet, c75 against       n=9 (thin)
+     c75 on dog, P no bet     7-10 win 41.2% ROI   -3.2% (n=17)
