@@ -1560,7 +1560,7 @@ function HistoryPanel({ query, greenOnly = false }) {
           for (const s of [...(m.signals || []), ...(m.conflicts || [])]) {
             const o = s.side === 1 ? m.p1_odds : m.p2_odds
             const dec = (o == null || o === 0) ? null : (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o))
-            const t = sigT[s.label] || (sigT[s.label] = { w: 0, l: 0, pnl: 0, priced: 0 })
+            const t = sigT[s.label] || (sigT[s.label] = { w: 0, l: 0, pnl: 0, priced: 0, watch: !!s.watch })
             if (s.hit) t.w++; else t.l++
             if (dec != null) { t.pnl += s.hit ? dec - 1 : -1; t.priced++ }
           }
@@ -1584,8 +1584,9 @@ function HistoryPanel({ query, greenOnly = false }) {
               <div className="mono" style={{ fontSize: 9, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}
                 title="🎯 THE DAY, PER SIGNAL — every board signal that fired on this day's finished games: day record (w-l) and flat-1u P/L at the frozen closing odds of the side it bet. Green = the signal made money that day, red = lost. Sorted best day first. Same frozen-log predicates as the board chips / 🏆 Best tab.">
                 <span style={{ color: '#3fb950', fontWeight: 700 }}>🎯 day:</span>
-                {Object.entries(sigT).sort((x, y) => y[1].pnl - x[1].pnl).map(([k, t]) => (
-                  <span key={k} style={{ whiteSpace: 'nowrap', padding: '0 5px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)', color: t.pnl > 0.02 ? '#3fb950' : t.pnl < -0.02 ? '#f85149' : 'var(--text-tertiary)' }}>
+                {Object.entries(sigT).sort((x, y) => (x[1].watch - y[1].watch) || (y[1].pnl - x[1].pnl)).map(([k, t]) => (
+                  <span key={k} title={t.watch ? 'WATCH ONLY -- fired, but the board no longer bets this signal (demoted/refuted 2026-10-08). Record kept; not a pick.' : undefined}
+                    style={{ whiteSpace: 'nowrap', padding: '0 5px', borderRadius: 6, border: t.watch ? '1px dashed rgba(255,255,255,0.10)' : '1px solid rgba(255,255,255,0.06)', opacity: t.watch ? 0.6 : 1, color: t.watch ? 'var(--text-tertiary)' : t.pnl > 0.02 ? '#3fb950' : t.pnl < -0.02 ? '#f85149' : 'var(--text-tertiary)' }}>
                     {k} {t.w}-{t.l}{t.priced ? ` ${t.pnl > 0 ? '+' : ''}${t.pnl.toFixed(1)}u` : ''}
                   </span>
                 ))}
@@ -1640,7 +1641,12 @@ function HistoryPanel({ query, greenOnly = false }) {
                   <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 50, display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}
                     title="New elite board-signals that fired on this finished game (side ◀ p1 / ▶ p2, ✓ hit / ✗ miss) — read from the frozen log, same predicates as the 🏆 Best tab and the live board chips.">
                     <span style={{ color: '#3fb950', fontWeight: 700 }}>🎯</span>
-                    {m.signals.map((g, j) => (
+                    {m.signals.map((g, j) => g.watch ? (
+                      <span key={j} title="WATCH ONLY -- this signal fired, but the board no longer bets it (demoted or refuted on 2026-10-08). Kept here so its record stays visible; it is not a pick."
+                        style={{ fontSize: 8.5, padding: '0 4px', borderRadius: 6, border: '1px dashed var(--line)', color: 'var(--text-tertiary)', opacity: 0.75 }}>
+                        {g.label}{g.side === 1 ? '◀' : '▶'}{g.hit ? '✓' : '✗'}
+                      </span>
+                    ) : (
                       <span key={j} style={{ fontSize: 8.5, padding: '0 4px', borderRadius: 6, border: `1px solid ${g.hit ? '#3fb95055' : '#f8514955'}`, color: g.hit ? '#3fb950' : '#f85149', background: g.hit ? '#3fb9500d' : '#f851490d' }}>
                         {g.label}{g.side === 1 ? '◀' : '▶'}{g.hit ? '✓' : '✗'}
                       </span>

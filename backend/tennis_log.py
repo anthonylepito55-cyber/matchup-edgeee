@@ -469,6 +469,59 @@ def _elite_signals_for_row(r, mk1):
     add("C-ALONE+GRAY", (None not in (a, bb, c1, g1) and a != c1 and bb != c1 and g1 == c1), c1)
     add("D+GRAY DOG", (None not in (d, g1) and have_mkt and d == dog1 and g1 == dog1), dog1)
     add("D ALONE", (None not in (a, bb, c1, d) and a != d and bb != d and c1 != d), d)
+    return _tag_watch_signals(out, r, mk1, dog1, gray_p1, c1, have_mkt)
+
+
+# WATCH TAGGING (2026-10-08, user: "the z bai game still said it was a signal to take her").
+# The history line is a RECORD of which signals fired, and it should keep that record --
+# that is how we learned these cells lose. But a signal must not LOOK like a pick unless the
+# current board would actually tell you to bet it. Favourite-side signals that were demoted
+# or refuted on 2026-10-08 keep their entry, lose the ⭐✓ "validated" star, gain a 👁 prefix
+# and a watch=True flag, and the history tab draws them grey without ✓/✗ emphasis:
+#   FADE-GOLD (fav)    -> demoted: clean live -3.9% (17-8), bt only +4.4%
+#   C-EDGE5 FAV        -> demoted: live -26.5% (50 settles)
+#   FADE-FORM FAV      -> backtest flat: men -0.6% (n=9,626) / women +0.5% (n=6,031)
+#   D-MA2 FAV          -> live negative on 243 settles (men -2.0% / women -8.5%)
+#   c75 FAV, c50+c75 on the favourite -> not a board bet (c75 favourites are negative
+#                         for men in every band of the as-of backtest)
+#   C-ALONE+GRAY on the favourite -> only a bet when it clears the gated 💜 CGF mark
+#                         (gray >= 5pt over market, not challenger, men -100..-150 /
+#                         women -100..-200); otherwise watch. When it does clear the gates
+#                         it is relabelled 💜CGF FAV so it reads as the mark it is.
+_WATCH_LABELS = {
+    "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
+    "⭐✓C-EDGE5 FAV": "👁C-EDGE5 FAV (demoted)", "🧊FADE-FORM FAV": "👁FADE-FORM FAV (flat bt)",
+    "⭐✓D-MA2 FAV": "👁D-MA2 FAV (live −)", "c75 FAV": "👁c75 FAV",
+}
+
+
+def _tag_watch_signals(out, r, mk1, dog1, gray_p1, c1, have_mkt):
+    favp1 = (not dog1) if have_mkt else None
+    lg = str(r.get("league") or "")
+    wom = ("wta" in lg) or ("itf_women" in lg)
+    for e in out:
+        lab = e["label"]
+        side_p1 = e["side"] == 1
+        if lab in _WATCH_LABELS:
+            e["label"] = _WATCH_LABELS[lab]
+            e["watch"] = True
+        elif lab == "c50+c75" and favp1 is not None and side_p1 == favp1:
+            e["label"] = "👁c50+c75 FAV"
+            e["watch"] = True
+        elif lab == "C-ALONE+GRAY" and favp1 is not None and side_p1 == favp1:
+            od = r.get("p1_odds") if side_p1 else r.get("p2_odds")
+            gate = False
+            if (have_mkt and gray_p1 is not None and od is not None and not pd.isna(od)):
+                fav_mk = mk1 if side_p1 else 1 - mk1
+                g_fav = gray_p1 if side_p1 else 1 - gray_p1
+                lo = -200 if wom else -150
+                gate = ((g_fav - fav_mk) >= 0.05 and lo <= float(od) <= -100
+                        and "challenger" not in lg)
+            if gate:
+                e["label"] = "💜CGF FAV"
+            else:
+                e["label"] = "👁C-ALONE+GRAY FAV"
+                e["watch"] = True
     return out
 
 
