@@ -1439,8 +1439,20 @@ function SplitsPanel() {
 // every P pick on today's slate in one place at the top of the board -- dog bets (EV >= 5%,
 // teal) and favourite bets (EV >= 3%, gold, flagged) -- sorted by start time.
 function ModelPStrip({ matches }) {
+  // ITF games too (2026-10-09, user "add the itf games to the model p today list"): the ITF
+  // slate lives on its own feed (/api/tennis/itf, SWR-cached server side), so load it here
+  // and merge; refreshed every 5 minutes.
+  const [itf, setItf] = useState([])
+  useEffect(() => {
+    let alive = true
+    const go = () => fetch('/api/tennis/itf').then(r => r.json())
+      .then(j => { if (alive) setItf((j && j.matches) || []) }).catch(() => {})
+    go()
+    const t = setInterval(go, 300000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
   const rows = []
-  for (const m of matches || []) {
+  for (const m of [...(matches || []), ...itf]) {
     const p = m.model_p
     if (!p || m.status === 'completed') continue
     const lo = m.live_odds || {}
@@ -1466,7 +1478,7 @@ function ModelPStrip({ matches }) {
             <span key={i} className="mono" style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap',
               border: `1px solid ${r.side === 'dog' ? 'rgba(45,212,191,0.7)' : r.side === 'close' ? 'rgba(94,234,212,0.9)' : 'rgba(227,179,65,0.7)'}`, color: r.side === 'dog' ? '#2dd4bf' : r.side === 'close' ? '#5eead4' : '#e3b341' }}
               title={`${r.who} vs ${r.opp} · ${String(r.lg || '').toUpperCase()} · P ${Math.round(r.pr * 1000) / 10}%`}>
-              {r.side === 'dog' ? 'Ⓟ' : r.side === 'close' ? `Ⓟ CLOSE T${r.tier}` : 'Ⓟ FAV⚠'} <b style={{ color: 'var(--text-primary)' }}>{(r.who || '').split(' ').slice(-1)[0]}</b> {r.od > 0 ? '+' : ''}{r.od} · {r.side === 'close' ? `+${Math.round(r.ev * 1000) / 10}pt over mkt` : `EV ${r.ev >= 0 ? '+' : ''}${Math.round(r.ev * 1000) / 10}%`} · {r.st === 'live' ? 'LIVE' : tm(r.t)}
+              {String(r.lg || '').startsWith('itf') ? <span style={{ fontSize: 8, opacity: 0.75 }}>ITF </span> : null}{r.side === 'dog' ? 'Ⓟ' : r.side === 'close' ? `Ⓟ CLOSE T${r.tier}` : 'Ⓟ FAV⚠'} <b style={{ color: 'var(--text-primary)' }}>{(r.who || '').split(' ').slice(-1)[0]}</b> {r.od > 0 ? '+' : ''}{r.od} · {r.side === 'close' ? `+${Math.round(r.ev * 1000) / 10}pt over mkt` : `EV ${r.ev >= 0 ? '+' : ''}${Math.round(r.ev * 1000) / 10}%`} · {r.st === 'live' ? 'LIVE' : tm(r.t)}
             </span>
           ))}
         </div>
