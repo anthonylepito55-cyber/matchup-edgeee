@@ -1,0 +1,70 @@
+=== BACKTEST 2026: +100..+200 player, by how many of 9 heads back them ===
+
+MEN: every +100..+200 player   1362-2121  win 39.1%  ROI   -7.1%  (n=3483)
+   0 of 9   366-622  win 37.0%  ROI   -8.2%  (n=988)
+   1-2      407-689  win 37.1%  ROI  -11.6%  (n=1096)
+   3-4      270-385  win 41.2%  ROI   -2.6%  (n=655)
+   5-6      205-278  win 42.4%  ROI   -2.8%  (n=483)
+   7-8      102-129  win 44.2%  ROI   -2.2%  (n=231)
+   all 9    12-18  win 40.0%  ROI  -15.6%  (n=30)
+   majority (5+) 319-425  win 42.9%  ROI   -3.1%  (n=744)
+
+WOMEN: every +100..+200 player   851-1302  win 39.5%  ROI   -5.1%  (n=2153)
+   0 of 9   222-384  win 36.6%  ROI   -7.8%  (n=606)
+   1-2      229-396  win 36.6%  ROI  -12.2%  (n=625)
+   3-4      169-242  win 41.1%  ROI   -2.6%  (n=411)
+   5-6      134-186  win 41.9%  ROI   -1.4%  (n=320)
+   7-8      89-88  win 50.3%  ROI  +15.4%  (n=177)
+   all 9    n=14 (thin)
+   majority (5+) 231-280  win 45.2%  ROI   +5.0%  (n=511)
+
+=== LIVE frozen log (2026-10-01..2026-10-08): +100..+200 player, by how many of 12 heads back them ===
+
+MEN: every +100..+200 player   75-96  win 43.9%  ROI   +1.8%  (n=171)
+   0-1      23-45  win 33.8%  ROI  -17.3%  (n=68)
+   2-3      19-23  win 45.2%  ROI   +1.1%  (n=42)
+   4-5      15-9  win 62.5%  ROI  +46.5%  (n=24)
+   6-7      9-11  win 45.0%  ROI   +0.5%  (n=20)
+   8-9      n=10 (thin)
+   10-12    n=7 (thin)
+
+WOMEN: every +100..+200 player   30-34  win 46.9%  ROI  +15.2%  (n=64)
+   0-1      10-11  win 47.6%  ROI  +16.5%  (n=21)
+   2-3      n=13 (thin)
+   4-5      n=13 (thin)
+   6-7      n=9 (thin)
+   8-9      n=7 (thin)
+   10-12    n=1 (thin)
+
+
+=== BACKTEST 2026: -100..-200 FAVOURITE, by how many of 9 heads back them ===
+
+MEN: every -100..-200 favourite   1592-1234  win 56.3%  ROI   -7.0%  (n=2826)
+   0-2      203-183  win 52.6%  ROI  -10.2%  (n=386)
+   3-4      263-225  win 53.9%  ROI  -10.2%  (n=488)
+   5-6      329-260  win 55.9%  ROI   -7.2%  (n=589)
+   7-8      495-344  win 59.0%  ROI   -3.7%  (n=839)
+   all 9    302-222  win 57.6%  ROI   -6.7%  (n=524)
+
+WOMEN: every -100..-200 favourite   1018-746  win 57.7%  ROI   -4.4%  (n=1764)
+   0-2      129-139  win 48.1%  ROI  -18.0%  (n=268)
+   3-4      172-131  win 56.8%  ROI   -5.0%  (n=303)
+   5-6      214-165  win 56.5%  ROI   -6.7%  (n=379)
+   7-8      276-192  win 59.0%  ROI   -2.5%  (n=468)
+   all 9    227-119  win 65.6%  ROI   +6.7%  (n=346)
+
+=== LIVE: -100..-200 favourite, by how many of 12 heads back them ===
+
+MEN: every -100..-200 favourite   80-73  win 52.3%  ROI  -11.4%  (n=153)
+   0-5      19-16  win 54.3%  ROI   -3.5%  (n=35)
+   6-7      15-15  win 50.0%  ROI  -12.2%  (n=30)
+   8-9      7-13  win 35.0%  ROI  -41.7%  (n=20)
+   10-11    27-21  win 56.2%  ROI   -7.2%  (n=48)
+   all 12   12-8  win 60.0%  ROI   -4.1%  (n=20)
+
+WOMEN: every -100..-200 favourite   27-26  win 50.9%  ROI  -13.2%  (n=53)
+   0-5      n=13 (thin)
+   6-7      n=9 (thin)
+   8-9      n=10 (thin)
+   10-11    n=14 (thin)
+   all 12   n=7 (thin)
