@@ -557,7 +557,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -583,7 +583,7 @@ export default function TennisSection() {
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
 
       {error && (
@@ -1434,6 +1434,70 @@ function SplitsPanel() {
     </div>
   )
 }
+// Ⓟ MODEL P TAB (2026-10-09, user "yes" to a Model P tab + "build the p favorite picks").
+function ModelPPanel() {
+  const [d, setD] = useState(null)
+  const [err, setErr] = useState(null)
+  useEffect(() => {
+    fetch('/api/tennis/model-p').then(r => r.json()).then(setD).catch(e => setErr(String(e)))
+  }, [])
+  if (err) return <div className="mono" style={{ marginTop: 16, color: '#f85149' }}>Model P failed to load: {err}</div>
+  if (!d) return <div className="mono" style={{ marginTop: 16, color: 'var(--text-tertiary)' }}>loading Model P…</div>
+  const lane = (L, label, sub) => (
+    <div style={{ padding: '12px 16px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel)', minWidth: 190 }}>
+      <div className="mono" style={{ fontSize: 10, color: '#2dd4bf', fontWeight: 700 }}>{label}</div>
+      {['m', 'w'].map(g => {
+        const c = (L || {})[g] || {}
+        return (
+          <div key={g} className="mono" style={{ fontSize: 11, marginTop: 3, color: 'var(--text-secondary)' }}>
+            {g === 'm' ? 'MEN' : 'WOMEN'}: {c.n ? <span style={{ color: c.roi_pct >= 0 ? '#3fb950' : '#f85149', fontWeight: 700 }}>{c.roi_pct > 0 ? '+' : ''}{c.roi_pct}% ({c.wins}-{c.n - c.wins})</span> : <span style={{ color: 'var(--text-tertiary)' }}>no settles yet</span>}
+          </div>
+        )
+      })}
+      <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 3 }}>{(L && L.pending) ? `${L.pending} pending · ` : ''}{sub}</div>
+    </div>
+  )
+  const L = d.lanes || {}
+  const picks = d.picks || []
+  const open = picks.filter(p => p.won == null)
+  const done = picks.filter(p => p.won != null)
+  const row = (p, i) => (
+    <div key={i} className="mono" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '5px 4px', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 11 }}>
+      <span style={{ minWidth: 70, color: 'var(--text-tertiary)', fontSize: 9 }}>{p.date} {String(p.league || '').toUpperCase()}</span>
+      <span style={{ padding: '0 6px', borderRadius: 6, fontSize: 9, fontWeight: 700, border: `1px solid ${p.side === 'dog' ? '#2dd4bf88' : '#e3b34188'}`, color: p.side === 'dog' ? '#2dd4bf' : '#e3b341' }}>{p.side === 'dog' ? 'Ⓟ DOG' : 'Ⓟ FAV ⚠'}</span>
+      <b style={{ color: 'var(--text-primary)' }}>{p.pick}</b>
+      <span>{p.odds > 0 ? '+' : ''}{p.odds}</span>
+      <span style={{ color: 'var(--text-tertiary)' }}>P {p.p != null ? Math.round(p.p * 1000) / 10 : '—'}% · EV {p.ev >= 0 ? '+' : ''}{Math.round(p.ev * 1000) / 10}%</span>
+      <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>{p.p1} vs {p.p2}{p.score ? ` · ${p.score}` : ''}</span>
+      {p.won == null ? <span style={{ color: 'var(--text-tertiary)' }}>pending</span>
+        : <span style={{ fontWeight: 800, color: p.won ? '#3fb950' : '#f85149' }}>{p.won ? '✓ WON' : '✗ LOST'}</span>}
+    </div>
+  )
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.55 }}>
+        <b style={{ color: '#2dd4bf' }}>Ⓟ MODEL P</b> — the profit model. It starts from the market price and only learns where that price is wrong (an offset model), using record vs the rival's level, C / gray / D-MA gaps to the market, contrarian form, match quality, sUTR and rank. Separate men / women weights. Rules: <b>DOG</b> = {d.rules && d.rules.dog}; <b>FAV</b> = {d.rules && d.rules.fav}. Strict walk-forward 2024-26 (every year tested only on earlier years).
+      </div>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>backtest 2024-26 (out of sample)</div>
+      <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+        Ⓟ DOG bets: men <b style={{ color: '#3fb950' }}>{d.backtest.dog.m}</b> · women <b style={{ color: '#3fb950' }}>{d.backtest.dog.w}</b> <span style={{ color: 'var(--text-tertiary)' }}>(every +100..+200 dog: men {d.backtest.dog.base_m}, women {d.backtest.dog.base_w})</span><br />
+        Ⓟ FAV bets: men <b style={{ color: '#3fb950' }}>{d.backtest.fav.m}</b> · women <b style={{ color: '#3fb950' }}>{d.backtest.fav.w}</b> <span style={{ color: '#e3b341' }}>⚠ live check before shipping was negative: men {d.backtest.fav.live_proxy_m}, women {d.backtest.fav.live_proxy_w} — favourite edges have failed live 4 times; the lane below decides</span>
+      </div>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>live lanes — flat $25, from 2026-10-09</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {lane(L.p_dog, 'Ⓟ DOG bets (EV ≥ 5%)', 'the main bet')}
+        {lane(L.p_fav, 'Ⓟ FAV bets (EV ≥ 3%) ⚠', 'favourite side')}
+        {lane(L.p_dog_any, 'every P-positive dog (EV > 0)', 'wider net')}
+        {lane(L.p_pass, 'P passes (EV ≤ 0)', 'should lose')}
+      </div>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '16px 0 6px' }}>upcoming / in-play P picks ({open.length})</div>
+      {open.length ? open.map(row) : <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>none right now</div>}
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '16px 0 6px' }}>settled P picks ({done.length}) · {done.filter(p => p.won).length}-{done.filter(p => !p.won).length}</div>
+      {done.length ? done.map(row) : <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>no settled picks yet — P went live 2026-10-09</div>}
+    </div>
+  )
+}
+
 function ModelXPanel() {
   const [m, setM] = useState(null)
   const [err, setErr] = useState(null)
@@ -2373,7 +2437,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     gray_dog4: { m: true, w: true }, mc_c75_dog: { m: true, w: true }, fade_a_dog_gray: { m: true, w: true },
     pink_fadeb_dog_m: { m: true }, pink_wcons_dog: { w: true }, pink_wall9_fav: { w: true },
     pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false }, pink_mc2_dog: { m: false, w: false },
-    p_dog: { m: true, w: true },
+    p_dog: { m: true, w: true }, p_fav: { m: true, w: true },
   }
   const gHL = (match.league === 'wta' || match.league === 'itf_women') ? 'w' : 'm'
   const hlWhy = (lane, g) => {
@@ -2422,7 +2486,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const od = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
     return { ...mp, who: dog1 ? match.player_1 : match.player_2, od: od == null || isNaN(od) ? null : od }
   })()
-  const hlP = !!(pModel && pModel.bet) && hlOK('p_dog', gHL)
+  const hlP = (!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.fav_bet) && hlOK('p_fav', gHL))
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -2627,6 +2691,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
               ? <span style={{ fontSize: 12, fontWeight: 900, color: '#d5fbf5', textShadow: '0 0 8px rgba(45,212,191,0.5)' }}>TAKE {nm}{odS}</span>
               : <span style={{ fontWeight: 700 }}>PASS on {nm}{odS}</span>}
             <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_dog * 1000) / 10}% vs mkt {Math.round(pModel.mkt_dog * 1000) / 10}% · EV {pModel.ev >= 0 ? '+' : ''}{Math.round(pModel.ev * 1000) / 10}%{pModel.bet ? ` · ${bt} · ${live}` : ' (needs ≥ +5%)'}</span>
+          </div>
+        )
+      })() : null}
+      {pModel && pModel.fav_bet ? (() => {
+        const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+        const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
+        const st = (((laneRec && laneRec.study) || {}).p_fav) || {}
+        const c = st[gHL] || {}
+        const live = c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from today'
+        const ok = hlOK('p_fav', gHL)
+        return (
+          <div className="mono"
+            title={`Ⓟ MODEL P — FAVOURITE side: P rates the dog below its price, so the -100..-200 favourite is underpriced: P ${Math.round(pModel.p_fav * 1000) / 10}% → EV +${Math.round(pModel.fav_ev * 1000) / 10}%. Backtest out-of-sample 2024-26 (fav EV ≥ 3%): men +8.6% (n=1,752), women +17.1% (n=1,476). ⚠ The live check before shipping was NEGATIVE (men −12.7% n=37, women −6.8% n=14) — favourite edges have failed live four times. Built at the user's request; lane p_fav decides.`}
+            style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: '#e3b341', opacity: ok ? 1 : 0.8 }}>
+            {ok ? null : noHL(hlWhy('p_fav', gHL))}
+            Ⓟ MODEL P FAV ⚠ → <span style={{ fontSize: 12, fontWeight: 900, color: '#fff1c9' }}>TAKE {fname}{fodd != null && !isNaN(fodd) ? ` ${fodd}` : ''}</span>
+            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_fav * 1000) / 10}% · EV +{Math.round(pModel.fav_ev * 1000) / 10}% · bt {gHL === 'w' ? 'W +17.1% (n=1,476)' : 'M +8.6% (n=1,752)'} · live check {gHL === 'w' ? '−6.8% (14)' : '−12.7% (37)'} · {live}</span>
           </div>
         )
       })() : null}

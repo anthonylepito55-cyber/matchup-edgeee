@@ -23,7 +23,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
-           "model_p_dog", "model_p_prob", "model_p_ev", "ac_v", "score",
+           "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -171,6 +171,7 @@ def log_predictions(matches: list, date: str):
             "model_p_dog": (m.get("model_p") or {}).get("dog"),
             "model_p_prob": (m.get("model_p") or {}).get("p_dog"),
             "model_p_ev": (m.get("model_p") or {}).get("ev"),
+            "model_p_fev": (m.get("model_p") or {}).get("fav_ev"),
             # A/C version: 2 = rank-sign fix applied (2026-10-09). None = logged on the
             # reversed-rank A/C. Lets every A/C-based lane split before/after the fix.
             "ac_v": 2,
@@ -1113,7 +1114,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1829,6 +1830,11 @@ def get_ab25_record() -> dict:
                     bet("p_dog_any", _ps9)
                 else:
                     bet("p_pass", _ps9)
+                # P FAVOURITE (2026-10-09, user call): fav -100..-200, P fav EV >= 3%.
+                _pf9 = r.get("model_p_fev")
+                _fd9 = d2 if _ps9 else d1
+                if _pf9 is not None and pd.notna(_pf9) and float(_pf9) >= 0.03 and 1.5 <= _fd9 <= 2.0:
+                    bet("p_fav", not _ps9)
             # one bet per gated game on the dog (coin-flip takes precedence)
             if "coinflip_c_dog" in _gate_hit:
                 bet("coinflip_c_dog", dog1)

@@ -2229,6 +2229,64 @@ def tennis_scanner_record():
     return tennis_scanner.get_scanner_track_record()
 
 
+@app.get("/api/tennis/model-p")
+def tennis_model_p_record():
+    """Model P tab (2026-10-09): backtest summary, live lanes, today's P picks and every past
+    P pick with its result -- all read from the frozen log (cheap, no slate recompute)."""
+    import tennis_model_p as _tmp
+    out = {"backtest": {
+        "dog": {"m": "+14.2% (n=3,235)", "w": "+21.4% (n=2,442)", "base_m": "-7.4% (n=11,497)", "base_w": "-6.0% (n=7,162)"},
+        "fav": {"m": "+8.6% (n=1,752)", "w": "+17.1% (n=1,476)", "live_proxy_m": "-12.7% (n=37)", "live_proxy_w": "-6.8% (n=14)"}},
+        "rules": {"dog": "dog +100..+200, P EV >= 5%", "fav": "fav -100..-200 (dog +100..+200), P fav EV >= 3%"}}
+    try:
+        st = (tennis_log.get_ab25_record().get("study") or {})
+        out["lanes"] = {k: st.get(k) for k in ("p_dog", "p_dog_any", "p_pass", "p_fav")}
+    except Exception:  # noqa: BLE001
+        out["lanes"] = {}
+    rows = []
+    try:
+        log = tennis_log._read_log()
+        if "model_p_ev" in log.columns:
+            L = log[log["model_p_ev"].notna() & log["model_p_dog"].notna()].copy()
+            for _, r in L.sort_values(["date", "start_time_utc"], ascending=[False, True]).iterrows():
+                dog = int(r["model_p_dog"])
+                settled = bool(r.get("settled")) and pd.notna(r.get("p1_won"))
+                won1 = bool(r["p1_won"]) if settled else None
+                base = {"date": str(r["date"])[:10], "league": r.get("league"),
+                        "p1": r.get("player_1"), "p2": r.get("player_2"),
+                        "start": r.get("start_time_utc"), "score": r.get("score")}
+                ev = float(r["model_p_ev"])
+                if ev >= _tmp.EV_BET:
+                    o = r["p1_odds"] if dog == 1 else r["p2_odds"]
+                    rows.append({**base, "side": "dog", "pick": r["player_1"] if dog == 1 else r["player_2"],
+                                 "odds": (None if pd.isna(o) else int(o)), "p": r.get("model_p_prob"), "ev": ev,
+                                 "won": (None if won1 is None else bool(won1 == (dog == 1)))})
+                fev = r.get("model_p_fev")
+                fo = r["p2_odds"] if dog == 1 else r["p1_odds"]
+                if fev is not None and pd.notna(fev) and float(fev) >= _tmp.EV_FAV and pd.notna(fo) and -200 <= float(fo) <= -100:
+                    rows.append({**base, "side": "fav", "pick": r["player_2"] if dog == 1 else r["player_1"],
+                                 "odds": int(fo), "p": (None if pd.isna(r.get("model_p_prob")) else round(1 - float(r["model_p_prob"]), 4)),
+                                 "ev": float(fev), "won": (None if won1 is None else bool(won1 == (dog != 1)))})
+    except Exception as e:  # noqa: BLE001
+        out["err"] = str(e)
+    # same match logged by two feeds with first/last names swapped (e.g. "Tian Jialin" /
+    # "Jialin Tian"): keep one row per (date, side, both players as name-token sets).
+    import unicodedata as _ud
+
+    def _tok(nm):
+        nm = _ud.normalize("NFKD", str(nm or "")).encode("ascii", "ignore").decode().lower()
+        return " ".join(sorted(nm.replace("-", " ").split()))
+    seen, uniq = set(), []
+    for x in rows:
+        k = (x["date"], x["side"], frozenset((_tok(x["p1"]), _tok(x["p2"]))))
+        if k in seen:
+            continue
+        seen.add(k)
+        uniq.append(x)
+    out["picks"] = uniq
+    return out
+
+
 @app.get("/api/tennis/model-x")
 def tennis_model_x_record():
     """Model X meta: nightly walk-forward numbers, active features, the auto-add/reject

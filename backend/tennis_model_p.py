@@ -23,6 +23,14 @@ P fit on years < Y): pooled 2024-26 out-of-sample, +100..+200 dogs at closing od
 Live proxy (P-lite on C/gray/D-MA only, frozen log 10/01-10/09): bets M +24.8% (58) vs
 passes -3.8%; W +25.4% (26) vs -0.1%. Small; the p_dog lane is the judge.
 The bet rule shown on the board is EV >= 5%.
+
+FAVOURITE PICKS (2026-10-09, user "build the p favorite picks", after being shown the
+live check): same model, the other side -- back the -100..-200 favourite (in matches whose
+dog is +100..+200, P's universe) when P's favourite EV >= 3%. Out-of-sample 2024-26:
+men +8.6% (n=1,752), women +17.1% (n=1,476), positive every year. BUT the live P-lite
+check (frozen log, n=200) was negative: men -12.7% (37), women -6.8% (14) -- the same
+backtest-favourite / live-fail pattern seen four times. Shown with both numbers; lane
+p_fav decides.
 """
 import json
 import os
@@ -34,6 +42,7 @@ ARTIFACT_P = os.path.join(_here, "model_artifacts", "tennis_model_p.json")
 FEATS = ["d_vs_band", "g_C", "g_gray", "g_Dma", "d_form_win", "d_m_perf", "d_m_won",
          "d_sutr", "d_lrank", "is_chall", "is_itf"]
 EV_BET = 0.05
+EV_FAV = 0.03
 _CACHE = {"mtime": None, "art": None}
 
 
@@ -127,5 +136,10 @@ def predict_p(mc, md, market_p1, league, p1_odds, p2_odds):
     z = off + g["w"][0] + float(xs @ np.array(g["w"][1:]))
     p = 1 / (1 + np.exp(-z))
     ev = p * od - 1
+    fod = _dec(p2_odds if dog1 else p1_odds)
+    fev = ((1 - p) * fod - 1) if fod else None
+    fav_bet = bool(fev is not None and 1.5 <= fod <= 2.0 and fev >= EV_FAV)
     return {"dog": 1 if dog1 else 2, "p_dog": round(float(p), 4), "mkt_dog": round(float(mk), 4),
-            "ev": round(float(ev), 4), "bet": bool(ev >= art.get("ev_bet", EV_BET)), "g": G}
+            "ev": round(float(ev), 4), "bet": bool(ev >= art.get("ev_bet", EV_BET)), "g": G,
+            "fav": 2 if dog1 else 1, "p_fav": round(float(1 - p), 4),
+            "fav_ev": (round(float(fev), 4) if fev is not None else None), "fav_bet": fav_bet}
