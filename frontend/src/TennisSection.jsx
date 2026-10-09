@@ -3731,7 +3731,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
       {odds && (
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 8 }}>
-          market: {match.player_1} {fmtPrice(odds.player_1)} / {match.player_2} {fmtPrice(odds.player_2)} ({odds.bookmaker}{odds.frozen ? ' · frozen pre-match' : ''})
+          market: {match.player_1} {fmtPrice(odds.player_1)} / {match.player_2} {fmtPrice(odds.player_2)} ({odds.bookmaker}{odds.frozen ? ' · frozen pre-match' : ''}){odds.inplay ? <span style={{ color: '#e3b341', fontWeight: 700 }} title="This match started before we ever logged a pre-match line, so this is the LIVE in-play price, not a pre-match line. Model P and the price-based marks don't apply."> ⚠ IN-PLAY price — no pre-match line logged</span> : null}
         </div>
       )}
 

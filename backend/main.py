@@ -1661,6 +1661,16 @@ def _tennis_freeze_models(r, lr):
         v = _f("mc_p1")
         if v is not None and isinstance(md.get("mc"), dict):
             md["mc"]["p1_pct"] = round(v * 100, 1)
+    # MODEL P frozen too (2026-10-09, user "the ITF games markets moving and not closing
+    # when it starts"): P was recomputed on every refresh from the live (in-play) price.
+    # A started card now shows P exactly as logged at first serve.
+    try:
+        import tennis_model_p as _tmpF
+        if mk is not None:
+            r["model_p"] = _tmpF.history_p(lr, mk)
+            applied = True
+    except Exception:  # noqa: BLE001
+        pass
     return applied
 
 
@@ -2197,7 +2207,11 @@ def _compute_tennis_today_inner(date: str = None):
                 pass
             if r.get("status") != "unplayed" or _startd2:
                 _lr = _froM.get(str(r.get("fixture_id")))
-                if _lr is not None and _tennis_freeze_models(r, _lr):
+                if _lr is None:
+                    r["model_p"] = None   # started, never logged pre-match: in-play price
+                    if isinstance(r.get("live_odds"), dict):
+                        r["live_odds"]["inplay"] = True
+                elif _tennis_freeze_models(r, _lr):
                     _nfrm += 1
         if _nfrm:
             print(f"[tennis] froze model outputs on {_nfrm} started/finished cards")
@@ -2563,6 +2577,10 @@ def _compute_tennis_itf_inner(date: str):
                 continue
             _lr = _froI.get(str(c.get("fixture_id")))
             if _lr is None:
+                # started but never logged pre-match: its price is IN-PLAY, not a line.
+                c["model_p"] = None
+                if isinstance(c.get("live_odds"), dict):
+                    c["live_odds"]["inplay"] = True
                 continue
             c["live_odds"] = {"player_1": _lr["p1_odds"], "player_2": _lr["p2_odds"],
                               "bookmaker": _lr.get("bookmaker"), "frozen": True}
