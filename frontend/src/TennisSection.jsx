@@ -3754,7 +3754,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         return (
           <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}
             title={`MODEL X (2026-10-03, user ask): the self-auditing META-MODEL. It stacks the market + A/B/C/D + their gray heads + the Monte Carlos — but only the inputs it has WALK-FORWARD validated as useful on the frozen log — into one win probability, and retrains every night. Each night it also tests every unused frozen signal and AUTO-ADDS any that clear a strict out-of-sample gate (and drops ones that stop helping), so it learns from every settled win/loss. Trained on ${mx.n_train || '?'} settled games${mx.trained_at ? `, ${mx.trained_at}` : ''}. DISPLAY-ONLY: currently ~market-level calibration, no flat-betting edge yet — the Model X tab tracks its live record.`}>
-            <b style={{ color: '#d2a8ff' }}>MODEL X <span style={{ fontSize: 9, opacity: 0.8 }}>meta</span></b>{' '}
+            <b style={{ color: '#d2a8ff' }}>MODEL X <span style={{ fontSize: 9, opacity: 0.8 }}>{mx.recon || (mx.trained_at && String(mx.trained_at) < '2026-10-09 08:04') ? 'meta' : 'NEW · no market'}</span></b>{' '}
             {match.player_1} {pct(mx.p1_prob)} — {pct(mx.p2_prob)} {match.player_2}
             {mx.market_p1 != null ? (
               <span style={{ color: 'var(--text-tertiary)' }}> · market {pct(mx.market_p1)}—{pct(1 - mx.market_p1)}
@@ -3762,7 +3762,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
               </span>
             ) : null}
             {mx.hit != null ? <span style={{ color: mx.hit ? '#3fb950' : '#f85149', fontWeight: 700 }}> · {mx.hit ? '✓ right' : '✗ wrong'}</span> : null}
-            <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}> · {mx.recon ? '~ walk-forward backfill (trained only on earlier games)' : 'nightly self-retrain'} · display-only</span>
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}> · {mx.recon ? '~ walk-forward backfill (trained only on earlier games)' : `C + D only, never sees the price${mx.trained_at ? ` · trained ${String(mx.trained_at).slice(5, 16)}` : ''}`} · display-only</span>
           </div>
         )
       })() : null}
