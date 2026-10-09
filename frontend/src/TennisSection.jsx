@@ -2058,14 +2058,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const aP = ma3 && ma3.p1_prob != null ? ma3.p1_prob >= 0.5 : null
     const bP = mb3 && mb3.p1_prob != null ? mb3.p1_prob >= 0.5 : null
     const isW = match.league === 'wta' || match.league === 'itf_women'
+    // each cell carries its OWN 2026 walk-forward backtest record + the live lane key,
+    // so the tag can cite this exact cell for this exact gender (2026-10-08 user ask).
     const cells = []
     const star = c1 === g1 && g1 === dog1
     const alone = aP !== null && bP !== null && aP !== c1 && bP !== c1
-    if (g1 === dog1 && gdog - mdog >= 0.04) cells.push('GRAY 4pt+ DOG')
-    if (star && (alone || gdog - mdog >= 0.04)) cells.push('TIER-1')
-    else if (star) cells.push('STAR C+GRAY DOG')
-    if (alone && g1 === c1 && c1 === dog1) cells.push('C-ALONE+GRAY')
-    if (aP !== null && bP !== null && aP !== c1 && bP === c1 && c1 === dog1 && g1 === c1) cells.push('FADE-A DOG+GRAY')
+    if (alone && g1 === c1 && c1 === dog1) cells.push({ n: 'C-ALONE+GRAY', bm: '+13.3% (452-437)', bw: '+44.4% (57-38)', lane: 'c_alone_gray_dog' })
+    if (star && (alone || gdog - mdog >= 0.04)) cells.push({ n: 'TIER-1', bm: '+11.9% (977-918)', bw: '+34.4% (121-84)', lane: 'tier1' })
+    else if (star) cells.push({ n: 'STAR C+GRAY DOG', bm: '+12.0% (1021-946)', bw: '+33.6% (125-87)', lane: 'stardog_prime' })
+    if (g1 === dog1 && gdog - mdog >= 0.04) cells.push({ n: 'GRAY 4pt+ DOG', bm: '+11.1% (1027-987)', bw: '+35.1% (133-91)', lane: 'gray_dog4' })
+    if (aP !== null && bP !== null && aP !== c1 && bP === c1 && c1 === dog1 && g1 === c1) cells.push({ n: 'FADE-A DOG+GRAY', bm: '+19.8% (172-137)', bw: '+23.3% (22-16)', lane: 'fade_a_dog_gray' })
     if (cells.length) {
       const nm2 = dog1 ? match.player_1 : match.player_2
       const od2 = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
@@ -2078,7 +2080,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       if (cfav - mfav >= 0.05) {
         const nm2 = favS ? match.player_1 : match.player_2
         const od2 = match.live_odds ? Number(favS ? match.live_odds.player_1 : match.live_odds.player_2) : null
-        return { side: favS, name: nm2, od: isNaN(od2) ? null : od2, cells: ['C-EDGE5 FAV (W)'], isW, fav: true }
+        return { side: favS, name: nm2, od: isNaN(od2) ? null : od2, isW, fav: true,
+                 cells: [{ n: 'C-EDGE5 FAV (W)', bm: null, bw: '+11.0% (344-115)', lane: null }] }
       }
     }
     return null
@@ -2160,9 +2163,21 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         </div>
       ) : null}
       {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 && !purpleFGW ? (
-        <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. Backtest 2026: GRAY 4pt+ DOG M +11.1%/W +35.1% · STAR/TIER-1 M +12%/W +34.7% · C-ALONE+GRAY M +13.3%/W +44.4% · FADE-A DOG+GRAY M +19.8%/W +23.3% · C-EDGE5 FAV women +11.0% (held 3 straight years). Live: gray_dog4 +11.0% (58), tier1 +11.0%, priced-star-dog +14.5%, c-alone+gray +6.1%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
+        <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.map(c => `${c.n} [bt26 ${tier1Blue.isW ? 'W ' + (c.bw || 'n/a') : 'M ' + (c.bm || 'n/a')}]`).join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. Backtest 2026: GRAY 4pt+ DOG M +11.1%/W +35.1% · STAR/TIER-1 M +12%/W +34.7% · C-ALONE+GRAY M +13.3%/W +44.4% · FADE-A DOG+GRAY M +19.8%/W +23.3% · C-EDGE5 FAV women +11.0% (held 3 straight years). Live: gray_dog4 +11.0% (58), tier1 +11.0%, priced-star-dog +14.5%, c-alone+gray +6.1%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
-          🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.join(' + ')} · bt26 {tier1Blue.fav ? 'W fav +11.0%' : (tier1Blue.isW ? 'W +34..44%' : 'M +11..20%')} · live +6..15%
+          🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.map(c => c.n).join(' + ')}
+          {(() => {
+            const lead = tier1Blue.cells[0]
+            const bt = tier1Blue.isW ? lead.bw : lead.bm
+            const st = lead.lane ? (((laneRec && laneRec.study) || {})[lead.lane] || {}) : {}
+            const c = (tier1Blue.isW ? st.w : st.m) || {}
+            const nn = c.n || 0
+            const g = tier1Blue.isW ? 'W' : 'M'
+            return <span style={{ color: '#d6e9ff', fontWeight: 400 }}>
+              {bt ? ` · bt26 ${g} ${bt}` : ''}
+              {nn ? ` · LIVE ${g} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})` : ` · LIVE ${g} tracking`}
+            </span>
+          })()}
         </div>
       ) : null}
       {baitGreen ? (

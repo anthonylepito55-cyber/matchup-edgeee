@@ -1,0 +1,393 @@
+{
+ "captured": "2026-10-08",
+ "note": "Baseline for the 1-week check of every mark shipped 2026-10-08 (bait green/PRIME, 3 purple favorite marks, bedrock blue, orange MC2). Run _signal_checkpoint.py on or after 2026-10-15.",
+ "lanes": {
+  "bait_dog": {
+   "m": {
+    "roi": 11.2,
+    "wins": 24,
+    "n": 51
+   },
+   "w": {
+    "roi": 29.7,
+    "wins": 17,
+    "n": 32
+   },
+   "all": {
+    "roi": 18.3,
+    "wins": 41,
+    "n": 83
+   }
+  },
+  "bait_dog_prime": {
+   "m": {
+    "roi": 2.8,
+    "wins": 16,
+    "n": 34
+   },
+   "w": {
+    "roi": 83.4,
+    "wins": 12,
+    "n": 15
+   },
+   "all": {
+    "roi": 27.4,
+    "wins": 28,
+    "n": 49
+   }
+  },
+  "bait_dog_rest": {
+   "m": {
+    "roi": 28.2,
+    "wins": 8,
+    "n": 17
+   },
+   "w": {
+    "roi": -17.8,
+    "wins": 5,
+    "n": 17
+   },
+   "all": {
+    "roi": 5.2,
+    "wins": 13,
+    "n": 34
+   }
+  },
+  "cgf_shallow_fav": {
+   "m": {
+    "roi": -3.7,
+    "wins": 11,
+    "n": 20
+   },
+   "w": {
+    "roi": 33.7,
+    "wins": 3,
+    "n": 4
+   },
+   "all": {
+    "roi": 2.5,
+    "wins": 14,
+    "n": 24
+   }
+  },
+  "ce5_deep_fav": {
+   "m": {
+    "roi": -23.9,
+    "wins": 19,
+    "n": 40
+   },
+   "w": {
+    "roi": -40.8,
+    "wins": 6,
+    "n": 16
+   },
+   "all": {
+    "roi": -28.7,
+    "wins": 25,
+    "n": 56
+   }
+  },
+  "fadegold_pocket_w": {
+   "w": {
+    "roi": 6.8,
+    "wins": 22,
+    "n": 29
+   },
+   "all": {
+    "roi": 6.8,
+    "wins": 22,
+    "n": 29
+   }
+  },
+  "mc2e58_fav": {
+   "m": {
+    "roi": -56.2,
+    "wins": 1,
+    "n": 3
+   },
+   "all": {
+    "roi": -56.2,
+    "wins": 1,
+    "n": 3
+   }
+  },
+  "mc2e35_dog_band": {
+   "m": {
+    "roi": 102.0,
+    "wins": 1,
+    "n": 1
+   },
+   "all": {
+    "roi": 102.0,
+    "wins": 1,
+    "n": 1
+   }
+  },
+  "c75_mc2e5_dog": {
+   "all": {
+    "roi": 0,
+    "wins": 0,
+    "n": 0
+   }
+  },
+  "fav_value": {
+   "all": {
+    "roi": 0,
+    "wins": 0,
+    "n": 0
+   }
+  },
+  "gray_dog4": {
+   "m": {
+    "roi": 15.1,
+    "wins": 21,
+    "n": 40
+   },
+   "w": {
+    "roi": 12.7,
+    "wins": 11,
+    "n": 22
+   },
+   "all": {
+    "roi": 14.2,
+    "wins": 32,
+    "n": 62
+   }
+  },
+  "tier1": {
+   "m": {
+    "roi": 15.8,
+    "wins": 18,
+    "n": 34
+   },
+   "w": {
+    "roi": 13.1,
+    "wins": 8,
+    "n": 16
+   },
+   "all": {
+    "roi": 15.0,
+    "wins": 26,
+    "n": 50
+   }
+  },
+  "stardog_prime": {
+   "m": {
+    "roi": 14.6,
+    "wins": 18,
+    "n": 35
+   },
+   "w": {
+    "roi": 26.5,
+    "wins": 8,
+    "n": 15
+   },
+   "all": {
+    "roi": 18.2,
+    "wins": 26,
+    "n": 50
+   }
+  },
+  "c_alone_gray_dog": {
+   "m": {
+    "roi": 19.5,
+    "wins": 13,
+    "n": 24
+   },
+   "w": {
+    "roi": 6.4,
+    "wins": 5,
+    "n": 11
+   },
+   "all": {
+    "roi": 15.4,
+    "wins": 18,
+    "n": 35
+   }
+  },
+  "fade_a_dog_gray": {
+   "m": {
+    "roi": 0.2,
+    "wins": 3,
+    "n": 6
+   },
+   "w": {
+    "roi": -36.1,
+    "wins": 1,
+    "n": 3
+   },
+   "all": {
+    "roi": -11.9,
+    "wins": 4,
+    "n": 9
+   }
+  },
+  "grayhate_fav": {
+   "m": {
+    "roi": -4.2,
+    "wins": 191,
+    "n": 283
+   },
+   "w": {
+    "roi": -12.0,
+    "wins": 81,
+    "n": 126
+   },
+   "all": {
+    "roi": -6.6,
+    "wins": 272,
+    "n": 409
+   }
+  },
+  "dma_edge2": {
+   "m": {
+    "roi": -2.0,
+    "wins": 111,
+    "n": 173
+   },
+   "w": {
+    "roi": -8.5,
+    "wins": 43,
+    "n": 70
+   },
+   "all": {
+    "roi": -3.9,
+    "wins": 154,
+    "n": 243
+   }
+  },
+  "mc_c75_dog": {
+   "m": {
+    "roi": 24.6,
+    "wins": 41,
+    "n": 82
+   },
+   "w": {
+    "roi": 16.7,
+    "wins": 14,
+    "n": 31
+   },
+   "all": {
+    "roi": 22.5,
+    "wins": 55,
+    "n": 113
+   }
+  },
+  "mc4_dog_band": {
+   "m": {
+    "roi": 9.5,
+    "wins": 19,
+    "n": 39
+   },
+   "w": {
+    "roi": 17.9,
+    "wins": 8,
+    "n": 16
+   },
+   "all": {
+    "roi": 11.9,
+    "wins": 27,
+    "n": 55
+   }
+  },
+  "fight_mc4_dog": {
+   "m": {
+    "roi": 50.7,
+    "wins": 14,
+    "n": 21
+   },
+   "w": {
+    "roi": 20.8,
+    "wins": 4,
+    "n": 8
+   },
+   "all": {
+    "roi": 42.5,
+    "wins": 18,
+    "n": 29
+   }
+  },
+  "ovl_dog": {
+   "m": {
+    "roi": 25.2,
+    "wins": 32,
+    "n": 60
+   },
+   "w": {
+    "roi": 38.9,
+    "wins": 12,
+    "n": 22
+   },
+   "all": {
+    "roi": 28.9,
+    "wins": 44,
+    "n": 82
+   }
+  },
+  "pf_c75_dis_dog": {
+   "m": {
+    "roi": 32.7,
+    "wins": 24,
+    "n": 44
+   },
+   "w": {
+    "roi": 51.1,
+    "wins": 8,
+    "n": 14
+   },
+   "all": {
+    "roi": 37.2,
+    "wins": 32,
+    "n": 58
+   }
+  },
+  "all10_price_m": {
+   "m": {
+    "roi": 4.2,
+    "wins": 49,
+    "n": 70
+   },
+   "all": {
+    "roi": 4.2,
+    "wins": 49,
+    "n": 70
+   }
+  },
+  "mc2_all": {
+   "m": {
+    "roi": 32.1,
+    "wins": 6,
+    "n": 8
+   },
+   "all": {
+    "roi": 32.1,
+    "wins": 6,
+    "n": 8
+   }
+  },
+  "mc2_edge2": {
+   "m": {
+    "roi": 91.9,
+    "wins": 4,
+    "n": 4
+   },
+   "all": {
+    "roi": 91.9,
+    "wins": 4,
+    "n": 4
+   }
+  },
+  "mc2_dog_band": {
+   "m": {
+    "roi": 106.7,
+    "wins": 3,
+    "n": 3
+   },
+   "all": {
+    "roi": 106.7,
+    "wins": 3,
+    "n": 3
+   }
+  }
+ }
+}
