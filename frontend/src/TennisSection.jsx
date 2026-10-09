@@ -2394,7 +2394,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // Model X (C + D stacker, no market inputs since 10-09) picks the market underdog.
   // Walk-forward on the frozen log: dog picks +12.5% (57-63, n=120), 21% of games.
   // A marker, not a card color -- color needs a positive live record (highlight gate).
-  // Lane x_dog (forward, from 2026-10-10, new X only).
+  // Lane x_dog: picks stamped model_x_v == 2 (the new X), from 2026-10-09.
   const xDog = (() => {
     const mx = match.model_x
     const mk = mx && mx.market_p1 != null ? mx.market_p1 : (mc3 && mc3.market_p1 != null ? mc3.market_p1 : null)
@@ -2406,7 +2406,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const c = st[gHL] || {}
     return { who: dog1 ? match.player_1 : match.player_2, od: od == null || isNaN(od) ? null : od,
              x: dog1 ? mx.p1_prob : 1 - mx.p1_prob, mk: dog1 ? mk : 1 - mk, recon: !!mx.recon,
-             live: c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from 10-10' }
+             live: c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking (from today, new X only)' }
   })()
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}

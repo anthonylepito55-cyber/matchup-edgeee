@@ -22,7 +22,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "bookmaker", "logged_at", "settled", "p1_won", "sr_dog", "sos",
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
-           "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "score",
+           "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -164,6 +164,8 @@ def log_predictions(matches: list, date: str):
             # genuine forward pick (counts in the lanes); True = walk-forward backfill of a
             # past game (display/post-mortem only, excluded from the forward lanes).
             "model_x_p1": mx.get("p1_prob"),
+            # which Model X made this pick: 2 = market-free X (2026-10-09+). Old rows = None.
+            "model_x_v": (2 if mx.get("p1_prob") is not None else None),
             "model_x_recon": False,
             # PURE-RESULTS FORM edge (2026-10-06): p1 minus p2 quality-adjusted L10-on-
             # surface form. Frozen like the models; drives the contrarian pf_c75_* lanes.
@@ -1797,12 +1799,15 @@ def get_ab25_record() -> dict:
             _m29 = r.get("mc2_p1")
             if _m29 is not None and pd.notna(_m29) and (float(_m29) >= 0.5) == dog1:
                 bet("pink_mc2_dog", dog1)
-            # ✖ X DOG (2026-10-09): market-free Model X picks the market dog. Forward only
-            # (not recon) and from 10-10, so only the new no-market X is scored.
+            # ✖ X DOG (2026-10-09, user "start with today's games"): market-free Model X
+            # picks the market dog. Scored only on picks the NEW X actually froze
+            # (model_x_v == 2, stamped at log time; today's earlier rows were stamped only
+            # where the frozen pick equals the new X's output). Recon rows excluded.
             _x9 = r.get("model_x_p1")
             _xr9 = r.get("model_x_recon")
+            _xv9 = r.get("model_x_v")
             if (_x9 is not None and pd.notna(_x9) and not (pd.notna(_xr9) and bool(_xr9))
-                    and str(r.get("date") or "")[:10] >= "2026-10-10"
+                    and _xv9 is not None and pd.notna(_xv9) and int(_xv9) == 2
                     and (float(_x9) >= 0.5) == dog1):
                 bet("x_dog", dog1)
             # one bet per gated game on the dog (coin-flip takes precedence)
