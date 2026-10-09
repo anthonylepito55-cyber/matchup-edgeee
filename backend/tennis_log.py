@@ -24,7 +24,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
-           "open_p1_odds", "open_p2_odds", "open_at", "score",
+           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -173,6 +173,9 @@ def log_predictions(matches: list, date: str):
             "model_p_prob": (m.get("model_p") or {}).get("p_dog"),
             "model_p_ev": (m.get("model_p") or {}).get("ev"),
             "model_p_fev": (m.get("model_p") or {}).get("fav_ev"),
+            # RETURNER DOG input (2026-10-09): p1 minus p2 return-PRESSURE points won %
+            # (52w, surface), from live Model C.
+            "c_rp_diff_p1": ((mc.get("pf") or {}).get("d_c_rp")),
             # A/C version: 2 = rank-sign fix applied (2026-10-09). None = logged on the
             # reversed-rank A/C. Lets every A/C-based lane split before/after the fix.
             "ac_v": 2,
@@ -1164,7 +1167,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close", "p_close_t1", "p_close_t2", "p_close_t3",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1897,6 +1900,14 @@ def get_ab25_record() -> dict:
                 _fd9 = d2 if _ps9 else d1
                 if _pf9 is not None and pd.notna(_pf9) and float(_pf9) >= 0.03 and 1.5 <= _fd9 <= 2.0:
                     bet("p_fav", not _ps9)
+            # 🎾 RETURNER DOG (W) (2026-10-09, user "yes"): women, dog +100..+250, the dog
+            # wins >= 4.56pt more return-PRESSURE points (52w surface; top third of the gap).
+            # Backtest 2025-26: +6.3% (n=751); 2025 +2.8%, 2026 +12.1%; every dog -7.5%.
+            _rp9 = r.get("c_rp_diff_p1")
+            if _isw and _rp9 is not None and pd.notna(_rp9):
+                _dd9 = d1 if dog1 else d2
+                if 2.0 <= _dd9 <= 3.5 and (float(_rp9) if dog1 else -float(_rp9)) >= 4.5567:
+                    bet("returner_dog_w", dog1)
             # one bet per gated game on the dog (coin-flip takes precedence)
             if "coinflip_c_dog" in _gate_hit:
                 bet("coinflip_c_dog", dog1)

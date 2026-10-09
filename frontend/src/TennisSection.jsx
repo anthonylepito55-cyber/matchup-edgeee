@@ -2407,6 +2407,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         bt: 'found live 9/28-10/8 19-3 +32.4% (n=22) · ⚠ bt 2026 −15.1% (166-129, n=295)',
         rule: `C ${Math.round((dog1 ? 1 - mc3.p1_prob : mc3.p1_prob) * 1000) / 10}% (coin flip) · c75 ${Math.round(c75fav * 1000) / 10}% on the favourite` })
     }
+    // 🎾 RETURNER DOG (W) (2026-10-09): women, market dog +100..+250 that wins >= 4.56pt
+    // more return-PRESSURE points (break points and tight points on serve, 52w surface)
+    // than the favourite -- the top third of the gap. Backtest 2025-26 +6.3% (n=751);
+    // 2025 +2.8%, 2026 +12.1%; every +100..+250 women's dog -7.5%. Lane returner_dog_w.
+    if (isW && mc3.pf && mc3.pf.d_c_rp != null && !isNaN(odDog) && odDog >= 100 && odDog <= 250) {
+      const rpDog = dog1 ? mc3.pf.d_c_rp : -mc3.pf.d_c_rp
+      if (rpDog >= 4.5567) out.push({ n: '🎾 RETURNER DOG (W)', who: nmDog, od: odDog, lane: 'returner_dog_w', g: 'w',
+        bt: 'bt 2025-26 +6.3% (n=751) · 2025 +2.8% · 2026 +12.1% · every dog −7.5%',
+        rule: `wins ${Math.round(rpDog * 10) / 10}pt more return-pressure points` })
+    }
     // MC2 DOG (2026-10-09, user "mark the games mc2 is on the dog"): MC2 picks the
     // market underdog. Frozen log 9/6-10/9 (pre-10/8 rows are the as-of replay, not
     // forward picks): men +9.2% (40-42, n=82), +100..+200 +19.2% (35-31, n=66); women
@@ -2498,6 +2508,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false }, pink_mc2_dog: { m: false, w: false },
     p_dog: { m: true, w: true }, p_fav: { m: true, w: true }, p_close: { m: true, w: true },
     p_close_t1: { m: true, w: true }, p_close_t2: { m: true, w: true }, p_close_t3: { m: true, w: true },
+    returner_dog_w: { w: true },
   }
   const gHL = (match.league === 'wta' || match.league === 'itf_women') ? 'w' : 'm'
   const hlWhy = (lane, g) => {
