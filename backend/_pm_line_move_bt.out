@@ -1,0 +1,78 @@
+matches 19298 | 2026-05-01..2026-10-09 | men 7758 women 4743 unknown 6797 | ITF 10764 tour 8534
+
+  ALL MATCHES, open -> close (n=19298)
+  move                       n | FAV hit implied ROI@close ROI@open | DOG hit ROI@close ROI@open
+  BASELINE (every match) 19298 |   69.3%   70.1%     -1.1%          |   30.7%     +2.6%
+  fav DRIFTED 8pt+         527 |   64.5%   60.5%     +7.3%   -13.0% |   35.5%     -9.9%   +51.0%
+  fav drifted 4-8pt       1005 |   63.5%   64.3%     -1.5%    -9.5% |   36.5%     +0.7%   +22.3%
+  fav drifted 1-4pt       2834 |   67.6%   67.0%     +1.0%    -2.0% |   32.4%     -1.9%    +6.4%
+  flat (+-1pt)            3954 |   68.2%   70.1%     -2.6%    -2.5% |   31.8%    +12.2%   +12.0%
+  fav shortened 1-4pt     4458 |   68.3%   69.7%     -2.2%    +0.9% |   31.7%     +2.9%    -5.2%
+  fav shortened 4-8pt     2295 |   69.7%   69.0%     +1.0%   +10.2% |   30.3%     -5.2%   -21.2%
+  fav SHORTENED 8pt+      4225 |   74.1%   75.6%     -2.2%   +47.4% |   25.9%     +2.7%   -45.6%
+
+  MEN, open -> close (n=7758)
+  move                       n | FAV hit implied ROI@close ROI@open | DOG hit ROI@close ROI@open
+  BASELINE (every match)  7758 |   68.7%   68.3%     +0.7%          |   31.3%     -0.7%
+  fav DRIFTED 8pt+         243 |   62.6%   58.9%     +7.2%   -14.0% |   37.4%     -6.5%   +46.4%
+  fav drifted 4-8pt        452 |   63.5%   63.6%     -0.4%    -8.5% |   36.5%     +0.2%   +21.0%
+  fav drifted 1-4pt       1192 |   67.7%   65.2%     +4.0%    +0.7% |   32.3%     -7.0%    +0.1%
+  flat (+-1pt)            1186 |   67.2%   68.1%     -1.1%    -1.1% |   32.8%     +8.0%    +8.2%
+  fav shortened 1-4pt     1719 |   67.7%   67.8%     -0.2%    +3.2% |   32.3%     -1.3%    -8.2%
+  fav shortened 4-8pt     1132 |   69.6%   67.9%     +2.6%   +12.2% |   30.4%     -5.6%   -21.6%
+  fav SHORTENED 8pt+      1834 |   72.8%   73.8%     -1.4%   +46.8% |   27.2%     +1.7%   -44.0%
+
+  WOMEN, open -> close (n=4743)
+  move                       n | FAV hit implied ROI@close ROI@open | DOG hit ROI@close ROI@open
+  BASELINE (every match)  4743 |   68.4%   70.4%     -3.2%          |   31.6%     +5.7%
+  fav DRIFTED 8pt+         123 |   65.0%   61.8%     +5.6%   -12.3% |   35.0%     -8.6%   +62.9%
+  fav drifted 4-8pt        239 |   57.7%   63.0%     -9.3%   -16.7% |   42.3%     +9.7%   +28.7%
+  fav drifted 1-4pt        667 |   65.7%   66.2%     -0.7%    -3.8% |   34.3%     +1.3%   +10.5%
+  flat (+-1pt)             760 |   66.1%   69.2%     -4.6%    -4.5% |   33.9%    +13.3%   +13.6%
+  fav shortened 1-4pt     1142 |   66.1%   69.3%     -4.9%    -1.8% |   33.9%     +8.9%    +0.5%
+  fav shortened 4-8pt      645 |   69.8%   70.1%     -1.0%    +8.0% |   30.2%     -5.3%   -21.1%
+  fav SHORTENED 8pt+      1167 |   75.3%   77.3%     -3.0%   +43.1% |   24.7%     +6.7%   -44.5%
+
+  ITF, open -> close (n=10764)
+  move                       n | FAV hit implied ROI@close ROI@open | DOG hit ROI@close ROI@open
+  BASELINE (every match) 10764 |   70.1%   71.9%     -2.3%          |   29.9%     +7.9%
+  fav DRIFTED 8pt+         251 |   68.1%   60.8%    +12.1%    -8.9% |   31.9%    -20.9%   +35.3%
+  fav drifted 4-8pt        516 |   67.6%   65.7%     +3.1%    -5.2% |   32.4%     -6.9%   +15.4%
+  fav drifted 1-4pt       1500 |   67.7%   69.1%     -2.3%    -5.1% |   32.3%     +4.4%   +14.1%
+  flat (+-1pt)            2705 |   69.0%   71.5%     -3.0%    -3.0% |   31.0%    +16.7%   +16.4%
+  fav shortened 1-4pt     2398 |   69.6%   71.8%     -3.2%    -0.3% |   30.4%     +7.3%    -2.0%
+  fav shortened 4-8pt      989 |   68.9%   69.9%     -1.4%    +7.4% |   31.1%     +1.1%   -17.1%
+  fav SHORTENED 8pt+      2405 |   74.8%   77.5%     -3.7%   +44.8% |   25.2%     +9.7%   -46.2%
+
+  TOUR, open -> close (n=8534)
+  move                       n | FAV hit implied ROI@close ROI@open | DOG hit ROI@close ROI@open
+  BASELINE (every match)  8534 |   68.2%   67.8%     +0.4%          |   31.8%     -4.0%
+  fav DRIFTED 8pt+         276 |   61.2%   60.2%     +2.9%   -16.7% |   38.8%     +0.2%   +65.2%
+  fav drifted 4-8pt        489 |   59.1%   62.8%     -6.5%   -14.0% |   40.9%     +8.8%   +29.5%
+  fav drifted 1-4pt       1334 |   67.5%   64.7%     +4.8%    +1.5% |   32.5%     -9.1%    -2.3%
+  flat (+-1pt)            1249 |   66.4%   67.2%     -1.6%    -1.5% |   33.6%     +2.4%    +2.4%
+  fav shortened 1-4pt     2060 |   66.9%   67.4%     -1.0%    +2.3% |   33.1%     -2.1%    -8.8%
+  fav shortened 4-8pt     1306 |   70.3%   68.2%     +2.8%   +12.3% |   29.7%    -10.0%   -24.4%
+  fav SHORTENED 8pt+      1820 |   73.2%   73.2%     -0.2%   +50.9% |   26.8%     -6.5%   -44.8%
+
+  LAST 6 HOURS ONLY (T-6h -> close), all (n=18744)
+  move                       n | FAV hit implied ROI@close ROI@open | DOG hit ROI@close ROI@open
+  BASELINE (every match) 18744 |   69.2%   70.1%     -1.2%          |   30.8%     +2.9%
+  fav DRIFTED 8pt+         142 |   69.0%   63.6%     +8.3%    +0.6% |   31.0%    -18.9%   +13.8%
+  fav drifted 4-8pt        533 |   70.4%   65.7%     +7.5%    +8.6% |   29.6%    -12.7%    -7.4%
+  fav drifted 1-4pt       3419 |   66.6%   67.6%     -1.6%    +4.8% |   33.4%     +1.9%    -1.6%
+  flat (+-1pt)            6802 |   69.6%   70.7%     -1.5%    +9.9% |   30.4%     +5.1%    -3.5%
+  fav shortened 1-4pt     5798 |   69.7%   70.2%     -0.8%   +10.0% |   30.3%     +0.3%   -11.3%
+  fav shortened 4-8pt      912 |   67.2%   68.9%     -2.2%   +11.7% |   32.8%     +5.9%   -14.3%
+  fav SHORTENED 8pt+      1138 |   73.1%   76.3%     -4.3%   +32.4% |   26.9%    +14.1%   -29.9%
+
+  DOG +100..+200 at the close, open -> close (n=8881)
+  move                       n | FAV hit implied ROI@close ROI@open | DOG hit ROI@close ROI@open
+  BASELINE (every match)  8881 |   57.9%   58.5%     -0.8%          |   42.1%     +1.6%
+  fav DRIFTED 8pt+         417 |   61.2%   57.2%     +7.7%   -14.0% |   38.8%     -8.0%   +43.9%
+  fav drifted 4-8pt        639 |   56.0%   58.0%     -3.3%   -11.8% |   44.0%     +5.2%   +21.6%
+  fav drifted 1-4pt       1571 |   59.1%   58.2%     +1.6%    -1.9% |   40.9%     -2.1%    +3.1%
+  flat (+-1pt)            1796 |   57.9%   58.2%     -0.6%    -0.5% |   42.1%     +0.8%    +0.8%
+  fav shortened 1-4pt     2126 |   56.9%   58.4%     -2.6%    +1.0% |   43.1%     +3.7%    -1.2%
+  fav shortened 4-8pt     1139 |   59.4%   58.9%     +0.9%   +11.5% |   40.6%     -1.1%   -13.0%
+  fav SHORTENED 8pt+      1193 |   56.8%   59.7%     -4.4%   +44.1% |   43.2%     +8.1%   -23.4%

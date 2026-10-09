@@ -1,0 +1,19 @@
+P 2026 dog rows with a clean best-of-3 score: 5975
+matched to a Polymarket event: 2020 (PM coverage starts 2026-05-23)
+with a priced 'dog -1.5 sets' market: 127
+
+MEN: every matched dog, back 2-0      11-42 hit 20.8% vs PM price 35.6% | ROI  -31.5% (n=53)
+   P dog bets (EV>=5%), back 2-0      n=19 (thin)
+   P 2-0 edge >= 5pt over PM price    n=8 (thin)
+   P bets AND 2-0 edge >= 5pt         n=8 (thin)
+
+WOMEN: every matched dog, back 2-0      10-64 hit 13.5% vs PM price 26.1% | ROI  -42.7% (n=74)
+   P dog bets (EV>=5%), back 2-0      4-24 hit 14.3% vs PM price 25.8% | ROI  -35.4% (n=28)
+   P 2-0 edge >= 5pt over PM price    n=11 (thin)
+   P bets AND 2-0 edge >= 5pt         n=11 (thin)
+
+ALL: every matched dog, back 2-0      21-106 hit 16.5% vs PM price 30.1% | ROI  -38.0% (n=127)
+   P dog bets (EV>=5%), back 2-0      8-39 hit 17.0% vs PM price 27.5% | ROI  -26.7% (n=47)
+   P 2-0 edge >= 5pt over PM price    n=19 (thin)
+   P bets AND 2-0 edge >= 5pt         n=19 (thin)
+
