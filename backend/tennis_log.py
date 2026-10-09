@@ -23,7 +23,8 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
-           "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v", "score",
+           "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
+           "open_p1_odds", "open_p2_odds", "open_at", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -206,6 +207,19 @@ def log_predictions(matches: list, date: str):
     if not rows:
         return
     new = pd.DataFrame(rows)
+    # OPENING LINE (2026-10-09, user "follow market line movements"): the first prices we
+    # ever logged for a fixture are kept as open_p1_odds/open_p2_odds (+ open_at) and never
+    # overwritten; p1_odds/p2_odds keep updating until first serve, so close - open = the
+    # line move every card and lane can read.
+    new["open_p1_odds"], new["open_p2_odds"], new["open_at"] = new["p1_odds"], new["p2_odds"], now
+    if not log.empty and "open_p1_odds" in log.columns:
+        _o = log[log["open_p1_odds"].notna()].drop_duplicates("fixture_id", keep="last").set_index("fixture_id")
+        _m = new["fixture_id"].isin(_o.index)
+        if _m.any():
+            _ix = new.loc[_m, "fixture_id"]
+            new.loc[_m, "open_p1_odds"] = _ix.map(_o["open_p1_odds"]).values
+            new.loc[_m, "open_p2_odds"] = _ix.map(_o["open_p2_odds"]).values
+            new.loc[_m, "open_at"] = _ix.map(_o["open_at"]).values
     if log.empty:
         _write_log(new)
         return
