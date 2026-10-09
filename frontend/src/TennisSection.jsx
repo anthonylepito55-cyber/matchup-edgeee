@@ -2271,6 +2271,18 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       out.push({ n: 'C + c75 DOG', who: nmDog, od: odDog, lane: 'pink_cc75_dog', g: isW ? 'w' : 'm',
         bt: `bt 2026 ${isW ? 'W' : 'M'} ${band[0]} ${band[1]} · all dogs ${T.all}`, rule: 'Model C and c75 both on the dog' })
     }
+    // C-CLOSE c75 FAV (men) (2026-10-09, user "I want to treat that 18-4 as an edge"):
+    // C within 5pt of 50% (no real opinion) and c75 >= 55% on the market favourite.
+    // Live 9/28-10/8: 19-3, +32.4% (n=22; first count 18-4 included Brady -102, not the devigged fav). Backtest 2026 says the opposite: -15.1%
+    // (166-129, n=295) -- shown on the card; the user chose to treat it as an edge.
+    // Lane pink_cclose_c75fav_m.
+    if (!isW && mc3.p1_prob != null && mc3.mc_c75_p1 != null && !isNaN(odFav) && odFav < 0
+        && Math.abs(mc3.p1_prob - 0.5) < 0.05) {
+      const c75fav = dog1 ? 1 - mc3.mc_c75_p1 : mc3.mc_c75_p1
+      if (c75fav >= 0.55) out.push({ n: 'C-CLOSE c75 FAV (men)', who: nmFav, od: odFav, lane: 'pink_cclose_c75fav_m', g: 'm',
+        bt: 'found live 9/28-10/8 19-3 +32.4% (n=22) · ⚠ bt 2026 −15.1% (166-129, n=295)',
+        rule: `C ${Math.round((dog1 ? 1 - mc3.p1_prob : mc3.p1_prob) * 1000) / 10}% (coin flip) · c75 ${Math.round(c75fav * 1000) / 10}% on the favourite` })
+    }
     return out.length ? out : null
   })()
   // 🪤 BAIT-FAVORITE GREEN (2026-10-08, user "I want all these games highlighted green
