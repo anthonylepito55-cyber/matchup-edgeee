@@ -585,6 +585,7 @@ export default function TennisSection() {
 
       {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
+      <ModelPStrip matches={matches} />
 
       {error && (
         <div style={{
@@ -1434,6 +1435,44 @@ function SplitsPanel() {
     </div>
   )
 }
+// Ⓟ MODEL P TODAY strip (2026-10-09, user "i want model P to be displayed on the board"):
+// every P pick on today's slate in one place at the top of the board -- dog bets (EV >= 5%,
+// teal) and favourite bets (EV >= 3%, gold, flagged) -- sorted by start time.
+function ModelPStrip({ matches }) {
+  const rows = []
+  for (const m of matches || []) {
+    const p = m.model_p
+    if (!p || m.status === 'completed') continue
+    const lo = m.live_odds || {}
+    if (p.bet) rows.push({ side: 'dog', who: p.dog === 1 ? m.player_1 : m.player_2, opp: p.dog === 1 ? m.player_2 : m.player_1,
+      od: p.dog === 1 ? lo.player_1 : lo.player_2, pr: p.p_dog, ev: p.ev, t: m.start_time_utc, st: m.status, lg: m.league })
+    if (p.fav_bet) rows.push({ side: 'fav', who: p.fav === 1 ? m.player_1 : m.player_2, opp: p.fav === 1 ? m.player_2 : m.player_1,
+      od: p.fav === 1 ? lo.player_1 : lo.player_2, pr: p.p_fav, ev: p.fav_ev, t: m.start_time_utc, st: m.status, lg: m.league })
+  }
+  rows.sort((a, b) => String(a.t || '').localeCompare(String(b.t || '')))
+  const tm = t => { try { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) } catch (e) { return '' } }
+  return (
+    <div style={{ margin: '12px 0', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(45,212,191,0.55)', background: 'rgba(45,212,191,0.06)' }}>
+      <div className="mono" style={{ fontSize: 11, fontWeight: 800, color: '#2dd4bf', letterSpacing: '0.04em', marginBottom: 6 }}
+        title="Model P = the profit model: an offset model on the market (it starts from the price and only learns where the price is wrong). DOG bets: +100..+200 dogs with P EV ≥ 5% — backtest 2024-26 men +14.2% (n=3,235), women +21.4% (n=2,442). FAV bets: −100..−200 favourites with P EV ≥ 3% — backtest men +8.6%, women +17.1%, but the live check before shipping was negative. Full record on the Ⓟ Model P tab.">
+        Ⓟ MODEL P TODAY · {rows.filter(r => r.side === 'dog').length} dog · {rows.filter(r => r.side === 'fav').length} fav
+        <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> · dog bt M +14.2% / W +21.4% · fav bt M +8.6% / W +17.1% (⚠ live check negative) · record on the Ⓟ Model P tab</span>
+      </div>
+      {rows.length ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {rows.map((r, i) => (
+            <span key={i} className="mono" style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap',
+              border: `1px solid ${r.side === 'dog' ? 'rgba(45,212,191,0.7)' : 'rgba(227,179,65,0.7)'}`, color: r.side === 'dog' ? '#2dd4bf' : '#e3b341' }}
+              title={`${r.who} vs ${r.opp} · ${String(r.lg || '').toUpperCase()} · P ${Math.round(r.pr * 1000) / 10}%`}>
+              {r.side === 'dog' ? 'Ⓟ' : 'Ⓟ FAV⚠'} <b style={{ color: 'var(--text-primary)' }}>{(r.who || '').split(' ').slice(-1)[0]}</b> {r.od > 0 ? '+' : ''}{r.od} · EV {r.ev >= 0 ? '+' : ''}{Math.round(r.ev * 1000) / 10}% · {r.st === 'live' ? 'LIVE' : tm(r.t)}
+            </span>
+          ))}
+        </div>
+      ) : <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>no P bets on the remaining slate</div>}
+    </div>
+  )
+}
+
 // Ⓟ MODEL P TAB (2026-10-09, user "yes" to a Model P tab + "build the p favorite picks").
 function ModelPPanel() {
   const [d, setD] = useState(null)
@@ -3861,6 +3900,32 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         )
       })() : null}
 
+      {(() => {
+        const mp = match.model_p
+        const lo = match.live_odds || {}
+        const mk = match.model_c && match.model_c.market_p1 != null ? match.model_c.market_p1 : null
+        if (!mp) {
+          if (mk == null) return null
+          const dog1 = mk < 0.5
+          const od = Number(dog1 ? lo.player_1 : lo.player_2)
+          return (
+            <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-tertiary)' }}>
+              <b style={{ color: '#2dd4bf', opacity: 0.6 }}>MODEL P</b> — not rated: P only prices +100..+200 underdogs{!isNaN(od) ? ` (this dog is ${od > 0 ? '+' : ''}${od})` : ''}
+            </div>
+          )
+        }
+        const dogN = mp.dog === 1 ? match.player_1 : match.player_2
+        const favN = mp.dog === 1 ? match.player_2 : match.player_1
+        return (
+          <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}
+            title="Model P — the profit model (offset on the market, +100..+200 dogs, separate men/women weights). Dog bet when EV ≥ 5%; favourite bet when the favourite is −100..−200 and P's favourite EV ≥ 3%. See the Ⓟ Model P tab for its record.">
+            <b style={{ color: '#2dd4bf' }}>MODEL P <span style={{ fontSize: 9, opacity: 0.8 }}>profit</span></b>{' '}
+            {dogN} {Math.round(mp.p_dog * 100)}% — {Math.round(mp.p_fav * 100)}% {favN}
+            <span style={{ color: 'var(--text-tertiary)' }}> · market {Math.round(mp.mkt_dog * 100)}% on the dog · dog EV {mp.ev >= 0 ? '+' : ''}{Math.round(mp.ev * 1000) / 10}%{mp.fav_ev != null ? ` · fav EV ${mp.fav_ev >= 0 ? '+' : ''}${Math.round(mp.fav_ev * 1000) / 10}%` : ''}</span>
+            <span style={{ fontWeight: 700, color: mp.bet ? '#2dd4bf' : mp.fav_bet ? '#e3b341' : 'var(--text-tertiary)' }}> · {mp.bet ? `BET ${dogN.split(' ').slice(-1)[0]}` : mp.fav_bet ? `FAV BET ${favN.split(' ').slice(-1)[0]} ⚠` : 'no bet'}</span>
+          </div>
+        )
+      })()}
       {match.model_x ? (() => {
         const mx = match.model_x
         const pct = v => `${Math.round(100 * v)}%`
