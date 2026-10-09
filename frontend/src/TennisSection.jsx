@@ -2254,6 +2254,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       if (nD === 0 && odFav >= -200 && odFav <= -100) out.push({ n: 'W ALL-9 FAV', who: nmFav, od: odFav, lane: 'pink_wall9_fav', g: 'w',
         bt: 'bt 2026 +6.7% (227-119, n=346) · ⚠ archive fav cells have failed live before', rule: 'all 9 heads on the favourite' })
     }
+    // C + c75 DOG (2026-10-09, user "all of the underdogs highlight pink with those
+    // signals"): Model C and the c75 sim both on the MARKET DOG. _c_c75_agree_bt.py,
+    // bt 2026 (walk-forward C x as-of c75), by band -- men: all dogs +6.6% (n=1,143),
+    // +100..+200 +2.8% (n=804), +200..+300 +19.7% (n=73), +300+ thin (n=26); women:
+    // all +10.8% (n=832), +8.8% (n=524), +31.1% (n=91), thin (n=39). Live 9/28-10/9:
+    // men dogs +15.3% (34-39), women +3.5% (13-19). Their shared FAVOURITE is not a bet
+    // (women live -14.7%). Lane pink_cc75_dog.
+    if (mc3.p1_prob != null && mc3.mc_c75_p1 != null && !isNaN(odDog)
+        && (mc3.p1_prob >= 0.5) === dog1 && (mc3.mc_c75_p1 >= 0.5) === dog1) {
+      const T = isW
+        ? { all: '+10.8% (n=832)', b1: '+8.8% (n=524)', b2: '+31.1% (n=91)', b3: 'thin (n=39)' }
+        : { all: '+6.6% (n=1,143)', b1: '+2.8% (n=804)', b2: '+19.7% (n=73)', b3: 'thin (n=26)' }
+      const band = odDog >= 100 && odDog <= 200 ? ['+100..+200', T.b1] : odDog > 200 && odDog <= 300 ? ['+200..+300', T.b2]
+        : odDog > 300 ? ['+300 and up', T.b3] : ['all dogs', T.all]
+      out.push({ n: 'C + c75 DOG', who: nmDog, od: odDog, lane: 'pink_cc75_dog', g: isW ? 'w' : 'm',
+        bt: `bt 2026 ${isW ? 'W' : 'M'} ${band[0]} ${band[1]} · all dogs ${T.all}`, rule: 'Model C and c75 both on the dog' })
+    }
     return out.length ? out : null
   })()
   // 🪤 BAIT-FAVORITE GREEN (2026-10-08, user "I want all these games highlighted green
