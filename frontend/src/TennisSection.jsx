@@ -2222,10 +2222,21 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             const n = c.n || 0
             const nm = baitGreen.prime ? 'PRIME' : 'GREEN'
             const tot = st.n ? ` · ${nm} all ${st.roi_pct > 0 ? '+' : ''}${Math.round(st.roi_pct * 10) / 10}% (${st.wins}-${st.n - st.wins})` : ''
+            // AS-OF BACKTEST of this cell (2026-10-08): 3-sim approximation -- the real
+            // bait needs all 4 sims and cUTR can't be rebuilt historically, so this runs
+            // serve-MC + c50 + c75 on as-of profiles. Whole cell: M +6.1% (130-163,
+            // n=293) / W +1.6% (91-125, n=216). PRIME: M +7.4% (n=168) / W -5.5%
+            // (n=117). REST: M +4.3% (n=125) / W +10.0% (n=99). Controls: the same
+            // banded dogs WITHOUT the signal run -5.1% (n=1,432) and out-of-band
+            // +200..+400 runs -14.5% (n=358) -> the signal and the band both earn.
+            const bt3 = baitGreen.prime
+              ? (baitGreen.isW ? '-5.5% (n=117)' : '+7.4% (n=168)')
+              : (baitGreen.isW ? '+10.0% (n=99)' : '+4.3% (n=125)')
             return <span style={{ color: '#d9ffe3', fontWeight: 400 }} title={`FULL-LOG record of this card's exact cell — for sim-based signals like this one, no multi-year archive backtest can exist (historical sim states were never saved), so this auto-updating frozen-log record IS both the backtest and the live number. Cell (${nm} = ${baitGreen.prime ? 'dog +100..+150 with the full 6pt+ discount' : 'the rest of the green cell: dog +150..+200, or +100..+150 at the women-only 4-6pt discount'}), at frozen closing odds: this match's gender first, the whole cell after. Auto-updates as games settle.`}>
+              {` · ${nm} bt3 ${baitGreen.isW ? 'W' : 'M'} ${bt3}`}
               {n ? ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} log ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ` · ${nm} ${baitGreen.isW ? 'W' : 'M'} tracking`}{tot}
             </span>
-          })()}{baitGreen.prime ? <span style={{ color: '#eaffea', background: 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, textShadow: '0 0 8px #3fb950' }} title={`⭐ PRIME tier: dog +100..+150 AND the full 6pt+ discount — the fattest measured slice of the green cell (replay +31.0%, 27-19, 58.7% win at near-even money${baitGreen.isW ? '; 🔥 = women’s match, 12-3 +83% in replay — but n=15, a priority hint, not its own cell' : ''}). Take PRIME greens first.`}>⭐ PRIME{baitGreen.isW ? ' 🔥' : ''}</span> : null}
+          })()}{baitGreen.prime ? <span style={{ color: '#eaffea', background: baitGreen.isW ? 'rgba(227,179,65,0.40)' : 'rgba(63,185,80,0.45)', borderRadius: 4, padding: '0 6px', marginLeft: 8, textShadow: baitGreen.isW ? '0 0 8px #e3b341' : '0 0 8px #3fb950' }} title={`⭐ PRIME tier: dog +100..+150 AND the full 6pt+ discount — the fattest measured slice of the green cell (replay +31.0%, 27-19, 58.7% win at near-even money${baitGreen.isW ? '; 🔥 = women’s match, 12-3 +83% in replay — but n=15, a priority hint, not its own cell' : ''}). Take PRIME greens first.`}>⭐ PRIME{baitGreen.isW ? ' 🔥⚠' : ''}</span> : null}
           {(() => {
             // TIER-1 CONFIRMATION ON GREEN CARDS (2026-10-08): green outranks blue, so a
             // bedrock cell backing the SAME player would otherwise be invisible here.
