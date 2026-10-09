@@ -1,0 +1,72 @@
+615127 rows parsed
+rolling features done
+h2h done
+two-sided matches: 167035
+core (priced + featured): 110350
+A prep reused
+B rollups done
+B core: 97243
+A core 110350 | B core 97243
+615127 rows parsed
+52w window done
+season block done
+h2h done
+two-sided: 167035
+C core: 122354  features: 35
+C core 122354
+615127 rows parsed
+52w window done
+season block done
+C prep reused
+ewm block done
+opponent-form block done
+season/platform block done
+D rolls done
+D core: 141610  features: 29
+2024 done  cum 5969
+2025 done  cum 18485
+2026 done  cum 28621
+
+================ dog +100..+250 ================
+
+MEN: every dog                4519-7628  ROI   -7.8%  (n=12147)
+  fade FADE-GOLD          1779-3775  ROI  -20.3%  (n=5554)
+       by year  2024: 429-947  ROI  -22.8%  (n=1376)  2025: 763-1616  ROI  -19.7%  (n=2379)  2026: 587-1212  ROI  -19.0%  (n=1799)
+  fade C-EDGE5 FAV        1067-2239  ROI  -21.7%  (n=3306)
+       by year  2024: 265-598  ROI  -25.1%  (n=863)  2025: 454-934  ROI  -20.1%  (n=1388)  2026: 348-707  ROI  -21.1%  (n=1055)
+  fade D-MA2 FAV          1498-3161  ROI  -19.7%  (n=4659)
+       by year  2024: 351-756  ROI  -20.9%  (n=1107)  2025: 615-1319  ROI  -20.2%  (n=1934)  2026: 532-1086  ROI  -18.2%  (n=1618)
+  fade C-ALONE+GRAY FAV   276-559  ROI  -23.7%  (n=835)
+       by year  2024: 55-140  ROI  -35.5%  (n=195)  2025: 128-256  ROI  -22.8%  (n=384)  2026: 93-163  ROI  -16.1%  (n=256)
+
+WOMEN: every dog                2696-4476  ROI   -6.0%  (n=7172)
+  fade FADE-GOLD          972-2400  ROI  -27.5%  (n=3372)
+       by year  2024: 165-467  ROI  -34.8%  (n=632)  2025: 420-1091  ROI  -30.0%  (n=1511)  2026: 387-842  ROI  -20.6%  (n=1229)
+  fade C-EDGE5 FAV        587-1493  ROI  -31.0%  (n=2080)
+       by year  2024: 108-306  ROI  -36.1%  (n=414)  2025: 254-667  ROI  -32.7%  (n=921)  2026: 225-520  ROI  -25.9%  (n=745)
+  fade D-MA2 FAV          888-2033  ROI  -22.9%  (n=2921)
+       by year  2024: 165-352  ROI  -19.7%  (n=517)  2025: 381-933  ROI  -26.2%  (n=1314)  2026: 342-748  ROI  -20.4%  (n=1090)
+  fade C-ALONE+GRAY FAV   151-380  ROI  -32.5%  (n=531)
+       by year  2024: 17-56  ROI  -45.5%  (n=73)  2025: 67-185  ROI  -35.9%  (n=252)  2026: 67-139  ROI  -23.7%  (n=206)
+
+================ all dog prices ================
+
+MEN: every dog                6090-11285  ROI   -7.8%  (n=17375)
+  fade FADE-GOLD          2347-5585  ROI  -21.9%  (n=7932)
+       by year  2024: 543-1362  ROI  -26.1%  (n=1905)  2025: 1012-2418  ROI  -21.4%  (n=3430)  2026: 792-1805  ROI  -19.4%  (n=2597)
+  fade C-EDGE5 FAV        1382-3102  ROI  -24.6%  (n=4484)
+       by year  2024: 334-844  ROI  -29.8%  (n=1178)  2025: 592-1302  ROI  -23.3%  (n=1894)  2026: 456-956  ROI  -22.0%  (n=1412)
+  fade D-MA2 FAV          2010-4821  ROI  -21.4%  (n=6831)
+       by year  2024: 469-1122  ROI  -23.6%  (n=1591)  2025: 832-2055  ROI  -22.3%  (n=2887)  2026: 709-1644  ROI  -18.8%  (n=2353)
+  fade C-ALONE+GRAY FAV   383-733  ROI  -23.4%  (n=1116)
+       by year  2024: 77-176  ROI  -33.6%  (n=253)  2025: 179-341  ROI  -22.4%  (n=520)  2026: 127-216  ROI  -17.3%  (n=343)
+
+WOMEN: every dog                3785-7461  ROI   -9.1%  (n=11246)
+  fade FADE-GOLD          1309-4031  ROI  -35.4%  (n=5340)
+       by year  2024: 204-703  ROI  -41.3%  (n=907)  2025: 597-1879  ROI  -36.1%  (n=2476)  2026: 508-1449  ROI  -31.8%  (n=1957)
+  fade C-EDGE5 FAV        787-2184  ROI  -35.6%  (n=2971)
+       by year  2024: 133-435  ROI  -42.5%  (n=568)  2025: 365-1006  ROI  -34.8%  (n=1371)  2026: 289-743  ROI  -32.7%  (n=1032)
+  fade D-MA2 FAV          1251-3469  ROI  -27.1%  (n=4720)
+       by year  2024: 230-568  ROI  -20.0%  (n=798)  2025: 550-1588  ROI  -28.9%  (n=2138)  2026: 471-1313  ROI  -28.2%  (n=1784)
+  fade C-ALONE+GRAY FAV   208-524  ROI  -34.1%  (n=732)
+       by year  2024: 22-75  ROI  -49.1%  (n=97)  2025: 98-262  ROI  -35.2%  (n=360)  2026: 88-187  ROI  -27.4%  (n=275)
