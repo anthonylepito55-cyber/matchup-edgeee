@@ -2244,7 +2244,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       if (baitGreen.c75Flip === false) { lane = 'bait_noflip'; label = 'BAIT (MC refuses)' }
       else { lane = 'bait_mcflip'; label = 'BAIT (MC confirms)' }
     } else if (purpleCGF) { lane = purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav'; label = 'C-ALONE+GOLD' }
-    else if (purpleFGW) { lane = 'fadegold_pocket_w'; label = 'FADE-GOLD POCKET' }
+    else if (purpleFGW) { lane = 'fadegold_pocket_w'; label = 'FADE-GOLD (watch)' }
     else if (purpleCE5) { lane = 'ce5_deep_fav'; label = 'C-EDGE5 (watch)' }
     else if (tier1Blue && tier1Blue.cells && tier1Blue.cells[0] && tier1Blue.cells[0].lane) {
       lane = tier1Blue.cells[0].lane; label = tier1Blue.cells[0].n
@@ -2262,8 +2262,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // (38-30), BLUE c75 dog +24.6% (68-61) -- then everything else sits at +15.4% or
     // below (c-alone+gray +15.4, tier1 +14.5, gray4 +14.2, BLACK women c75 +12.8,
     // FGW +3.3) and two are negative (fade-A -11.9, MC-refuses -49.5, CE5 -30.0).
-    const TOP3 = { cgf_shallow_fav: '3wk +38.2% (7-2)', cgf_premium: '3wk +38.2% (7-2)',
-                   bait_mcflip: '3wk +33.3% (38-30)', mc_c75_dog: '3wk +24.6% (68-61)' }
+    const TOP3 = { cgf_shallow_fav: '3wk +52.0% (6-1)', cgf_premium: '3wk +52.0% (6-1)',
+                   bait_mcflip: '3wk +31.9% (31-25)', mc_c75_dog: '3wk +21.2% (58-55)' }
     if (roi == null) return { label, txt: 'no settles yet', ok: null, top3: TOP3[lane] || null }
     return { label, ok: roi > 0, src, rec, top3: TOP3[lane] || null,
              txt: `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec})` }
@@ -2271,10 +2271,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: blackC75W ? 'rgba(8,10,14,0.92)' : baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : (purpleCGF || purpleFGW) ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: blackC75W ? '2px solid #e8e8ea' : baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : (purpleCGF || purpleFGW) ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${blackC75W ? '#f0f0f2' : baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : (purpleCGF || purpleFGW) ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : (purpleCGF || purpleFGW) ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: blackC75W ? 'rgba(8,10,14,0.92)' : baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : purpleCGF ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: blackC75W ? '2px solid #e8e8ea' : baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : purpleCGF ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${blackC75W ? '#f0f0f2' : baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : purpleCGF ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : purpleCGF ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {match.book_prices && (match.book_prices.p1 || match.book_prices.p2) ? (() => {
@@ -2317,7 +2317,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           {markVerdict.top3 ? (
             <span style={{ marginLeft: 8, color: '#1a1a1a', background: 'linear-gradient(90deg,#ffd76e,#e3b341)',
               borderRadius: 4, padding: '0 7px', fontWeight: 900, textShadow: 'none' }}
-              title={`TOP-3 CELL. Over the 3-week post-mortem (2026-09-18..10-08, 524 marked picks) exactly three cells cleared +24%: PURPLE C-ALONE+GOLD +38.2% (7-2), GREEN bait with MC confirming +33.3% (38-30), and BLUE c75 banded dog +24.6% (68-61). Everything else sat at +15.4% or lower, and three cells were negative (fade-A -11.9%, bait MC-refuses -49.5%, C-EDGE5 -30.0%). Caveat: the CGF cell is only n=9 live, so its +38.2% is the least settled of the three -- c75 dog (n=129) and bait-confirms (n=68) carry the real weight.`}>
+              title={`TOP-3 CELL. Over the 3-week post-mortem (2026-09-18..10-08, 524 marked picks) exactly three cells cleared +20% (re-measured on the DEDUPED log -- 67 matches had been logged twice): PURPLE C-ALONE+GOLD +52.0% (6-1), GREEN bait with MC confirming +31.9% (31-25), and BLUE c75 banded dog +21.2% (58-55). Everything else sat at +12.8% or lower, and four cells were negative (fade-A -11.9%, FADE-GOLD -3.9%, bait MC-refuses -41.7%, C-EDGE5 -26.5%). Caveat: the CGF cell is only n=9 live, so its +38.2% is the least settled of the three -- c75 dog (n=129) and bait-confirms (n=68) carry the real weight.`}>
               {'★ TOP-3 CELL · '}{markVerdict.top3}
             </span>
           ) : null}
@@ -2373,9 +2373,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         </div>
       ) : null}
       {!baitGreen && !purpleCGF && !purpleCE5 && purpleFGW ? (
-        <div className="mono" title={`💜 FADE-GOLD POCKET (women, your mark 2026-10-08): the gray line prices this market dog ${purpleFGW.hate} points BELOW her market number (gray HATES the dog), and the favorite sits in the -200..-300 pocket — the one price band where the backtest AND the live log agree this favorite earns. Backtest remeasured 2026-10-08 (true gender, single-count, -200..-300): women all-years +5.9% (1011-344, n=1,355), 2026 +4.4% (359-131, n=490). ⚠ MARGINAL: that is a thin edge, and the live lane is +3.3% (22-8) after the Bai -275 loss on 2026-10-08 -- both layers sit close to zero, so treat it as a small-stake spot, not a conviction bet. The old +16.9%/54-13 was a WTA-tour-only artifact of the broken gender split. Live pocket: 23-8, ~+4.5%. OUT of this band the same signal LOSES live (-20% at -100/-150, -30% at -150/-200, -11% past -300) — the band IS the mark. The LANE number is the live record of this exact banded cell (fadegold_pocket_w), auto-updating.`}
+        <div className="mono" title={`💜 FADE-GOLD POCKET (women, your mark 2026-10-08): the gray line prices this market dog ${purpleFGW.hate} points BELOW her market number (gray HATES the dog), and the favorite sits in the -200..-300 pocket — the one price band where the backtest AND the live log agree this favorite earns. Backtest remeasured 2026-10-08 (true gender, single-count, -200..-300): women all-years +5.9% (1011-344, n=1,355), 2026 +4.4% (359-131, n=490). DEMOTED TO WATCH 2026-10-08: after 67 double-logged matches were removed from the frozen log, this cell's live record went from +3.3% to -3.9% (17-8) -- the duplicates had been propping it up. With a thin +4.4% backtest and a negative clean live record, the mark no longer instructs a bet; it shows what it would have picked and keeps scoring itself in the fadegold_pocket_w lane. The old +16.9%/54-13 was a WTA-tour-only artifact of the broken gender split. Live pocket: 23-8, ~+4.5%. OUT of this band the same signal LOSES live (-20% at -100/-150, -30% at -150/-200, -11% past -300) — the band IS the mark. The LANE number is the live record of this exact banded cell (fadegold_pocket_w), auto-updating.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
-          💜 FADE-GOLD POCKET W ⚠ marginal → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleFGW.name.split(' ').slice(-1)[0].toUpperCase()} {purpleFGW.od}</span> · gray hates dog {purpleFGW.hate}pt · bt26 W +4.4% (359-131) · live pocket +4.5% (23-8)
+          👁 FADE-GOLD WATCH · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span> · would have been {purpleFGW.name.split(' ').slice(-1)[0].toUpperCase()} {purpleFGW.od} · gray hates dog {purpleFGW.hate}pt · bt26 W +4.4% (359-131) · live pocket +4.5% (23-8)
           {(() => {
             const st = ((laneRec && laneRec.study) || {}).fadegold_pocket_w || {}
             const c = st.w && st.w.n ? st.w : st

@@ -203,7 +203,54 @@ def log_predictions(matches: list, date: str):
     if new.empty:
         return
     keep = log[~log["fixture_id"].isin(set(new["fixture_id"]))]
+    # CROSS-FEED DEDUPE (2026-10-08): the OpticOdds board and the Polymarket feed give the
+    # SAME match different fixture ids (e.g. "2026100811" vs "pm_1146640"), and the upsert
+    # above only matches on fixture_id -- so 67 matches were logged twice and every lane
+    # record double-counted them (68 extra settled rows, 6.7% of the settled log). Rule:
+    # OpticOdds is primary. A pm_ row is dropped if an OpticOdds row for the same player
+    # pair exists within +/-3 days; an arriving OpticOdds row evicts its pm_ twin.
+    keep, new = _drop_cross_feed_twins(keep, new)
+    if new.empty and len(keep) == len(log):
+        return
     _write_log(pd.concat([keep, new], ignore_index=True))
+
+
+def _pair_key(a, b):
+    import unicodedata
+
+    def n(x):
+        x = unicodedata.normalize("NFKD", str(x or ""))
+        return " ".join("".join(c for c in x if not unicodedata.combining(c)).lower().split())
+    return tuple(sorted((n(a), n(b))))
+
+
+def _drop_cross_feed_twins(keep, new, window_days=3):
+    """OpticOdds-vs-Polymarket twin removal (see the note in log_predictions)."""
+    if keep.empty and new.empty:
+        return keep, new
+    both = pd.concat([keep.assign(_src="keep"), new.assign(_src="new")], ignore_index=True)
+    both["_pm"] = both["fixture_id"].astype(str).str.startswith("pm_")
+    both["_pair"] = [_pair_key(a, b) for a, b in zip(both["player_1"], both["player_2"])]
+    both["_d"] = pd.to_datetime(both["date"].astype(str).str[:10], errors="coerce")
+    oo = both[~both["_pm"]]
+    drop = set()
+    if not oo.empty:
+        oo_days = {}
+        for pr, dd in zip(oo["_pair"], oo["_d"]):
+            oo_days.setdefault(pr, []).append(dd)
+        for i, r in both[both["_pm"]].iterrows():
+            days = oo_days.get(r["_pair"])
+            if days and pd.notna(r["_d"]) and any(
+                    pd.notna(x) and abs((x - r["_d"]).days) <= window_days for x in days):
+                drop.add(i)
+    if not drop:
+        return keep, new
+    both = both.drop(index=list(drop))
+    cols = [c for c in keep.columns]
+    k2 = both[both["_src"] == "keep"][cols].reset_index(drop=True)
+    n2 = both[both["_src"] == "new"][[c for c in new.columns]].reset_index(drop=True)
+    print(f"[tennis log] cross-feed dedupe dropped {len(drop)} pm_ twin row(s)")
+    return k2, n2
 
 
 def settle(max_dates: int = 10):
