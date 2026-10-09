@@ -1594,7 +1594,7 @@ function HistoryPanel({ query, greenOnly = false }) {
             ) : null}
             {full ? (dayOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
+                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null), model_x: m.card.model_x || (m.model_x && m.model_x.p1_pct != null ? { p1_prob: m.model_x.p1_pct / 100, p2_prob: 1 - m.model_x.p1_pct / 100, market_p1: m.market_p1 != null ? m.market_p1 : null, edge_p1: m.market_p1 != null ? m.model_x.p1_pct / 100 - m.market_p1 : null, recon: !!m.model_x.recon, hit: m.model_x.hit } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
               </div>
             ) : null) : d.matches.map((m, i) => (
               <div key={i} className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 11, flexWrap: 'wrap' }}>
@@ -3731,7 +3731,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
                 {edge != null ? ` · ${edge > 0 ? '+' : ''}${Math.round(100 * edge)}pt` : ''}
               </span>
             ) : null}
-            <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}> · nightly self-retrain · display-only</span>
+            {mx.hit != null ? <span style={{ color: mx.hit ? '#3fb950' : '#f85149', fontWeight: 700 }}> · {mx.hit ? '✓ right' : '✗ wrong'}</span> : null}
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}> · {mx.recon ? '~ walk-forward backfill (trained only on earlier games)' : 'nightly self-retrain'} · display-only</span>
           </div>
         )
       })() : null}
