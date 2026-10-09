@@ -1,0 +1,21 @@
+Model P out-of-sample 2024-26: always take the side with the HIGHER P EV
+
+MEN:
+   take the better side, EVERY match           6304-5193 win 54.8% ROI   +3.3% | avg P EV  +6.9% (n=11497)
+   best side EV below -5% (both bad)      566-499 win 53.1% ROI   -6.5% | avg P EV  -6.0% (n=1065)
+   best side EV -5%..0 (both negative)    1566-1399 win 52.8% ROI   -6.0% | avg P EV  -2.5% (n=2965)
+   best side EV 0..+3%                    801-717 win 52.8% ROI   -4.2% | avg P EV  +1.4% (n=1518)
+   best side EV +3..+5%                   514-366 win 58.4% ROI   +6.6% | avg P EV  +3.9% (n=880)
+   best side EV +5% or more               2857-2212 win 56.4% ROI  +12.4% | avg P EV +17.3% (n=5069)
+   ...both negative, fav is the 'less bad'    1504-892 win 62.8% ROI   -4.0% | avg P EV  -3.5% (n=2396)
+   ...both negative, dog is the 'less bad'    628-1006 win 38.4% ROI   -9.2% | avg P EV  -3.4% (n=1634)
+
+WOMEN:
+   take the better side, EVERY match           5153-3595 win 58.9% ROI  +11.5% | avg P EV +14.2% (n=8748)
+   best side EV below -5% (both bad)      293-236 win 55.4% ROI   -5.0% | avg P EV  -6.1% (n=529)
+   best side EV -5%..0 (both negative)    869-676 win 56.2% ROI   -2.2% | avg P EV  -2.5% (n=1545)
+   best side EV 0..+3%                    508-362 win 58.4% ROI   -1.0% | avg P EV  +1.5% (n=870)
+   best side EV +3..+5%                   335-208 win 61.7% ROI   +7.9% | avg P EV  +4.0% (n=543)
+   best side EV +5% or more               3148-2113 win 59.8% ROI  +19.6% | avg P EV +24.4% (n=5261)
+   ...both negative, fav is the 'less bad'    852-485 win 63.7% ROI   -6.2% | avg P EV  -3.4% (n=1337)
+   ...both negative, dog is the 'less bad'    310-427 win 42.1% ROI   +3.0% | avg P EV  -3.4% (n=737)
