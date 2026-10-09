@@ -1,0 +1,79 @@
+BACKTEST 2026 (10347 matches) -- bet c75's side
+
+==================== MEN ====================
+
+  C within 3pt of 50%, c75 leans 5pt+
+     c75 on the DOG  42-46 win 47.7% ROI  +14.3% (n=88)
+     c75 on the FAV  106-64 win 62.4% ROI   -6.6% (n=170)
+        dog +100..+200         27-34 win 44.3% ROI   +1.4% (n=61)
+        dog +200 and up        n=10 (thin)
+        fav -100..-200         65-48 win 57.5% ROI   -3.7% (n=113)
+        fav -200 and shorter   50-24 win 67.6% ROI   -8.8% (n=74)
+
+  C within 3pt of 50%, c75 leans 10pt+
+     c75 on the DOG  n=5 (thin)
+     c75 on the FAV  n=14 (thin)
+        dog +100..+200         n=4 (thin)
+        dog +200 and up        n=0 (thin)
+        fav -100..-200         n=9 (thin)
+        fav -200 and shorter   n=6 (thin)
+
+  C within 5pt of 50%, c75 leans 5pt+
+     c75 on the DOG  72-86 win 45.6% ROI   +5.6% (n=158)
+     c75 on the FAV  166-129 win 56.3% ROI  -15.1% (n=295)
+        dog +100..+200         48-62 win 43.6% ROI   -0.1% (n=110)
+        dog +200 and up        n=16 (thin)
+        fav -100..-200         108-98 win 52.4% ROI  -11.4% (n=206)
+        fav -200 and shorter   75-46 win 62.0% ROI  -16.6% (n=121)
+     ...C barely WITH c75   159-161 win 49.7% ROI  -13.0% (n=320)
+     ...C barely AGAINST c75 79-54 win 59.4% ROI   +4.5% (n=133)
+
+  comparison: C NOT close (5pt+), bet c75's side
+     c75 on the DOG  449-576 win 43.8% ROI   +0.6% (n=1025)
+     c75 on the FAV  2737-1131 win 70.8% ROI   -1.9% (n=3868)
+        dog +100..+200         309-411 win 42.9% ROI   -1.2% (n=720)
+        dog +200 and up        28-68 win 29.2% ROI   +9.3% (n=96)
+        fav -100..-200         921-636 win 59.2% ROI   -1.2% (n=1557)
+        fav -200 and shorter   1928-592 win 76.5% ROI   -1.9% (n=2520)
+
+==================== WOMEN ====================
+
+  C within 3pt of 50%, c75 leans 5pt+
+     c75 on the DOG  31-51 win 37.8% ROI   +1.6% (n=82)
+     c75 on the FAV  60-45 win 57.1% ROI  -14.5% (n=105)
+        dog +100..+200         22-34 win 39.3% ROI   -6.5% (n=56)
+        dog +200 and up        n=14 (thin)
+        fav -100..-200         37-35 win 51.4% ROI  -13.3% (n=72)
+        fav -200 and shorter   27-18 win 60.0% ROI  -22.1% (n=45)
+
+  C within 3pt of 50%, c75 leans 10pt+
+     c75 on the DOG  n=8 (thin)
+     c75 on the FAV  n=14 (thin)
+        dog +100..+200         n=4 (thin)
+        dog +200 and up        n=2 (thin)
+        fav -100..-200         n=9 (thin)
+        fav -200 and shorter   n=7 (thin)
+
+  C within 5pt of 50%, c75 leans 5pt+
+     c75 on the DOG  49-84 win 36.8% ROI   -4.4% (n=133)
+     c75 on the FAV  112-79 win 58.6% ROI  -13.1% (n=191)
+        dog +100..+200         35-57 win 38.0% ROI  -10.1% (n=92)
+        dog +200 and up        n=24 (thin)
+        fav -100..-200         62-61 win 50.4% ROI  -15.4% (n=123)
+        fav -200 and shorter   56-29 win 65.9% ROI  -13.6% (n=85)
+     ...C barely WITH c75   116-116 win 50.0% ROI  -13.2% (n=232)
+     ...C barely AGAINST c75 45-47 win 48.9% ROI   -0.2% (n=92)
+
+  comparison: C NOT close (5pt+), bet c75's side
+     c75 on the DOG  356-394 win 47.5% ROI  +13.2% (n=750)
+     c75 on the FAV  2004-759 win 72.5% ROI   -1.7% (n=2763)
+        dog +100..+200         230-245 win 48.4% ROI  +13.4% (n=475)
+        dog +200 and up        37-78 win 32.2% ROI  +21.1% (n=115)
+        fav -100..-200         640-385 win 62.4% ROI   +5.1% (n=1025)
+        fav -200 and shorter   1453-445 win 76.6% ROI   -4.7% (n=1898)
+
+==================== LIVE 2026-09-28..2026-10-09 (bet c75's side) ====================
+  MEN C within 3pt, c75 5pt+   dog n=5 (thin) | fav n=10 (thin)
+  MEN C within 5pt, c75 5pt+   dog n=9 (thin) | fav 18-4 win 81.8% ROI  +27.3% (n=22)
+  WOMEN C within 3pt, c75 5pt+   dog n=3 (thin) | fav n=9 (thin)
+  WOMEN C within 5pt, c75 5pt+   dog n=6 (thin) | fav n=12 (thin)
