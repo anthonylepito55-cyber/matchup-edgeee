@@ -1,0 +1,22 @@
+
+SERVICE GAMES WON % (52w, surface)  (WOMEN 2025-26)
+   better server, every match        wins 59.1% vs implied 57.0% | ROI   -3.0% (n=9793)
+   ...better server is the FAVOURITE wins 70.2% vs implied 68.0% | ROI   -3.5% (n=6355)
+   ...better server is the DOG       wins 38.4% vs implied 36.7% | ROI   -2.2% (n=3438)
+   serve gap small                wins 52.2% vs implied 52.4% | ROI   -7.3% (n=3232) | as dog: wins 36.1% vs implied 36.2% | ROI   -7.4% (n=1453)
+   serve gap medium               wins 58.3% vs implied 56.3% | ROI   -2.7% (n=3329) | as dog: wins 39.2% vs implied 36.7% | ROI   +0.5% (n=1178)
+   serve gap big                  wins 66.7% vs implied 62.3% | ROI   +0.9% (n=3232) | as dog: wins 41.3% vs implied 37.4% | ROI   +3.3% (n=807)
+
+SERVE POINTS WON % (52w, surface)  (WOMEN 2025-26)
+   better server, every match        wins 58.1% vs implied 56.2% | ROI   -3.1% (n=7907)
+   ...better server is the FAVOURITE wins 69.7% vs implied 67.3% | ROI   -3.4% (n=5049)
+   ...better server is the DOG       wins 37.8% vs implied 36.4% | ROI   -2.8% (n=2858)
+   serve gap small                wins 52.3% vs implied 52.0% | ROI   -6.4% (n=2609) | as dog: wins 35.8% vs implied 36.0% | ROI   -7.9% (n=1155)
+   serve gap medium               wins 56.5% vs implied 56.0% | ROI   -5.5% (n=2689) | as dog: wins 37.8% vs implied 36.7% | ROI   -3.5% (n=974)
+   serve gap big                  wins 65.7% vs implied 60.5% | ROI   +2.6% (n=2609) | as dog: wins 41.0% vs implied 36.8% | ROI   +6.2% (n=729)
+
+d_c_sgw: dog is the better server by a big margin -- by year: 2025 219-299 ROI   +5.3% (n=518) | 2026 114-175 ROI   -0.3% (n=289)
+   dog +100..+250 only: 2025 151-199 ROI   +5.3% (n=350) | 2026 78-120 ROI   -1.6% (n=198) | all 229-319 ROI   +2.8% (n=548)
+
+d_c_sp: dog is the better server by a big margin -- by year: 2025 220-300 ROI  +10.1% (n=520) | 2026 79-130 ROI   -3.6% (n=209)
+   dog +100..+250 only: 2025 160-203 ROI  +10.8% (n=363) | 2026 60-90 ROI   -0.9% (n=150) | all 220-293 ROI   +7.4% (n=513)
