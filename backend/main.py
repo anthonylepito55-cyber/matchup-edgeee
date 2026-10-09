@@ -2230,6 +2230,7 @@ def tennis_model_x_record():
         st = (tennis_log.get_ab25_record().get("study") or {})
         meta["lane_all"] = st.get("model_x_all")
         meta["lane_edge2"] = st.get("model_x_edge2")
+        meta["lane_xdog"] = st.get("x_dog")   # new market-free X dog picks (model_x_v == 2)
     except Exception:  # noqa: BLE001
         pass
     return meta

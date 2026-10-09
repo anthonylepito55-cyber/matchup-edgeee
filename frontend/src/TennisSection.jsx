@@ -1467,7 +1467,7 @@ function ModelXPanel() {
   return (
     <div style={{ marginTop: 16 }}>
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-        <b style={{ color: '#d2a8ff' }}>MODEL X</b> — the self-auditing meta-model. It stacks the market + A/B/C/D + gray heads + the Monte Carlos into one number, retrains nightly on every settled game, and auto-adds any frozen signal that clears a strict walk-forward gate (dropping ones that stop helping). Trained on {m.n} settled games{m.trained_at ? `, last ${m.trained_at}` : ''}. Display-only until it earns a forward record.
+        <b style={{ color: '#d2a8ff' }}>MODEL X</b> — the self-auditing meta-model. <b style={{ color: 'var(--text-secondary)' }}>Market-free since 2026-10-09</b>: it never sees the price (or the gray heads, which carry it) — it stacks the models and Monte Carlos into one number, keeps only inputs that pass the nightly walk-forward test, retrains nightly on every settled game, and auto-adds any frozen signal that clears a strict walk-forward gate (dropping ones that stop helping). Trained on {m.n} settled games{m.trained_at ? `, last ${m.trained_at}` : ''}. Display-only until it earns a forward record.
       </div>
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>walk-forward (out-of-sample) <span style={{ fontWeight: 400, textTransform: 'none' }}>— lower log-loss = sharper; ROI = flat $1 on X's side</span></div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -1481,8 +1481,9 @@ function ModelXPanel() {
       </div>
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>live lanes <span style={{ fontWeight: 400, textTransform: 'none' }}>— $25/game forward</span></div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-        {lane(m.lane_all, 'X — every match')}
-        {lane(m.lane_edge2, 'X — 2pt+ off market')}
+        {lane(m.lane_xdog, '✖ NEW X — dog picks (from 10/9)')}
+        {lane(m.lane_all, 'X — every match (mostly old market-fed X)')}
+        {lane(m.lane_edge2, 'X — 2pt+ off market (mostly old X)')}
       </div>
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>active inputs</div>
       <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
