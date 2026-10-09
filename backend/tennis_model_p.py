@@ -43,6 +43,10 @@ FEATS = ["d_vs_band", "g_C", "g_gray", "g_Dma", "d_form_win", "d_m_perf", "d_m_w
          "d_sutr", "d_lrank", "is_chall", "is_itf"]
 EV_BET = 0.05
 EV_FAV = 0.03
+# DOG BAND by gender (2026-10-09, user "ship P" after the +250 rebuild): women +100..+250
+# (+200..+250 slice +27.2% n=666, every year +, 2026 +35.3%); men stay +100..+200 (men's
+# +200..+250 went -0.2% in 2026). Max decimal odds per gender:
+BAND = {"M": 3.0, "W": 3.5}
 _CACHE = {"mtime": None, "art": None}
 
 
@@ -61,14 +65,16 @@ def _dec(a):
     return 1 + a / 100.0 if a > 0 else 1 + 100.0 / abs(a)
 
 
-def train(rows_path=os.path.join(_here, "data_cache", "_model_p_rows.parquet"), lam=2.0):
-    """Fit the serving weights on ALL archive P rows (2022-2026), per gender."""
+def train(rows_path=os.path.join(_here, "data_cache", "_model_p250_rows.parquet"), lam=2.0):
+    """Fit the serving weights on ALL archive P rows (2022-2026), per gender, each gender on
+    its own dog band (BAND)."""
     import pandas as pd
     from scipy.optimize import minimize
     D = pd.read_parquet(rows_path)
-    out = {"feats": FEATS, "ev_bet": EV_BET, "trained_on": int(len(D)), "g": {}}
+    out = {"feats": FEATS, "ev_bet": EV_BET, "band": BAND, "trained_on": int(len(D)), "g": {}}
+    keep_lite = (_load() or {}).get("lite")
     for G in ("M", "W"):
-        S = D[D.G == G]
+        S = D[(D.G == G) & (D.player_odd <= BAND[G])]
         mu, sd = S[FEATS].mean(), S[FEATS].std().replace(0, 1)
         X = ((S[FEATS] - mu) / sd).fillna(0).values
         y, off = S.won.values.astype(float), S.off.values
@@ -83,6 +89,8 @@ def train(rows_path=os.path.join(_here, "data_cache", "_model_p_rows.parquet"), 
         w = minimize(f, np.zeros(len(FEATS) + 1), jac=True, method="L-BFGS-B").x
         out["g"][G] = {"w": [float(v) for v in w], "mu": [float(v) for v in mu.values],
                        "sd": [float(v) for v in sd.values], "n": int(len(S))}
+    if keep_lite:
+        out["lite"] = keep_lite
     os.makedirs(os.path.dirname(ARTIFACT_P), exist_ok=True)
     with open(ARTIFACT_P, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=1)
@@ -108,7 +116,9 @@ def predict_p(mc, md, market_p1, league, p1_odds, p2_odds):
         return None
     dog1 = market_p1 < 0.5
     od = _dec(p1_odds if dog1 else p2_odds)
-    if od is None or not (2.0 <= od <= 3.0):
+    _lgG = str(league or "").lower()
+    _G = "W" if ("wta" in _lgG or "itf_women" in _lgG) else "M"
+    if od is None or not (2.0 <= od <= art.get("band", BAND).get(_G, 3.0)):
         return None
     cp, gp, dp = mc.get("p1_prob"), mc.get("market_aware_p1"), md.get("market_aware_p1")
     if cp is None or gp is None or dp is None:
@@ -156,11 +166,12 @@ def predict_p(mc, md, market_p1, league, p1_odds, p2_odds):
 LITE_CUTOFF = "2026-09-01"
 
 
-def train_lite(rows_path=os.path.join(_here, "data_cache", "_model_p_rows.parquet"), lam=2.0):
+def train_lite(rows_path=os.path.join(_here, "data_cache", "_model_p250_rows.parquet"), lam=2.0):
     import pandas as pd
     from scipy.optimize import minimize
     D = pd.read_parquet(rows_path)
     D = D[pd.to_datetime(D["date"]) < pd.Timestamp(LITE_CUTOFF)]
+    D = D[D.player_odd <= D.G.map(BAND)]
     art = _load() or {}
     lite = {"cutoff": LITE_CUTOFF}
     for tag, feats in (("l3", ["g_C", "g_gray", "g_Dma"]), ("l2", ["g_C", "g_gray"])):
@@ -199,10 +210,10 @@ def history_p(r, mk1):
         return None
     dog1 = mk1 < 0.5
     od, fo = _dec(r.get("p1_odds") if dog1 else r.get("p2_odds")), _dec(r.get("p2_odds") if dog1 else r.get("p1_odds"))
-    if od is None or not (2.0 <= od <= 3.0):
-        return None
     lg9 = str(r.get("league") or "").lower()
     G = "W" if ("wta" in lg9 or "itf_women" in lg9) else "M"
+    if od is None or not (2.0 <= od <= BAND[G]):
+        return None
     mk = mk1 if dog1 else 1 - mk1
     if g("model_p_ev") is not None and g("model_p_prob") is not None:
         p, recon = g("model_p_prob"), False

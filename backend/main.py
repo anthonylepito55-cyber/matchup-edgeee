@@ -2235,12 +2235,12 @@ def tennis_model_p_record():
     P pick with its result -- all read from the frozen log (cheap, no slate recompute)."""
     import tennis_model_p as _tmp
     out = {"backtest": {
-        "dog": {"m": "+14.2% (n=3,235)", "w": "+21.4% (n=2,442)", "base_m": "-7.4% (n=11,497)", "base_w": "-6.0% (n=7,162)"},
+        "dog": {"m": "+14.2% (n=3,235) [+100..+200]", "w": "+23.9% (n=2,996) [+100..+250; +200..+250 slice +27.2%, n=666]", "base_m": "-7.4% (n=11,497)", "base_w": "-6.2% (n=8,748)"},
         "fav": {"m": "+8.6% (n=1,752)", "w": "+17.1% (n=1,476)", "live_proxy_m": "-12.7% (n=37)", "live_proxy_w": "-6.8% (n=14)"}},
-        "rules": {"dog": "dog +100..+200, P EV >= 5%", "fav": "fav -100..-200 (dog +100..+200), P fav EV >= 3%"}}
+        "rules": {"dog": "men dog +100..+200 / women dog +100..+250, P EV >= 5%", "fav": "fav -100..-200 (dog in P's band), P fav EV >= 3%"}}
     try:
         st = (tennis_log.get_ab25_record().get("study") or {})
-        out["lanes"] = {k: st.get(k) for k in ("p_dog", "p_dog_any", "p_pass", "p_fav")}
+        out["lanes"] = {k: st.get(k) for k in ("p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250")}
     except Exception:  # noqa: BLE001
         out["lanes"] = {}
     rows = []

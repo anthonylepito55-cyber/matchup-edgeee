@@ -1456,7 +1456,7 @@ function ModelPStrip({ matches }) {
       <div className="mono" style={{ fontSize: 11, fontWeight: 800, color: '#2dd4bf', letterSpacing: '0.04em', marginBottom: 6 }}
         title="Model P = the profit model: an offset model on the market (it starts from the price and only learns where the price is wrong). DOG bets: +100..+200 dogs with P EV ≥ 5% — backtest 2024-26 men +14.2% (n=3,235), women +21.4% (n=2,442). FAV bets: −100..−200 favourites with P EV ≥ 3% — backtest men +8.6%, women +17.1%, but the live check before shipping was negative. Full record on the Ⓟ Model P tab.">
         Ⓟ MODEL P TODAY · {rows.filter(r => r.side === 'dog').length} dog · {rows.filter(r => r.side === 'fav').length} fav
-        <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> · dog bt M +14.2% / W +21.4% · fav bt M +8.6% / W +17.1% (⚠ live check negative) · record on the Ⓟ Model P tab</span>
+        <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> · dogs M +100..+200 / W +100..+250 · dog bt M +14.2% / W +23.9% · fav bt M +8.6% / W +17.1% (⚠ live check negative) · record on the Ⓟ Model P tab</span>
       </div>
       {rows.length ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1526,6 +1526,7 @@ function ModelPPanel() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {lane(L.p_dog, 'Ⓟ DOG bets (EV ≥ 5%)', 'the main bet')}
         {lane(L.p_fav, 'Ⓟ FAV bets (EV ≥ 3%) ⚠', 'favourite side')}
+        {lane(L.p_dog_w250, 'Ⓟ women +200..+250 (new slice)', 'extension check')}
         {lane(L.p_dog_any, 'every P-positive dog (EV > 0)', 'wider net')}
         {lane(L.p_pass, 'P passes (EV ≤ 0)', 'should lose')}
       </div>
@@ -2718,7 +2719,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         const st = (((laneRec && laneRec.study) || {}).p_dog) || {}
         const c = st[gHL] || {}
         const live = c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from today'
-        const bt = gHL === 'w' ? 'bt 2024-26 W +21.4% (n=2,442)' : 'bt 2024-26 M +14.2% (n=3,235)'
+        const bt = gHL === 'w'
+          ? (pModel.od != null && pModel.od > 200 ? 'bt 2024-26 W +200..+250 +27.2% (n=666)' : 'bt 2024-26 W +23.9% (n=2,996)')
+          : 'bt 2024-26 M +14.2% (n=3,235)'
         const nm = (pModel.who || '').split(' ').slice(-1)[0].toUpperCase()
         const odS = pModel.od != null ? ` ${pModel.od > 0 ? '+' : ''}${pModel.od}` : ''
         return (
@@ -3910,7 +3913,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const od = Number(dog1 ? lo.player_1 : lo.player_2)
           return (
             <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-tertiary)' }}>
-              <b style={{ color: '#2dd4bf', opacity: 0.6 }}>MODEL P</b> — not rated: P only prices +100..+200 underdogs{!isNaN(od) ? ` (this dog is ${od > 0 ? '+' : ''}${od})` : ''}
+              <b style={{ color: '#2dd4bf', opacity: 0.6 }}>MODEL P</b> — not rated: P only prices underdogs at +100..+200 (women up to +250){!isNaN(od) ? ` (this dog is ${od > 0 ? '+' : ''}${od})` : ''}
             </div>
           )
         }

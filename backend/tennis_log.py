@@ -1147,7 +1147,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1859,6 +1859,9 @@ def get_ab25_record() -> dict:
                 _ps9 = int(_pd9) == 1
                 if float(_pe9) >= 0.05:
                     bet("p_dog", _ps9)
+                    # women's +200..+250 extension (2026-10-09) scored on its own too
+                    if (d1 if _ps9 else d2) > 3.0:
+                        bet("p_dog_w250", _ps9)
                 if float(_pe9) > 0:
                     bet("p_dog_any", _ps9)
                 else:
