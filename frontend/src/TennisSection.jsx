@@ -2007,14 +2007,30 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     if (!mc3 || !ma3 || !mb3 || ma3.p1_prob == null || mb3.p1_prob == null
         || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
     const c1 = mc3.p1_prob >= 0.5
-    if ((ma3.p1_prob >= 0.5) === c1 || (mb3.p1_prob >= 0.5) === c1) return null
-    if ((mc3.market_aware_p1 >= 0.5) !== c1) return null
+    if ((ma3.p1_prob >= 0.5) === c1 || (mb3.p1_prob >= 0.5) === c1) return null   // C ALONE
+    if ((mc3.market_aware_p1 >= 0.5) !== c1) return null                          // gray confirms
     const dog1 = mc3.market_p1 < 0.5
-    if (c1 === dog1) return null
+    if (c1 === dog1) return null                                                  // C's side = the favourite
     const od = match.live_odds ? Number(c1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
-    if (od == null || isNaN(od) || od < -150 || od > -100) return null
+    if (od == null || isNaN(od) || od > -100) return null
     const isW = match.league === 'wta' || match.league === 'itf_women'
-    return { name: c1 ? match.player_1 : match.player_2, od, isW }
+    // BAND (dissection 2026-10-08): men live in -100..-150 (the same cell is only
+    // +0.7% at -150..-200, n=414); WOMEN are strong out to -200 (+14.7%, n=225).
+    if (od < (isW ? -200 : -150)) return null
+    // GATES, each monotone on its own and additive in combination:
+    //   gray's margin over market  <2pt M -6.3% / W -34.5% | 2-5pt +8.9% / -1.0% | 5pt+ +12.1% / +20.6%
+    //   C's margin over market     <5pt M +0.9% / W +2.9%  | 5pt+ M +15.0% / W +15.9%
+    //   challenger level           M +2.6% (n=260) / W -12.0% (n=32)  -> excluded
+    // Stacked: M +31.0% (69-24, n=93; by year +14.1/+23.1/+54.4) and
+    //          W +26.4% (133-47, n=180; by year +22.7/+40.0/+8.7).
+    const favP = c1 ? mc3.market_p1 : 1 - mc3.market_p1
+    const grayEdge = (c1 ? mc3.market_aware_p1 : 1 - mc3.market_aware_p1) - favP
+    const cEdge = (c1 ? mc3.p1_prob : 1 - mc3.p1_prob) - favP
+    if (grayEdge < 0.05) return null
+    if (String(match.league || '').includes('challenger')) return null
+    return { name: c1 ? match.player_1 : match.player_2, od, isW,
+             gray: Math.round(100 * grayEdge), cE: Math.round(100 * cEdge),
+             premium: cEdge >= 0.05 }
   })()
   // 💜 C-EDGE5 DEEP FAV (2026-10-08, user "mark both men and women games highlighted
   // purple as well with the live roi and backtested roi and how many games"): raw C
@@ -2235,7 +2251,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       {!baitGreen && purpleCGF ? (
         <div className="mono" title={`💜 C-ALONE+GOLD SHALLOW FAVORITE (your mark, 2026-10-08): Model C alone against A and B, the gray line confirms C, and C's side is a -100..-150 favorite. Walk-forward backtest at archive odds - MEN: -1.5% (2024) -> +10.9% (2025) -> +13.4% (2026, 122-67, n=189), improving three straight years. WOMEN: all-years +10.1% (169-103, n=272) but 2026 only +1.7% (46-34, n=80) — the women's half has faded to ~flat. HONESTY: the live all-price lane is men -9.1% (62 settles) / women +7.9% (13) - live has NOT yet confirmed the backtest; the banded cgf_shallow_fav lane now scores this exact mark forward and its record shows here as it settles.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
-          💜 C-ALONE+GOLD FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCGF.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCGF.od}</span> · bt26 M +17.0% (96-48){purpleCGF.isW ? ' · W 2026 −19.6% ⚠' : ''} · live unconfirmed
+          💜 C-ALONE+GOLD FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCGF.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCGF.od}</span> · gray +{purpleCGF.gray}pt{purpleCGF.premium ? ` · C +${purpleCGF.cE}pt` : ''} · bt {purpleCGF.isW ? (purpleCGF.premium ? '+26.4% (133-47, n=180)' : '+22.2% (n=298)') : (purpleCGF.premium ? '+31.0% (69-24, n=93)' : '+24.4% (n=133)')}{purpleCGF.premium ? ' ★' : ''}
           {(() => {
             const st = ((laneRec && laneRec.study) || {}).cgf_shallow_fav || {}
             const c = (purpleCGF.isW ? st.w : st.m) || {}
