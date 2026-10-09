@@ -1042,7 +1042,7 @@ def get_ab25_record() -> dict:
               # the replay tour surfaced (orange band fav, 3-5pt banded dog, c75 dog
               # countersigned 5pt+); and the 🪤 bait-favorite dog (all-sim discount).
               "fav_value", "mc2e58_fav", "mc2e35_dog_band", "c75_mc2e5_dog", "bait_dog",
-              "bait_dog_prime", "bait_dog_rest")}
+              "bait_dog_prime", "bait_dog_rest", "cgf_shallow_fav")}
     if "model_cma_p1" in log.columns:
         srows = log[log["model_c_p1"].notna() & log["model_cma_p1"].notna()
                     & log["p1_odds"].notna() & log["p2_odds"].notna()]
@@ -1307,6 +1307,20 @@ def get_ab25_record() -> dict:
                         bet("bait_dog_prime", dog1)
                     else:
                         bet("bait_dog_rest", dog1)
+            # 💜 CGF-SHALLOW (2026-10-08, user "mark both men and women, purple full
+            # slip"): C ALONE against A and B, gray confirms, C's side is a -100..-150
+            # FAVORITE. Backtest arc: men -1.5 -> +10.9 -> +13.4% (2026, n=189);
+            # women +18.6/+21.8 then -19.6% in 2026. Live (all prices) -9.1% men /
+            # +7.9% women -- UNCONFIRMED, user marked anyway; this lane is the judge.
+            _cg_a = r.get("model_a_p1"); _cg_b = r.get("model_b_p1")
+            _cg_c = r.get("model_c_p1"); _cg_g = r.get("model_cma_p1")
+            if all(pd.notna(v) for v in (_cg_a, _cg_b, _cg_c, _cg_g)):
+                _cg_c1 = float(_cg_c) >= 0.5
+                if ((float(_cg_a) >= 0.5) != _cg_c1 and (float(_cg_b) >= 0.5) != _cg_c1
+                        and (float(_cg_g) >= 0.5) == _cg_c1 and _cg_c1 != dog1):
+                    _cg_o = r.get("p1_odds") if _cg_c1 else r.get("p2_odds")
+                    if pd.notna(_cg_o) and -150 <= float(_cg_o) <= -100:
+                        bet("cgf_shallow_fav", _cg_c1)
             # 💪 FAV-VALUE (2026-10-08, user "make a model that's precise with favorites"):
             # the measured fatigue-residual favorite. Archive 2024-26: ALL favorites
             # −5.2%, heavy-load favorites −0.9% (banded −0.1% vs −5.1%) — the market

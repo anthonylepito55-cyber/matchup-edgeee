@@ -1995,6 +1995,26 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // live +11-14.5%), C-ALONE+GRAY DOG (M +13.3/W +44.4, live +6.1%), FADE-A DOG+GRAY
   // (M +19.8/W +23.3, live thin), and the women's C-EDGE5 FAV (+11.0% held 3 years).
   // Full-card blue; bait-green outranks it when both fire.
+  // 💜 C-ALONE+GOLD SHALLOW FAV (2026-10-08, user "mark both men and women to take,
+  // purple full highlighted slip"): C ALONE against A and B, gray line confirms, and
+  // C's side is a -100..-150 FAVORITE. Backtest (walk-forward, archive odds): men
+  // -1.5% -> +10.9% -> +13.4% 2026 (122-67, n=189, improving 3 straight years);
+  // women +18.6%/+21.8% in 2024-25 then -19.6% 2026 (n=13). Live all-price lane:
+  // men -9.1% (62), women +7.9% (13) -- NOT yet confirmed live; the banded
+  // cgf_shallow_fav lane scores this exact mark forward. User call 2026-10-08.
+  const purpleCGF = (() => {
+    if (!mc3 || !ma3 || !mb3 || ma3.p1_prob == null || mb3.p1_prob == null
+        || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
+    const c1 = mc3.p1_prob >= 0.5
+    if ((ma3.p1_prob >= 0.5) === c1 || (mb3.p1_prob >= 0.5) === c1) return null
+    if ((mc3.market_aware_p1 >= 0.5) !== c1) return null
+    const dog1 = mc3.market_p1 < 0.5
+    if (c1 === dog1) return null
+    const od = match.live_odds ? Number(c1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+    if (od == null || isNaN(od) || od < -150 || od > -100) return null
+    const isW = match.league === 'wta' || match.league === 'itf_women'
+    return { name: c1 ? match.player_1 : match.player_2, od, isW }
+  })()
   const tier1Blue = (() => {
     if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
     const c1 = mc3.p1_prob >= 0.5
@@ -2064,13 +2084,25 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: baitGreen ? (baitGreen.prime ? 'rgba(63,185,80,0.17)' : 'rgba(63,185,80,0.12)') : purpleCGF ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: baitGreen ? (baitGreen.prime ? '2px solid rgba(63,185,80,0.95)' : '1px solid rgba(63,185,80,0.75)') : purpleCGF ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${baitGreen ? '#3fb950' : purpleCGF ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: baitGreen ? (baitGreen.prime ? '0 0 24px rgba(63,185,80,0.40)' : '0 0 16px rgba(63,185,80,0.22)') : purpleCGF ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
-      {!baitGreen && tier1Blue ? (
+      {!baitGreen && purpleCGF ? (
+        <div className="mono" title={`💜 C-ALONE+GOLD SHALLOW FAVORITE (your mark, 2026-10-08): Model C alone against A and B, the gray line confirms C, and C's side is a -100..-150 favorite. Walk-forward backtest at archive odds - MEN: -1.5% (2024) -> +10.9% (2025) -> +13.4% (2026, 122-67, n=189), improving three straight years. WOMEN: +18.6% (2024), +21.8% (2025), then -19.6% in 2026 (n=13) - the women's edge looks priced out. HONESTY: the live all-price lane is men -9.1% (62 settles) / women +7.9% (13) - live has NOT yet confirmed the backtest; the banded cgf_shallow_fav lane now scores this exact mark forward and its record shows here as it settles.`}
+          style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
+          💜 C-ALONE+GOLD FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCGF.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCGF.od}</span> · bt26 M +13.4% (122-67){purpleCGF.isW ? ' · W 2026 −19.6% ⚠' : ''} · live unconfirmed
+          {(() => {
+            const st = ((laneRec && laneRec.study) || {}).cgf_shallow_fav || {}
+            const c = (purpleCGF.isW ? st.w : st.m) || {}
+            const n = c.n || 0
+            return <span style={{ color: '#e9dcff', fontWeight: 400 }}>{n ? ` · LANE ${purpleCGF.isW ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ' · LANE tracking'}</span>
+          })()}
+        </div>
+      ) : null}
+      {!baitGreen && tier1Blue && !purpleCGF ? (
         <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. Backtest 2026: GRAY 4pt+ DOG M +11.1%/W +35.1% · STAR/TIER-1 M +12%/W +34.7% · C-ALONE+GRAY M +13.3%/W +44.4% · FADE-A DOG+GRAY M +19.8%/W +23.3% · C-EDGE5 FAV women +11.0% (held 3 straight years). Live: gray_dog4 +11.0% (58), tier1 +11.0%, priced-star-dog +14.5%, c-alone+gray +6.1%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
           🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.join(' + ')} · bt26 {tier1Blue.fav ? 'W fav +11.0%' : (tier1Blue.isW ? 'W +34..44%' : 'M +11..20%')} · live +6..15%
