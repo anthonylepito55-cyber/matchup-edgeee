@@ -2268,6 +2268,32 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return { label, ok: roi > 0, src, rec, top3: TOP3[lane] || null,
              txt: `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec})` }
   })()
+  // STACK xN (2026-10-08, user "add the stack label"): how many of the four
+  // stats-model dog marks fire on this pick. ONLY these four count, because they are the
+  // ones _stack_oppose_bt.py measured (3,710 marked dog matches, 2024-26, true gender):
+  //   1 mark  men +4.1% (n=156)   women +5.6% (n=154)   2026 +4.0%
+  //   2 marks men +11.9% (n=892)  women +23.1% (n=488)  2026 +7.9%
+  //   3 marks men +15.8% (n=1,187) women +32.1% (n=833) 2026 +11.4%
+  // Monotone in every split. A single-mark dog priced +100..+200 ran -5.0% in 2026
+  // (n=64), so x1 is flagged thin. (x4 cannot happen: fade-A and C-alone+gray exclude
+  // each other.) The c75 dog and the sim-based marks were not in that backtest, so they
+  // do not add to the count.
+  const stackInfo = (() => {
+    if (!tier1Blue || tier1Blue.fav || !tier1Blue.cells) return null
+    const STACKABLE = new Set(['C-ALONE+GRAY', 'TIER-1', 'GRAY 4pt+ DOG', 'FADE-A DOG+GRAY'])
+    const nS = tier1Blue.cells.filter(c => STACKABLE.has(c.n)).length
+    if (!nS) return null
+    const isW9 = match.league === 'wta' || match.league === 'itf_women'
+    const T = {
+      1: { m: '+4.1% (n=156)', w: '+5.6% (n=154)' },
+      2: { m: '+11.9% (n=892)', w: '+23.1% (n=488)' },
+      3: { m: '+15.8% (n=1,187)', w: '+32.1% (n=833)' },
+    }
+    const k = Math.min(nS, 3)
+    const od = tier1Blue.od
+    const banded = od != null && od >= 100 && od <= 200
+    return { n: k, bt: isW9 ? T[k].w : T[k].m, g: isW9 ? 'W' : 'M', thin: k === 1, banded }
+  })()
 
   return (
     <div className="game-card card-enter" style={{
@@ -2321,6 +2347,17 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
               {'★ TOP-3 CELL · '}{markVerdict.top3}
             </span>
           ) : null}
+        </div>
+      ) : null}
+      {stackInfo ? (
+        <div className="mono" style={{ fontSize: 9, fontWeight: 900, marginBottom: 5, letterSpacing: '0.04em',
+          color: stackInfo.thin ? '#e3b341' : stackInfo.n === 3 ? '#3fb950' : '#8fd18f' }}
+          title={`STACK: how many of the four backtested dog marks (C-alone+gray, tier-1, gray 4pt+, fade-A) fire on this pick. Archive backtest (3,710 marked dog matches, 2024-26, true gender): 1 mark men +4.1% / women +5.6%; 2 marks men +11.9% / women +23.1%; 3 marks men +15.8% / women +32.1%. 2026 alone: +4.0% / +7.9% / +11.4%. More marks = a better bet in every split. A single-mark dog priced +100..+200 ran -5.0% in 2026 (n=64), which is why x1 is flagged thin. The c75 dog and the green/black/purple marks were not part of this backtest, so they do not add to the count.`}>
+          {`STACK ×${stackInfo.n} · bt ${stackInfo.g} ${stackInfo.bt}`}
+          {stackInfo.thin ? (stackInfo.banded
+            ? ' · ⚠ THIN — single-mark +100/+200 dogs ran −5.0% in 2026'
+            : ' · ⚠ THIN — a single mark is the weakest stack')
+            : ''}
         </div>
       ) : null}
       {lvlNote && (blackC75W || baitGreen || (tier1Blue && !tier1Blue.fav)) ? (
