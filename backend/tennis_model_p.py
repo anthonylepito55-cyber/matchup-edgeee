@@ -143,3 +143,89 @@ def predict_p(mc, md, market_p1, league, p1_odds, p2_odds):
             "ev": round(float(ev), 4), "bet": bool(ev >= art.get("ev_bet", EV_BET)), "g": G,
             "fav": 2 if dog1 else 1, "p_fav": round(float(1 - p), 4),
             "fav_ev": (round(float(fev), 4) if fev is not None else None), "fav_bet": fav_bet}
+
+
+# ---------------------------------------------------------------------------------------
+# ~P REPLAY for previous days (2026-10-09, user "and on any previous day picks it would
+# have had the signal for"). Before 10-09 the log has no Model P and P's stat inputs were
+# never frozen, and rebuilding them from today's profiles would leak results. So history
+# uses a LITE replay from the frozen pre-match numbers only: g_C + g_gray (+ g_Dma where
+# D-MA was logged), weights fit on archive P rows dated BEFORE 2026-09-01 -- earlier than
+# every game in the live log, so no replayed game was in its training. Shown as "~P",
+# never counted in the P lanes.
+LITE_CUTOFF = "2026-09-01"
+
+
+def train_lite(rows_path=os.path.join(_here, "data_cache", "_model_p_rows.parquet"), lam=2.0):
+    import pandas as pd
+    from scipy.optimize import minimize
+    D = pd.read_parquet(rows_path)
+    D = D[pd.to_datetime(D["date"]) < pd.Timestamp(LITE_CUTOFF)]
+    art = _load() or {}
+    lite = {"cutoff": LITE_CUTOFF}
+    for tag, feats in (("l3", ["g_C", "g_gray", "g_Dma"]), ("l2", ["g_C", "g_gray"])):
+        lite[tag] = {"feats": feats}
+        for G in ("M", "W"):
+            S = D[D.G == G]
+            mu, sd = S[feats].mean(), S[feats].std().replace(0, 1)
+            X = ((S[feats] - mu) / sd).fillna(0).values
+            y, off = S.won.values.astype(float), S.off.values
+            Xb = np.column_stack([np.ones(len(X)), X])
+
+            def f(w):
+                z = off + Xb @ w
+                p = 1 / (1 + np.exp(-z))
+                g = -(Xb.T @ (y - p))
+                g[1:] += lam * w[1:]
+                return -np.sum(y * z - np.logaddexp(0, z)) + 0.5 * lam * np.sum(w[1:] ** 2), g
+            w = minimize(f, np.zeros(len(feats) + 1), jac=True, method="L-BFGS-B").x
+            lite[tag][G] = {"w": [float(v) for v in w], "mu": [float(v) for v in mu.values],
+                            "sd": [float(v) for v in sd.values], "n": int(len(S))}
+    art["lite"] = lite
+    with open(ARTIFACT_P, "w", encoding="utf-8") as fh:
+        json.dump(art, fh, indent=1)
+    return lite
+
+
+def history_p(r, mk1):
+    """Model P for a logged (finished) row: the frozen pick when P was live (recon False),
+    else the ~P lite replay (recon True). Returns None when P doesn't apply."""
+    import pandas as pd
+
+    def g(k):
+        v = r.get(k)
+        return None if (v is None or pd.isna(v)) else float(v)
+    if mk1 is None:
+        return None
+    dog1 = mk1 < 0.5
+    od, fo = _dec(r.get("p1_odds") if dog1 else r.get("p2_odds")), _dec(r.get("p2_odds") if dog1 else r.get("p1_odds"))
+    if od is None or not (2.0 <= od <= 3.0):
+        return None
+    lg9 = str(r.get("league") or "").lower()
+    G = "W" if ("wta" in lg9 or "itf_women" in lg9) else "M"
+    mk = mk1 if dog1 else 1 - mk1
+    if g("model_p_ev") is not None and g("model_p_prob") is not None:
+        p, recon = g("model_p_prob"), False
+    else:
+        art = _load() or {}
+        lite = art.get("lite")
+        c, cma, dma = g("model_c_p1"), g("model_cma_p1"), g("model_dma_p1")
+        if not lite or c is None or cma is None:
+            return None
+        pick = (lambda v: v if dog1 else 1 - v)
+        off = _lg(mk)
+        x = {"g_C": _lg(pick(c)) - off, "g_gray": _lg(pick(cma)) - off}
+        tag = "l2"
+        if dma is not None:
+            x["g_Dma"] = _lg(pick(dma)) - off
+            tag = "l3"
+        mdl = lite[tag][G]
+        xs = np.array([(x[k] - m) / s for k, m, s in zip(lite[tag]["feats"], mdl["mu"], mdl["sd"])])
+        p = float(1 / (1 + np.exp(-(off + mdl["w"][0] + float(xs @ np.array(mdl["w"][1:]))))))
+        recon = True
+    ev = p * od - 1
+    fev = ((1 - p) * fo - 1) if fo else None
+    return {"dog": 1 if dog1 else 2, "p_dog": round(p, 4), "p_fav": round(1 - p, 4), "mkt_dog": round(mk, 4),
+            "ev": round(ev, 4), "bet": bool(ev >= EV_BET), "g": G,
+            "fav": 2 if dog1 else 1, "fav_ev": (round(fev, 4) if fev is not None else None),
+            "fav_bet": bool(fev is not None and 1.5 <= fo <= 2.0 and fev >= EV_FAV), "recon": recon}

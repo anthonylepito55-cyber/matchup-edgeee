@@ -540,6 +540,34 @@ def _tag_watch_signals(out, r, mk1, dog1, gray_p1, c1, have_mkt):
     return out
 
 
+def _p_hist(r, mk1):
+    try:
+        import tennis_model_p as _tp
+        return _tp.history_p(r, mk1)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _p_signals(r, mk1):
+    """Ⓟ entries for the results-history signal line (2026-10-09). Frozen P picks from 10-09
+    on; earlier days get the ~P lite replay (recon, display-only, never in the P lanes)."""
+    if pd.isna(r.get("p1_won")):
+        return []
+    hp = _p_hist(r, mk1)
+    if not hp:
+        return []
+    p1won = bool(r["p1_won"])
+    pre = "~" if hp["recon"] else ""
+    out = []
+    if hp["bet"]:
+        out.append({"label": f"{pre}Ⓟ DOG", "side": hp["dog"], "hit": bool((hp["dog"] == 1) == p1won),
+                    "recon": hp["recon"]})
+    if hp["fav_bet"]:
+        out.append({"label": f"{pre}Ⓟ FAV⚠", "side": hp["fav"], "hit": bool((hp["fav"] == 1) == p1won),
+                    "recon": hp["recon"]})
+    return out
+
+
 def _conflict_resolvers_for_row(r, mk1):
     """⚖️ conflict-resolver verdicts for a FINISHED game (2026-10-05, user "add the new
     signals to the previous-day tab so I can see how it did"): when signals disagreed, which
@@ -747,7 +775,8 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             # new elite lane-signals per finished game (2026-10-05, user "update previous
             # games with the new signals"): which Best-tab signals fired + hit, from frozen
             # probs only. Shown as a compact sub-line in results-history.
-            "signals": _elite_signals_for_row(r, mk1),
+            "signals": _elite_signals_for_row(r, mk1) + _p_signals(r, mk1),
+            "model_p": _p_hist(r, mk1),
             "conflicts": _conflict_resolvers_for_row(r, mk1),
             "card": card,
         }

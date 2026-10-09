@@ -1698,7 +1698,7 @@ function HistoryPanel({ query, greenOnly = false }) {
             ) : null}
             {full ? (dayOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null), model_x: m.card.model_x || (m.model_x && m.model_x.p1_pct != null ? { p1_prob: m.model_x.p1_pct / 100, p2_prob: 1 - m.model_x.p1_pct / 100, market_p1: m.market_p1 != null ? m.market_p1 : null, edge_p1: m.market_p1 != null ? m.model_x.p1_pct / 100 - m.market_p1 : null, recon: !!m.model_x.recon, hit: m.model_x.hit } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
+                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null), model_p: m.card.model_p || m.model_p || null, model_x: m.card.model_x || (m.model_x && m.model_x.p1_pct != null ? { p1_prob: m.model_x.p1_pct / 100, p2_prob: 1 - m.model_x.p1_pct / 100, market_p1: m.market_p1 != null ? m.market_p1 : null, edge_p1: m.market_p1 != null ? m.model_x.p1_pct / 100 - m.market_p1 : null, recon: !!m.model_x.recon, hit: m.model_x.hit } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
               </div>
             ) : null) : d.matches.map((m, i) => (
               <div key={i} className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 11, flexWrap: 'wrap' }}>
@@ -3919,7 +3919,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         return (
           <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}
             title="Model P — the profit model (offset on the market, +100..+200 dogs, separate men/women weights). Dog bet when EV ≥ 5%; favourite bet when the favourite is −100..−200 and P's favourite EV ≥ 3%. See the Ⓟ Model P tab for its record.">
-            <b style={{ color: '#2dd4bf' }}>MODEL P <span style={{ fontSize: 9, opacity: 0.8 }}>profit</span></b>{' '}
+            <b style={{ color: '#2dd4bf' }}>MODEL P <span style={{ fontSize: 9, opacity: 0.8 }}>{mp.recon ? '~ replay (C/gray/D-MA only, weights fit before 9/1)' : 'profit'}</span></b>{' '}
             {dogN} {Math.round(mp.p_dog * 100)}% — {Math.round(mp.p_fav * 100)}% {favN}
             <span style={{ color: 'var(--text-tertiary)' }}> · market {Math.round(mp.mkt_dog * 100)}% on the dog · dog EV {mp.ev >= 0 ? '+' : ''}{Math.round(mp.ev * 1000) / 10}%{mp.fav_ev != null ? ` · fav EV ${mp.fav_ev >= 0 ? '+' : ''}${Math.round(mp.fav_ev * 1000) / 10}%` : ''}</span>
             <span style={{ fontWeight: 700, color: mp.bet ? '#2dd4bf' : mp.fav_bet ? '#e3b341' : 'var(--text-tertiary)' }}> · {mp.bet ? `BET ${dogN.split(' ').slice(-1)[0]}` : mp.fav_bet ? `FAV BET ${favN.split(' ').slice(-1)[0]} ⚠` : 'no bet'}</span>
