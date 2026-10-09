@@ -2390,6 +2390,24 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   const hlOrange = false
   const blueWhy = tier1Blue ? tier1Blue.cells.map(c => `${c.n}: ${hlWhy(c.lane, gHL) || 'ok'}`).join(' · ') : ''
   const noHL = (why) => <span style={{ color: 'var(--text-tertiary)', fontWeight: 700 }}>⚪ NO HIGHLIGHT ({why}) · </span>
+  // ✖ X DOG (2026-10-09, user "mark all of the dog picks with a big X"): the market-free
+  // Model X (C + D stacker, no market inputs since 10-09) picks the market underdog.
+  // Walk-forward on the frozen log: dog picks +12.5% (57-63, n=120), 21% of games.
+  // A marker, not a card color -- color needs a positive live record (highlight gate).
+  // Lane x_dog (forward, from 2026-10-10, new X only).
+  const xDog = (() => {
+    const mx = match.model_x
+    const mk = mx && mx.market_p1 != null ? mx.market_p1 : (mc3 && mc3.market_p1 != null ? mc3.market_p1 : null)
+    if (!mx || mx.p1_prob == null || mk == null) return null
+    const dog1 = mk < 0.5
+    if ((mx.p1_prob >= 0.5) !== dog1) return null
+    const od = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+    const st = (((laneRec && laneRec.study) || {}).x_dog) || {}
+    const c = st[gHL] || {}
+    return { who: dog1 ? match.player_1 : match.player_2, od: od == null || isNaN(od) ? null : od,
+             x: dog1 ? mx.p1_prob : 1 - mx.p1_prob, mk: dog1 ? mk : 1 - mk, recon: !!mx.recon,
+             live: c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from 10-10' }
+  })()
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -2576,6 +2594,17 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             const n = c.n || 0
             return <span style={{ color: '#e9dcff', fontWeight: 400 }}>{n ? ` · LANE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${n - c.wins})` : ' · LANE tracking'}</span>
           })()}
+        </div>
+      ) : null}
+      {xDog ? (
+        <div className="mono"
+          title={`✖ X DOG — the market-free Model X (C + D stacker; the market and the gray heads were removed from its inputs on 2026-10-09) picks the underdog here: X ${Math.round(xDog.x * 1000) / 10}% vs market ${Math.round(xDog.mk * 1000) / 10}%. Walk-forward on the frozen log, dog picks +12.5% (57-63, n=120); X picks the dog on about 21% of games. Not a card color until its own live lane (x_dog) is positive.${xDog.recon ? ' This one is a walk-forward backfill (~), not a pre-match pick.' : ''}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(210,168,255,0.55)', background: 'rgba(210,168,255,0.07)' }}>
+          <span style={{ fontSize: 30, fontWeight: 900, lineHeight: 1, color: '#d2a8ff', textShadow: '0 0 12px rgba(210,168,255,0.6)' }}>✖</span>
+          <span style={{ fontSize: 9, fontWeight: 800, color: '#d2a8ff', letterSpacing: '0.03em' }}>
+            {xDog.recon ? '~ ' : ''}X DOG → <span style={{ fontSize: 13, fontWeight: 900, color: '#f1e4ff' }}>{(xDog.who || '').split(' ').slice(-1)[0].toUpperCase()}{xDog.od != null ? ` ${xDog.od > 0 ? '+' : ''}${xDog.od}` : ''}</span>
+            <span style={{ fontWeight: 400, color: '#cdb6ea' }}> · X {Math.round(xDog.x * 1000) / 10}% vs mkt {Math.round(xDog.mk * 1000) / 10}% ({xDog.x - xDog.mk >= 0 ? '+' : ''}{Math.round((xDog.x - xDog.mk) * 1000) / 10}pt) · wf bt +12.5% (n=120) · {xDog.live}</span>
+          </span>
         </div>
       ) : null}
       {pinkCells ? pinkCells.map((pc, j) => {

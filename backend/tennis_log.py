@@ -1103,7 +1103,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1797,6 +1797,14 @@ def get_ab25_record() -> dict:
             _m29 = r.get("mc2_p1")
             if _m29 is not None and pd.notna(_m29) and (float(_m29) >= 0.5) == dog1:
                 bet("pink_mc2_dog", dog1)
+            # ✖ X DOG (2026-10-09): market-free Model X picks the market dog. Forward only
+            # (not recon) and from 10-10, so only the new no-market X is scored.
+            _x9 = r.get("model_x_p1")
+            _xr9 = r.get("model_x_recon")
+            if (_x9 is not None and pd.notna(_x9) and not (pd.notna(_xr9) and bool(_xr9))
+                    and str(r.get("date") or "")[:10] >= "2026-10-10"
+                    and (float(_x9) >= 0.5) == dog1):
+                bet("x_dog", dog1)
             # one bet per gated game on the dog (coin-flip takes precedence)
             if "coinflip_c_dog" in _gate_hit:
                 bet("coinflip_c_dog", dog1)
