@@ -992,12 +992,25 @@ function pureFormTag(m, study) {
     : study.pf_c75_agr
   const rec = (laneObj || {})[gen] || {}
   const n = rec.n || 0, roi = rec.roi_pct
-  // n>=12 (not 20): recon-filtering + the dog-only split legitimately shrinks the forward dog
-  // sample (~n18 men). Still a real minimum; the live n is shown so thinness is visible.
-  if (n < 12 || roi == null || roi <= 0) return null   // positive-ROI only (dogs clear it, favs don't)
+  // GATE REBASED ON THE BACKTEST (2026-10-08): pure form is as-of replayable after all
+  // (tennis_pure_form.form takes `asof`), and _pure_form_bt.py measured 67,096 matches
+  // 2024-26 -- it CONFIRMS the shipped contrarian doctrine and sizes it properly:
+  //   C + form DISAGREE -> back C's side:  men +2.1% (n=14,655) | women +8.9% (n=9,658)
+  //     ... and C's side is the DOG:       men +7.4% (n=5,029)  | women +23.0% (n=3,627)
+  //     ... and C's side is the FAVOURITE: men -0.6% (n=9,626)  | women +0.5% (n=6,031)
+  //   backing FORM instead on a disagreement: men -15.5% / women -21.1% (emphatically wrong)
+  //   standalone "back better form": men -6.0% (n=39,727) / women -6.1% (n=27,369),
+  //     negative in every slice and all three years -> never a standalone bet.
+  // So: the DOG half is validated on both layers and no longer needs the live n>=12 /
+  // live-ROI gate (a 14-settle wobble was able to hide a 3,627-bet edge); the FAVOURITE
+  // half stays suppressed, since both layers say flat-to-negative.
+  const btDog = dis && dogPick === true
+  if (!btDog && (n < 12 || roi == null || roi <= 0)) return null
   const pickName = sideP1 == null ? null : (sideP1 ? m.player_1 : m.player_2)
   const oppName = sideP1 == null ? null : (sideP1 ? m.player_2 : m.player_1)
-  const roiTxt = `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec.wins}-${n - rec.wins}, n${n})`
+  const btTxt = btDog ? (gen === 'w' ? 'bt +23.0% (n=3,627)' : 'bt +7.4% (n=5,029)') : null
+  const roiTxt = (btTxt ? btTxt + (n ? ' · live ' : ' · live tracking') : '')
+    + (n ? `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec.wins}-${n - rec.wins}, n${n})` : '')
   return {
     dis, roi: Math.round(roi * 10) / 10, n, wins: rec.wins, sideP1, pickName,
     // The highlighted name is the one to TAKE. "FADE FORM" = recent form points at the

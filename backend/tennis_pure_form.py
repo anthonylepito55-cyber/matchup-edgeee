@@ -9,12 +9,24 @@ A player's recent form on a surface built from RESULTS ONLY -- no serve/return s
     to a weak one is punished hard, losing close to a strong one is softened
   * recency-weighted with the last 3 matches boosted heaviest
 
-NOTE ON USAGE (validated 2026-10-06 on the frozen live log): this is NOT a standalone bet
-(it loses ~12% -- it just re-picks favorites weaker than the market). Its value is as a
-CONTRARIAN overlay on mc_c75 for MEN: mc_c75 + form DISAGREES = +18.2% live (n127), the
-favorite sub-cell +10.1% with the dog effect removed -- the market OVERVALUES recent form,
-so the edge is fading the loud form narrative, not following it. Forward-tracked via the
-pf_c75_* lanes in tennis_log; surfaced on the board/Best/Prices only where ROI is positive.
+NOTE ON USAGE -- now BACKTESTED (2026-10-08, `_pure_form_bt.py`). This module was shipped
+forward-only on the belief it couldn't be replayed, but form() takes `asof` and only ever
+reads matches strictly before it, so a leak-free as-of replay is possible. 67,096 matches
+2024-26, true gender, flat 1u at archive closing odds:
+  * STANDALONE is dead: back the better-form player = men -6.0% (n=39,727) / women -6.1%
+    (n=27,369); negative as a dog, as a favourite, in the top form-gap quartile, and in
+    all three years (-5.5 / -6.1 / -6.5). Never bet it on its own.
+  * FADING form outright is also dead (men -8.7% / women -10.0%) -- it is not a simple
+    inverse either.
+  * THE CONTRARIAN OVERLAY IS CONFIRMED, and it is strongest on DOGS:
+      C + form DISAGREE -> back C's side: men +2.1% (n=14,655) | women +8.9% (n=9,658)
+        C's side is the DOG:              men +7.4% (n=5,029)  | women +23.0% (n=3,627)
+        C's side is the FAVOURITE:        men -0.6% (n=9,626)  | women +0.5% (n=6,031)
+      backing FORM instead on a disagreement: men -15.5% / women -21.1%.
+    The live log said the same thing first (dis_dog +34.2%, dis_fav +1.5%), so the
+    dog-only gate on the board was right; the backtest just sizes it and shows WOMEN are
+    the stronger half (+23.0% vs +7.4%), the reverse of the men-first framing of 2026-10-06.
+Forward-tracked via the pf_c75_* lanes in tennis_log; the 🧊 chip shows bt + live.
 """
 import os
 from collections import defaultdict
