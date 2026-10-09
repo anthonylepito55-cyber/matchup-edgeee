@@ -2216,6 +2216,46 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     }
     return null
   })()
+  // 🩷 PINK WATCH CELLS (2026-10-09, user "add all three highlighted pink"). Found in the
+  // consensus / 2-of-3 backtests; UNPROVEN live, so each tag shows its backtest AND its
+  // own live lane (tennis_log study: pink_fadeb_dog_m / pink_wcons_dog / pink_wall9_fav).
+  // Heads = A, B, C, gray (C-MA), D, D-MA, c50 (C-MC), c75, serve-MC (MC 100k) -- the
+  // same nine the backtest counted, from the same frozen fields.
+  //  FADE-B DOG (men)  A + C on a +100..+200 dog, B on the favourite.
+  //                    bt 2026 +10.9% (71-77, n=148) | 2025 +18.4% (74-67, n=141)
+  //  W CONSENSUS DOG   women, 7+ of 9 heads on a +100..+200 dog.
+  //                    bt 2026 +15.6% (97-94, n=191) -- sims only replay 2026
+  //  W ALL-9 FAV       women, all 9 heads on a -100..-200 favourite.
+  //                    bt 2026 +6.7% (227-119, n=346) -- archive favourite cells have
+  //                    failed live before (CE5, FADE-GOLD), so treat as the weakest.
+  const pinkCells = (() => {
+    const md3 = match.model_d
+    if (!mc3 || mc3.market_p1 == null || !match.live_odds) return null
+    const H = [ma3 && ma3.p1_prob, mb3 && mb3.p1_prob, mc3.p1_prob, mc3.market_aware_p1,
+               md3 && md3.p1_prob, md3 && md3.market_aware_p1,
+               mc3.mc && mc3.mc.p1_pct != null ? mc3.mc.p1_pct / 100 : null, mc3.mc_c75_p1,
+               md3 && md3.mc && md3.mc.p1_pct != null ? md3.mc.p1_pct / 100 : null]
+    const dog1 = mc3.market_p1 < 0.5
+    const isW = match.league === 'wta' || match.league === 'itf_women'
+    const odDog = Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2)
+    const odFav = Number(dog1 ? match.live_odds.player_2 : match.live_odds.player_1)
+    const nmDog = dog1 ? match.player_1 : match.player_2
+    const nmFav = dog1 ? match.player_2 : match.player_1
+    const out = []
+    if (!isW && H[0] != null && H[1] != null && H[2] != null && odDog >= 100 && odDog <= 200) {
+      const aD = (H[0] >= 0.5) === dog1, bD = (H[1] >= 0.5) === dog1, cD = (H[2] >= 0.5) === dog1
+      if (aD && cD && !bD) out.push({ n: 'FADE-B DOG (men)', who: nmDog, od: odDog, lane: 'pink_fadeb_dog_m', g: 'm',
+        bt: 'bt 2026 +10.9% (71-77, n=148) · 2025 +18.4% (74-67, n=141)', rule: 'A + C on the dog, B on the favourite' })
+    }
+    if (isW && H.every(v => v != null && !isNaN(v))) {
+      const nD = H.filter(v => (v >= 0.5) === dog1).length
+      if (nD >= 7 && odDog >= 100 && odDog <= 200) out.push({ n: 'W CONSENSUS DOG', who: nmDog, od: odDog, lane: 'pink_wcons_dog', g: 'w',
+        bt: 'bt 2026 +15.6% (97-94, n=191)', rule: `${nD} of 9 heads on the dog` })
+      if (nD === 0 && odFav >= -200 && odFav <= -100) out.push({ n: 'W ALL-9 FAV', who: nmFav, od: odFav, lane: 'pink_wall9_fav', g: 'w',
+        bt: 'bt 2026 +6.7% (227-119, n=346) · ⚠ archive fav cells have failed live before', rule: 'all 9 heads on the favourite' })
+    }
+    return out.length ? out : null
+  })()
   // 🪤 BAIT-FAVORITE GREEN (2026-10-08, user "I want all these games highlighted green
   // full card on the board"): ALL FOUR sims (c50/c75/cUTR/serve-MC) price the favorite
   // >=6pts below the no-vig market (>=4pts women) AND the dog is +100..+200 -> the
@@ -2333,10 +2373,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: blackC75W ? 'rgba(8,10,14,0.92)' : baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : purpleCGF ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
-      border: blackC75W ? '2px solid #e8e8ea' : baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : purpleCGF ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${blackC75W ? '#f0f0f2' : baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : purpleCGF ? '#bc8cff' : tier1Blue ? '#58a6ff' : orange58 ? '#f0883e' : leagueColor}`,
-      boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : purpleCGF ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
+      background: blackC75W ? 'rgba(8,10,14,0.92)' : baitGreen ? (baitGreen.c75Flip === false ? 'rgba(248,81,73,0.09)' : 'rgba(63,185,80,0.13)') : purpleCGF ? 'rgba(188,140,255,0.13)' : tier1Blue ? 'rgba(88,166,255,0.11)' : pinkCells ? 'rgba(247,120,186,0.13)' : orange58 ? 'rgba(240,136,62,0.10)' : 'var(--panel)',
+      border: blackC75W ? '2px solid #e8e8ea' : baitGreen ? (baitGreen.c75Flip === false ? '1px solid rgba(248,81,73,0.55)' : '1px solid rgba(63,185,80,0.85)') : purpleCGF ? '1px solid rgba(188,140,255,0.85)' : tier1Blue ? '1px solid rgba(88,166,255,0.80)' : pinkCells ? '1px solid rgba(247,120,186,0.85)' : orange58 ? '1px solid rgba(240,136,62,0.65)' : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${blackC75W ? '#f0f0f2' : baitGreen ? (baitGreen.c75Flip === false ? '#f85149' : '#3fb950') : purpleCGF ? '#bc8cff' : tier1Blue ? '#58a6ff' : pinkCells ? '#f778ba' : orange58 ? '#f0883e' : leagueColor}`,
+      boxShadow: blackC75W ? '0 0 22px rgba(0,0,0,0.85), inset 0 0 40px rgba(255,255,255,0.04)' : baitGreen ? (baitGreen.c75Flip === false ? 'none' : '0 0 16px rgba(63,185,80,0.26)') : purpleCGF ? '0 0 18px rgba(188,140,255,0.30)' : tier1Blue ? '0 0 16px rgba(88,166,255,0.25)' : pinkCells ? '0 0 16px rgba(247,120,186,0.28)' : orange58 ? '0 0 14px rgba(240,136,62,0.18)' : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {match.book_prices && (match.book_prices.p1 || match.book_prices.p2) ? (() => {
@@ -2457,6 +2497,20 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
+      {pinkCells ? pinkCells.map((pc, j) => {
+        const st = (((laneRec && laneRec.study) || {})[pc.lane]) || {}
+        const c = st[pc.g] || {}
+        const nn = c.n || 0
+        const live = nn ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})` : 'LIVE tracking (no settles yet)'
+        return (
+          <div key={'pk' + j} className="mono"
+            title={`🩷 PINK WATCH — ${pc.n}: ${pc.rule}. Found in the 2026-10-09 consensus / 2-of-3 backtests (walk-forward, true gender, one row per match, closing odds). ${pc.bt}. Unproven live: the lane ${pc.lane} scores every one of these flat from the frozen log, and the color stays only if that record holds.`}
+            style={{ fontSize: 9, fontWeight: 800, color: '#f778ba', marginBottom: 6, letterSpacing: '0.03em', textShadow: '0 0 8px rgba(247,120,186,0.45)' }}>
+            🩷 {pc.n} → <span style={{ fontSize: 12, fontWeight: 900, color: '#ffe3f1' }}>TAKE {(pc.who || '').split(' ').slice(-1)[0].toUpperCase()} {pc.od > 0 ? '+' : ''}{pc.od}</span>
+            <span style={{ fontWeight: 400, color: '#ffc6e2' }}> · {pc.rule} · {pc.bt} · {live}</span>
+          </div>
+        )
+      }) : null}
       {blueDropped && !blackC75W ? (
         <div className="mono"
           title={`BLUE GATES (2026-10-09). ${blueDropped.coin ? `COIN-FLIP C: C has ${(blueDropped.name || '').split(' ').slice(-1)[0]} at ${Math.round(blueDropped.cdog * 1000) / 10}% — C-ALONE / TIER-1 / STAR need C at 52%+ on the dog. Backtest 2025-26 men tier-1 dogs +100..+250: C under 52% −17.0% (n=45) vs 52%+ +14.7% (n=992). ` : ''}${blueDropped.mchall ? "MEN'S CHALLENGER: the stats dog marks stopped working in 2026 — C-ALONE −11.3% (n=144), TIER-1 −1.9% (n=281), GRAY 4pt+ −1.0% (n=296); in 2025 the same cells were +31.8 / +28.2 / +26.9%. Women's challengers still +35% and are not gated. " : ''}The dropped marks are tracked forward in their own lanes so the downgrade gets proven or reversed.`}

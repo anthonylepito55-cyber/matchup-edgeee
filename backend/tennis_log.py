@@ -1102,6 +1102,7 @@ def get_ab25_record() -> dict:
               "mc_dog_big", "mc_4of4", "mc_gold", "mc_green", "mc_biggray",
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
+              "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -1761,6 +1762,26 @@ def get_ab25_record() -> dict:
                     else:
                         # the RED-flagged pass config (board highlights the name red)
                         bet("c_alone_gray_fav", c1)
+            # 🩷 PINK WATCH LANES (2026-10-09, lockstep with TennisSection pinkCells):
+            # FADE-B DOG men (A+C on a +100..+200 dog, B on the fav), W CONSENSUS DOG
+            # (women, 7+ of 9 heads on a +100..+200 dog), W ALL-9 FAV (women, all 9
+            # heads on a -100..-200 favourite). Nine heads = A, B, C, gray, D, D-MA,
+            # c50, c75, serve-MC -- the backtest's nine, same frozen columns.
+            _dod9 = float(r["p1_odds"] if dog1 else r["p2_odds"])
+            _fod9 = float(r["p2_odds"] if dog1 else r["p1_odds"])
+            _pa9, _pb9 = r.get("model_a_p1"), r.get("model_b_p1")
+            if (not _isw) and pd.notna(_pa9) and pd.notna(_pb9) and 100 <= _dod9 <= 200:
+                if ((float(_pa9) >= 0.5) == dog1) and (c1 == dog1) and ((float(_pb9) >= 0.5) != dog1):
+                    bet("pink_fadeb_dog_m", dog1)
+            if _isw:
+                _hd9 = [r.get(k) for k in ("model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
+                                           "model_d_p1", "model_dma_p1", "mc_c_p1", "mc_c75_p1", "mc_p1")]
+                if all(v is not None and not pd.isna(v) for v in _hd9):
+                    _nd9 = sum(1 for v in _hd9 if (float(v) >= 0.5) == dog1)
+                    if _nd9 >= 7 and 100 <= _dod9 <= 200:
+                        bet("pink_wcons_dog", dog1)
+                    if _nd9 == 0 and -200 <= _fod9 <= -100:
+                        bet("pink_wall9_fav", not dog1)
             # one bet per gated game on the dog (coin-flip takes precedence)
             if "coinflip_c_dog" in _gate_hit:
                 bet("coinflip_c_dog", dog1)
