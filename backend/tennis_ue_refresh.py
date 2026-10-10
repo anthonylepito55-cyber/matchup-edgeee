@@ -22,7 +22,13 @@ DIR = os.path.join(_here, "data_cache", "mcp")
 EXTRA = os.path.join(DIR, "ta_extra.csv")
 H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (matchup-edge research)"}
 GH = "https://raw.githubusercontent.com/JeffSackmann/tennis_MatchChartingProject/master/"
-FILES = ("charting-m-matches.csv", "charting-w-matches.csv", "charting-m-stats-Overview.csv", "charting-w-stats-Overview.csv")
+FILES = ("charting-m-matches.csv", "charting-w-matches.csv",
+         "charting-m-stats-Overview.csv", "charting-w-stats-Overview.csv",
+         # detail files (2026-10-10): error breakdown by key point, rally length and shot
+         # side. Same matches as Overview, so this is depth not coverage; display only.
+         "charting-m-stats-KeyPointsServe.csv", "charting-w-stats-KeyPointsServe.csv",
+         "charting-m-stats-Rally.csv", "charting-w-stats-Rally.csv",
+         "charting-m-stats-ShotTypes.csv", "charting-w-stats-ShotTypes.csv")
 
 
 def refresh_github():

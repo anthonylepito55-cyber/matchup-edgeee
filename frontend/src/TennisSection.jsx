@@ -4184,11 +4184,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       {match.ue && (match.ue.p1 || match.ue.p2) ? (() => {
         const f = (v, d = 1) => v == null ? '—' : (Math.round(v * Math.pow(10, d)) / Math.pow(10, d))
         const one = (nm, u) => u ? (
-          <span>{(nm || '').split(' ').slice(-1)[0]}: <b style={{ color: 'var(--text-primary)' }}>{f(u.ue_set_5)}</b>/set · {f(u.ue_match_10)}/match · {f(u.ue_100_10)}/100pts{u.ue_100_surf10 != null ? ` (${match.surface} ${f(u.ue_100_surf10)})` : ''} · W/UE {f(u.wue_10, 2)} · FH {u.fh_share_10 != null ? Math.round(100 * u.fh_share_10) : '—'}% / BH {u.fh_share_10 != null ? 100 - Math.round(100 * u.fh_share_10) : '—'}% · {f(u.pts_10, 0)} pts/match · n={u.n_10}</span>
+          <span>{(nm || '').split(' ').slice(-1)[0]}: <b style={{ color: 'var(--text-primary)' }}>{f(u.ue_set_5)}</b>/set · {f(u.ue_match_10)}/match · {f(u.ue_100_10)}/100pts{u.ue_100_surf10 != null ? ` (${match.surface} ${f(u.ue_100_surf10)})` : ''} · W/UE {f(u.wue_10, 2)} · FH {u.fh_share_10 != null ? Math.round(100 * u.fh_share_10) : '—'}% / BH {u.fh_share_10 != null ? 100 - Math.round(100 * u.fh_share_10) : '—'}% · {f(u.pts_10, 0)} pts/match · n={u.n_10}
+            {/* DETAIL METRICS (2026-10-10, user "ship it"): the Match Charting Project files we
+                were not reading -- errors on key points, in long rallies, and per 100 shots on
+                each wing, plus pressure created minus given. Display context only: every one
+                backtested NEGATIVE as a dog gate, so none of them carries a mark. */}
+            {(u.ue_key_5 != null || u.ue_long_5 != null || u.ue_bh_5 != null) ? (
+              <span style={{ color: 'var(--text-tertiary)' }}>
+                {u.ue_key_5 != null ? ` · key pts ${Math.round(u.ue_key_5 * 100)}%` : ''}
+                {u.ue_long_5 != null ? ` · long rally ${Math.round(u.ue_long_5 * 100)}%` : ''}
+                {(u.ue_fh_5 != null || u.ue_bh_5 != null) ? ` · FH ${f(u.ue_fh_5)} / BH ${f(u.ue_bh_5)} per 100` : ''}
+                {u.press_5 != null ? ` · force−err ${u.press_5 > 0 ? '+' : ''}${f(u.press_5 * 100, 1)}` : ''}
+              </span>
+            ) : null}</span>
         ) : <span>{(nm || '').split(' ').slice(-1)[0]}: not charted</span>
         return (
           <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}
-            title="UNFORCED ERRORS — Tennis Abstract Match Charting Project (charted matches only, mostly top-level; non-commercial data). '/set' = unforced errors per set over the last 5 charted matches; '/match', '/100pts', W/UE (winners per unforced error), forehand/backhand share of errors and points per match (match length) over the last 10; surface figure = last 10 on this court. Women: a +100..+250 dog with 2.26+ fewer UEs per set than the favourite was +11.1% (n=361), positive every year 2024-26 (🧤 LOW-ERROR DOG). Men: no edge from any UE metric.">
+            title="UNFORCED ERRORS — Tennis Abstract Match Charting Project (charted matches only, mostly top-level; non-commercial data). '/set' = unforced errors per set over the last 5 charted matches; '/match', '/100pts', W/UE (winners per unforced error), forehand/backhand share of errors and points per match (match length) over the last 10; surface figure = last 10 on this court. Women: a +100..+250 dog with 2.26+ fewer UEs per set than the favourite was +11.1% (n=361), positive every year 2024-26 (🧤 LOW-ERROR DOG). Men: no edge from any UE metric. DETAIL (2026-10-10): 'key pts' = unforced errors per break/game/deuce point; 'long rally' = unforced errors per point in rallies of 7+ shots; 'FH / BH per 100' = unforced errors per 100 shots hit on that wing; 'force−err' = shots that FORCED an opponent error minus own unforced errors, per 100 shots (positive = creates more trouble than it gives). From the charting project's KeyPointsServe / Rally / ShotTypes files, same matches as the rest. ALL FIVE BACKTESTED NEGATIVE as a betting gate for +100..+250 dogs (women -4% to -24%, men -8% to -15%), and on that subsample even the shipped per-set metric reads -10..-25% against its true +11.1%, because requiring detail for both players selects for heavily-charted top-level players where the women's edge does not exist. Context for reading a matchup, never a pick.">
             <b style={{ color: '#f0b072' }}>🧤 UNFORCED ERRORS</b> <span style={{ color: 'var(--text-tertiary)' }}>(charted)</span>{' '}
             {one(match.player_1, match.ue.p1)} <span style={{ color: 'var(--text-tertiary)' }}>|</span> {one(match.player_2, match.ue.p2)}
           </div>
