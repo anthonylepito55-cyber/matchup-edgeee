@@ -2650,6 +2650,20 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           bt: big ? 'bt 2025-26 T2 +27.5% (n=199) · 2025 +28.6% · 2026 +24.9% · every dog −7.5%'
                   : 'bt 2025-26 T1 +10.2% (n=829) · 2025 +8.9% · 2026 +12.6% · every dog −7.5%',
           rule: `better clutch server (+${Math.round(spDog * 10) / 10}pt) AND returner (+${Math.round(rpDog * 10) / 10}pt)` })
+      } else if (rpDog >= 4.56) {
+        // 🎾 RETURNER-ONLY DOG (W) (2026-10-10, user "can u mark these games like the low error
+        // dogs"). The RETURNER lane sits at 6-1 +108% live, which is why it looks attractive --
+        // but the games it would add that ALL-ROUND does not already cover are exactly the
+        // subset ALL-ROUND was created to EXCLUDE: a big return edge with NO serve edge, which
+        // backtested at −10%. The lane's overall +6.3% (n=751) is that −10% half blended with
+        // the +10.2%/+27.5% half that ALL-ROUND now marks on its own. Live says 4-1 (+87%) on
+        // the returner-only subset, but that is five bets against a backtest in the hundreds.
+        // So: WATCH, not TAKE. It shows the game and keeps its own forward record without
+        // presenting a measured-negative cell as a bet.
+        out.push({ n: '🎾 RETURNER-ONLY DOG (W)', who: nmDog, od: odDog, lane: 'returner_dog_w',
+          g: 'w', watch: true,
+          bt: 'bt returner-only −10% (the half ALL-ROUND excludes) · lane overall +6.3% (n=751) blends both halves · live 4-1 on n=5',
+          rule: `better returner (+${Math.round(rpDog * 10) / 10}pt) but NOT the better clutch server (${Math.round(spDog * 10) / 10}pt)` })
       }
     }
     // 🧤 LOW-ERROR DOG (W) (2026-10-09, user "do it"): women, dog +100..+250 whose unforced
