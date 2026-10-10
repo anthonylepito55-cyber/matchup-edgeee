@@ -633,6 +633,39 @@ def _surface_fixes():
     return by
 
 
+def _ue_asof(r):
+    """UNFORCED ERRORS on a finished game (2026-10-10, user "where is the unforced errors on
+    result tab" -- they were only ever on today's board). Two different things, both useful:
+
+    "pre"    each player's error profile AS IT STOOD before the match (tennis_ue.profile with
+             asof=match date, so no hindsight) -- what the card was reading at the time, and
+             the input to the LOW-ERROR DOG gate.
+    "actual" what actually happened in THIS match: unforced errors, winners and sets, written
+             by tennis_postmatch.backfill from the Match Charting Project once somebody charts
+             it. Rare (charting lags ~5 days and covers a fraction of matches) but it is the
+             only place the record shows whether the error read came true.
+    """
+    out = {}
+    try:
+        import tennis_ue as _tue
+        d = pd.Timestamp(str(r.get("date"))[:10])
+        sf = str(r.get("surface") or "Hard")
+        a, b = _tue.profile(r.get("player_1"), d, sf), _tue.profile(r.get("player_2"), d, sf)
+        if a or b:
+            out["pre"] = {"p1": a, "p2": b}
+    except Exception:  # noqa: BLE001
+        pass
+    u1, u2 = r.get("ue_p1"), r.get("ue_p2")
+    if u1 is not None and not pd.isna(u1) and u2 is not None and not pd.isna(u2):
+        def g(c):
+            v = r.get(c)
+            return None if (v is None or pd.isna(v)) else float(v)
+        out["actual"] = {"p1": float(u1), "p2": float(u2), "sets": g("ue_sets"),
+                         "win_p1": g("win_p1"), "win_p2": g("win_p2"),
+                         "fh_p1": g("ue_fh_p1"), "fh_p2": g("ue_fh_p2")}
+    return out or None
+
+
 def _sr_asof(r):
     try:
         import tennis_context as _tcx
@@ -888,6 +921,7 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             # probs only. Shown as a compact sub-line in results-history.
             "signals": _elite_signals_for_row(r, mk1) + _p_signals(r, mk1),
             "model_p": _p_hist(r, mk1),
+            "ue": _ue_asof(r),
             "conflicts": _conflict_resolvers_for_row(r, mk1),
             "card": card,
         }

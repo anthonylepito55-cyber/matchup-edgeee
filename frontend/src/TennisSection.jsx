@@ -1930,6 +1930,55 @@ function HistoryPanel({ query, greenOnly = false }) {
                     </div>
                   )
                 })() : null}
+                {m.ue && (m.ue.actual || m.ue.pre) ? (() => {
+                  // 🧤 UNFORCED ERRORS on a finished game (2026-10-10, user "where is the
+                  // unforced errors on result tab"). "actual" is what happened in THIS match,
+                  // from the charting project via tennis_postmatch -- rare, and the only place
+                  // the record shows whether the pre-match error read came true. "pre" is each
+                  // player's profile as it stood before the match, which is what the board read.
+                  const f = (v, d = 1) => v == null ? '—' : (Math.round(v * Math.pow(10, d)) / Math.pow(10, d))
+                  const ln = nm => (nm || '').split(' ').slice(-1)[0]
+                  const A = m.ue.actual, P = m.ue.pre
+                  const dogIsP1 = m.p1_odds != null && m.p2_odds != null && m.p1_odds > m.p2_odds
+                  let verdict = null
+                  if (A) {
+                    const fewer = A.p1 < A.p2 ? 1 : (A.p2 < A.p1 ? 2 : 0)
+                    const wonSide = m.p1_won ? 1 : 2
+                    if (fewer) verdict = fewer === wonSide ? 'cleaner player won' : 'cleaner player LOST'
+                  }
+                  return (
+                    <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 50, color: 'var(--text-tertiary)' }}
+                      title="UNFORCED ERRORS. 'match' = what actually happened in this game (Tennis Abstract charting, written in after the fact by tennis_postmatch -- only on charted matches, which is a small fraction). 'pre' = each player's unforced errors per set over their previous 5 charted matches, as it stood BEFORE this match, which is the number the board was reading and the input to the 🧤 LOW-ERROR DOG gate. Comparing the two is the only way to see whether an error read actually came true.">
+                      <b style={{ color: '#f0b072' }}>🧤</b>
+                      {A ? (
+                        <span>
+                          {' '}match: {ln(m.p1)} <b style={{ color: 'var(--text-secondary)' }}>{f(A.p1, 0)} UE</b>
+                          {A.sets ? ` (${f(A.p1 / A.sets)}/set)` : ''}
+                          {A.win_p1 != null ? ` · ${f(A.win_p1, 0)}W` : ''}
+                          {' vs '}{ln(m.p2)} <b style={{ color: 'var(--text-secondary)' }}>{f(A.p2, 0)} UE</b>
+                          {A.sets ? ` (${f(A.p2 / A.sets)}/set)` : ''}
+                          {A.win_p2 != null ? ` · ${f(A.win_p2, 0)}W` : ''}
+                          {verdict ? <span style={{ color: verdict.endsWith('LOST') ? '#f85149' : '#3fb950' }}> · {verdict}</span> : null}
+                        </span>
+                      ) : null}
+                      {P && (P.p1 || P.p2) ? (
+                        <span>
+                          {A ? ' | ' : ' '}pre: {ln(m.p1)} {P.p1 && P.p1.ue_set_5 != null ? f(P.p1.ue_set_5) : '—'}/set
+                          {' vs '}{ln(m.p2)} {P.p2 && P.p2.ue_set_5 != null ? f(P.p2.ue_set_5) : '—'}/set
+                          {(P.p1 && P.p2 && P.p1.ue_set_5 != null && P.p2.ue_set_5 != null) ? (() => {
+                            const gap = Math.abs(P.p1.ue_set_5 - P.p2.ue_set_5)
+                            const cleaner = P.p1.ue_set_5 < P.p2.ue_set_5 ? 1 : 2
+                            const big = gap >= 2.264
+                            return <span style={{ color: big ? '#f0b072' : 'var(--text-tertiary)' }}>
+                              {` · ${f(gap)} gap to ${ln(cleaner === 1 ? m.p1 : m.p2)}`}
+                              {big ? (cleaner === (dogIsP1 ? 1 : 2) ? ' · 🧤 GATE FIRED (dog cleaner)' : ' · gate: fav cleaner, no bet') : ''}
+                            </span>
+                          })() : null}
+                        </span>
+                      ) : null}
+                    </div>
+                  )
+                })() : null}
                 {m.postmortem ? (
                   <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 50, color: 'var(--text-tertiary)' }}
                     title="Model X post-mortem: who won, whether the market's favorite was right, and 'missed' = the signals we had that DID point to the actual winner when the market's favorite lost.">
