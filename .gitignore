@@ -15,3 +15,10 @@ h_today.json
 # RapidAPI key for the tennis stats probe -- never commit a credential
 .rapidapi_key
 backend/.rapidapi_key
+
+# MCP config holds an API key -- never commit it
+.mcp.json
+
+# Goalserve trial token -- never commit a credential
+.goalserve_key
+backend/.goalserve_key
