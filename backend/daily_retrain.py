@@ -181,6 +181,19 @@ def main():
         print("[step 0.7] unforced-error refresh:", tennis_ue_refresh.refresh_all())
     except Exception as e:  # noqa: BLE001
         print(f"[step 0.7] unforced-error refresh failed: {e} -- continuing")
+    # step 0.8 (2026-10-09): keep the wrong-court corrections current. Surface verification
+    # is live on the board now, so new surface_bad rows should be rare -- the script no-ops
+    # cheaply when there is nothing to fix, and only touches the as-of replay (which loads
+    # the whole archive) when there is. Run as a SUBPROCESS so that 2.5GB is handed straight
+    # back afterwards instead of sitting in this process for the rest of the retrain; this
+    # box has OOMed before when heavy footprints stacked.
+    try:
+        _sf = subprocess.run([sys.executable, "-W", "ignore", "_surface_fix_recent.py"],
+                             cwd=os.path.dirname(os.path.abspath(__file__)),
+                             capture_output=True, text=True, timeout=3600)
+        print("[step 0.8] wrong-court fix:", (_sf.stdout or _sf.stderr or "").strip().splitlines()[-1:])
+    except Exception as e:  # noqa: BLE001
+        print(f"[step 0.8] wrong-court fix failed: {e} -- continuing")
 
     print("=== Step 1: incremental game-log refresh + rebuild training data ===")
     build_training_data.build_full_training_set(SEASONS)
