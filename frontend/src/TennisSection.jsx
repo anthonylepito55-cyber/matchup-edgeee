@@ -2821,6 +2821,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     p_dog: { m: true, w: true }, p_fav: { m: true, w: true }, p_close: { m: true, w: true },
     p_close_t1: { m: true, w: true }, p_close_t2: { m: true, w: true }, p_close_t3: { m: true, w: true },
     returner_dog_w: { w: true }, allround_dog_w: { w: true }, allround_dog_w_big: { w: true }, lowerr_dog_w: { w: true },
+    // 👑 Ⓟ DOG FLIP: walk-forward positive for BOTH genders (W +32.6%, M +21.1%) every year.
+    p_dog_flip: { m: true, w: true },
   }
   const gHL = (match.league === 'wta' || match.league === 'itf_women') ? 'w' : 'm'
   const hlWhy = (lane, g) => {
@@ -3073,10 +3075,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             title={`Ⓟ MODEL P — the profit model: an offset model on the market (it starts from the price and only learns where the price is wrong), +100..+200 dogs only, separate men/women weights. P gives ${nm} ${Math.round(pModel.p_dog * 1000) / 10}% vs the market's ${Math.round(pModel.mkt_dog * 1000) / 10}% → EV ${pModel.ev >= 0 ? '+' : ''}${Math.round(pModel.ev * 1000) / 10}% at this price. Bet rule EV ≥ 5%. Strict walk-forward 2024-26: EV>5% men +14.2% (n=3,235), women +21.4% (n=2,442), vs backing every +100..+200 dog −7.4% / −6.0%; positive every year, monotone by EV. Live lane p_dog is the judge.`}
             style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: pModel.bet ? '#2dd4bf' : 'var(--text-tertiary)', opacity: pModel.bet ? (hlP ? 1 : 0.8) : 0.6 }}>
             {pModel.bet && !hlP ? noHL(hlWhy('p_dog', gHL)) : null}
+            {/* 👑 Ⓟ DOG FLIP (2026-10-10, user "mark if any games have P dog flips with a
+                crown on those picks"): P puts the dog ABOVE 50%, i.e. it says the market picked
+                the wrong favourite. Walk-forward this is the strong half of the P dog gate --
+                women +32.6% (n=1,495) against +15.2% for non-flips, men +21.1% (n=1,410)
+                against +9.1%. Lane p_dog_flip; must stay in lockstep with tennis_log.py. */}
+            {pModel.bet && pModel.p_dog > 0.5 ? (
+              <span title={`👑 Ⓟ DOG FLIP — P does not just see value here, it reads ${nm} as the OUTRIGHT FAVOURITE: ${Math.round(pModel.p_dog * 1000) / 10}% against the market's ${Math.round(pModel.mkt_dog * 1000) / 10}%, so it says the market has the wrong player in front. Strict walk-forward 2024-26, within the P dog gate: FLIPS women +32.6% (n=1,495) vs non-flips +15.2% (n=1,501); men +21.1% (n=1,410) vs +9.1% (n=2,425) — roughly double on both sides. Flip alone: women +31.9% at a 56.1% strike rate against the market's implied 40.0%, men +20.7%. Positive every year but DECAYING (women +45.3 / +34.0 / +17.1, men +27.9 / +24.2 / +7.7), and stronger at longer prices (women +58.4% at +200..+250, n=121). Flips are ~18% of women's dogs and ~11% of men's, and are almost always EV bets as well, so this is a tier inside Ⓟ DOG rather than a separate signal. Lane p_dog_flip is the judge.`}
+                style={{ fontSize: 13, marginRight: 3 }}>👑</span>
+            ) : null}
             Ⓟ MODEL P → {pModel.bet
               ? <span style={{ fontSize: 12, fontWeight: 900, color: '#d5fbf5', textShadow: '0 0 8px rgba(45,212,191,0.5)' }}>TAKE {nm}{odS}</span>
               : <span style={{ fontWeight: 700 }}>PASS on {nm}{odS}</span>}
-            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_dog * 1000) / 10}% vs mkt {Math.round(pModel.mkt_dog * 1000) / 10}% · EV {pModel.ev >= 0 ? '+' : ''}{Math.round(pModel.ev * 1000) / 10}%{pModel.bet ? ` · ${bt} · ${live}` : ' (needs ≥ +5%)'}</span>
+            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_dog * 1000) / 10}% vs mkt {Math.round(pModel.mkt_dog * 1000) / 10}% · EV {pModel.ev >= 0 ? '+' : ''}{Math.round(pModel.ev * 1000) / 10}%{pModel.bet && pModel.p_dog > 0.5 ? ' · 👑 FLIP: P has the dog as the outright favourite · flip bt W +32.6% / M +21.1% vs non-flip +15.2% / +9.1%' : ''}{pModel.bet ? ` · ${bt} · ${live}` : ' (needs ≥ +5%)'}</span>
           </div>
         )
       })() : null}

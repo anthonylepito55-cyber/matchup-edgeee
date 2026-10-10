@@ -559,7 +559,8 @@ def _elite_signals_for_row(r, mk1):
 # dogs"). Every lane already tracks aggregate PnL; these also remember WHO each pick was, at
 # what price, and how it finished, so the record is browsable instead of just a running ROI.
 # Kept to an allowlist -- all 128 lanes would bloat /api/tennis/track-record.
-_PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w"}
+_PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
+               "p_dog_flip"}
 
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
@@ -1365,7 +1366,7 @@ def get_ab25_record() -> dict:
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w", "allround_dog_w", "allround_dog_w_big", "lowerr_dog_w",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_dog_flip", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w", "allround_dog_w", "allround_dog_w_big", "lowerr_dog_w",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -2103,6 +2104,22 @@ def get_ab25_record() -> dict:
                     # women's +200..+250 extension (2026-10-09) scored on its own too
                     if (d1 if _ps9 else d2) > 3.0:
                         bet("p_dog_w250", _ps9)
+                    # 👑 Ⓟ DOG FLIP (2026-10-10, user "mark if any games have P dog flips
+                    # with a crown on those picks): P puts the market DOG above 50% -- it is
+                    # not finding a few points of value, it is saying the market picked the
+                    # wrong favourite. Walk-forward (_model_p_flip_bt.py) this splits the
+                    # existing P dog gate cleanly in half:
+                    #     women  flip +32.6% (n=1,495) vs no-flip +15.2% (n=1,501)
+                    #     men    flip +21.1% (n=1,410) vs no-flip  +9.1% (n=2,425)
+                    # Flip alone: W +31.9% (56.1% win vs market's 40.0%), M +20.7%. Positive
+                    # every year but decaying -- W +45.3/+34.0/+17.1, M +27.9/+24.2/+7.7 --
+                    # and stronger at longer prices (W +58.4% at +200..+250). Flips are ~18%
+                    # of women's dogs and ~11% of men's, and nearly always EV bets too
+                    # (flip-but-not-EV is n=37/57), so this is a TIER inside p_dog, not a new
+                    # universe. Lane p_dog_flip.
+                    _pf9 = r.get("model_p_prob")
+                    if _pf9 is not None and pd.notna(_pf9) and float(_pf9) > 0.50:
+                        bet("p_dog_flip", _ps9)
                 if float(_pe9) > 0:
                     bet("p_dog_any", _ps9)
                 else:
