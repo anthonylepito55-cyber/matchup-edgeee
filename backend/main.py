@@ -129,6 +129,31 @@ async def require_dashboard_password(request, call_next):
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
     return await call_next(request)
 
+
+# CACHE HEADERS (2026-10-09, user: "why was this not working on my phone earlier"). We sent no
+# Cache-Control at all, only ETag/Last-Modified. Desktop Chrome revalidates index.html on every
+# load anyway, but iOS Safari applies HEURISTIC freshness when Cache-Control is absent: it reused
+# a cached index.html for hours, so the phone kept loading a JS bundle from an EARLIER deploy
+# (server logs show it on 12-hour-old hashes, and once fetching an old and a new bundle in the
+# same second) -- an old board missing the newest marks, and API JSON that could be served from
+# cache too. So be explicit:
+#   /api/*    no-store   -- prices and picks must never come from a cache
+#   /assets/* immutable  -- filenames are content-hashed by vite, safe to keep for a year
+#   index.html no-cache  -- always revalidate; the ETag still makes it a cheap 304
+@app.middleware("http")
+async def cache_headers(request, call_next):
+    resp = await call_next(request)
+    path = request.url.path
+    if path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+    elif path.startswith("/assets/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return resp
+
+
 BACKGROUND_REFRESH_SECONDS = 3600  # the IDLE cadence — keeps strikeout/moneyline predictions
 # logged and the track records settled against real results even with nobody loading the page.
 # Without this, both only ever updated as a side effect of a browser hitting /api/today.
