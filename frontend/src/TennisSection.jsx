@@ -1947,7 +1947,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                     if (fewer) verdict = fewer === wonSide ? 'cleaner player won' : 'cleaner player LOST'
                   }
                   return (
-                    <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 50, color: 'var(--text-tertiary)' }}
+                    <div className="mono" style={{ width: '100%', fontSize: 10, marginTop: 2, paddingLeft: 50, color: 'var(--text-secondary)' }}
                       title="UNFORCED ERRORS. 'match' = what actually happened in this game (Tennis Abstract charting, written in after the fact by tennis_postmatch -- only on charted matches, which is a small fraction). 'pre' = each player's unforced errors per set over their previous 5 charted matches, as it stood BEFORE this match, which is the number the board was reading and the input to the 🧤 LOW-ERROR DOG gate. Comparing the two is the only way to see whether an error read actually came true.">
                       <b style={{ color: '#f0b072' }}>🧤</b>
                       {A ? (
