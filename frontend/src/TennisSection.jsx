@@ -557,7 +557,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P'], ['uedog', '🧤 Low-error dogs']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -583,7 +583,7 @@ export default function TennisSection() {
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
       <ModelPStrip matches={matches} />
 
@@ -1487,6 +1487,95 @@ function ModelPStrip({ matches }) {
   )
 }
 
+// 🧤 LOW-ERROR DOG RECORD (2026-10-09, user "keep a live record of low error dogs"): the
+// pick-by-pick forward record of the women's unforced-error dog lane, straight from the frozen
+// log via tennis_log's _PICK_LANES. Backtest 2024-26 +11.1% (n=361), positive every year, but
+// the live sample is tiny -- the point of this tab is to watch it get decided.
+function UeDogPanel({ laneRec }) {
+  const study = (laneRec && laneRec.study) || {}
+  const OTHERS = [
+    ['allround_dog_w', '🎾 ALL-ROUND DOG', 'women +100..+250 dog better on BOTH serve and return'],
+    ['returner_dog_w', '🎾 RETURNER DOG', 'women +100..+250 dog with the big return edge (superseded by ALL-ROUND)'],
+  ]
+  const o = study.lowerr_dog_w || {}
+  const rec = o.w || o
+  const asc = (o.picks || []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  let run = 0
+  const withRun = asc.map(p => { if (p.settled && p.pnl != null) run += p.pnl; return { ...p, run } })
+  const rows = withRun.slice().reverse()
+  const nSet = rows.filter(r => r.settled).length
+  const nPend = rows.length - nSet
+  const fmt = v => (v == null ? '—' : `${v > 0 ? '+' : ''}${Math.round(v * 10) / 10}`)
+  if (!laneRec) return <div className="mono" style={{ padding: 16, color: 'var(--text-tertiary)' }}>loading record…</div>
+  return (
+    <div style={{ padding: '4px 0 24px' }}>
+      <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 14, maxWidth: 1000 }}>
+        <b style={{ color: '#f0b072' }}>🧤 LOW-ERROR DOGS</b> — a women's underdog priced +100..+250 who makes at least <b>2.26 fewer unforced errors per set</b> than the favourite, over each player's last 5 charted matches (Tennis Abstract Match Charting Project — charted players only, so mostly top-level events).
+        <br />Backtest 2024-26 <b style={{ color: '#3fb950' }}>+11.1% (n=361)</b>, positive all three years (2024 +4.5% · 2025 +14.1% · 2026 +13.0%). <b>Men showed no edge from any unforced-error metric</b>, so there is no men's lane.
+        <br /><span style={{ color: 'var(--text-tertiary)' }}>Every pick below is scored flat $25 at the frozen pre-match price. Nothing is retro-fitted — the lane opened 2026-10-09 and only picks logged from then on appear.</span>
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+        {[['settled', rec.n || 0], ['record', `${rec.wins || 0}-${(rec.n || 0) - (rec.wins || 0)}`],
+          ['ROI', rec.roi_pct == null ? '—' : `${fmt(rec.roi_pct)}%`], ['profit', `$${fmt(rec.profit_usd)}`],
+          ['pending', o.pending || 0]].map(([k, v]) => (
+            <div key={k} className="mono" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', minWidth: 92 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-tertiary)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{k}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: (k === 'ROI' || k === 'profit') ? ((rec.roi_pct || 0) > 0 ? '#3fb950' : (rec.roi_pct || 0) < 0 ? '#f85149' : 'var(--text-primary)') : 'var(--text-primary)' }}>{v}</div>
+            </div>
+          ))}
+      </div>
+      {!rows.length ? (
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No picks logged yet. The lane fires only when both players are in the charting project and the dog's error edge clears 2.26 per set.</div>
+      ) : (
+        <table className="mono" style={{ borderCollapse: 'collapse', fontSize: 11, width: '100%', maxWidth: 1000 }}>
+          <thead>
+            <tr style={{ color: 'var(--text-tertiary)', textAlign: 'left' }}>
+              {['date', 'event', 'take', 'price', 'UE edge', 'result', 'P/L', 'running'].map(h => (
+                <th key={h} style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', fontWeight: 600, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--border)', opacity: r.settled ? 1 : 0.62 }}>
+                <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{r.date}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{r.tournament}{r.surface ? ` · ${r.surface}` : ''}</td>
+                <td style={{ padding: '5px 8px', fontWeight: 700, color: 'var(--text-primary)' }}>{r.pick}<span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> vs {(r.opp || '').split(' ').slice(-1)[0]}</span></td>
+                <td style={{ padding: '5px 8px' }}>{r.odds > 0 ? '+' : ''}{r.odds}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }} title="the dog's unforced errors per set minus the favourite's, last 5 charted matches (negative = the dog makes fewer)">{r.ue_gap == null ? '—' : `${r.ue_gap}/set`}</td>
+                <td style={{ padding: '5px 8px', fontWeight: 700, color: !r.settled ? '#e3b341' : r.won ? '#3fb950' : '#f85149' }}>
+                  {!r.settled ? 'pending' : r.won ? 'WON' : 'lost'}{r.score ? <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> {r.score}</span> : null}
+                </td>
+                <td style={{ padding: '5px 8px', color: r.pnl == null ? 'var(--text-tertiary)' : r.pnl > 0 ? '#3fb950' : '#f85149' }}>{r.pnl == null ? '—' : `$${fmt(r.pnl)}`}</td>
+                <td style={{ padding: '5px 8px', fontWeight: 700, color: r.run > 0 ? '#3fb950' : r.run < 0 ? '#f85149' : 'var(--text-tertiary)' }}>{r.settled ? `$${fmt(r.run)}` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 10 }}>
+        {nSet} settled · {nPend} pending · checkpoint at 50 settles, when the lane either confirms the backtest or gets dropped.
+      </div>
+      <div className="mono" style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 18, lineHeight: 1.7 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-tertiary)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>the other women's stat-dog lanes</div>
+        {OTHERS.map(([k, label, note]) => {
+          const x = study[k] || {}
+          const xr = x.w || x
+          return (
+            <div key={k}>
+              {label} — {(xr.n || 0) ? <b style={{ color: (xr.roi_pct || 0) > 0 ? '#3fb950' : '#f85149' }}>{xr.wins}-{(xr.n || 0) - (xr.wins || 0)} {fmt(xr.roi_pct)}%</b> : <span>no settles yet</span>}
+              {x.pending ? ` · ${x.pending} pending` : ''} <span style={{ color: 'var(--text-tertiary)' }}>· {note}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 14 }}>
+        Unforced-error data: Tennis Abstract Match Charting Project (CC BY-NC-SA — non-commercial use).
+      </div>
+    </div>
+  )
+}
+
 // Ⓟ MODEL P TAB (2026-10-09, user "yes" to a Model P tab + "build the p favorite picks").
 function ModelPPanel() {
   const [d, setD] = useState(null)
@@ -1640,6 +1729,9 @@ function HistoryPanel({ query, greenOnly = false }) {
   const [err, setErr] = useState(null)
   const [full, setFull] = useState(false)       // false = compact rows, true = full board cards
   const [openDate, setOpenDate] = useState(null) // which day is expanded in full mode
+  // which wrong-court rows have their corrected card open (2026-10-09, user "fix the wrongs
+  // for previous days so i can see what i would have chosen if it was the correct court")
+  const [fixOpen, setFixOpen] = useState({})
   const [laneRec, setLaneRec] = useState(null)
   useEffect(() => {
     fetch('/api/tennis/history?limit_dates=30').then(r => r.json()).then(setHist).catch(e => setErr(String(e)))
@@ -1777,6 +1869,67 @@ function HistoryPanel({ query, greenOnly = false }) {
                     ))}
                   </div>
                 ) : null}
+                {m.surface_fix ? (() => {
+                  const fx = m.surface_fix
+                  const key = d.date + '|' + i
+                  const ln = nm => (nm || '').split(' ').slice(-1)[0]
+                  const sd = o => (!o ? '—' : `${ln(o.side === 1 ? m.p1 : m.p2)} ${o.p1_pct != null ? (o.side === 1 ? o.p1_pct : Math.round((100 - o.p1_pct) * 10) / 10) + '%' : ''}${o.hit ? ' ✓' : ' ✗'}`)
+                  const col = o => (!o ? 'var(--text-tertiary)' : o.hit ? '#3fb950' : '#f85149')
+                  const MOD = [['C', 'C'], ['gray', 'gray'], ['D', 'D'], ['A', 'A']]
+                  const toldSigs = (m.signals || []).filter(g => !g.watch)
+                  return (
+                    <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 2, marginLeft: 50, padding: '4px 7px', border: '1px solid rgba(227,179,65,0.45)', borderRadius: 6, background: 'rgba(227,179,65,0.05)' }}
+                      title={`WRONG COURT. This match was logged as ${fx.logged} but was played on ${fx.true} (verified from TennisExplorer: ${fx.src}). Every model reads a player's stats ON THE SURFACE, so the card that day was built from the wrong half of each player's record. The row above is exactly what you were shown. "right court" below is the same models recomputed on ${fx.true} using ONLY matches from before this one -- no hindsight -- with today's artifacts. The pick is excluded from every live lane either way.`}>
+                      <span style={{ color: '#e3b341', fontWeight: 800 }}>⚠ WRONG COURT</span>
+                      <span style={{ color: 'var(--text-secondary)' }}> · we had <b>{fx.logged}</b>, it was <b style={{ color: '#e3b341' }}>{fx.true}</b> <span style={{ color: 'var(--text-tertiary)' }}>({fx.src})</span></span>
+                      <div style={{ marginTop: 2 }}>
+                        <span style={{ color: 'var(--text-tertiary)' }}>we told you: </span>
+                        {!fx.frozen ? <span style={{ color: 'var(--text-tertiary)' }}>nothing — no model pick was frozen for this match (the log only started carrying model columns on 2026-09-28)</span> : (
+                          <>
+                            <b style={{ color: col(m.our) }}>{sd(m.our)}</b>
+                            {toldSigs.length ? <span style={{ color: 'var(--text-secondary)' }}> · {toldSigs.map(g => `${g.label}${g.hit ? '✓' : '✗'}`).join(' ')}</span>
+                              : <span style={{ color: 'var(--text-tertiary)' }}> · no marks fired</span>}
+                          </>
+                        )}
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-tertiary)' }}>right court: </span>
+                        {MOD.map(([k, lab], j) => (
+                          <span key={j} style={{ color: 'var(--text-secondary)' }}>
+                            {j ? ' · ' : ''}{lab} <b style={{ color: col(fx.right.models[k]) }}>{sd(fx.right.models[k])}</b>
+                            {fx.flips.includes(k) ? <span style={{ color: '#e3b341' }} title={`the correct court FLIPS ${lab} to the other player`}>⇄</span> : null}
+                          </span>
+                        ))}
+                        {fx.right.mc_c && fx.right.mc_c.c75 ? <span style={{ color: 'var(--text-secondary)' }}> · c75 <b style={{ color: col(fx.right.mc_c.c75) }}>{sd(fx.right.mc_c.c75)}</b></span> : null}
+                      </div>
+                      {(fx.right.signals || []).length ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 2, alignItems: 'center' }}>
+                          <span style={{ color: '#e3b341' }}>would have fired:</span>
+                          {fx.right.signals.map((g, j) => (
+                            <span key={j} style={{ fontSize: 8.5, padding: '0 4px', borderRadius: 6, border: `1px solid ${g.hit ? '#3fb95055' : '#f8514955'}`, color: g.hit ? '#3fb950' : '#f85149', background: g.hit ? '#3fb9500d' : '#f851490d', opacity: g.watch ? 0.7 : 1 }}>
+                              {g.label}{g.side === 1 ? '◀' : '▶'}{g.hit ? '✓' : '✗'}
+                            </span>
+                          ))}
+                        </div>
+                      ) : <div style={{ color: 'var(--text-tertiary)', marginTop: 2 }}>would have fired: nothing — the right court produces no mark either, so there was no bet to miss.</div>}
+                      {!fx.changed ? (
+                        <div style={{ color: 'var(--text-tertiary)', marginTop: 2 }}>the court made no difference here — same sides, same marks.</div>
+                      ) : fx.card ? (
+                        <div style={{ marginTop: 3 }}>
+                          <span onClick={e => { e.stopPropagation(); setFixOpen(o => ({ ...o, [key]: !o[key] })) }}
+                            style={{ cursor: 'pointer', color: '#58a6ff', textDecoration: 'underline' }}>
+                            {fixOpen[key] ? '▾ hide' : '▸ show'} the card it should have been
+                          </span>
+                        </div>
+                      ) : null}
+                      {fixOpen[key] && fx.card ? (
+                        <div style={{ marginTop: 6 }} onClick={e => e.stopPropagation()}>
+                          <MatchCard match={fx.card} laneRec={laneRec} showCMC={true} greenOnly={false} />
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })() : null}
                 {m.postmortem ? (
                   <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 50, color: 'var(--text-tertiary)' }}
                     title="Model X post-mortem: who won, whether the market's favorite was right, and 'missed' = the signals we had that DID point to the actual winner when the market's favorite lost.">

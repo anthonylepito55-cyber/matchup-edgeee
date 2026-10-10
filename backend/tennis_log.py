@@ -526,6 +526,12 @@ def _elite_signals_for_row(r, mk1):
 #                         (gray >= 5pt over market, not challenger, men -100..-150 /
 #                         women -100..-200); otherwise watch. When it does clear the gates
 #                         it is relabelled 💜CGF FAV so it reads as the mark it is.
+# LANES THAT KEEP A PICK-BY-PICK RECORD (2026-10-09, user: "keep a live record of low error
+# dogs"). Every lane already tracks aggregate PnL; these also remember WHO each pick was, at
+# what price, and how it finished, so the record is browsable instead of just a running ROI.
+# Kept to an allowlist -- all 128 lanes would bloat /api/tennis/track-record.
+_PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w"}
+
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
     "⭐✓C-EDGE5 FAV": "👁C-EDGE5 FAV (demoted)", "🧊FADE-FORM FAV": "👁FADE-FORM FAV (flat bt)",
@@ -561,6 +567,41 @@ def _tag_watch_signals(out, r, mk1, dog1, gray_p1, c1, have_mkt):
                 e["label"] = "👁C-ALONE+GRAY FAV"
                 e["watch"] = True
     return out
+
+
+_FIXCOLS = ["model_a_p1", "model_ama_p1", "model_b_p1", "model_bma_p1", "model_c_p1",
+            "model_cma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1", "mc_c75_p1",
+            "mc_cutr_p1", "c_rp_diff_p1", "c_sp_diff_p1", "model_p_dog", "model_p_prob",
+            "model_p_ev", "model_p_fev"]
+_fixcache = {"mtime": None, "by": {}}
+
+
+def _surface_fixes():
+    """The wrong-court replay keyed by fixture_id (2026-10-09, user "fix the wrongs for
+    previous days"). _surface_fix_history.py recomputes every surface_bad row twice -- on the
+    court we had and on the court the match was really played on -- using only data from before
+    that match. Missing file = no corrections to show."""
+    fp = os.path.join(CACHE_DIR, "_surface_fix_history.parquet")
+    try:
+        mt = os.path.getmtime(fp)
+    except OSError:
+        return {}
+    if _fixcache["mtime"] == mt:
+        return _fixcache["by"]
+    try:
+        F = pd.read_parquet(fp)
+    except Exception:  # noqa: BLE001
+        return {}
+    by = {}
+    for _, x in F.iterrows():
+        by[str(x.get("fixture_id"))] = {
+            "logged": str(x.get("surface_logged") or ""), "true": str(x.get("surface_true") or ""),
+            "src": str(x.get("surface_src") or ""),
+            "f": {c: x.get(f"f_{c}") for c in _FIXCOLS},
+            "w": {c: x.get(f"w_{c}") for c in _FIXCOLS},
+        }
+    _fixcache.update({"mtime": mt, "by": by})
+    return by
 
 
 def _sr_asof(r):
@@ -821,6 +862,79 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             "conflicts": _conflict_resolvers_for_row(r, mk1),
             "card": card,
         }
+        # WRONG COURT (2026-10-09, user "fix the wrongs for previous days so i can see what i
+        # would have chosen if it was the correct court and put who u told me to take that
+        # day"). rec above is the card AS IT WAS -- who we told them to take. Here we add the
+        # same reads recomputed on the court the match was actually played on, plus the
+        # wrong-court replay so rows that never froze a pick still show what the bad court
+        # produced. Both replays come from _surface_fix_history.parquet (as-of, no hindsight).
+        _fx = _surface_fixes().get(str(r.get("fixture_id")))
+        if _fx:
+            def _side(v):
+                if v is None or pd.isna(v):
+                    return None
+                p1side = float(v) >= 0.5
+                return {"side": 1 if p1side else 2, "hit": bool(p1side == bool(r["p1_won"])),
+                        "p1_pct": round(float(v) * 100, 1)}
+
+            def _reads(vals):
+                r9 = r.copy()
+                r9["surface"] = _fx["true"] if vals is _fx["f"] else _fx["logged"]
+                for _c, _v in vals.items():
+                    r9[_c] = _v
+                return r9, {
+                    "models": {k: _side(vals.get(c)) for k, c in
+                               (("A", "model_a_p1"), ("B", "model_b_p1"), ("C", "model_c_p1"),
+                                ("gray", "model_cma_p1"), ("D", "model_d_p1"))},
+                    "mc_c": {"c50": _side(vals.get("mc_c_p1")), "c75": _side(vals.get("mc_c75_p1")),
+                             "cutr": _side(vals.get("mc_cutr_p1"))},
+                    "mc": _side(vals.get("mc_p1")),
+                    "signals": _elite_signals_for_row(r9, mk1) + _p_signals(r9, mk1),
+                    "model_p": _p_hist(r9, mk1),
+                }
+            _rt, _right = _reads(_fx["f"])
+            _rw, _wrong = _reads(_fx["w"])
+            # did the correct court actually change a read? (side flip on any model, or a
+            # different set of fired signals)
+            def _sig_names(v):
+                return sorted(str((x or {}).get("n") or "") for x in (v.get("signals") or []))
+            _flip = [k for k in _right["models"]
+                     if _right["models"][k] and _wrong["models"][k]
+                     and _right["models"][k]["side"] != _wrong["models"][k]["side"]]
+            _changed = bool(_flip) or _sig_names(_right) != _sig_names(_wrong)
+            rec["surface_fix"] = {
+                "logged": _fx["logged"], "true": _fx["true"], "src": _fx["src"],
+                # was anything actually frozen on the card that day? 107 of the 140 wrong-court
+                # rows are from September, before the model columns were logged -- for those no
+                # pick was ever shown, and "wrong" below is the only picture of the bad court.
+                "frozen": bool(pd.notna(r.get("model_c_p1"))),
+                "right": _right, "wrong": _wrong,
+                "flips": _flip, "changed": _changed,
+            }
+            if _changed:
+                s_r = _rt                       # _model() reads s_r from this scope
+                _ma2 = _model("model_a_p1", "model_ama_p1", mk1)
+                _mb2 = _model("model_b_p1", "model_bma_p1", mk1)
+                _mc2 = _model("model_c_p1", "model_cma_p1", mk1)
+                _md2 = _model("model_d_p1", "model_dma_p1", mk1)
+                if _md2 is not None and _fx["f"].get("mc_p1") is not None and pd.notna(_fx["f"]["mc_p1"]):
+                    _md2["mc"] = {"sims": 100000, "p1_pct": round(float(_fx["f"]["mc_p1"]) * 100, 1),
+                                  "p1_wins": None, "p2_wins": None, "win_prob_home": None}
+                if _mc2 is not None:
+                    if _fx["f"].get("mc_c_p1") is not None and pd.notna(_fx["f"]["mc_c_p1"]):
+                        _mc2["mc"] = {"sims": 40000, "p1_pct": round(float(_fx["f"]["mc_c_p1"]) * 100, 1),
+                                      "p1_hold": None, "p2_hold": None, "straight_sets_pct": None,
+                                      "c_anchored": True}
+                    for _vc in ("mc_c75_p1", "mc_cutr_p1"):
+                        _vv = _fx["f"].get(_vc)
+                        if _vv is not None and pd.notna(_vv):
+                            _mc2[_vc] = round(float(_vv), 4)
+                rec["surface_fix"]["card"] = {**card, "surface": _fx["true"],
+                                              "fixture_id": str(card["fixture_id"]) + "-fixed",
+                                              "model_a": _ma2, "model_b": _mb2,
+                                              "model_c": _mc2, "model_d": _md2,
+                                              "model_p": _p_hist(_rt, mk1)}
+                s_r = r                         # restore for the next iteration
         out_dates.setdefault(str(r.get("date") or "")[:10], []).append(rec)
     dates = sorted(out_dates.keys(), reverse=True)[:limit_dates]
     return {"settled_total": int(len(s)),
@@ -1176,7 +1290,7 @@ def get_ab25_record() -> dict:
     # gate a pick by its signal's record on THAT exact (gender, dog/fav) cell -- which drops
     # losing favorite picks and keeps the dog edge. Populated generically in bet().
     study = {k: {"v": [], "p": 0, "vm": [], "vw": [], "vd": [], "vf": [],
-                 "vmd": [], "vmf": [], "vwd": [], "vwf": []} for k in
+                 "vmd": [], "vmf": [], "vwd": [], "vwf": [], "picks": []} for k in
              ("cvg_c", "cvg_gray", "gray_dog4", "grayhate_dog", "grayhate_fav",
               "abc_agree", "abc_dog", "c_alone_gray", "c_alone_gray_dog",
               "c_alone_gray_fav", "gold_names", "green_names", "all6_agree",
@@ -1268,6 +1382,24 @@ def get_ab25_record() -> dict:
             _gate_hit = set()
 
             def bet(key, side1):
+                if key in _PICK_LANES:
+                    _od9 = r.get("p1_odds") if side1 else r.get("p2_odds")
+                    _ug9 = r.get("ue_set5_diff_p1")
+                    study[key]["picks"].append({
+                        "date": str(r.get("date"))[:10], "league": r.get("league"),
+                        "tournament": r.get("tournament"), "surface": r.get("surface"),
+                        "p1": r.get("player_1"), "p2": r.get("player_2"),
+                        "pick": r.get("player_1") if side1 else r.get("player_2"),
+                        "opp": r.get("player_2") if side1 else r.get("player_1"),
+                        "odds": (None if pd.isna(_od9) else int(_od9)),
+                        # dog's UE/set minus the favourite's (negative = the dog makes fewer)
+                        "ue_gap": (None if (_ug9 is None or pd.isna(_ug9))
+                                   else round(float(_ug9) * (1 if side1 else -1), 2)),
+                        "score": r.get("score"), "settled": bool(settled),
+                        "won": (None if not settled else bool(won1 == side1)),
+                        "pnl": (None if not settled else round(
+                            25.0 * ((d1 if side1 else d2) - 1.0) if (won1 == side1) else -25.0, 2)),
+                    })
                 if settled:
                     dec = d1 if side1 else d2
                     pnl9 = 25.0 * (dec - 1.0) if (won1 == side1) else -25.0
@@ -1967,7 +2099,9 @@ def get_ab25_record() -> dict:
                      "m": agg(d["vm"]), "w": agg(d["vw"]),
                      "dog": agg(d["vd"]), "fav": agg(d["vf"]),
                      "m_dog": agg(d["vmd"]), "m_fav": agg(d["vmf"]),
-                     "w_dog": agg(d["vwd"]), "w_fav": agg(d["vwf"])} for k, d in study.items()}
+                     "w_dog": agg(d["vwd"]), "w_fav": agg(d["vwf"]),
+                     **({"picks": d["picks"]} if d.get("picks") else {})}
+                 for k, d in study.items()}
     # PRICE-BAND Best-pick records (2026-10-05, user: live color-coded legend on the Prices
     # tab). For each settled MEN game: the Best pick (top gated signal) bucketed by its price
     # (dog +100..+250 / chalk −300..−600), plus the ALL-10 split (−200..−300 / −140..−200).
