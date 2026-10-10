@@ -119,7 +119,14 @@ def main():
 
     # our own matches, newest first, grouped by level -- these are the games we actually bet
     L = pd.read_parquet("data_cache/tennis_prediction_log.parquet")
-    L = L[(L["settled"] == True) & L["player_1"].notna()].copy()  # noqa: E712
+    # NOT filtered on settled (bug found by the dry run 2026-10-10): none of our 130 ITF rows
+    # have ever settled, so requiring settled==True silently dropped the one level this probe
+    # exists to test and reported "ITF: 0/0". The matches themselves finished days ago -- it is
+    # our settlement that is missing, not the result -- so they are perfectly valid to query.
+    # Yesterday or earlier only, so the match has actually been played.
+    L = L[L["player_1"].notna()].copy()
+    _cut = (pd.Timestamp.utcnow().tz_localize(None).normalize() - pd.Timedelta(days=1))
+    L = L[pd.to_datetime(L["date"].astype(str).str[:10], errors="coerce") <= _cut]
     L["d"] = L["date"].astype(str).str[:10]
     L = L.sort_values("d", ascending=False)
 
