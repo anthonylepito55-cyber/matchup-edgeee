@@ -52,7 +52,12 @@ def load(force=False):
         parts.append(tot)
     # site pulls newer than GitHub (tennis_ue_refresh.refresh_site) -- same columns
     for _f, _src in ((os.path.join(_DIR, "ta_extra.csv"), "site"),
-                     (os.path.join(_DIR, "manual_ue.csv"), "manual")):
+                     (os.path.join(_DIR, "manual_ue.csv"), "manual"),
+                     # Roland Garros women's singles (2026-10-10, tennis_slam_ue.py): real
+                     # unforced errors from the slam's own pages. Carries errors, winners and
+                     # sets but no point counts, so it is treated like a hand-entered row and
+                     # kept by the same guard rather than dropped by pts >= 40.
+                     (os.path.join(_DIR, "slam_ue.csv"), "manual")):
         if not os.path.exists(_f):
             continue
         X = pd.read_csv(_f, dtype=str, comment="#")
