@@ -206,6 +206,14 @@ def main():
         print("[step 0.9] post-match stats:", (_pm.stdout or _pm.stderr or "").strip().splitlines()[-1:])
     except Exception as e:  # noqa: BLE001
         print(f"[step 0.9] post-match stats failed: {e} -- continuing")
+    # step 0.10 (2026-10-10): settle ITF rows by player name + date from TennisExplorer.
+    # The live path runs this at most every 30 minutes; this guarantees one full sweep a
+    # night so nothing is left pending because the slate happened not to refresh.
+    try:
+        import tennis_itf_settle
+        print("[step 0.10] ITF settlement:", tennis_itf_settle.settle(verbose=False))
+    except Exception as e:  # noqa: BLE001
+        print(f"[step 0.10] ITF settlement failed: {e} -- continuing")
 
     print("=== Step 1: incremental game-log refresh + rebuild training data ===")
     build_training_data.build_full_training_set(SEASONS)

@@ -375,6 +375,26 @@ def settle(max_dates: int = 10):
             changed = True
     if changed:
         _write_log(log)
+    # ITF fallback (2026-10-10): ITF rows carry fixture ids no source can match -- 93 synthetic
+    # hex ids OpticOdds never issued, and 37 "pm_"+slug ids that pm_results() returns no ITF
+    # keys for. All 130 had never settled, so every ITF pick sat permanently pending and absent
+    # from every lane record. tennis_itf_settle matches on player name + date against
+    # TennisExplorer instead. It fetches web pages, so it is rate-limited to once every
+    # ITF_SETTLE_EVERY seconds -- settle() is on the slate path and must not block on it.
+    import time as _t
+    if _t.time() - _ITF_LAST[0] >= ITF_SETTLE_EVERY:
+        _ITF_LAST[0] = _t.time()
+        try:
+            import tennis_itf_settle
+            r9 = tennis_itf_settle.settle(verbose=False)
+            if r9.get("settled"):
+                print(f"[tennis log] ITF settlement: {r9}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[tennis log] ITF settlement failed: {e}")
+
+
+ITF_SETTLE_EVERY = 1800          # seconds between TennisExplorer settlement sweeps
+_ITF_LAST = [0.0]
 
 
 def _decimal(am) -> float | None:
