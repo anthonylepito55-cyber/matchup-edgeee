@@ -194,6 +194,18 @@ def main():
         print("[step 0.8] wrong-court fix:", (_sf.stdout or _sf.stderr or "").strip().splitlines()[-1:])
     except Exception as e:  # noqa: BLE001
         print(f"[step 0.8] wrong-court fix failed: {e} -- continuing")
+    # step 0.9 (2026-10-10): record what actually happened in the matches we logged --
+    # real charted unforced errors where they exist, and double faults / serve line for
+    # everything else. Both sources land days after the match, so this retries nightly
+    # for 35 days. Subprocess: it reads the archive, and this box has OOMed on stacked
+    # footprints. NEVER run it under sudo -- that leaves the log root-owned.
+    try:
+        _pm = subprocess.run([sys.executable, "-W", "ignore", "tennis_postmatch.py"],
+                             cwd=os.path.dirname(os.path.abspath(__file__)),
+                             capture_output=True, text=True, timeout=1800)
+        print("[step 0.9] post-match stats:", (_pm.stdout or _pm.stderr or "").strip().splitlines()[-1:])
+    except Exception as e:  # noqa: BLE001
+        print(f"[step 0.9] post-match stats failed: {e} -- continuing")
 
     print("=== Step 1: incremental game-log refresh + rebuild training data ===")
     build_training_data.build_full_training_set(SEASONS)

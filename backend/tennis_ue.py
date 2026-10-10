@@ -50,18 +50,35 @@ def load(force=False):
         tot["G"] = g.upper()
         parts.append(tot)
     # site pulls newer than GitHub (tennis_ue_refresh.refresh_site) -- same columns
-    _ex = os.path.join(_DIR, "ta_extra.csv")
-    if os.path.exists(_ex):
-        X = pd.read_csv(_ex, dtype=str)
+    for _f, _src in ((os.path.join(_DIR, "ta_extra.csv"), "site"),
+                     (os.path.join(_DIR, "manual_ue.csv"), "manual")):
+        if not os.path.exists(_f):
+            continue
+        X = pd.read_csv(_f, dtype=str, comment="#")
+        X = X[X.get("player").notna()] if "player" in X.columns else X
+        if X.empty:
+            continue
         for c in ("serve_pts", "return_pts", "unforced", "unforced_fh", "unforced_bh", "winners", "sets"):
+            if c not in X.columns:
+                X[c] = None
             X[c] = pd.to_numeric(X[c], errors="coerce")
         X["date"] = pd.to_datetime(X["Date"], format="%Y%m%d", errors="coerce")
-        X["Surface"] = None
+        if "Surface" not in X.columns:
+            X["Surface"] = None
+        X["src"] = _src
         parts.append(X)
     D = pd.concat(parts, ignore_index=True)
     D = D.drop_duplicates(["match_id", "player"], keep="first")
     D["pts"] = D.serve_pts + D.return_pts
-    D = D[(D.pts >= 40) & D.unforced.notna() & D.date.notna()].copy()
+    if "src" not in D.columns:
+        D["src"] = "mcp"
+    D["src"] = D["src"].fillna("mcp")
+    # MANUALLY ENTERED rows (2026-10-10, user asked about going game by game): a hand-typed
+    # row realistically carries unforced errors and sets but not the point counts, and the
+    # pts >= 40 guard would silently drop it. Keep those -- ue_set still computes; ue_100 and
+    # the per-100-point metrics are simply absent for them.
+    _keep_manual = (D["src"] == "manual") & D.unforced.notna() & D.sets.notna()
+    D = D[((D.pts >= 40) | _keep_manual) & D.unforced.notna() & D.date.notna()].copy()
     D["sets"] = D["sets"].fillna(2).clip(lower=1)
     D["key"] = D.player.map(norm)
     D["okey"] = D.opp.map(norm)

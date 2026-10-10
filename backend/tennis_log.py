@@ -43,7 +43,16 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # played in the prior 7 days, counted from THIS log's own settled rows at log
            # time (the archive lags ~10d; our log is live). Lower-bound counts (we only
            # see games we track) — the lane fires less, never falsely. Drives fav_value.
-           "p1_m7", "p1_sets7", "p2_m7", "p2_sets7"]
+           "p1_m7", "p1_sets7", "p2_m7", "p2_sets7",
+           # POST-MATCH STATS (2026-10-10, user "How do we start logging unforced errors a
+           # game"). Filled after the fact by tennis_postmatch.backfill, retried nightly
+           # because both sources arrive days later. ue_*/win_* are REAL charted unforced
+           # errors + winners from the Match Charting Project (small reach, ~2% of our games
+           # and always will be -- charting is volunteer work). df_*/sgames_*/aces_* come from
+           # the TennisRatio archive and reach ~100% of matches including ITF, about 10 days
+           # late; a double fault is the one unforced error recorded for every match played.
+           "ue_p1", "ue_p2", "ue_fh_p1", "ue_fh_p2", "win_p1", "win_p2", "ue_sets",
+           "df_p1", "df_p2", "sgames_p1", "sgames_p2", "aces_p1", "aces_p2", "pm_src"]
 
 
 def _read_log() -> pd.DataFrame:

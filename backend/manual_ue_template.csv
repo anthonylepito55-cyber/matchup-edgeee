@@ -1,0 +1,15 @@
+# HAND-ENTERED UNFORCED ERRORS. One row PER PLAYER PER MATCH -- so a match needs TWO rows,
+# one for each player, with player/opp swapped. tennis_ue.load() merges this file and
+# _ue_manual_check.py validates it. Only these columns matter:
+#   match_id  any unique id you like, e.g. 20261010-samsun-aksu-crawley (same on both rows)
+#   player    the player this row's numbers belong to, as the board spells them
+#   opp       the other player
+#   Date      YYYYMMDD
+#   Tournament  free text (optional)
+#   G         M or W
+#   sets      sets played in the match
+#   unforced  that player's unforced errors in the match
+# Optional, improves the profile if you have them: winners, unforced_fh, unforced_bh,
+# serve_pts, return_pts. Leave blank rather than guessing -- a blank is handled, a wrong
+# number is not. Five matches per player is the minimum for a profile.
+match_id,player,opp,Date,Tournament,G,sets,unforced,winners,unforced_fh,unforced_bh,serve_pts,return_pts
