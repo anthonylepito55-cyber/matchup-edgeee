@@ -51,13 +51,22 @@ def load(force=False):
         tot = tot.merge(_detail(g, mt), on=["match_id", "player"], how="left")
         parts.append(tot)
     # site pulls newer than GitHub (tennis_ue_refresh.refresh_site) -- same columns
-    for _f, _src in ((os.path.join(_DIR, "ta_extra.csv"), "site"),
-                     (os.path.join(_DIR, "manual_ue.csv"), "manual"),
-                     # Roland Garros women's singles (2026-10-10, tennis_slam_ue.py): real
-                     # unforced errors from the slam's own pages. Carries errors, winners and
-                     # sets but no point counts, so it is treated like a hand-entered row and
-                     # kept by the same guard rather than dropped by pts >= 40.
-                     (os.path.join(_DIR, "slam_ue.csv"), "manual")):
+    for _f, _src in ([(os.path.join(_DIR, "ta_extra.csv"), "site"),
+                      (os.path.join(_DIR, "manual_ue.csv"), "manual"),
+                     # Roland Garros women's singles (2026-10-10, tennis_slam_ue.py) --
+                     # OFF BY DEFAULT, and it must stay off. The data is real (380 matches,
+                     # parsed cleanly) but Roland Garros is CLAY and ue_set_5 is surface-
+                     # agnostic, so clay rows drag a player's profile toward her clay error
+                     # rate and it is then applied to her hard-court matches. Measured:
+                     # RG averages 12.65 errors/set against 10.96 across the charting
+                     # project, a +1.69 shift -- 75% of the whole 2.264/set gap the gate
+                     # requires. So merging it can MANUFACTURE a qualifying gap out of nothing
+                     # but surface mix. Proof it hurts (_slam_ue_split.py): matches gradeable
+                     # before the merge +8.4% (n=357), matches gradeable only after it
+                     # -9.6% (n=70), and the new 2026 rows -49.5% (n=29).
+                     # Re-enable only behind a SURFACE-MATCHED metric, never ue_set_5.
+                     ] + ([(os.path.join(_DIR, "slam_ue.csv"), "manual")]
+                          if os.environ.get("UE_INCLUDE_SLAM") == "1" else [])):
         if not os.path.exists(_f):
             continue
         X = pd.read_csv(_f, dtype=str, comment="#")
