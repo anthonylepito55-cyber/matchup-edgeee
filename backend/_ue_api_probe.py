@@ -40,7 +40,25 @@ import urllib.request
 import pandas as pd
 
 HOST = "tennis-api-atp-wta-itf.p.rapidapi.com"
-KEY = os.environ.get("RAPIDAPI_KEY", "").strip()
+def _key():
+    """From the environment, else from backend/.rapidapi_key (gitignored).
+
+    The file exists so the key never has to be pasted into a chat or a command line: write it
+    there once, chmod 600, and this reads it at run time. The value is only ever sent as a
+    request header -- it is never printed, logged or written anywhere else.
+    """
+    k = os.environ.get("RAPIDAPI_KEY", "").strip()
+    if k:
+        return k
+    f = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".rapidapi_key")
+    try:
+        with open(f, encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+KEY = _key()
 BUDGET = int(os.environ.get("RAPIDAPI_BUDGET", "45"))      # stay inside the free 50/day
 PER_LEVEL = int(os.environ.get("RAPIDAPI_PER_LEVEL", "6"))
 used = 0
@@ -91,10 +109,12 @@ def find_ue(obj, trail=""):
 
 def main():
     if not KEY:
-        print("RAPIDAPI_KEY is not set.\n"
-              "Subscribe to the FREE tier of 'Tennis API ATP WTA ITF' on RapidAPI, then:\n"
-              "    export RAPIDAPI_KEY=your_key_here\n"
-              "and run this again. Nothing is stored; the key is only sent as a header.")
+        print("No key found.\n"
+              "Subscribe to the FREE tier of 'Tennis API ATP WTA ITF' on RapidAPI -- 50 requests\n"
+              "a day, same payload as PRO -- then put the key in a file this reads at run time:\n"
+              "    printf '%s' 'YOUR_KEY' > backend/.rapidapi_key && chmod 600 backend/.rapidapi_key\n"
+              "(or export RAPIDAPI_KEY in your shell). The file is gitignored. The key is only\n"
+              "ever sent as a request header -- never printed, logged or committed.")
         return
 
     # our own matches, newest first, grouped by level -- these are the games we actually bet

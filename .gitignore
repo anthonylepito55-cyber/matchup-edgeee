@@ -11,3 +11,7 @@ __pycache__/
 # scratch logs/output from ad-hoc runs at repo root, not part of the app
 *.log
 h_today.json
+
+# RapidAPI key for the tennis stats probe -- never commit a credential
+.rapidapi_key
+backend/.rapidapi_key
