@@ -1,88 +1,80 @@
-"""DOES AN ESTIMATED UE CARRY THE EDGE? (2026-10-09, user "anyway to get an unforced errors
-number for every single game?")
+"""STAGE 2: DOES AN ESTIMATED UE CARRY THE EDGE? (2026-10-09, user "anyway to get an unforced
+errors number for every single game?")
 
 _ue_proxy_build.py showed the stat line predicts UE/set to MAE 2.4 (vs 3.2 for guessing the
-mean, R^2 ~.40) and ranks the two players' error rates correctly 69.7% of the time, 78.3% when
-the estimated gap is big. That is the easy half. This is the half that decides whether an
-estimated UE is worth putting on a card:
-
-build an as-of ESTIMATED-UE profile for every player in the archive (mean predicted UE/set over
-their previous 5 matches), then re-run the women's LOW-ERROR DOG gate on the FULL universe --
-every priced match, not just the charted few percent -- and compare with the real-UE result
+mean, R^2 ~.40) and names the lower-error player correctly 69.7% of the time, 78.3% when the
+estimated gap is big. This decides whether it belongs on a card: re-run the women's LOW-ERROR
+DOG gate on the FULL universe -- every priced match, not just the hand-charted few percent --
+using the as-of estimated-UE profiles from _ue_proxy_profiles.py, against the real-UE result
 (+11.1%, n=361, positive 2024/25/26).
 
-Guards:
-  * the proxy is refit on charted matches BEFORE 2024, so nothing in the 2024-26 test years
-    trained it;
-  * closing odds, true gender, one row per match (the two defects fixed 2026-10-08);
-  * a player needs 5 prior matches with a usable stat line to get a profile.
-
-Known bias, reported either way: the charted training set is ~92% tour-level, so predictions on
-futures are an extrapolation -- which is why the backtest is also split by level.
+WHY THIS DOESN'T exec _tennis_model_c_build.py LIKE THE OTHER STUDIES: that prep builds the
+whole Model C feature set (52-week rolling windows, season blocks, H2H cumulations) and needs
+more memory than this box has free -- it was OOM-killed twice at the H2H stage (exit 137,
+2026-10-10). All this study needs is the prep's UNIVERSE, so the universe definition is
+reproduced here from the same source columns and nothing else:
+    won  = result == "Win"                         (_tennis_model_c_build.py line 30)
+    two-sided: the rival's own row must exist       (line 130, the mirror inner-join)
+    one row per match: player_slug < rival_slugname (line 131)
+    mkt  = (1/player_odd) / (1/player_odd + 1/rival_odd), both odds > 1.005  (lines 133-135)
+Keeping that identical is what makes these numbers comparable with the real-UE backtest, which
+ran off the same universe. Note it keeps the lexicographically-first player as "player", so
+filtering mkt < 0.5 selects the ~half of matches where that player is the dog -- exactly as the
+real-UE backtest did, and independent of who is favoured.
 """
 import sys
 
-import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingRegressor
 
 import tennis_ue as U
-import tennis_ue_proxy as P
 
 GAP = 2.264        # the women's median real-UE gap the live lane uses
+KEEP = ["date", "player_slug", "rival_slugname", "player_odd", "rival_odd", "result",
+        "surface", "tournament_level"]
 
-print("loading archive…", flush=True)
-A = P.prep(pd.read_parquet("data_cache/tennisratio/all_match_logs.parquet"))
+prof = pd.read_parquet("data_cache/_ue_hat_profiles.parquet").set_index(["d", "key"])["ue_hat5"]
+print(f"as-of estimated-UE profiles loaded: {len(prof)} player-dates", flush=True)
+
+df = pd.read_parquet("data_cache/tennisratio/all_match_logs.parquet", columns=KEEP)
+df["date"] = pd.to_datetime(df["date"])
+df["won"] = (df["result"] == "Win").astype(int)
+for c in ("player_odd", "rival_odd"):
+    df[c] = pd.to_numeric(df[c], errors="coerce")
+df["rival_slugname"] = df["rival_slugname"].astype(str)
+# two-sided: the rival must have their own row for this match (the prep's mirror inner-join)
+side = df[["player_slug", "rival_slugname", "date"]].copy()
+side["_m"] = 1
+mirror = side.rename(columns={"player_slug": "rival_slugname", "rival_slugname": "player_slug"})
+df = df.merge(mirror, on=["player_slug", "rival_slugname", "date"], how="inner")
+del side, mirror
+m = df[df["player_slug"].astype(str) < df["rival_slugname"]].copy()
+m = m.drop_duplicates(["player_slug", "rival_slugname", "date"]).reset_index(drop=True)
+del df
+ip1 = 1 / m["player_odd"].where(m["player_odd"] > 1.005)
+ip2 = 1 / m["rival_odd"].where(m["rival_odd"] > 1.005)
+m["mkt"] = ip1 / (ip1 + ip2)
+print(f"two-sided, one row per match: {len(m)}", flush=True)
+
 GM = pd.read_parquet("data_cache/_slug_gender.parquet")["g"].to_dict()
-A["G"] = A["player_slug"].astype(str).map(GM)
-
-# ---- refit the proxy on charted matches BEFORE 2024 ------------------------------------
-J = P.charted_truth(A)
-J = J[J["d"] < "2024-01-01"]
-mdl = HistGradientBoostingRegressor(max_iter=400, learning_rate=0.06, random_state=0)
-mdl.fit(P.build_feats(J, J["is_w"].values), J["ue_set"].values)
-print(f"proxy refit on {len(J)} pre-2024 charted player-matches")
-
-# ---- predict UE/set for EVERY archive row ----------------------------------------------
-XA = P.build_feats(A, (A["G"] == "W").astype(float).values)
-ok = XA.notna().sum(axis=1) >= 18
-A["ue_hat"] = np.nan
-A.loc[ok, "ue_hat"] = mdl.predict(XA[ok])
-print(f"estimated UE on {int(ok.sum())} of {len(A)} archive player-matches ({100 * ok.mean():.1f}%)")
-cov = A.groupby("lvl")["ue_hat"].apply(lambda s: s.notna().mean())
-print("  coverage by level: " + ", ".join(f"{k} {100 * v:.0f}%" for k, v in cov.items()))
-
-# ---- as-of profile: mean estimated UE/set over the previous 5 matches -------------------
-A = A.sort_values(["player_slug", "d"], kind="stable")
-sh = A.groupby("player_slug", sort=False)["ue_hat"].shift(1)
-A["ue_hat5"] = sh.groupby(A["player_slug"]).rolling(5, min_periods=5).mean() \
-    .reset_index(level=0, drop=True)
-prof = A.dropna(subset=["ue_hat5"]).set_index(["d", "key"])["ue_hat5"]
-prof = prof[~prof.index.duplicated()]
-print(f"as-of estimated-UE profiles: {len(prof)} player-dates")
-
-# ---- the betting universe (same construction as the real-UE backtest) ------------------
-ns = {}
-src = open("_tennis_model_c_build.py", encoding="utf-8").read()
-exec(compile(src.split("from sklearn.linear_model")[0], "_c_prep", "exec"), ns)
-m = ns["m"]
 B = m[(m.date.dt.year >= 2024) & m.mkt.notna() & (m.mkt < 0.5)
       & (m.player_odd > 1) & (m.rival_odd > 1)].copy()
+del m
 B["G"] = B.player_slug.astype(str).map(GM)
-B = B[B.G.isin(["M", "W"])].drop_duplicates(["date", "player_slug", "rival_slugname"])
+B = B[B.G.isin(["M", "W"])]
 B["k"] = B.player_slug.astype(str).map(U.norm)
 B["ok"] = B.rival_slugname.astype(str).map(U.norm)
 B["dn"] = B.date.dt.normalize()
 B["ue_dog"] = [prof.get((d, k), np.nan) for d, k in zip(B.dn, B.k)]
 B["ue_fav"] = [prof.get((d, k), np.nan) for d, k in zip(B.dn, B.ok)]
 B["dam"] = (B.player_odd - 1) * 100
-B["lv"] = B["tournament_level"].astype(str).str.lower() if "tournament_level" in B.columns else "?"
+B["lv"] = B["tournament_level"].astype(str).str.lower()
 S = B.dropna(subset=["ue_dog", "ue_fav"]).copy()
 S["gap"] = S.ue_fav - S.ue_dog          # + = the DOG is estimated to make fewer errors
-print(f"\npriced 2024-26 dog rows with an estimated UE for BOTH players: {len(S)} "
-      f"(men {int((S.G == 'M').sum())}, women {int((S.G == 'W').sum())})")
-print("  for contrast, the REAL-UE backtest could only use rows where both players were charted")
+print(f"\n2024-26 dog rows: {len(B)} | with an estimated UE for BOTH players: {len(S)} "
+      f"({100 * len(S) / len(B):.0f}%; men {int((S.G == 'M').sum())}, women {int((S.G == 'W').sum())})",
+      flush=True)
+print("  the REAL-UE backtest could only use rows where both players were hand-charted")
 
 
 def rep(s):
@@ -104,8 +96,8 @@ for lo, hi, lab in ((GAP, 99, f">= {GAP}"), (1.0, GAP, "1.0-2.26"),
 print("  by year (gap >= 2.26):")
 for Y in (2024, 2025, 2026):
     print(f"    {Y}: {rep(W[(W.gap >= GAP) & (W.date.dt.year == Y)])}")
-print("  by level (gap >= 2.26):")
 WG = W[W.gap >= GAP]
+print("  by level (gap >= 2.26):")
 for lv, g in WG.groupby(WG.lv):
     print(f"    {lv:14s}: {rep(g)}")
 
@@ -125,8 +117,5 @@ for G, lab in (("W", "women"), ("M", "men")):
     print(f"  {lab} dogs by estimated-gap quintile (Q1 = dog makes MORE errors):")
     for q, g in T.groupby("q"):
         print(f"    Q{int(q) + 1}: {rep(g)}")
-joblib.dump({"model": mdl, "gap": GAP, "feats": P.FEATS,
-             "note": "UE/set from the archive stat line; pre-2024 charted fit; as-of 5-match profile"},
-            "model_artifacts/tennis_ue_proxy.joblib")
-print("\nsaved model_artifacts/tennis_ue_proxy.joblib")
+print("\nDONE")
 sys.stdout.flush()
