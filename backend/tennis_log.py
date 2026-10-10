@@ -2129,12 +2129,26 @@ def get_ab25_record() -> dict:
                 _dd9 = d1 if dog1 else d2
                 if 2.0 <= _dd9 <= 3.5 and (float(_rp9) if dog1 else -float(_rp9)) >= 4.5567:
                     bet("returner_dog_w", dog1)
-            # 🧤 LOW-ERROR DOG (W) (2026-10-09, user "do it"): women, dog +100..+250 whose
-            # unforced errors per set (last 5 charted matches) are >= 2.26 lower than the
-            # favourite's (the women's median gap). Backtest 2024-26 +11.1% (n=361);
-            # 2024 +4.5 / 2025 +14.1 / 2026 +13.0. Charted (top-level) players only.
+            # 🧤 LOW-ERROR DOG (W) (2026-10-09, user "do it"; NON-CLAY from 2026-10-10,
+            # user "yes"): women, dog +100..+250 whose unforced errors per set (last 5 charted
+            # matches) are >= 2.26 lower than the favourite's (the women's median gap), on any
+            # court EXCEPT clay. Charted (top-level) players only.
+            #
+            # The surface split (_ue_surface_split.py) is why clay is out. The gate was shipped
+            # on a blended +11.1% (n=361), but by court:
+            #     hard  +16.9% (n=199)  2024 +15.9 / 2025 +19.8 / 2026 +13.5  -- every year
+            #     grass +22.2% (n=59)
+            #     clay  -16.6% (n=72)   2024 -13.2 / 2025 +5.1 / 2026 -37.7
+            # against ungated baselines of -0.5% hard, +5.9% grass, -1.0% clay. So the gate
+            # ADDS ~17pt on hard and grass and SUBTRACTS ~16pt on clay -- it was not a weaker
+            # edge there, it was an inverted one. Dropping clay leaves 258 bets at roughly
+            # +18% instead of 330 at +10.5%. Likely mechanism: clay rallies are longer, so
+            # error counts inflate for both players and the GAP carries less information --
+            # the same effect measured as a +1.69 errors/set clay shift when the Roland Garros
+            # data was tested.
             _ue9 = r.get("ue_set5_diff_p1")
-            if _isw and _ue9 is not None and pd.notna(_ue9):
+            _sf9 = str(r.get("surface") or "").strip().title()
+            if _isw and _ue9 is not None and pd.notna(_ue9) and _sf9 != "Clay":
                 _dd7 = d1 if dog1 else d2
                 _dgap7 = (-float(_ue9)) if dog1 else float(_ue9)     # fav UE/set - dog UE/set
                 if 2.0 <= _dd7 <= 3.5 and _dgap7 >= 2.264:

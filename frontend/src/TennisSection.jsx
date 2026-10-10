@@ -2670,11 +2670,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // errors per set over the last 5 charted matches (Tennis Abstract) are >= 2.26 lower
     // than the favourite's. Backtest 2024-26 +11.1% (n=361); 2024 +4.5 / 2025 +14.1 /
     // 2026 +13.0. Charted players only. Lane lowerr_dog_w.
+    // NON-CLAY from 2026-10-10 (user "yes"): the surface split showed the gate ADDS ~17pt on
+    // hard (+16.9%, n=199, positive 2024/25/26) and grass (+22.2%, n=59) but SUBTRACTS ~16pt on
+    // clay (−16.6%, n=72) against a −1.0% clay baseline — an inverted edge, not a weaker one.
+    // Must stay in lockstep with the lowerr_dog_w gate in tennis_log.py.
     const ueA = match.ue && match.ue.p1, ueB = match.ue && match.ue.p2
-    if (isW && ueA && ueB && ueA.ue_set_5 != null && ueB.ue_set_5 != null && !isNaN(odDog) && odDog >= 100 && odDog <= 250) {
+    const ueNotClay = String(match.surface || '').trim().toLowerCase() !== 'clay'
+    if (isW && ueNotClay && ueA && ueB && ueA.ue_set_5 != null && ueB.ue_set_5 != null && !isNaN(odDog) && odDog >= 100 && odDog <= 250) {
       const uDog = dog1 ? ueA.ue_set_5 : ueB.ue_set_5, uFav = dog1 ? ueB.ue_set_5 : ueA.ue_set_5
       if (uFav - uDog >= 2.264) out.push({ n: '🧤 LOW-ERROR DOG (W)', who: nmDog, od: odDog, lane: 'lowerr_dog_w', g: 'w',
-        bt: 'bt 2024-26 +11.1% (n=361) · 2024 +4.5% · 2025 +14.1% · 2026 +13.0% · Tennis Abstract charting',
+        bt: 'bt NON-CLAY: hard +16.9% (n=199) 2024 +15.9 / 2025 +19.8 / 2026 +13.5 · grass +22.2% (n=59) · CLAY EXCLUDED, it lost −16.6% (n=72) · Tennis Abstract charting',
         rule: `${Math.round(uDog * 10) / 10} UEs/set vs ${Math.round(uFav * 10) / 10} (last 5 charted)` })
     }
     // MC2 DOG (2026-10-09, user "mark the games mc2 is on the dog"): MC2 picks the
