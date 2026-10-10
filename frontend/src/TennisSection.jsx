@@ -1487,6 +1487,57 @@ function ModelPStrip({ matches }) {
   )
 }
 
+// One lane's picks as a table (2026-10-10): date, who, price, result, P/L and a running total.
+// Used for every women's stat-dog lane so the board's marks can be read back game by game
+// rather than only as an aggregate.
+function LaneTable({ lane, label, note, fmt }) {
+  const rec = lane.w || lane
+  const asc = (lane.picks || []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  let run = 0
+  const rows = asc.map(p => { if (p.settled && p.pnl != null) run += p.pnl; return { ...p, run } }).reverse()
+  const n = rec.n || 0
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: '#f0b072' }}>
+        {label}{' '}
+        <span style={{ fontWeight: 400, color: n ? ((rec.roi_pct || 0) > 0 ? '#3fb950' : '#f85149') : 'var(--text-tertiary)' }}>
+          {n ? `${rec.wins}-${n - (rec.wins || 0)} · ${fmt(rec.roi_pct)}% · $${fmt(rec.profit_usd)}` : 'no settles yet'}
+        </span>
+        {lane.pending ? <span style={{ fontWeight: 400, color: '#e3b341' }}> · {lane.pending} pending</span> : null}
+      </div>
+      <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginBottom: 5 }}>{note}</div>
+      {!rows.length ? (
+        <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>No picks logged yet.</div>
+      ) : (
+        <table className="mono" style={{ borderCollapse: 'collapse', fontSize: 10, width: '100%', maxWidth: 1000 }}>
+          <thead>
+            <tr style={{ color: 'var(--text-tertiary)', textAlign: 'left' }}>
+              {['date', 'event', 'take', 'price', 'result', 'P/L', 'running'].map(h => (
+                <th key={h} style={{ padding: '3px 8px', borderBottom: '1px solid var(--border)', fontWeight: 600, fontSize: 8.5, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--border)', opacity: r.settled ? 1 : 0.62 }}>
+                <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>{r.date}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--text-secondary)' }}>{r.tournament}{r.surface ? ` · ${r.surface}` : ''}</td>
+                <td style={{ padding: '4px 8px', fontWeight: 700, color: 'var(--text-primary)' }}>{r.pick}<span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> vs {(r.opp || '').split(' ').slice(-1)[0]}</span></td>
+                <td style={{ padding: '4px 8px' }}>{r.odds > 0 ? '+' : ''}{r.odds}</td>
+                <td style={{ padding: '4px 8px', fontWeight: 700, color: !r.settled ? '#e3b341' : r.won ? '#3fb950' : '#f85149' }}>
+                  {!r.settled ? 'pending' : r.won ? 'WON' : 'lost'}{r.score ? <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> {r.score}</span> : null}
+                </td>
+                <td style={{ padding: '4px 8px', color: r.pnl == null ? 'var(--text-tertiary)' : r.pnl > 0 ? '#3fb950' : '#f85149' }}>{r.pnl == null ? '—' : `$${fmt(r.pnl)}`}</td>
+                <td style={{ padding: '4px 8px', fontWeight: 700, color: r.run > 0 ? '#3fb950' : r.run < 0 ? '#f85149' : 'var(--text-tertiary)' }}>{r.settled ? `$${fmt(r.run)}` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 // 🧤 LOW-ERROR DOG RECORD (2026-10-09, user "keep a live record of low error dogs"): the
 // pick-by-pick forward record of the women's unforced-error dog lane, straight from the frozen
 // log via tennis_log's _PICK_LANES. Backtest 2024-26 +11.1% (n=361), positive every year, but
@@ -1494,8 +1545,9 @@ function ModelPStrip({ matches }) {
 function UeDogPanel({ laneRec }) {
   const study = (laneRec && laneRec.study) || {}
   const OTHERS = [
-    ['allround_dog_w', '🎾 ALL-ROUND DOG', 'women +100..+250 dog better on BOTH serve and return'],
-    ['returner_dog_w', '🎾 RETURNER DOG', 'women +100..+250 dog with the big return edge (superseded by ALL-ROUND)'],
+    ['allround_dog_w', '🎾 ALL-ROUND DOG · T1', 'TAKE · women +100..+250 dog better than the favourite on BOTH serve-pressure and return-pressure points · bt +10.2% (n=829)'],
+    ['allround_dog_w_big', '🎾 ALL-ROUND DOG · T2', 'TAKE · the same, with both gaps above the median (3.08 / 3.11) · bt +27.5% (n=199)'],
+    ['returner_dog_w', '🎾 RETURNER-ONLY DOG', 'WATCH ONLY · big return edge but NOT the better clutch server — the half ALL-ROUND excludes, which backtested −10%'],
   ]
   const o = study.lowerr_dog_w || {}
   const rec = o.w || o
@@ -1556,19 +1608,14 @@ function UeDogPanel({ laneRec }) {
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 10 }}>
         {nSet} settled · {nPend} pending · checkpoint at 50 settles, when the lane either confirms the backtest or gets dropped.
       </div>
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 18, lineHeight: 1.7 }}>
-        <div style={{ fontSize: 9, color: 'var(--text-tertiary)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>the other women's stat-dog lanes</div>
-        {OTHERS.map(([k, label, note]) => {
-          const x = study[k] || {}
-          const xr = x.w || x
-          return (
-            <div key={k}>
-              {label} — {(xr.n || 0) ? <b style={{ color: (xr.roi_pct || 0) > 0 ? '#3fb950' : '#f85149' }}>{xr.wins}-{(xr.n || 0) - (xr.wins || 0)} {fmt(xr.roi_pct)}%</b> : <span>no settles yet</span>}
-              {x.pending ? ` · ${x.pending} pending` : ''} <span style={{ color: 'var(--text-tertiary)' }}>· {note}</span>
-            </div>
-          )
-        })}
-      </div>
+      {/* THE OTHER STAT-DOG LANES, PICK BY PICK (2026-10-10, user "i want see who falls under
+          that category every day not just the numbers"). Same table as LOW-ERROR above -- these
+          lanes are in tennis_log._PICK_LANES so each remembers who, at what price, and how it
+          finished. ALL-ROUND is a TAKE cell on the cards; RETURNER-ONLY is watch-only, because
+          the games it adds beyond ALL-ROUND are the subset that backtested at -10%. */}
+      {OTHERS.map(([k, label, note]) => (
+        <LaneTable key={k} lane={study[k] || {}} label={label} note={note} fmt={fmt} />
+      ))}
       <div className="mono" style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 14 }}>
         Unforced-error data: Tennis Abstract Match Charting Project (CC BY-NC-SA — non-commercial use).
       </div>
