@@ -10,6 +10,7 @@ import json
 import os
 from datetime import datetime, timezone
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -25,7 +26,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
            "model_cnohb_p1", "model_capi_p1",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
-           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "ue_set5_diff_p1", "score",
+           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "inplay_suspect", "ue_set5_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -249,6 +250,39 @@ def log_predictions(matches: list, date: str):
             new.loc[_m, "open_p1_odds"] = _ix.map(_o["open_p1_odds"]).values
             new.loc[_m, "open_p2_odds"] = _ix.map(_o["open_p2_odds"]).values
             new.loc[_m, "open_at"] = _ix.map(_o["open_at"]).values
+    # IN-PLAY CAPTURE GUARD (2026-10-11, user: "itf lines are moving mid game i mean odds").
+    #
+    # The status guard above refuses any fixture the feed calls non-"unplayed", but it trusts
+    # the feed's clock -- and on ITF the clock is wrong often enough to matter: courts run
+    # early, qualifying slates carry nominal start times, so a match can be underway while the
+    # slate still says unplayed. The audit found it: ITF's 99th-percentile move from its own
+    # opening price is 33pp against 7-10pp for tour and challenger, including
+    # -102 -> -1223 (+42pp) and +105 -> -290 (+26pp). A pre-match line does not travel 42
+    # points; that is a price taken after someone won a set.
+    #
+    # A time-based rule cannot catch it, because the scheduled time itself is what is wrong. So
+    # the test is the MOVE: a frozen price more than DRIFT_MAX_PP from its own opener is treated
+    # as in-play contamination. Row is KEPT and flagged (same treatment as surface_bad) rather
+    # than dropped, so it stays visible and auditable.
+    #
+    # Only works where an opener exists (255 of 1546 rows today), so this is a partial guard --
+    # it catches the extreme cases, not every one.
+    DRIFT_MAX_PP = 20.0
+    try:
+        def _ip(a):
+            a = pd.to_numeric(a, errors="coerce")
+            return np.where(a > 0, 100.0 / (a + 100.0), -a / (-a + 100.0))
+        _hasopen = new["open_p1_odds"].notna() & new["p1_odds"].notna()
+        if _hasopen.any():
+            _d = 100.0 * (_ip(new.loc[_hasopen, "p1_odds"])
+                          - _ip(new.loc[_hasopen, "open_p1_odds"]))
+            new["inplay_suspect"] = False
+            new.loc[_hasopen, "inplay_suspect"] = np.abs(_d) > DRIFT_MAX_PP
+        else:
+            new["inplay_suspect"] = False
+    except Exception as _e:
+        print(f"[tennis log] in-play guard skipped: {_e}")
+        new["inplay_suspect"] = False
     if log.empty:
         _write_log(new)
         return
@@ -1478,6 +1512,11 @@ def get_ab25_record() -> dict:
             # pick; excluded from every live lane (row kept, flagged surface_bad).
             _sb9 = r.get("surface_bad")
             if _sb9 is not None and not pd.isna(_sb9) and bool(_sb9):
+                continue
+            # in-play-contaminated price (2026-10-11): the frozen number is not a closing line,
+            # so the pick it implies was never on offer pre-match. Same treatment as surface_bad.
+            _ip9 = r.get("inplay_suspect")
+            if _ip9 is not None and not pd.isna(_ip9) and bool(_ip9):
                 continue
             # BLUE GATES (2026-10-09, lockstep with TennisSection tier1Blue): from 10-09
             # forward, a coin-flip C (C < 52% on the dog) no longer counts for
