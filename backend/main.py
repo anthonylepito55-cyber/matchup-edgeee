@@ -2117,6 +2117,17 @@ def _compute_tennis_today_inner(date: str = None):
             # mostly in challengers/futures -- likely the stale-soft-price mechanism, unproven
             # vs sharp closes. The c_edge25 forward lane is the judge.
             mc = _tma.predict_c(r["player_1"], r["player_2"], r.get("surface"), market_p1=_mk1)
+            # TRACKED C VARIANTS (2026-10-10): logged and scored, never shown as a mark. The
+            # ablation found C loses nothing without the game-count features; the live lanes
+            # c_nohb_dog / c_api_dog decide whether that holds outside the backtest.
+            for _vt in ("nohb", "api"):
+                try:
+                    _vc = _tma.predict_c(r["player_1"], r["player_2"], r.get("surface"),
+                                         market_p1=_mk1, variant=_vt)
+                except Exception:  # noqa: BLE001
+                    _vc = None
+                if _vc is not None and mc is not None:
+                    mc[f"p1_prob_{_vt}"] = _vc.get("p1_prob")
             if mc and _mk1 is not None:
                 mc["market_p1"] = _mk1
                 mc["edge_p1"] = round(mc["p1_prob"] - _mk1, 4)

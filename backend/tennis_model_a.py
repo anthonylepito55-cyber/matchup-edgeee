@@ -40,6 +40,25 @@ ARTIFACT_C = os.path.join(_here, "model_artifacts", "tennis_model_c.joblib")
 # honest forecaster (AUC .65-.68) but market-beaten; its D+gray-dog cell decayed
 # +12.4 -> +7.4 -> +1.0 by year. DISPLAY-ONLY like A and B.
 ARTIFACT_D = os.path.join(_here, "model_artifacts", "tennis_model_d.joblib")
+# MODEL C TRACKING VARIANTS (2026-10-10): strict subsets of C's feature list, scored through
+# predict_c's existing path because it builds every feature and then selects mdl["features"].
+# Cached separately from _load() so the main artifact's invalidation logic is untouched.
+ARTIFACT_C_VAR = {
+    "nohb": os.path.join(_here, "model_artifacts", "tennis_model_c_nohb.joblib"),
+    "api": os.path.join(_here, "model_artifacts", "tennis_model_c_api.joblib"),
+}
+_c_var_cache = {}
+
+
+def c_variant(tag):
+    """The variant artifact, reloaded when the file changes. None if it is not built."""
+    p = ARTIFACT_C_VAR.get(tag)
+    if not p or not os.path.exists(p):
+        return None
+    mt = os.path.getmtime(p)
+    if _c_var_cache.get(tag, (None, None))[0] != mt:
+        _c_var_cache[tag] = (mt, joblib.load(p))
+    return _c_var_cache[tag][1]
 # SURFACE UTR (2026-10-01, user ask): our court-specific UTR-style rating -- games-share
 # performance vs opponent rating, recency-weighted last 30 on surface, no rankings.
 # Validated: AUC .675/.678/.684 by year (improving), the only single stat besides gray-C
@@ -468,7 +487,7 @@ def _band_of(rank):
     return 0 if r <= 50 else (1 if r <= 150 else (2 if r <= 400 else 3))
 
 
-def predict_c(name1, name2, surface, market_p1=None):
+def predict_c(name1, name2, surface, market_p1=None, variant=None):
     """Model C: the full 52w-on-surface profile + season + rank-band matchup + last-10 +
     H2H. See ARTIFACT_C comment for the careful label -- edge shown only vs average odds."""
     c = _load()
@@ -517,7 +536,12 @@ def predict_c(name1, name2, surface, market_p1=None):
     f["f_h2h_n"] = min(n, 20)
     f["f_h2h_share"] = (w1 / n - 0.5) if n else 0.0
     f["f_h2h_s_share"] = ((hs.get(s1, 0) / hs["n"]) - 0.5) if hs.get("n") else 0.0
-    mdl = c["model_c"]
+    # `variant` picks a tracked subset-of-features artifact instead of the shipped one
+    # (2026-10-10). Everything downstream is identical, so the variants are directly
+    # comparable to C on the same game.
+    mdl = c_variant(variant) if variant else c["model_c"]
+    if mdl is None:
+        return None
     X = np.array([[f.get(k, 0.0) for k in mdl["features"]]])
     prob = float(0.5 * (mdl["lr"].predict_proba(X)[0, 1] + mdl["xgb"].predict_proba(X)[0, 1]))
     out = {"p1_prob": round(prob, 4), "p2_prob": round(1 - prob, 4),

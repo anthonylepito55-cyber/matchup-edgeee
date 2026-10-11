@@ -23,6 +23,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
+           "model_cnohb_p1", "model_capi_p1",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
            "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "ue_set5_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
@@ -182,6 +183,9 @@ def log_predictions(matches: list, date: str):
             "model_p_prob": (m.get("model_p") or {}).get("p_dog"),
             "model_p_ev": (m.get("model_p") or {}).get("ev"),
             "model_p_fev": (m.get("model_p") or {}).get("fav_ev"),
+            # tracked C variants (2026-10-10), frozen like every other model output
+            "model_cnohb_p1": (m.get("model_c") or {}).get("p1_prob_nohb"),
+            "model_capi_p1": (m.get("model_c") or {}).get("p1_prob_api"),
             # RETURNER DOG input (2026-10-09): p1 minus p2 return-PRESSURE points won %
             # (52w, surface), from live Model C.
             "c_rp_diff_p1": ((mc.get("pf") or {}).get("d_c_rp")),
@@ -1365,6 +1369,9 @@ def get_ab25_record() -> dict:
               "mc_dog_big", "mc_4of4", "mc_gold", "mc_green", "mc_biggray",
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
+              # tracked Model C variants (2026-10-10): same rule, three feature sets, so the
+              # control c_ship_dog is what makes the other two readable
+              "c_ship_dog", "c_nohb_dog", "c_api_dog",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
               "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_dog_flip", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w", "allround_dog_w", "allround_dog_w_big", "lowerr_dog_w",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
@@ -1475,6 +1482,24 @@ def get_ab25_record() -> dict:
                     study[key][_g + _sd[1]].append(pnl9)      # gender×side: vmd/vmf/vwd/vwf
                 else:
                     study[key]["p"] += 1
+
+            # TRACKED C VARIANTS (2026-10-10, user "Yes" to forward-tracking rather than
+            # shipping on a backtest). Identical rule per lane -- back the market dog when
+            # that flavour of C prefers it -- so the three lanes are comparable game by game.
+            # Backtest 2024-26 dog ROI: ship +14.2%, nohb +15.5%, api +14.6%. WATCH ONLY:
+            # none of these colours a card or changes a pick.
+            # All three lanes are gated on ALL THREE columns being present, so they cover
+            # IDENTICAL games. Without that the control would carry its historical rows
+            # (156 settles) while the variants started at zero, and the numbers would not be
+            # comparable -- which is the whole point of having a control.
+            _vcols = ("model_c_p1", "model_cnohb_p1", "model_capi_p1")
+            if all(r.get(c9) is not None and pd.notna(r.get(c9)) for c9 in _vcols):
+                for _vtag, _vcol in (("c_ship_dog", "model_c_p1"),
+                                     ("c_nohb_dog", "model_cnohb_p1"),
+                                     ("c_api_dog", "model_capi_p1")):
+                    _vside = float(r.get(_vcol)) >= 0.5   # which player this flavour prefers
+                    if _vside == dog1:                    # it prefers the market dog
+                        bet(_vtag, _vside)
 
             if c1 != g1:                       # C vs gray FIGHT (2026 bt: C-side -1.5%)
                 bet("cvg_c", c1)
