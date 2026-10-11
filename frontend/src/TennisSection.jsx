@@ -2050,11 +2050,53 @@ function HistoryPanel({ query, greenOnly = false }) {
                       <span>{(nm || '').split(' ').slice(-1)[0]}: 1stSv {st.sv1 ?? '—'}% · 2ndSv {st.sv2 ?? '—'}% · <b>Hold {st.sgw ?? '—'}%</b> · Ret1 {st.r1 ?? '—'}% · Ret2 {st.r2 ?? '—'}% · <b>Break {st.rgw ?? '—'}%</b> <span style={{ opacity: 0.7 }}>({c.surface_used.toLowerCase()} {st.window}, n={st.n})</span></span>
                     )
                   }
+                  // SHORT WINDOWS ON THE PREVIOUS-DAY TAB (2026-10-11, user: "some games the
+                  // l5 stats aren't working ... on the previous day tab"). This panel has its
+                  // own inline renderer and never used TrContextRow, so the L10/L5 lines added
+                  // to the board card never appeared here. context_asof already returns them
+                  // as surface_l10 / surface_l5 (pre-match cut, no hindsight) -- this renders
+                  // them, one line per window, with the win-rate delta vs the 52w line above.
+                  const shortRow = (tag, label, nominal) => {
+                    const a = (m.card.tr_context.p1 || {})['surface_' + tag]
+                    const b = (m.card.tr_context.p2 || {})['surface_' + tag]
+                    if (!a && !b) return null
+                    const seg = (nm, q, base) => {
+                      if (!q) return <span>{(nm || '').split(' ').slice(-1)[0]}: —</span>
+                      const dw = (base && base.win != null && q.win != null)
+                        ? Math.round((q.win * 100 - base.win * 100) * 10) / 10 : null
+                      const parts = [
+                        q.sv1 != null ? `1stSv ${q.sv1}%` : null,
+                        q.sv2 != null ? `2ndSv ${q.sv2}%` : null,
+                        q.sgw != null ? `Hold ${q.sgw}%` : null,
+                        q.r1 != null ? `Ret1 ${q.r1}%` : null,
+                        q.r2 != null ? `Ret2 ${q.r2}%` : null,
+                        q.rgw != null ? `Break ${q.rgw}%` : null,
+                        `win ${(q.win * 100).toFixed(0)}%`,
+                      ].filter(Boolean).join(' · ')
+                      return (
+                        <span>{(nm || '').split(' ').slice(-1)[0]}: {parts}
+                          {dw != null ? <span style={{ color: dw > 0 ? '#3fb950' : dw < 0 ? '#f85149' : 'inherit' }}>{` (${dw > 0 ? '+' : ''}${dw}pt)`}</span> : null}
+                          {q.n !== nominal ? <span style={{ opacity: 0.7 }}>{` (only ${q.n})`}</span> : null}
+                        </span>
+                      )
+                    }
+                    return (
+                      <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 58, color: 'var(--text-tertiary)', opacity: tag === 'l10' ? 0.85 : 0.75 }}>
+                        {label} {seg(m.p1, a, (m.card.tr_context.p1 || {}).surface_stats)}
+                        <span style={{ opacity: 0.6 }}> | </span>
+                        {seg(m.p2, b, (m.card.tr_context.p2 || {}).surface_stats)}
+                      </div>
+                    )
+                  }
                   return (
+                    <>
                     <div className="mono" style={{ width: '100%', fontSize: 9, marginTop: 1, paddingLeft: 50, color: 'var(--text-tertiary)' }}
-                      title="SERVE / RETURN as it stood before this match: 1st/2nd serve points won, service games held, return points won vs 1st/2nd serve, return games broken -- 52 weeks on this surface (or the last 20 there), using only matches before the match date.">
+                      title="SERVE / RETURN as it stood before this match: 1st/2nd serve points won, service games held, return points won vs 1st/2nd serve, return games broken -- 52 weeks on this surface (or the last 20 there), using only matches before the match date. The two indented lines below are the same stats over the last 10 and last 5 matches on that same surface, each with its win-rate delta against the 52-week figure.">
                       🎾 {one(m.p1, m.card.tr_context.p1)} <span style={{ opacity: 0.6 }}>|</span> {one(m.p2, m.card.tr_context.p2)}
                     </div>
+                    {shortRow('l10', '└ L10', 10)}
+                    {shortRow('l5', '└ L5', 5)}
+                    </>
                   )
                 })() : null}
               </div>
