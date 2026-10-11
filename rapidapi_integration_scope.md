@@ -126,3 +126,28 @@ Before spending, three things in order:
 
 If 1 and 2 hold, this becomes a genuine same-day pricing path: the board could price a match a
 few hours after the previous one finished, instead of waiting 1–3 days for TennisRatio.
+
+---
+
+## 7. Step 2 result — Model D, sUTR and the Monte Carlo (2026-10-10)
+
+Only the **service/return split of games** is genuinely unavailable from the feed: hold%, break%
+and per-service-game rates. I had been too conservative in the C test — games-won share and
+tiebreaks come straight off the set scores, so the feasible set is larger than I tested.
+
+| component | verdict | evidence |
+|---|---|---|
+| **Model C** | reproducible | 26 feats vs 35: AUC −0.01pt, logloss +0.0000, dog ROI +0.4pt |
+| **Model D (raw)** | reproducible | 27 of 29 feats: AUC −0.04pt, dog ROI −0.3pt |
+| **Model D (market-aware)** — what P consumes | reproducible | AUC −0.03pt, dog ROI **+0.4pt** |
+| **sUTR** | reproducible | reads the game columns but immediately sums them; needs only total games, which the scores give. One-line change. |
+| **Monte Carlo family** | **NOT reproducible** | `simulate_match`'s recency-weighted inputs include hold%, break% and aces/DFs per service game |
+
+**So the pricing path works.** C, D and P are the heads that drive picks, and all three survive.
+The MC heads (`mc`, `mc_c`, `mc_c75`, `mc_cutr`, MC2) would run on profiles missing the freshest
+matches' hold/break — a real gap, unmeasured, though MC-on-C was already refuted and the MC
+profile is a 52-week history that TennisRatio supplies for everything older than a few days.
+
+**Green light, with one task left:** verify the API's field VALUES at scale. Everything above
+assumes they reconcile, and that rests on 8 player-rows because the free tier rate-limited.
+That is the last thing standing between this and a purchase decision.

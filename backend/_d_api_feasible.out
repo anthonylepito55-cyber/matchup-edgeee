@@ -1,0 +1,35 @@
+615127 rows parsed
+52w window done
+season block done
+C prep reused
+ewm block done
+opponent-form block done
+season/platform block done
+D rolls done
+D core: 141610  features: 29
+D core rows: 141610   features: 29
+FULL D FEATURE LIST:
+   d_t10win, d_o10win, d_t10meff, d_form_win, d_form_meff, d_form_srv, d_fq_faced, d_fq_beaten, d_fq_bestwin, d_losscl, d_fq_hotwin, d_fq_hotmeff, d_hold, d_break, d_fsp, d_ssp, d_r1, d_r2, d_aces, d_dfs, d_bpcv, d_rest, d_sn_win, d_sn_meff, d_sn_vol, d_lvl_share, d_lvl_win, d_lvl_meff, d_sutr
+
+features needing a service-game split (UNAVAILABLE): ['d_hold', 'd_break']
+API-feasible D features: 27 of 29
+
+================================================================================================
+MODEL D ABLATION -- walk-forward, identical rows. Raw head and market-aware head.
+================================================================================================
+   full (shipped)   D raw            feats 29   AUC  68.26%   logloss 0.6396   dog ROI   +0.5%   | 2026 AUC 67.70%
+   full (shipped)   D market-aware   feats 29   AUC  72.64%   logloss 0.6092   dog ROI   +5.5%   | 2026 AUC 72.26%
+   API-feasible     D raw            feats 27   AUC  68.22%   logloss 0.6399   dog ROI   +0.2%   | 2026 AUC 67.66%
+   API-feasible     D market-aware   feats 27   AUC  72.62%   logloss 0.6094   dog ROI   +5.8%   | 2026 AUC 72.23%
+
+   change against the shipped model:
+      D raw            AUC -0.04pt   logloss +0.0002   dog ROI -0.3pt
+      D market-aware   AUC -0.03pt   logloss +0.0002   dog ROI +0.4pt
+
+================================================================================================
+sUTR DEPENDENCY -- what does the court-UTR build actually read?
+================================================================================================
+   archive columns referenced: ['return_games_won', 'score', 'service_games_won']
+   of those, needing a service-game split: ['return_games_won', 'service_games_won']
+   -> sUTR is games-share based; games come off the set scores, so it is reproducible
+      from the feed UNLESS it reads service/return game splits (listed above).
