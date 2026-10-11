@@ -243,6 +243,20 @@ def get_context(player_name, surface=None):
                     r = [difflib.SequenceMatcher(None, nmq, x).ratio() for x in close]
                     if r[0] - r[1] >= 0.06:
                         hits = [c["name_index"][close[0]]]
+            if len(hits) != 1:
+                # tier 5: SURNAME + FIRST INITIAL (2026-10-11, Catherine/Caty McNally
+                # case). Nickname-vs-formal-name swaps defeat every tier above -- the token
+                # sets are not subsets either way and difflib scores below 0.80. Only taken
+                # when surname+initial is UNIQUE in the pool (non-unique for 88 of 1,760
+                # names, which are therefore left unresolved rather than guessed). Measured
+                # on 391 board players: recovers 1 of 47 misses and disagrees with 0 of 344
+                # existing resolutions.
+                _qt = _norm_name(player_name).split()
+                if len(_qt) >= 2:
+                    _sur, _ini = _qt[-1], _qt[0][0]
+                    hits = [v for k, v in c["name_index"].items()
+                            if (lambda p: len(p) >= 2 and p[-1] == _sur
+                                and p[0][:1] == _ini)(k.split())]
             if len(hits) == 1:
                 slug = hits[0]
     if not slug:
