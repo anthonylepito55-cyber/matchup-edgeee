@@ -1,0 +1,290 @@
+[tennis_archive] 612061 rows -> mirrored 334071
+
+matches with both sides AND a winner/loser pair: 167013
+   2003-06-01..2026-10-06  men 88120  women 78893
+
+==================================================================================
+PART A -- IN-MATCH: how often did the winner hold the better number?
+==================================================================================
+   'winner better' = share of matches where the winner's figure was the better one
+   (ties split). 50% means the stat says nothing about who won.
+
+ALL MATCHES  (n=167013 matches)
+   stat                    winner better   avg edge   effect        n
+   hold%                           94.0%     +24.99    +1.28   108400
+   games won share                 94.0%     +25.37    +1.30   108400
+   break%                          94.0%     +24.99    +1.28   108400
+   serve pts won%                  93.2%     +11.64    +1.24   108350
+   dominance ratio                 92.4%      +0.64    +1.04   108349
+   total pts margin                92.3%     +22.90    +1.21   108349
+   return pts won%                 90.5%     +11.26    +1.14   108352
+   1st serve won%                  84.5%     +11.39    +0.96   108397
+   ret vs 1st%                     84.5%     +11.39    +0.96   108396
+   ret pressure won%               81.9%     +14.68    +0.83    62817
+   svc pressure won%               81.8%     +14.68    +0.83    62810
+   BP faced /svc gm (lower)          79.0%      +0.36    +0.78   108174
+   BP earned /ret gm               79.0%      +0.36    +0.77   108189
+   2nd serve won%                  77.1%     +11.15    +0.73   108359
+   ret vs 2nd%                     77.1%     +11.14    +0.73   108359
+   BP saved%                       69.3%     +13.84    +0.44   101436
+   BP converted%                   69.3%     +13.82    +0.44   101432
+   aces /svc gm                    60.8%      +0.11    +0.29   108400
+   DFs /svc gm (lower)             60.5%      +0.08    +0.26   108400
+   1st serve in%                   55.8%      +1.67    +0.15   108404
+
+MEN  (n=88120 matches)
+   stat                    winner better   avg edge   effect        n
+   break%                          93.5%     +22.98    +1.26    66548
+   hold%                           93.5%     +22.98    +1.26    66548
+   games won share                 93.5%     +23.46    +1.29    66548
+   serve pts won%                  92.3%     +11.24    +1.22    66522
+   dominance ratio                 91.7%      +0.66    +1.02    66522
+   total pts margin                91.6%     +22.13    +1.19    66522
+   return pts won%                 89.8%     +10.89    +1.12    66523
+   1st serve won%                  83.6%     +10.81    +0.94    66547
+   ret vs 1st%                     83.6%     +10.81    +0.94    66547
+   ret pressure won%               82.1%     +14.96    +0.83    33828
+   svc pressure won%               82.0%     +14.96    +0.83    33825
+   BP earned /ret gm               79.1%      +0.35    +0.78    66438
+   BP faced /svc gm (lower)          79.1%      +0.35    +0.78    66430
+   2nd serve won%                  77.0%     +10.98    +0.73    66524
+   ret vs 2nd%                     77.0%     +10.98    +0.73    66524
+   BP saved%                       69.9%     +14.57    +0.44    61117
+   BP converted%                   69.9%     +14.55    +0.45    61114
+   aces /svc gm                    61.2%      +0.12    +0.30    66548
+   DFs /svc gm (lower)             60.9%      +0.07    +0.27    66548
+   1st serve in%                   56.1%      +1.69    +0.16    66548
+
+WOMEN  (n=78893 matches)
+   stat                    winner better   avg edge   effect        n
+   games won share                 94.8%     +28.39    +1.36    41852
+   hold%                           94.8%     +28.18    +1.35    41852
+   break%                          94.8%     +28.18    +1.35    41852
+   serve pts won%                  94.5%     +12.28    +1.28    41828
+   dominance ratio                 93.5%      +0.61    +1.09    41827
+   total pts margin                93.5%     +24.14    +1.25    41827
+   return pts won%                 91.5%     +11.86    +1.18    41829
+   1st serve won%                  85.9%     +12.32    +1.00    41850
+   ret vs 1st%                     85.9%     +12.31    +1.00    41849
+   svc pressure won%               81.6%     +14.36    +0.83    28985
+   ret pressure won%               81.6%     +14.35    +0.83    28989
+   BP faced /svc gm (lower)          78.7%      +0.38    +0.77    41744
+   BP earned /ret gm               78.7%      +0.38    +0.76    41751
+   2nd serve won%                  77.3%     +11.42    +0.73    41835
+   ret vs 2nd%                     77.3%     +11.41    +0.73    41835
+   BP saved%                       68.4%     +12.73    +0.43    40319
+   BP converted%                   68.4%     +12.73    +0.43    40318
+   aces /svc gm                    60.1%      +0.08    +0.28    41852
+   DFs /svc gm (lower)             59.8%      +0.08    +0.25    41852
+   1st serve in%                   55.5%      +1.64    +0.14    41856
+
+SURFACE: Hard  (n=88027 matches)
+   stat                    winner better   avg edge   effect        n
+   games won share                 93.9%     +25.07    +1.30    56604
+   hold%                           93.9%     +24.64    +1.28    56604
+   break%                          93.9%     +24.64    +1.28    56604
+   serve pts won%                  93.0%     +11.67    +1.24    56574
+   dominance ratio                 92.3%      +0.66    +1.04    56573
+   total pts margin                92.3%     +22.95    +1.21    56573
+   return pts won%                 90.5%     +11.27    +1.15    56573
+   1st serve won%                  84.2%     +11.39    +0.95    56602
+   ret vs 1st%                     84.2%     +11.39    +0.95    56601
+   svc pressure won%               82.1%     +15.05    +0.84    32954
+   ret pressure won%               82.1%     +15.04    +0.84    32957
+   BP faced /svc gm (lower)          79.3%      +0.36    +0.79    56478
+   BP earned /ret gm               79.3%      +0.36    +0.79    56483
+   2nd serve won%                  77.4%     +11.16    +0.74    56578
+   ret vs 2nd%                     77.4%     +11.16    +0.74    56577
+   BP saved%                       69.7%     +14.38    +0.45    52447
+   BP converted%                   69.7%     +14.36    +0.45    52444
+   aces /svc gm                    61.9%      +0.13    +0.31    56604
+   DFs /svc gm (lower)             60.6%      +0.08    +0.26    56604
+   1st serve in%                   56.1%      +1.69    +0.16    56606
+
+SURFACE: Clay  (n=71857 matches)
+   stat                    winner better   avg edge   effect        n
+   hold%                           94.2%     +25.87    +1.30    45471
+   break%                          94.2%     +25.86    +1.30    45471
+   games won share                 94.2%     +26.17    +1.31    45471
+   serve pts won%                  93.5%     +11.71    +1.24    45451
+   dominance ratio                 92.6%      +0.62    +1.05    45451
+   total pts margin                92.6%     +23.07    +1.21    45451
+   return pts won%                 90.5%     +11.36    +1.14    45454
+   ret vs 1st%                     85.0%     +11.50    +0.97    45469
+   1st serve won%                  85.0%     +11.51    +0.97    45469
+   ret pressure won%               81.7%     +14.27    +0.82    25369
+   svc pressure won%               81.7%     +14.26    +0.82    25367
+   BP faced /svc gm (lower)          78.6%      +0.36    +0.77    45373
+   BP earned /ret gm               78.6%      +0.36    +0.75    45384
+   2nd serve won%                  77.0%     +11.23    +0.72    45456
+   ret vs 2nd%                     77.0%     +11.23    +0.72    45457
+   BP saved%                       68.8%     +13.14    +0.43    43156
+   BP converted%                   68.8%     +13.12    +0.43    43154
+   DFs /svc gm (lower)             60.3%      +0.07    +0.25    45471
+   aces /svc gm                    59.3%      +0.08    +0.26    45471
+   1st serve in%                   55.5%      +1.67    +0.14    45472
+
+SURFACE: Grass  (n=7068 matches)
+   stat                    winner better   avg edge   effect        n
+   break%                          93.3%     +21.75    +1.24     6302
+   games won share                 93.3%     +22.24    +1.27     6302
+   hold%                           93.3%     +21.73    +1.24     6302
+   serve pts won%                  92.3%     +10.86    +1.24     6302
+   dominance ratio                 91.5%      +0.65    +1.03     6302
+   total pts margin                91.5%     +21.33    +1.20     6302
+   return pts won%                 89.8%     +10.48    +1.13     6302
+   1st serve won%                  83.8%     +10.56    +0.95     6303
+   ret vs 1st%                     83.7%     +10.52    +0.95     6303
+   svc pressure won%               81.2%     +14.38    +0.81     4461
+   ret pressure won%               81.2%     +14.37    +0.81     4463
+   BP earned /ret gm               78.4%      +0.33    +0.76     6299
+   BP faced /svc gm (lower)          78.4%      +0.33    +0.76     6300
+   ret vs 2nd%                     75.7%     +10.44    +0.71     6302
+   2nd serve won%                  75.7%     +10.44    +0.71     6302
+   BP converted%                   69.9%     +14.23    +0.44     5811
+   BP saved%                       69.9%     +14.20    +0.44     5810
+   aces /svc gm                    61.5%      +0.13    +0.29     6302
+   DFs /svc gm (lower)             61.2%      +0.07    +0.26     6302
+   1st serve in%                   55.9%      +1.46    +0.14     6303
+
+LEVEL: ATP  (n=16226 matches)
+   stat                    winner better   avg edge   effect        n
+   games won share                 92.8%     +21.62    +1.25    16154
+   break%                          92.7%     +21.03    +1.23    16154
+   hold%                           92.7%     +21.04    +1.23    16154
+   serve pts won%                  91.7%     +10.81    +1.19    16153
+   dominance ratio                 90.9%      +0.67    +1.00    16153
+   total pts margin                90.8%     +21.24    +1.16    16153
+   return pts won%                 88.9%     +10.43    +1.09    16153
+   ret pressure won%               82.5%     +15.44    +0.83    10699
+   1st serve won%                  82.4%     +10.21    +0.90    16154
+   ret vs 1st%                     82.4%     +10.21    +0.90    16154
+   svc pressure won%               82.4%     +15.42    +0.83    10698
+   BP earned /ret gm               78.8%      +0.33    +0.77    16153
+   BP faced /svc gm (lower)          78.8%      +0.33    +0.77    16152
+   2nd serve won%                  76.2%     +10.66    +0.70    16153
+   ret vs 2nd%                     76.2%     +10.66    +0.70    16153
+   BP saved%                       70.5%     +15.59    +0.46    14442
+   BP converted%                   70.4%     +15.57    +0.46    14441
+   aces /svc gm                    61.9%      +0.14    +0.31    16154
+   DFs /svc gm (lower)             60.4%      +0.07    +0.26    16154
+   1st serve in%                   56.8%      +1.85    +0.18    16154
+
+LEVEL: WTA  (n=16999 matches)
+   stat                    winner better   avg edge   effect        n
+   games won share                 94.6%     +27.46    +1.36    16294
+   hold%                           94.6%     +27.22    +1.35    16294
+   break%                          94.6%     +27.22    +1.34    16294
+   serve pts won%                  94.3%     +11.95    +1.28    16292
+   dominance ratio                 93.4%      +0.61    +1.10    16292
+   total pts margin                93.4%     +23.53    +1.25    16292
+   return pts won%                 91.5%     +11.58    +1.19    16292
+   1st serve won%                  85.1%     +11.97    +0.99    16294
+   ret vs 1st%                     85.1%     +11.95    +0.99    16294
+   svc pressure won%               82.1%     +14.58    +0.84    10084
+   ret pressure won%               82.1%     +14.57    +0.84    10084
+   BP earned /ret gm               78.3%      +0.37    +0.78    16293
+   BP faced /svc gm (lower)          78.3%      +0.37    +0.78    16293
+   2nd serve won%                  77.2%     +11.21    +0.75    16293
+   ret vs 2nd%                     77.2%     +11.21    +0.75    16293
+   BP saved%                       68.8%     +13.23    +0.44    15686
+   BP converted%                   68.8%     +13.22    +0.44    15686
+   aces /svc gm                    61.3%      +0.10    +0.31    16294
+   DFs /svc gm (lower)             59.7%      +0.08    +0.24    16294
+   1st serve in%                   54.7%      +1.39    +0.12    16295
+
+LEVEL: Challengers  (n=43804 matches)
+   stat                    winner better   avg edge   effect        n
+   hold%                           93.9%     +24.28    +1.29    43556
+   games won share                 93.9%     +24.69    +1.31    43556
+   break%                          93.9%     +24.28    +1.29    43556
+   serve pts won%                  92.8%     +11.44    +1.24    43548
+   dominance ratio                 92.1%      +0.64    +1.04    43548
+   total pts margin                92.0%     +22.52    +1.21    43548
+   return pts won%                 90.2%     +11.08    +1.14    43548
+   1st serve won%                  84.0%     +11.07    +0.95    43553
+   ret vs 1st%                     84.0%     +11.07    +0.95    43553
+   svc pressure won%               81.8%     +14.77    +0.83    20412
+   ret pressure won%               81.8%     +14.76    +0.83    20415
+   BP faced /svc gm (lower)          78.8%      +0.35    +0.78    43551
+   BP earned /ret gm               78.8%      +0.35    +0.76    43552
+   2nd serve won%                  77.1%     +11.11    +0.73    43551
+   ret vs 2nd%                     77.1%     +11.10    +0.73    43551
+   BP saved%                       69.5%     +14.18    +0.44    40614
+   BP converted%                   69.5%     +14.15    +0.44    40612
+   DFs /svc gm (lower)             60.7%      +0.07    +0.27    43556
+   aces /svc gm                    60.5%      +0.10    +0.29    43556
+   1st serve in%                   56.0%      +1.74    +0.16    43556
+
+LEVEL: Futures  (n=77149 matches)
+   stat                    winner better   avg edge   effect        n
+   hold%                           94.2%     +28.04    +1.32    21585
+   break%                          94.2%     +28.04    +1.32    21585
+   games won share                 94.2%     +28.25    +1.33    21585
+   serve pts won%                  94.1%     +12.54    +1.25    21546
+   dominance ratio                 93.2%      +0.64    +1.04    21545
+   total pts margin                93.1%     +24.67    +1.22    21545
+   return pts won%                 91.2%     +12.13    +1.15    21545
+   ret vs 1st%                     86.2%     +12.51    +0.99    21581
+   1st serve won%                  86.2%     +12.51    +0.99    21582
+   svc pressure won%               81.6%     +14.38    +0.82    14274
+   ret pressure won%               81.6%     +14.37    +0.82    14275
+   BP earned /ret gm               79.3%      +0.38    +0.77    21380
+   BP faced /svc gm (lower)          79.3%      +0.38    +0.77    21367
+   ret vs 2nd%                     77.7%     +11.75    +0.72    21548
+   2nd serve won%                  77.6%     +11.75    +0.72    21549
+   BP saved%                       68.4%     +12.88    +0.42    20455
+   BP converted%                   68.4%     +12.87    +0.42    20454
+   DFs /svc gm (lower)             60.5%      +0.08    +0.26    21585
+   aces /svc gm                    59.5%      +0.08    +0.27    21585
+   1st serve in%                   55.7%      +1.76    +0.15    21585
+
+LEVEL: Grand Slams  (n=10982 matches)
+   stat                    winner better   avg edge   effect        n
+   hold%                           94.8%     +24.21    +1.29     9709
+   break%                          94.8%     +24.19    +1.29     9709
+   games won share                 94.8%     +24.69    +1.32     9709
+   serve pts won%                  93.5%     +11.39    +1.28     9710
+   dominance ratio                 92.8%      +0.63    +1.09     9710
+   total pts margin                92.8%     +22.37    +1.25     9710
+   return pts won%                 91.2%     +10.98    +1.18     9713
+   1st serve won%                  85.3%     +11.29    +1.00     9713
+   ret vs 1st%                     85.2%     +11.27    +1.00     9713
+   ret pressure won%               81.3%     +14.04    +0.84     6456
+   svc pressure won%               81.3%     +14.04    +0.84     6455
+   BP faced /svc gm (lower)          80.0%      +0.36    +0.82     9709
+   BP earned /ret gm               80.0%      +0.36    +0.82     9709
+   2nd serve won%                  77.6%     +10.71    +0.75     9712
+   ret vs 2nd%                     77.5%     +10.69    +0.75     9713
+   BP saved%                       69.7%     +12.95    +0.43     9210
+   BP converted%                   69.7%     +12.95    +0.43     9210
+   aces /svc gm                    61.9%      +0.12    +0.33     9709
+   DFs /svc gm (lower)             61.0%      +0.07    +0.25     9709
+   1st serve in%                   55.9%      +1.36    +0.13     9713
+
+==================================================================================
+CLOSE MATCHES ONLY -- decided in 3 sets, where the margins actually matter
+==================================================================================
+
+THREE-SET MATCHES  (n=58495 matches)
+   stat                    winner better   avg edge   effect        n
+   hold%                           86.0%     +11.13    +1.01    39631
+   break%                          86.0%     +11.13    +1.01    39631
+   games won share                 86.0%     +11.39    +1.02    39631
+   serve pts won%                  84.1%      +5.20    +0.93    39622
+   dominance ratio                 82.6%      +0.28    +0.80    39622
+   total pts margin                82.5%     +10.18    +0.89    39622
+   return pts won%                 79.9%      +4.99    +0.80    39623
+   1st serve won%                  72.5%      +5.07    +0.60    39629
+   ret vs 1st%                     72.5%      +5.06    +0.60    39629
+   svc pressure won%               71.0%      +6.45    +0.52    23511
+   ret pressure won%               70.9%      +6.44    +0.52    23512
+   BP faced /svc gm (lower)          68.0%      +0.16    +0.46    39630
+   BP earned /ret gm               68.0%      +0.16    +0.44    39629
+   2nd serve won%                  66.3%      +4.91    +0.42    39625
+   ret vs 2nd%                     66.3%      +4.91    +0.42    39625
+   BP converted%                   61.5%      +5.78    +0.23    39321
+   BP saved%                       61.5%      +5.78    +0.23    39321
+   DFs /svc gm (lower)             55.7%      +0.03    +0.13    39631
+   aces /svc gm                    55.6%      +0.05    +0.15    39631
+   1st serve in%                   53.5%      +0.85    +0.08    39631
