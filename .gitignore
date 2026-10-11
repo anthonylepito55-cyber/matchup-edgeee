@@ -22,3 +22,14 @@ backend/.rapidapi_key
 # Goalserve trial token -- never commit a credential
 .goalserve_key
 backend/.goalserve_key
+
+# API credentials -- read at run time, never committed (2026-10-10: .key2 was NOT ignored)
+.key2
+backend/.key2
+.goalserve_key
+backend/.goalserve_key
+.livetennis_key
+backend/.livetennis_key
+.sportsapi365_key
+backend/.sportsapi365_key
+backend/.key*
