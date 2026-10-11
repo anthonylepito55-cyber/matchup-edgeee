@@ -118,6 +118,24 @@ def _load():
                 "rgw": _fin(100 * w["rg_won"].sum() / rga) if rga else None,   # Return Games Won %
                 "win": round(float(w["won"].mean()), 3),
             }
+            # LAST 10 ON THIS SURFACE (2026-10-11, user: "below the hard 52w stats can u give
+            # hard l10 game stats too"). Same stat set as the 52w block above, same surface,
+            # only the window differs; SGW/RGW are rebuilt from the game SUMS rather than
+            # averaged, exactly as the 52w figures are, so the two lines are comparable.
+            l10 = sub.tail(10)
+            if len(l10) >= 3:
+                sga10, rga10 = l10["sg_all"].sum(), l10["rg_all"].sum()
+                p["surfaces"][surf]["l10"] = {
+                    "n": int(len(l10)),
+                    "sv1": _fin(l10["first_serve_points"].mean()),
+                    "sv2": _fin(l10["second_serve_points"].mean()),
+                    "sgw": _fin(100 * l10["sg_won"].sum() / sga10) if sga10 else None,
+                    "r1": _fin(l10["return_1st_serve_points"].mean()),
+                    "r2": _fin(l10["return_2nd_serve_points"].mean()),
+                    "rgw": _fin(100 * l10["rg_won"].sum() / rga10) if rga10 else None,
+                    "win": round(float(l10["won"].mean()), 3),
+                    "from": str(l10["date"].min().date()),
+                }
         recent = gdf.tail(25)
         good = recent[recent["rival_rank"] <= 200]
         p["vs_top200"] = {"w": int(good["won"].sum()), "l": int(len(good) - good["won"].sum())}
@@ -278,12 +296,33 @@ def context_asof(player_name, surface, asof):
              "r1": _fin(w["return_1st_serve_points"].mean()), "r2": _fin(w["return_2nd_serve_points"].mean()),
              "rgw": _fin(100 * w["rg_won"].sum() / rga) if rga else None,
              "win": round(float(w["won"].mean()), 3)}
+    # LAST 10 ON THIS SURFACE (2026-10-11, user ask: "below the hard 52w stats can u give
+    # hard l10 game stats too"). Same stat set and the same pre-match cut as the 52w block
+    # above -- only the window differs -- and SGW/RGW are rebuilt from the game sums rather
+    # than averaged so the two lines are directly comparable. `sub` is already filtered to
+    # the chosen surface; if the 52w fallback widened to All, this follows it.
+    l10 = sub.tail(10)
+    sga10, rga10 = l10["sg_all"].sum(), l10["rg_all"].sum()
+    stats_l10 = None
+    if len(l10) >= 3:
+        stats_l10 = {
+            "n": int(len(l10)),
+            "sv1": _fin(l10["first_serve_points"].mean()),
+            "sv2": _fin(l10["second_serve_points"].mean()),
+            "sgw": _fin(100 * l10["sg_won"].sum() / sga10) if sga10 else None,
+            "r1": _fin(l10["return_1st_serve_points"].mean()),
+            "r2": _fin(l10["return_2nd_serve_points"].mean()),
+            "rgw": _fin(100 * l10["rg_won"].sum() / rga10) if rga10 else None,
+            "win": round(float(l10["won"].mean()), 3),
+            "from": str(l10["date"].min().date()),
+        }
     recent = g.tail(25)
     good = recent[recent["rival_rank"] <= 200]
     pr_all = recent["serve_pressure_all"].fillna(0).sum() + recent["return_pressure_all"].fillna(0).sum()
     pr_won = recent["serve_pressure_won"].fillna(0).sum() + recent["return_pressure_won"].fillna(0).sum()
     ranks = g.tail(10)["rival_rank"].dropna()
     return {"slug": cur["slug"], "tour": cur.get("tour"), "surface_used": surf, "surface_stats": stats,
+            "surface_l10": stats_l10,
             "vs_top200": {"w": int(good["won"].sum()), "l": int(len(good) - good["won"].sum())},
             "clutch": round(float(pr_won / pr_all), 3) if pr_all >= 40 else None,
             "avg_opp_rank": int(ranks.median()) if len(ranks) >= 3 else None,

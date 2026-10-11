@@ -2223,6 +2223,33 @@ function TrContextRow({ name, ctx }) {
       {vt && (vt.w + vt.l) > 0 ? ` · vs top-200: ${vt.w}-${vt.l}` : ''}
       {ctx.clutch != null ? ` · clutch ${(ctx.clutch * 100).toFixed(0)}%` : ''}
       {ctx.avg_opp_rank != null ? ` · avg opp #${ctx.avg_opp_rank}` : ''}
+      {/* LAST 10 ON THIS SURFACE (2026-10-11, user ask) -- same stats, same court, shorter
+          window, with the win% delta against the 52w line directly above so recent form is
+          readable without arithmetic. Indented and dimmer so the 52w line stays primary. */}
+      {(s.l10 || ctx.surface_l10) ? (() => {
+        const q = s.l10 || ctx.surface_l10
+        const d = (a, b) => (a == null || b == null) ? null : Math.round((a - b) * 10) / 10
+        const dw = d(q.win * 100, s.win * 100)
+        const sgn = v => `${v > 0 ? '+' : ''}${v}`
+        return (
+          <div style={{ paddingLeft: 12, opacity: 0.78 }}>
+            {`└ ${ctx.surface_used.toLowerCase()} L${q.n}:`}
+            {q.sv1 != null ? ` 1stSv ${q.sv1}%` : ''}
+            {q.sv2 != null ? ` · 2ndSv ${q.sv2}%` : ''}
+            {q.sgw != null ? ` · SGW ${q.sgw}%` : ''}
+            {q.r1 != null ? ` · Ret1 ${q.r1}%` : ''}
+            {q.r2 != null ? ` · Ret2 ${q.r2}%` : ''}
+            {q.rgw != null ? ` · RGW ${q.rgw}%` : ''}
+            {` · win ${(q.win * 100).toFixed(0)}%`}
+            {dw != null ? (
+              <span style={{ color: dw > 0 ? '#3fb950' : dw < 0 ? '#f85149' : 'var(--text-tertiary)' }}>
+                {` (${sgn(dw)}pt vs ${s.window || '52w'})`}
+              </span>
+            ) : null}
+            {q.from ? ` · since ${q.from}` : ''}
+          </div>
+        )
+      })() : null}
     </div>
   )
 }
@@ -4413,7 +4440,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
       {(match.tr_context && (match.tr_context.p1 || match.tr_context.p2)) ? (
         <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed var(--line)' }}
-          title="TennisRatio profile context, real stat names on the site's 52-week surface window (falls back to last-20 when thin): 1stSv/2ndSv = 1st/2nd-serve points won, SGW/RGW = service/return games won (p## = percentile within OUR ingested pool for that tour), plus last-25 record vs top-200-ranked opponents, pressure-point conversion, and median recent opponent rank. DISPLAY ONLY: backtested 2026-09-25 and found fully priced into the market (opponent-adjusted included), so it never drives a pick — the validated tennis edge remains the price scanner.">
+          title="TennisRatio profile context, real stat names on the site's 52-week surface window (falls back to last-20 when thin): 1stSv/2ndSv = 1st/2nd-serve points won, SGW/RGW = service/return games won (p## = percentile within OUR ingested pool for that tour), plus last-25 record vs top-200-ranked opponents, pressure-point conversion, and median recent opponent rank. The indented second line per player (2026-10-11 user ask) is the SAME stat set over that player's LAST 10 MATCHES ON THIS SAME SURFACE, with the win-rate delta against the 52-week line above it in green/red — recent form on the court actually being played, next to the longer baseline. DISPLAY ONLY: backtested 2026-09-25 and found fully priced into the market (opponent-adjusted included), so it never drives a pick — the validated tennis edge remains the price scanner.">
           <TrContextRow name={match.player_1} ctx={match.tr_context.p1} />
           <TrContextRow name={match.player_2} ctx={match.tr_context.p2} />
           <div className="mono" style={{ fontSize: 8, color: 'var(--text-tertiary)', opacity: 0.7, marginTop: 2 }}>
