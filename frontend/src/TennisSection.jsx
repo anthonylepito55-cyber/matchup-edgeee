@@ -2864,6 +2864,13 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return null
   }
   const hlOK = (lane, g) => hlWhy(lane, g) === null
+  // live-record-only test, for WATCH cells that carry no HL_BT entry (2026-10-11, user
+  // "hide negative till its positive"). Negative -> hidden; it comes back on its own.
+  const livePos = (lane, g) => {
+    const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[g] || {}
+    const floor = FAV_SIDE.has(lane) ? HL_MIN_FAV : 3
+    return (c.n || 0) >= floor && c.roi_pct > 0
+  }
   // ONE COLOUR (2026-10-10, user "make all games the same board color"): every hl* flag below
   // already means exactly the same thing -- a cell whose backtest is positive for this gender
   // AND whose live lane ROI is above zero. So the seven colours carried no information the
@@ -3049,10 +3056,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           {'🏟 '}{lvlNote.tag}{' · '}{lvlNote.note}{lvlNote.late ? ' · late round' : ' · early round'}
         </div>
       ) : null}
-      {blackC75W ? (
+      {blackC75W && hlBlack ? (
         <div className="mono" title={`WOMEN c75 DOG - the single best-evidenced sim cell on the board. As-of backtest (production simulate_match replayed on rebuilt historical profiles, the FULL 20,871-match 2026 universe): women, c75 on the market underdog, dog priced +100 or longer = +8.1% ROI (748-1020, n=1,768). It pays at EVERY price and improves as the price lengthens: +100/+150 +3.1%, +150/+200 +8.0%, +200/+250 +12.3%, +250/+400 +19.4%, +400 and longer +67.1%. Odds-on dogs (under +100) are near-flat (+1.4%, n=411), so the mark starts at +100. Live lane mc_c75_dog women: +16.7% (14-17). Men's equivalent is weaker (+5.1%, n=2,308). c75 = the Monte Carlo anchored 75% to Model C; the anchor weight is what earns (serve-MC alone loses ~10%).`}
-          style={{ fontSize: 9, fontWeight: 800, color: '#f0f0f2', marginBottom: 6, letterSpacing: '0.05em', background: 'linear-gradient(90deg, rgba(255,255,255,0.10), transparent)', padding: '3px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.35)', opacity: hlBlack ? 1 : 0.5 }}>
-          {hlBlack ? null : noHL(hlWhy('c75_dog_100plus', 'w'))}
+          style={{ fontSize: 9, fontWeight: 800, color: '#f0f0f2', marginBottom: 6, letterSpacing: '0.05em', background: 'linear-gradient(90deg, rgba(255,255,255,0.10), transparent)', padding: '3px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.35)', }}>
           {'⚫ WOMEN c75 DOG → '}
           <span style={{ fontSize: 12, fontWeight: 900, color: '#ffffff', textShadow: '0 0 10px rgba(255,255,255,0.65)' }}>
             {'TAKE '}{blackC75W.name.split(' ').slice(-1)[0].toUpperCase()}{' +'}{blackC75W.od}
@@ -3068,10 +3074,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
-      {!baitGreen && purpleCGF ? (
+      {!baitGreen && purpleCGF && hlPurple ? (
         <div className="mono" title={`💜 C-ALONE+GOLD SHALLOW FAVORITE (your mark, 2026-10-08): Model C alone against A and B, the gray line confirms C, and C's side is a -100..-150 favorite. Walk-forward backtest at archive odds - MEN: -1.5% (2024) -> +10.9% (2025) -> +13.4% (2026, 122-67, n=189), improving three straight years. WOMEN: all-years +10.1% (169-103, n=272) but 2026 only +1.7% (46-34, n=80) — the women's half has faded to ~flat. HONESTY: the live all-price lane is men -9.1% (62 settles) / women +7.9% (13) - live has NOT yet confirmed the backtest; the banded cgf_shallow_fav lane now scores this exact mark forward and its record shows here as it settles.`}
-          style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)', opacity: hlPurple ? 1 : 0.5 }}>
-          {hlPurple ? null : noHL(hlWhy(purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav', gHL))}
+          style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)', }}>
           💜 C-ALONE+GOLD FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCGF.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCGF.od}</span> · gray +{purpleCGF.gray}pt{purpleCGF.premium ? ` · C +${purpleCGF.cE}pt` : ''} · bt {purpleCGF.isW ? (purpleCGF.premium ? '+26.4% (133-47, n=180)' : '+22.2% (n=298)') : (purpleCGF.premium ? '+31.0% (69-24, n=93)' : '+24.4% (n=133)')}{purpleCGF.premium ? ' ★' : ''}
           {(() => {
             const st = ((laneRec && laneRec.study) || {})[
@@ -3082,7 +3087,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
-      {!baitGreen && !purpleCGF && purpleCE5 ? (
+      {!baitGreen && !purpleCGF && purpleCE5 && livePos('ce5_deep_fav', gHL) ? (
         <div className="mono" title={`💜 C-EDGE5 DEEP FAVORITE (your mark, 2026-10-08): raw Model C prices this favorite ${purpleCE5.edge} points ABOVE the no-vig market, and the price is -150..-200 — the strongest favorite cell in the entire walk-forward backtest. DEMOTED TO WATCH 2026-10-08: the backtest likes this cell -- MEN 2026 +10.8% (327-139, n=466), all-years +5.9% (n=1,453); WOMEN 2026 +5.0% (n=314), all-years +10.8% (n=846) -- but the LIVE record is now 25-32, -30.0% across 57 settles (men -25.8%, women -40.8%), negative in both genders. 57 settles is no longer a small sample for a cell that should win ~67%, so the mark no longer instructs a bet: it shows what it would have picked and keeps scoring itself in the ce5_deep_fav lane. It earns the purple back only if the live record turns. The LANE number is the live frozen-log record for this match's gender (ce5_deep_fav, frozen closing odds, auto-updating as games settle).`}
           style={{ fontSize: 9, fontWeight: 700, color: '#8b949e', marginBottom: 6, letterSpacing: '0.04em' }}>
           👁 C-EDGE5 WATCH · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span> · would have been {purpleCE5.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCE5.od} · C +{purpleCE5.edge}pt over mkt · bt26 {purpleCE5.isW ? 'W +5.0% (208-106)' : 'M +10.8% (327-139)'} · 3yr {purpleCE5.isW ? '+10.8% (n=846)' : '+5.9% (n=1,453)'}
@@ -3094,7 +3099,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
-      {!baitGreen && !purpleCGF && !purpleCE5 && purpleFGW ? (
+      {!baitGreen && !purpleCGF && !purpleCE5 && purpleFGW && livePos('fadegold_pocket_w', gHL) ? (
         <div className="mono" title={`💜 FADE-GOLD POCKET (women, your mark 2026-10-08): the gray line prices this market dog ${purpleFGW.hate} points BELOW her market number (gray HATES the dog), and the favorite sits in the -200..-300 pocket — the one price band where the backtest AND the live log agree this favorite earns. Backtest remeasured 2026-10-08 (true gender, single-count, -200..-300): women all-years +5.9% (1011-344, n=1,355), 2026 +4.4% (359-131, n=490). DEMOTED TO WATCH 2026-10-08: after 67 double-logged matches were removed from the frozen log, this cell's live record went from +3.3% to -3.9% (17-8) -- the duplicates had been propping it up. With a thin +4.4% backtest and a negative clean live record, the mark no longer instructs a bet; it shows what it would have picked and keeps scoring itself in the fadegold_pocket_w lane. The old +16.9%/54-13 was a WTA-tour-only artifact of the broken gender split. Live pocket: 23-8, ~+4.5%. OUT of this band the same signal LOSES live (-20% at -100/-150, -30% at -150/-200, -11% past -300) — the band IS the mark. The LANE number is the live record of this exact banded cell (fadegold_pocket_w), auto-updating.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
           👁 FADE-GOLD WATCH · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span> · would have been {purpleFGW.name.split(' ').slice(-1)[0].toUpperCase()} {purpleFGW.od} · gray hates dog {purpleFGW.hate}pt · bt26 W +4.4% (359-131) · live pocket +4.5% (23-8)
@@ -3119,7 +3124,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           <div className="mono"
             title={`Ⓟ MODEL P — the profit model: an offset model on the market (it starts from the price and only learns where the price is wrong), +100..+200 dogs only, separate men/women weights. P gives ${nm} ${Math.round(pModel.p_dog * 1000) / 10}% vs the market's ${Math.round(pModel.mkt_dog * 1000) / 10}% → EV ${pModel.ev >= 0 ? '+' : ''}${Math.round(pModel.ev * 1000) / 10}% at this price. Bet rule EV ≥ 5%. Strict walk-forward 2024-26: EV>5% men +14.2% (n=3,235), women +21.4% (n=2,442), vs backing every +100..+200 dog −7.4% / −6.0%; positive every year, monotone by EV. Live lane p_dog is the judge.`}
             style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: pModel.bet ? '#2dd4bf' : 'var(--text-tertiary)', opacity: pModel.bet ? (hlP ? 1 : 0.8) : 0.6 }}>
-            {pModel.bet && !hlP ? noHL(hlWhy('p_dog', gHL)) : null}
             {/* 👑 Ⓟ DOG FLIP (2026-10-10, user "mark if any games have P dog flips with a
                 crown on those picks"): P puts the dog ABOVE 50%, i.e. it says the market picked
                 the wrong favourite. Walk-forward this is the strong half of the P dog gate --
@@ -3145,6 +3149,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         const c = st[gHL] || {}
         const live = c.n ? `T${tier} LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : `T${tier} LIVE tracking from today`
         const ok = hlOK(lk, gHL)
+        if (!ok) return null   // 2026-10-11: a failed cell is not drawn at all
         const mf = 1 - pModel.mkt_dog
         const TB = { 1: { m: 'M 59.7% hit +2.2% (n=580)', w: 'W 63.8% hit +9.6% (n=257)', lab: '3-10pt' },
                      2: { m: 'M 62.5% hit +7.5% (n=168)', w: 'W 62.2% hit +7.1% (n=143)', lab: '10-15pt' },
@@ -3152,14 +3157,13 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         return (
           <div className="mono"
             title={`Ⓟ CLOSE — a close favourite (−100..−150) that Model P reads ${Math.round(pModel.close_edge * 1000) / 10}pt above the market: P ${Math.round(pModel.p_fav * 1000) / 10}% vs market ${Math.round(mf * 1000) / 10}%. Out-of-sample 2024-26 (3pt+): men 63.1% hit, +8.2% (n=869); women 67.8% hit, +16.4% (n=587); every year positive, and the bigger the gap the better (10pt+: men +20.1%, women +21.7%). Live check before shipping: men +2.6% (n=38), women −23.2% (n=14). Lane p_close decides. Take the best price — at these odds a few cents matter.`}
-            style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: '#5eead4', opacity: ok ? 1 : 0.85 }}>
-            {ok ? null : noHL(hlWhy('p_close', gHL))}
+            style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: '#5eead4' }}>
             Ⓟ CLOSE <span style={{ padding: '0 5px', borderRadius: 5, border: '1px solid #5eead4', fontSize: 9, fontWeight: 900, background: tier === 3 ? 'rgba(94,234,212,0.25)' : 'transparent' }}>T{tier} · {TB.lab}</span> → <span style={{ fontSize: 12, fontWeight: 900, color: '#e6fffb', textShadow: '0 0 8px rgba(94,234,212,0.5)' }}>TAKE {fname}{fodd != null && !isNaN(fodd) ? ` ${fodd}` : ''}</span>
             <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_fav * 1000) / 10}% vs mkt {Math.round(mf * 1000) / 10}% (+{Math.round(pModel.close_edge * 1000) / 10}pt) · bt T{tier} {gHL === 'w' ? TB.w : TB.m} · {live}</span>
           </div>
         )
       })() : null}
-      {pModel && pModel.fav_bet && !pModel.close ? (() => {
+      {pModel && pModel.fav_bet && !pModel.close && livePos('p_fav', gHL) ? (() => {
         const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
         const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
         const st = (((laneRec && laneRec.study) || {}).p_fav) || {}
@@ -3185,7 +3189,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           </span>
         </div>
       ) : null}
-      {pinkCells ? pinkCells.map((pc, j) => {
+      {/* 2026-10-11: a pink TAKE cell that fails its live gate is dropped entirely; the
+          explicit WATCH cells stay, because they are labelled NO BET and their record is the
+          evidence for the demotion. */}
+      {pinkCells ? pinkCells.filter(pc => pc.watch ? livePos(pc.lane, pc.g) : hlOK(pc.lane, pc.g)).map((pc, j) => {
         const st = (((laneRec && laneRec.study) || {})[pc.lane]) || {}
         const c = st[pc.g] || {}
         const nn = c.n || 0
@@ -3193,8 +3200,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         return (
           <div key={'pk' + j} className="mono"
             title={`🩷 PINK WATCH — ${pc.n}: ${pc.rule}. Found in the 2026-10-09 consensus / 2-of-3 backtests (walk-forward, true gender, one row per match, closing odds). ${pc.bt}. Unproven live: the lane ${pc.lane} scores every one of these flat from the frozen log, and the color stays only if that record holds.`}
-            style={{ fontSize: 9, fontWeight: 800, color: '#f778ba', marginBottom: 6, letterSpacing: '0.03em', textShadow: '0 0 8px rgba(247,120,186,0.45)', opacity: (!pc.watch && hlOK(pc.lane, pc.g)) ? 1 : 0.5 }}>
-            {(!pc.watch && hlOK(pc.lane, pc.g)) ? null : noHL(pc.watch ? 'watch only' : hlWhy(pc.lane, pc.g))}
+            style={{ fontSize: 9, fontWeight: 800, color: '#f778ba', marginBottom: 6, letterSpacing: '0.03em', textShadow: '0 0 8px rgba(247,120,186,0.45)', opacity: pc.watch ? 0.5 : 1 }}>
+            {pc.watch ? noHL('watch only') : null}
             🩷 {pc.n} → <span style={{ fontSize: 12, fontWeight: 900, color: pc.watch ? '#c9a3b8' : '#ffe3f1' }}>{pc.watch ? 'WATCH' : 'TAKE'} {(pc.who || '').split(' ').slice(-1)[0].toUpperCase()} {pc.od > 0 ? '+' : ''}{pc.od}</span>
             <span style={{ fontWeight: 400, color: '#ffc6e2' }}> · {pc.rule} · {pc.bt} · {live}</span>
           </div>
@@ -3209,10 +3216,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           {blueDropped.mchall ? <span style={{ fontWeight: 400 }}> · men's challenger 2026: C-ALONE −11.3% (n=144) · TIER-1 −1.9% (n=281) · GRAY4 −1.0% (n=296)</span> : null}
         </div>
       ) : null}
-      {!baitGreen && tier1Blue && !purpleCGF && !purpleCE5 && !purpleFGW ? (
+      {!baitGreen && tier1Blue && hlBlue && !purpleCGF && !purpleCE5 && !purpleFGW ? (
         <div className="mono" title={`🏛 TIER-1 BEDROCK — this card fires ${tier1Blue.cells.map(c => `${c.n} [bt26 ${tier1Blue.isW ? 'W ' + (c.bw || 'n/a') : 'M ' + (c.bm || 'n/a')}]`).join(' + ')}: the signal family positive in BOTH the 2024-26 walk-forward backtest AND the live log. BLUE FAMILY LIVE ROI (replay of every blue card on the frozen log, one bet per card, flat 1u at frozen odds, 2026-10-08): ALL +12.4% (103-91, +24.1u) | MEN +23.6% (51-44) | WOMEN +1.6% (52-47). Per leading cell: c75 DOG +24.4% (65-59, n=124 - carries the family), TIER-1 +11.2% (28-28), GRAY 4pt+ +11.0% (29-29), C-ALONE+GRAY +6.1% (15-17), FADE-A -0.9% (4-4, thin), and ⚠ C-EDGE5 FAV W -14.7% (27-21) - the ONE blue cell losing live despite a +5.6%/+9.0% backtest, which is why it is tagged with a warning and is the family's demotion candidate. TIER-1 = positive in BOTH the corrected backtest and the live log. Roster (2026 bt | all-years bt | live): c75 DOG +100/+200 M +1.7% (n=2,009) / W +4.6% (n=1,409) | any price >=+100 M +5.1% / W +8.1% | live M +24.6% (41-41) / W +16.7% (14-17) · GRAY 4pt+ DOG M +3.8%/W +17.5% | M +13.5% (n=2,185)/W +26.5% (n=1,452) | live M +15.1%/W +12.7% · TIER-1 M +3.2%/W +20.5% | M +14.1% (n=2,079)/W +28.8% (n=1,321) | live M +15.8%/W +13.1% · C-ALONE+GRAY M +3.3%/W +17.1% | M +15.9% (n=947)/W +32.6% (n=601) | live M +19.5%/W +6.4% · FADE-A DOG+GRAY M +13.6%/W +29.4% | M +14.0% (n=290)/W +29.6% (n=255) | live thin (n=9) · C-EDGE5 FAV W +5.6% | +9.0% (n=3,203) | live tracking. NOTE the 2026-vs-all-years gap on the men's side (+3% vs +14%): the men's dog edge has DECAYED this season while the women's held. Backtest REMEASURED 2026-10-08 — two defects fixed: (1) gender, the old split filed every women's ITF match as MEN (31% of its men's bucket) and counted only WTA women; (2) double-counting, the old rig scored both orientations of every match. True-gender, one-row-per-match 2026 numbers: GRAY 4pt+ DOG M +3.8%/W +17.5% · TIER-1 M +3.2%/W +20.5% · C-ALONE+GRAY M +3.3%/W +17.1% · FADE-A DOG+GRAY M +13.6%/W +29.4% · C-EDGE5 FAV W +5.6%. All-years (more stable): men dogs +12.7..+15.9%, women dogs +26.5..+33.1%. **The men's dog edge has decayed to ~+3% in 2026 while the women's holds at +17..+21% — the women's half is now the stronger side of every bedrock cell.** Live: gray_dog4 M +15.1%/W +12.7%, tier1 M +15.8%, priced-star-dog M +14.6%/W +26.5%, c-alone+gray M +19.5%. ${tier1Blue.fav ? 'This one is the WOMEN’S FAVORITE cell — the only favorite family that held all three years.' : 'The dog is the play — every bedrock cell bets the underdog.'} Bait-green outranks blue when both fire.`}
-          style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)', opacity: hlBlue ? 1 : 0.5 }}>
-          {hlBlue ? null : noHL(blueWhy)}
+          style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)', }}>
           🏛 BEDROCK → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>TAKE {tier1Blue.name.split(' ').slice(-1)[0].toUpperCase()}{tier1Blue.od != null ? ` ${tier1Blue.od > 0 ? '+' : ''}${tier1Blue.od}` : ''}</span> · {tier1Blue.cells.map(c => c.n).join(' + ')}
           {(() => {
             const lead = tier1Blue.cells[0]
@@ -3236,10 +3242,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           })()}
         </div>
       ) : null}
-      {baitGreen ? (
+      {baitGreen && hlGreen ? (
         <div className="mono" title={`🪤 BAIT FAVORITE — every sim on this card (c50, c75, cUTR, serve-MC) prices the favorite at least ${baitGreen.isW ? 4 : 6} points BELOW the no-vig market, and the dog is in the +100..+200 window where the cell earns. The chalk is the trap; the DOG (+${baitGreen.dogOdds}) is the play. Evidence on the FULL 20,871-match as-of universe: the UNGATED cell is men -0.6% (n=2,285) / women -3.1% (n=1,784); only the c75-FLIP half pays (men +1.9% n=1,492 / women +2.4% n=1,153) while the no-flip half loses (men -5.3% / women -13.2%). Context: the same banded dogs with NO signal run -14.0% (men, n=4,756) / -10.8% (women, n=2,699), and out-of-band +200..+400 dogs run -3.6%/-8.2%. Live bait_dog lane men +11.2% (24-27) / women +29.7% (17-15). The cell is bet as ONE cell: its PRIME/REST sub-tiering is refuted (bt and live disagree on which half is better in both genders). Smallest head-gap on this card: ${baitGreen.gap}pts.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#3fb950', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(63,185,80,0.5)', opacity: hlGreen ? 1 : 0.5 }}>
-          {hlGreen ? null : noHL(baitGreen.c75Flip === false ? 'MC refuses — backtest negative' : hlWhy('bait_mcflip', gHL))}
           🪤 BAIT FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#eaffea', textShadow: '0 0 10px #3fb950' }}>TAKE {baitGreen.dogName.split(' ').slice(-1)[0].toUpperCase()} +{baitGreen.dogOdds}</span> · discount {baitGreen.gap}pt+
           {baitGreen.c75Flip === false ? (
             <span style={{ color: '#ffd7d5', background: 'rgba(248,81,73,0.55)', borderRadius: 4, padding: '0 6px', marginLeft: 8, fontWeight: 900 }}
