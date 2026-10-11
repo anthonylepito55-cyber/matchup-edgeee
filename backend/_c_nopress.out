@@ -1,0 +1,47 @@
+615127 rows parsed
+52w window done
+season block done
+h2h done
+two-sided: 167035
+C core: 122354  features: 35
+C core rows: 122354   features: 35
+pressure features present in FC: ['d_c_sp', 'd_c_rp']
+pressure coverage in the core: 50.2%  (2026: 70.3%)
+
+============================================================================================
+A. ABLATION -- refit C without d_c_sp / d_c_rp, identical rows
+============================================================================================
+   year   variant            AUC   logloss    Brier  C dog ROI  n dogs
+   2024   full            72.28%    0.6110   0.2121      18.6%    2366
+   2024   no_pressure     72.34%    0.6106   0.2119      19.5%    2338
+   2024   market          71.32%    0.6180   0.2151
+
+   2025   full            71.44%    0.6195   0.2153      17.7%    3198
+   2025   no_pressure     71.44%    0.6194   0.2153      17.6%    3186
+   2025   market          72.40%    0.6116   0.2120
+
+   2026   full            69.89%    0.6289   0.2199       6.3%    2604
+   2026   no_pressure     69.91%    0.6287   0.2198       6.9%    2581
+   2026   market          72.54%    0.6101   0.2114
+
+   POOLED 2024-26:
+      full           AUC  71.20%   logloss 0.6198   Brier 0.2157   C dog ROI +14.2%
+      no_pressure    AUC  71.23%   logloss 0.6196   Brier 0.2156   C dog ROI +14.6%
+      market         AUC  72.09%   logloss 0.6133   Brier 0.2128
+
+   >>> dropping pressure changes AUC by +0.03pt and logloss by -0.0002
+
+============================================================================================
+B. NATURAL EXPERIMENT -- C's real performance where pressure EXISTS vs where it does not
+============================================================================================
+   (C already prices both; missing features are filled with 0 at fit time)
+   year   rows                   n     AUC   logloss  mkt logloss
+   2024   HAS pressure        9581  72.71%    0.6072       0.6264
+   2024   no pressure        10760  71.89%    0.6143       0.6106
+   2025   HAS pressure       23084  71.55%    0.6176       0.6184
+   2025   no pressure         5387  70.95%    0.6275       0.5828
+   2026   HAS pressure       14706  71.61%    0.6156       0.6062
+   2026   no pressure         6200  65.74%    0.6604       0.6193
+
+   If C is no worse on the no-pressure rows, the pressure family is not load-bearing
+   and a feed without it can price matches. If it is clearly worse, speed is a dead end.

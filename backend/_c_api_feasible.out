@@ -1,0 +1,24 @@
+615127 rows parsed
+52w window done
+season block done
+h2h done
+two-sided: 167035
+C core: 122354  features: 35
+C core rows: 122354   features: 35
+FULL FEATURE LIST:
+   d_m_won, d_m_first_serve_accuracy, d_m_first_serve_points, d_m_second_serve_points, d_m_return_1st_serve_points, d_m_return_2nd_serve_points, d_m_perf, d_m_dr, d_m_meff, d_c_sgw, d_c_rgw, d_c_bpsav, d_c_bpconv, d_c_bpcre_pg, d_c_bpdef_pg, d_c_aces_pg, d_c_dfs_pg, d_c_sp, d_c_rp, d_c_tb, d_sn_win, d_sn_sv, d_t10_win, d_t10_faced, d_t10_beaten, d_t10_bestwin, d_t10_losscl, d_faced, d_beaten, d_sn_faced, d_vs_band, d_lrank, f_h2h_n, f_h2h_share, f_h2h_s_share
+
+================================================================================================
+STAGED ABLATION -- what each lost family costs Model C (walk-forward, identical rows)
+================================================================================================
+   full (shipped)                     feats 35   AUC  71.20%   logloss 0.6198   dog ROI  +14.2%   | 2026 AUC 69.89% ROI +6.3%
+   - pressure                         feats 33   AUC  71.23%   logloss 0.6196   dog ROI  +14.6%   | 2026 AUC 69.91% ROI +6.9%
+   - pressure, hold/break             feats 31   AUC  71.22%   logloss 0.6196   dog ROI  +15.5%   | 2026 AUC 69.87% ROI +7.6%
+   API-FEASIBLE (- all game-count)    feats 26   AUC  71.19%   logloss 0.6198   dog ROI  +14.6%   | 2026 AUC 69.89% ROI +7.1%
+
+   change against the shipped model:
+      - pressure                         AUC +0.03pt   logloss -0.0002   dog ROI +0.4pt
+      - pressure, hold/break             AUC +0.01pt   logloss -0.0001   dog ROI +1.3pt
+      API-FEASIBLE (- all game-count)    AUC -0.01pt   logloss +0.0000   dog ROI +0.4pt
+
+   for scale, the 2026 market: AUC 72.54%  logloss 0.6101

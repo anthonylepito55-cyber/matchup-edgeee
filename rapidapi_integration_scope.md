@@ -43,22 +43,35 @@ the complement of your opponent's 1st-serve-won, and both players arrive in one 
 
 ---
 
-## 3. What it cannot replace — the part that matters
+## 3. REVISED — the blockers turned out not to be blockers
 
-**Three gaps, and two of them are the most important stats we have.**
+**Section 3 originally said the feed could not replace TennisRatio because it lacks pressure
+points and hold%. An ablation on 2026-10-10 refuted that, and this section replaces it.**
 
-1. **Serve / return pressure points — absent.** These produce `c_sp` and `c_rp`, and
-   `c_rp_diff_p1` is **Model C's single biggest driver** (it was 3.5× the next term on the
-   Brengle match). TennisRatio builds them from 32 clutch-by-score columns that this feed has
-   no equivalent for. **Not derivable.**
-2. **hold% / break% — not reliably derivable.** The feed gives break points *converted*
-   (= breaks of serve) but no service-game count, and reconstructing service games from the set
-   scores fails because we cannot know who served first in each set (25% inside tolerance).
-   Per the match study, hold% is the single most decisive in-match stat (94.0% of 167k matches),
-   so a wrong hold% is worse than none.
-3. **`unforcedErrors` and `winners` — fields exist, null everywhere**, including Shanghai
-   Masters, China Open and Wuhan. Confirms the earlier source audit. Do not reopen the UE line
-   on this feed.
+Model C refit on the shipped walk-forward recipe, identical rows, with each missing family
+removed:
+
+| variant | features | AUC | logloss | C dog ROI | 2026 ROI |
+|---|---|---|---|---|---|
+| full (shipped) | 35 | 71.20% | 0.6198 | +14.2% | +6.3% |
+| − pressure | 33 | 71.23% | 0.6196 | +14.6% | +6.9% |
+| − pressure, hold/break | 31 | 71.22% | 0.6196 | **+15.5%** | +7.6% |
+| **API-feasible (−9 game-count features)** | **26** | **71.19%** | **0.6198** | **+14.6%** | **+7.1%** |
+
+Dropping all nine game-count features costs **AUC −0.01pt, logloss +0.0000, dog ROI +0.4pt.**
+C's features are heavily redundant: the serve/return point percentages already carry what hold%,
+break% and pressure express — the same head-to-head identity measured in the match study, where
+a player's hold% is the complement of the opponent's break%.
+
+I had called `c_rp_diff_p1` Model C's biggest driver. That was inferred from one large feature
+value on the Brengle match, never measured, and it was wrong.
+
+**Still missing and still unavailable:** `unforcedErrors` and `winners` (null everywhere). That
+line stays closed.
+
+**Untested:** Model D, the Monte-Carlo layers and sUTR were not ablated. D leans on form,
+last-10 and level features that come from *results* rather than stat lines, so it is likely
+fine, but that is an assumption, not a measurement.
 
 ---
 
@@ -97,20 +110,19 @@ Options, cheapest first:
 
 ---
 
-## 6. My recommendation
+## 6. Revised recommendation
 
-**Do not wire it for model features yet.** It cannot supply the two stats the models lean on
-hardest (pressure points, hold%), so it would not let a fresh match be priced — it would only
-make the serve-side columns arrive sooner, while C still waits on TennisRatio.
+**The feed can price matches, so a paid tier is now justifiable.** That reverses what this
+document said before the ablation.
 
-**What is worth doing now, cheaply:** the ingest fix shipped tonight already closed the
-*who-won* lag (0–7 day one-sidedness 78.7% → 32.2%), and Polymarket/TennisExplorer already give
-95–100% same-day results. So the remaining gap is narrower than it looked this morning.
+Before spending, three things in order:
 
-**The question that decides it:** can Model C be made to work without pressure points? If a
-pressure-free variant of C holds up in a walk-forward, then this feed becomes a genuine same-day
-pricing path and a paid tier is justified. If it cannot, the feed is a convenience, not an
-upgrade, and the free results-only tier is all it is worth.
+1. **Verify the field values at scale.** Section 2 rests on 8 player-rows because the free tier
+   returned 429. Reconcile a few hundred across levels and resolve the off-by-one counts in
+   1st-serve-in% and the BP percentages. Costs only time and quota.
+2. **Ablate Model D, the MC layers and sUTR** the same way. C is clear; the others are assumed.
+   Costs no API quota.
+3. **Price the tier** against ~225 stats calls/day plus 2 results calls.
 
-I can run that test — refit C without `c_sp`/`c_rp` and compare — on existing data, for no
-API quota at all. Say the word.
+If 1 and 2 hold, this becomes a genuine same-day pricing path: the board could price a match a
+few hours after the previous one finished, instead of waiting 1–3 days for TennisRatio.
