@@ -1362,7 +1362,7 @@ def get_ab25_record() -> dict:
              ("cvg_c", "cvg_gray", "gray_dog4", "grayhate_dog", "grayhate_fav",
               "abc_agree", "abc_dog", "c_alone_gray", "c_alone_gray_dog",
               "c_alone_gray_fav", "gold_names", "green_names", "all6_agree",
-              "tier1", "tier2", "tier3", "tier_avoid", "tier_nobet", "fade_a",
+              "tier1", "tier2", "tier3", "tier_avoid", "tier_avoid_dog", "tier_nobet", "fade_a",
               "fade_a_dog", "fade_a_dog_gray", "fade_a_fav",
               "goldfav_d45", "goldfav_d5",
               "d_all", "dma_all", "d_gray_dog", "d_alone", "mc_all", "mc_dog",
@@ -1589,6 +1589,13 @@ def get_ab25_record() -> dict:
                 _tk = None
             if _tk and str(r.get("date") or "") >= "2026-09-30":
                 bet(_tk, _ts)
+                # 🟢 THE DOG HALF OF "AVOID" (2026-10-10, user "yes"). tier_avoid exists as a
+                # CONTROL that was supposed to LOSE and prove the avoid verdict; instead its
+                # dog half runs +19.1% (n=98), men +17.4% / women +22.1%, while its favourite
+                # half is +0.9% on n=16 with men-fav -27.3%. Scored separately so the card
+                # mark cites the dog-only record rather than the mixed one.
+                if _tk == "tier_avoid" and _ts == dog1:
+                    bet("tier_avoid_dog", _ts)
             # ⚖️ CONFLICT RESOLVERS as their own auto-updating lanes (2026-10-05). Each bets
             # the gender-specific side its board badge tells you to trust, so the badge can
             # cite its own live record. Gender via bet()'s vm/vw split.
