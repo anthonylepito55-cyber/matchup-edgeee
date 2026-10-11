@@ -3513,8 +3513,14 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <span className="mono" style={{
           fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: surfaceColor,
           border: `1px solid ${surfaceColor}`, borderRadius: 4, padding: '2px 6px',
-        }} title={match.surface_estimated ? `⚠ SURFACE UNVERIFIED — no schedule source confirmed this court (${match.surface_src || 'city history / default'}). Models used ${match.surface}; check before betting.` : `Surface verified: ${match.surface_src || 'schedule'}`}>
-          {match.surface.toUpperCase()}{match.surface_estimated ? ' ⚠ UNVERIFIED' : ' ✓'}
+        }} title={match.surface_estimated
+            ? `⚠ SURFACE UNVERIFIED — no schedule source confirmed this court (${match.surface_src || 'city history / default'}). Models used ${match.surface}; check before betting.`
+            : /same city/i.test(String(match.surface_src || ''))
+              ? `~ SURFACE INFERRED FROM THE SAME CITY, not from this event's own schedule (${match.surface_src}). A city can run more than one surface, and some of these take a MEN'S draw's surface from a WOMEN'S event in that city — so EVERY stat on this card may be keyed to the wrong court. Measured 2026-10-11: 118 of 381 ITF cards and 17 of 200 board cards are same-city inferences, and until now they were marked the same as a verified surface.`
+              : `Surface verified from this event's own schedule: ${match.surface_src || 'schedule'}`}>
+          {match.surface.toUpperCase()}{match.surface_estimated
+            ? ' ⚠ UNVERIFIED'
+            : /same city/i.test(String(match.surface_src || '')) ? ' ~ SAME CITY' : ' ✓'}
         </span>
         {fmtPT(match.start_time_utc) ? (
           <span className="mono" title={`Scheduled start, Pacific time. Cards are ordered by start time (live games on top).`}
