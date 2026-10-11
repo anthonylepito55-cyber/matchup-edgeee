@@ -212,6 +212,28 @@ def _refresh_interval(resolved_date: str) -> tuple:
 
 async def _background_refresh_loop():
     loop = asyncio.get_event_loop()
+    # WARM ON STARTUP (2026-10-11, user: "sites taking forever to load now").
+    #
+    # The loop below sleeps BEFORE its first refresh, so after a restart nothing was warm until
+    # a whole interval had elapsed -- up to an hour when idle. today()'s stale-while-revalidate
+    # cannot help here either, because a fresh process has no stale slate to serve. The result
+    # was that the first visitor after every deploy paid the full cold compute: measured at
+    # ~103s for /api/today and ~165s for the tennis slate, serialised behind the shared compute
+    # lock, which is exactly the "taking forever" the user reported after a day of deploys.
+    #
+    # So do one pass immediately. It runs in worker threads on the event loop, so uvicorn keeps
+    # serving (the page shell and track-record stay fast) while the heavy caches fill.
+    # tennis_history is in the warm set too: it is the heaviest endpoint (30 days x matches x
+    # two players of as-of serve/return context, plus the UE and Model-P signal blocks) and was
+    # measured at 18.6s cold against 52ms for the board. Priming it means the previous-day tab
+    # is not the one thing still slow after a deploy.
+    for _warm, _name in ((today, "today"), (tennis_today, "tennis_today"),
+                         (tennis_history, "tennis_history")):
+        try:
+            await loop.run_in_executor(None, _warm)
+            print(f"[startup warm] {_name} cache primed")
+        except Exception as e:
+            print(f"[startup warm] {_name} failed: {e}")
     while True:
         resolved_date = todays_date_et()
         sleep_s, force_odds = _refresh_interval(resolved_date)
@@ -2422,11 +2444,35 @@ def tennis_model_x_record():
     return meta
 
 
+_TENNIS_HISTORY_CACHE: dict = {}
+
+
 @app.get("/api/tennis/history")
 def tennis_history(limit_dates: int = 30):
     """Every finished tennis match from the frozen log, newest date first (user ask
-    2026-10-02). Each match carries the result + each model's and the MC's pick/hit."""
-    return tennis_log.get_tennis_history(limit_dates=limit_dates)
+    2026-10-02). Each match carries the result + each model's and the MC's pick/hit.
+
+    RESPONSE-CACHED (2026-10-11, user: "sites taking forever to load now"). This is the
+    heaviest endpoint on the box -- 30 days x matches x two players of as-of serve/return
+    context plus the UE and Model-P blocks -- and it had no cache at all, so every poll of the
+    previous-day tab recomputed the lot: measured 7.9s, and 18.6s cold. Memoising context_asof
+    took it to ~2.6s; caching the response makes a repeat call free.
+
+    Keyed on the frozen log's mtime, so a newly settled match invalidates it immediately
+    rather than being hidden behind a timer -- the tab must never show a stale result.
+    """
+    try:
+        mt = os.path.getmtime(tennis_log.LOG_PATH)
+    except Exception:
+        mt = None
+    key = (limit_dates, mt)
+    hit = _TENNIS_HISTORY_CACHE.get(key)
+    if hit is not None:
+        return hit
+    out = tennis_log.get_tennis_history(limit_dates=limit_dates)
+    _TENNIS_HISTORY_CACHE.clear()        # only ever hold the current mtime's answers
+    _TENNIS_HISTORY_CACHE[key] = out
+    return out
 
 
 @app.get("/api/tennis/set-scan")

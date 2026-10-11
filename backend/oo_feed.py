@@ -222,6 +222,7 @@ def snapshot(leagues: list[str] | None = None, within_hours: float | None = 48,
             print("   snapshot empty")
         return df
     df["poll_ts"] = poll_ts
+    fresh = df                       # THIS poll only -- see the return note below
     if store:
         os.makedirs(SNAP_DIR, exist_ok=True)
         day = datetime.fromtimestamp(poll_ts, timezone.utc).strftime("%Y-%m-%d")
@@ -252,7 +253,15 @@ def snapshot(leagues: list[str] | None = None, within_hours: float | None = 48,
                   "%d API calls, %s remaining)"
                   % (os.path.basename(path), before, dropped, len(df),
                      feed.calls, feed.remaining))
-    return df
+    # RETURN THIS POLL, NOT THE WHOLE DAY (fixed 2026-10-11 after the box went sluggish).
+    # This used to return `df`, which by that point is the concatenated day file -- so the
+    # caller's scan re-processed every row logged since midnight on EVERY pass, work that grew
+    # linearly all day (48% CPU for 10s out of every 20s, and climbing).
+    # One poll already contains the CURRENT quote for every fixture and book, because every
+    # fixture is re-polled each pass -- the dedupe only drops unchanged rows from STORAGE, not
+    # from this frame. So the freshest-quote scan gets everything it needs from `fresh`, in
+    # constant time.
+    return fresh
 
 
 # ------------------------------------------------------------------ odds maths

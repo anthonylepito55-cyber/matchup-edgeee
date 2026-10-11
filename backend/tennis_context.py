@@ -25,6 +25,13 @@ TR_DIR = os.path.join(_here, "data_cache", "tennisratio")
 LOGS_PARQUET = os.path.join(TR_DIR, "all_match_logs.parquet")
 
 _cache = {"mtime": None, "profiles": None, "name_index": None}
+# AS-OF MEMO (2026-10-11): context_asof is deterministic given (player, surface, asof) and the
+# loaded profiles -- it reads only matches strictly BEFORE asof, so a past date's answer never
+# changes while the profile cache is unchanged. The history endpoint calls it twice per row
+# across 30 days of rows, and adding the L3 window pushed that to ~8s per request. Memoised
+# here and invalidated on profile reload (keyed on the same mtime `_load` tracks).
+_asof_memo = {"mtime": None, "v": {}}
+_ASOF_MEMO_MAX = 20000
 
 
 def _norm_name(name):
@@ -277,6 +284,30 @@ def get_context(player_name, surface=None):
 
 
 def context_asof(player_name, surface, asof):
+    """Memoising wrapper around `_context_asof_uncached`.
+
+    Keyed on (name, surface, asof-DAY) and dropped whenever the profile parquet's mtime changes,
+    so a re-ingest is picked up but repeated lookups inside one request are free. The day
+    granularity is safe because the underlying computation already truncates to `date <  asof`.
+    """
+    try:
+        mtime = os.path.getmtime(LOGS_PARQUET)
+    except OSError:
+        mtime = None
+    if _asof_memo["mtime"] != mtime:
+        _asof_memo["mtime"] = mtime
+        _asof_memo["v"] = {}
+    key = (str(player_name), str(surface), str(asof)[:10])
+    memo = _asof_memo["v"]
+    if key in memo:
+        return memo[key]
+    out = _context_asof_uncached(player_name, surface, asof)
+    if len(memo) < _ASOF_MEMO_MAX:          # bounded: never let a long-running process grow
+        memo[key] = out
+    return out
+
+
+def _context_asof_uncached(player_name, surface, asof):
     """Serve/return context AS IT STOOD BEFORE `asof` (2026-10-09, user "I want to see
     serve/return stats on the previous day page"): same fields as get_context's surface
     stats, computed only from this player's matches strictly before the match date (52-week
