@@ -2099,6 +2099,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                     </div>
                     {shortRow('l10', '└ L10', 10)}
                     {shortRow('l5', '└ L5', 5)}
+                    {shortRow('l3', '└ L3', 3)}
                     </>
                   )
                 })() : null}
@@ -2271,16 +2272,18 @@ function TrContextRow({ name, ctx }) {
       {/* LAST 10 ON THIS SURFACE (2026-10-11, user ask) -- same stats, same court, shorter
           window, with the win% delta against the 52w line directly above so recent form is
           readable without arithmetic. Indented and dimmer so the 52w line stays primary. */}
-      {/* SHORT WINDOWS ON THIS SURFACE (L10 then L5, 2026-10-11 user asks). One loop so the
-          windows share a code path; each shows the same stat set as the 52w line above with
-          its win-rate delta against that line, and fades slightly as the window shortens. */}
-      {[['l10', s.l10 || ctx.surface_l10], ['l5', s.l5 || ctx.surface_l5]]
+      {/* SHORT WINDOWS ON THIS SURFACE (L10, then L5, then L3 -- 2026-10-11 user asks). One
+          loop so the windows share a code path; each shows the same stat set as the 52w line
+          above with its win-rate delta against that line, and fades as the window shortens.
+          L3 is exactly three matches: the shortest window the context builder will emit. */}
+      {[['l10', s.l10 || ctx.surface_l10], ['l5', s.l5 || ctx.surface_l5],
+        ['l3', s.l3 || ctx.surface_l3]]
         .filter(([, q]) => q)
         .map(([tag, q], i) => {
           const dw = (q.win == null || s.win == null) ? null
             : Math.round((q.win * 100 - s.win * 100) * 10) / 10
           return (
-            <div key={tag} style={{ paddingLeft: 12, opacity: i === 0 ? 0.78 : 0.68 }}>
+            <div key={tag} style={{ paddingLeft: 12, opacity: 0.78 - 0.05 * i }}>
               {/* segments are joined rather than concatenated with leading separators: a
                   short window can have NO stat line at all (5% of L5 blocks -- the player's
                   last 5 matches on this court have not had their stats ingested yet), and a

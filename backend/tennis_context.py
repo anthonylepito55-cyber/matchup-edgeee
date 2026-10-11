@@ -118,11 +118,13 @@ def _load():
                 "rgw": _fin(100 * w["rg_won"].sum() / rga) if rga else None,   # Return Games Won %
                 "win": round(float(w["won"].mean()), 3),
             }
-            # SHORT WINDOWS ON THIS SURFACE (L10 2026-10-11, L5 same day on "And l5 stats").
+            # SHORT WINDOWS ON THIS SURFACE (L10 2026-10-11, then L5 and L3 the same day on
+            # "And l5 stats" / "can u add a l3 under the l5 as well"). L3 is exactly three
+            # matches whenever it exists, since the floor below is three.
             # Same stat set as the 52w block above and the same surface -- only the window
             # length differs. SGW/RGW are rebuilt from the game SUMS rather than averaged,
             # exactly as the 52w figures are, so every line is directly comparable.
-            for _tag, _k in (("l10", 10), ("l5", 5)):
+            for _tag, _k in (("l10", 10), ("l5", 5), ("l3", 3)):
                 _w = sub.tail(_k)
                 if len(_w) < 3:
                     continue
@@ -318,7 +320,7 @@ def context_asof(player_name, surface, asof):
     # than averaged so the two lines are directly comparable. `sub` is already filtered to
     # the chosen surface; if the 52w fallback widened to All, this follows it.
     short = {}
-    for _tag, _k in (("l10", 10), ("l5", 5)):
+    for _tag, _k in (("l10", 10), ("l5", 5), ("l3", 3)):
         _w = sub.tail(_k)
         if len(_w) < 3:
             continue
@@ -334,14 +336,14 @@ def context_asof(player_name, surface, asof):
             "win": round(float(_w["won"].mean()), 3),
             "from": str(_w["date"].min().date()),
         }
-    stats_l10, stats_l5 = short.get("l10"), short.get("l5")
+    stats_l10, stats_l5, stats_l3 = short.get("l10"), short.get("l5"), short.get("l3")
     recent = g.tail(25)
     good = recent[recent["rival_rank"] <= 200]
     pr_all = recent["serve_pressure_all"].fillna(0).sum() + recent["return_pressure_all"].fillna(0).sum()
     pr_won = recent["serve_pressure_won"].fillna(0).sum() + recent["return_pressure_won"].fillna(0).sum()
     ranks = g.tail(10)["rival_rank"].dropna()
     return {"slug": cur["slug"], "tour": cur.get("tour"), "surface_used": surf, "surface_stats": stats,
-            "surface_l10": stats_l10, "surface_l5": stats_l5,
+            "surface_l10": stats_l10, "surface_l5": stats_l5, "surface_l3": stats_l3,
             "vs_top200": {"w": int(good["won"].sum()), "l": int(len(good) - good["won"].sum())},
             "clutch": round(float(pr_won / pr_all), 3) if pr_all >= 40 else None,
             "avg_opp_rank": int(ranks.median()) if len(ranks) >= 3 else None,
