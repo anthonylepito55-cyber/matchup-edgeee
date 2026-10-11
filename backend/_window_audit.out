@@ -1,0 +1,52 @@
+archive rows: 615127  players: 1760  2000-04-30..2026-10-08
+
+comparable rows (a prior match on this surface exists): 605329
+
+========================================================================================
+A. THE 52-WEEK ANCHOR -- same data, backtest window vs live window
+========================================================================================
+   layoff since previous match on surface: median 2d  mean 16d  p90 28d  p99 294d
+   -> that layoff IS the window misalignment
+
+   feature     share differing  mean |diff|  p95 |diff|   bt mean live mean     bias
+   m_won                 28.5%       0.0083      0.0381     0.580     0.579  +0.0011
+   c_sp                  23.2%       0.1640      0.8342    58.422    58.414  +0.0078
+   c_rp                  23.2%       0.1687      0.8341    43.647    43.628  +0.0191
+   c_sgw                 20.9%       0.2468      1.1736    68.995    68.974  +0.0204
+   w_n                   29.2%       0.7958      4.0000    31.408    30.612  +0.7958
+
+   rows where the 52w WIN RATE differs by more than 10 points: 7547 (1.2%)
+      their median layoff: 85d vs 2d overall
+   by layoff bucket, how far the two windows' win rates drift apart:
+      0-7d      n=430127  mean |diff| 0.0039  share >5pts   1.2%  share >10pts   0.3%
+      7-21d     n= 99409  mean |diff| 0.0114  share >5pts   4.5%  share >10pts   1.3%
+      21-60d    n= 38805  mean |diff| 0.0165  share >5pts   7.9%  share >10pts   2.3%
+      60-180d   n= 22905  mean |diff| 0.0284  share >5pts  16.3%  share >10pts   6.3%
+      180d+     n= 14083  mean |diff| 0.0660  share >5pts  35.7%  share >10pts  19.4%
+
+========================================================================================
+B. THE >= 5 MATCH GATE (live only)
+========================================================================================
+   rows live would PRICE (live window >= 5):       93.4%
+   rows the backtest treats as usable (bt >= 5):   94.1%
+   rows the BACKTEST uses but LIVE REFUSES:       4152 (0.69%)
+   rows LIVE prices but the backtest would not:   0 (0.00%)
+
+   the thin rows live refuses are a different population:
+      their win rate 0.496 vs 0.578 for priced rows
+      their median layoff 4d vs 2d
+
+========================================================================================
+C. LAST-10 and SEASONAL
+========================================================================================
+   last-10-on-surface: both recipes take the 10 matches immediately before this one,
+   so they are identical BY CONSTRUCTION (no date anchor involved). Verified:
+      592201 rows compared, max |diff| 0.00e+00
+   min_periods DOES differ: backtest t10_win needs 4 prior matches (mn=4), live
+   tmean(gdf.won, 10, 3) needs 3 -- so live prices some rows the backtest left NaN.
+
+   seasonal (calendar-year expanding, shifted): first match of each player-year has
+   no season history at all -- 2.7% of all rows, and 12.7% have fewer than 5.
+   Both recipes agree (live yr = this calendar year, strictly before today; backtest
+   expanding().mean().shift(1) within the year), so the seasonal block is consistent --
+   but it is a JANUARY-RESET window, thin for everyone early in each season.
