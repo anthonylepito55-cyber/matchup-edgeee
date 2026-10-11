@@ -143,6 +143,13 @@ def log_predictions(matches: list, date: str):
             "p1_odds": odds.get("player_1"), "p2_odds": odds.get("player_2"),
             "bookmaker": odds.get("bookmaker"), "logged_at": now, "settled": False, "p1_won": None,
             "sr_dog": m.get("sr_dog"), "sos": m.get("sos"),
+            # FROZEN SEASONAL HOLD/BREAK (2026-10-11, user "Mark the band + favorite and band
+            # + dog positive roi ones"): each player's 52-week-on-this-surface service-games-won
+            # and return-games-won, frozen at first serve so the two s52 lanes below score the
+            # same numbers the card showed. Computed from the live context (the board already
+            # has it); as-of correctness for OLD rows comes from _backfill_s52.py, which uses
+            # context_asof.
+            **_s52_pair(m.get("player_1"), m.get("player_2"), m.get("surface")),
             "model_a_p1": ma.get("p1_prob"), "model_b_p1": mb.get("p1_prob"),
             "model_c_p1": mc.get("p1_prob"),
             "model_cma_p1": mc.get("market_aware_p1"),
@@ -669,6 +676,25 @@ def _ue_asof(r):
                          "win_p1": g("win_p1"), "win_p2": g("win_p2"),
                          "fh_p1": g("ue_fh_p1"), "fh_p2": g("ue_fh_p2")}
     return out or None
+
+
+def _s52_pair(p1, p2, surface):
+    """The seasonal (52-week-on-surface) hold%/break% for both players, as four flat columns.
+    Live path: reads the current context, which at log time IS the as-of value because the
+    match has not been played yet. Never raises -- a missing player just yields None, and the
+    lanes are gated on all four being present."""
+    out = {}
+    for tag, nm in (("p1", p1), ("p2", p2)):
+        sgw = rgw = None
+        try:
+            import tennis_context as _TC
+            st = (_TC.get_context(nm, surface) or {}).get("surface_stats") or {}
+            sgw, rgw = st.get("sgw"), st.get("rgw")
+        except Exception:
+            pass
+        out["s52_sgw_" + tag] = None if sgw is None else float(sgw)
+        out["s52_rgw_" + tag] = None if rgw is None else float(rgw)
+    return out
 
 
 def _sr_asof(r):
@@ -1374,6 +1400,13 @@ def get_ab25_record() -> dict:
               # board's STACK x1/x2/x3 chip had only an archive backtest number; these give
               # it a live one. One bet per game on the dog, from registration forward.
               "stack1", "stack2", "stack3",
+              # 🔵 SEASONAL BAND lanes (2026-10-11, user "Mark the band + favorite and band +
+              # dog positive roi ones highlight them blue on the board"). Both BET THE DOG at
+              # +100..+200; they differ only in which side owns the seasonal hold%+break%.
+              # Measured on this log before shipping: fav-better +25.2% (69-63, n=132, 2.4se,
+              # band baseline -0.8% on n=632); dog-better +4.2% (40-49, n=89). The mixed case
+              # (one stat each) is the negative remainder and is deliberately NOT a lane.
+              "s52_fav_band_dog", "s52_dog_band_dog",
               # tracked Model C variants (2026-10-10): same rule, three feature sets, so the
               # control c_ship_dog is what makes the other two readable
               "c_ship_dog", "c_nohb_dog", "c_api_dog",
@@ -2243,6 +2276,65 @@ def get_ab25_record() -> dict:
                      "w_dog": agg(d["vwd"]), "w_fav": agg(d["vwf"]),
                      **({"picks": d["picks"]} if d.get("picks") else {})}
                  for k, d in study.items()}
+    # 🔵 SEASONAL BAND lanes (2026-10-11, user "Mark the band + favorite and band + dog
+    # positive roi ones highlight them blue on the board").
+    #
+    # These run in their OWN pass, deliberately NOT inside the lane loop above. That loop is
+    # gated on model_c_p1 AND model_cma_p1 being present, and the blue mark is not -- it needs
+    # only the price and the two frozen seasonal pairs. Scoring the lane on the narrower
+    # model-gated set gave a visibly different answer (the dog cell read +35.6% on 65 settles
+    # there against +4.2% on 89 over all qualifying rows), i.e. the heads were silently
+    # selecting the sample. A mark and its live number must cover the SAME games, so the lane
+    # mirrors the mark's own condition exactly and nothing else.
+    #
+    # Both lanes BET THE DOG at +100..+200; they differ only in which side owns BOTH seasonal
+    # hold% and break%. The mixed case (one stat each) is the negative remainder, left unlaned.
+    _s52 = {k: {"v": [], "m": [], "w": [], "p": 0}
+            for k in ("s52_fav_band_dog", "s52_dog_band_dog")}
+    _s52cols = ("s52_sgw_p1", "s52_rgw_p1", "s52_sgw_p2", "s52_rgw_p2")
+    if all(c in log.columns for c in _s52cols):
+        _sq = log[log["p1_odds"].notna() & log["p2_odds"].notna()
+                  & log[list(_s52cols)].notna().all(axis=1)]
+        for _, rr in _sq.iterrows():
+            if "surface_bad" in _sq.columns:
+                _sb = rr.get("surface_bad")
+                if _sb is not None and not pd.isna(_sb) and bool(_sb):
+                    continue
+            d1b, d2b = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
+            if not d1b or not d2b:
+                continue
+            i1b, i2b = 1 / d1b, 1 / d2b
+            mk1b = i1b / (i1b + i2b)
+            dgb = mk1b < 0.5                      # player_1 is the market dog
+            dodd = float(rr["p1_odds"] if dgb else rr["p2_odds"])
+            if not (100 <= dodd <= 200):
+                continue
+            sgn = 1.0 if dgb else -1.0            # orient the stat gaps to the DOG
+            ds = sgn * (float(rr["s52_sgw_p1"]) - float(rr["s52_sgw_p2"]))
+            dr = sgn * (float(rr["s52_rgw_p1"]) - float(rr["s52_rgw_p2"]))
+            if ds < 0 and dr < 0:
+                key = "s52_fav_band_dog"
+            elif ds > 0 and dr > 0:
+                key = "s52_dog_band_dog"
+            else:
+                continue
+            if not bool(rr["settled"]) or pd.isna(rr["p1_won"]):
+                _s52[key]["p"] += 1
+                continue
+            won1b = bool(rr["p1_won"])
+            dec = d1b if dgb else d2b
+            pnl = 25.0 * (dec - 1.0) if (won1b == dgb) else -25.0
+            _lgb = str(rr.get("league") or "")
+            _s52[key]["v"].append(pnl)
+            _s52[key]["w" if ("wta" in _lgb or "itf_women" in _lgb) else "m"].append(pnl)
+        for k, v in _s52.items():
+            # every pick is a DOG by construction, so dog == overall and fav is empty
+            study_out[k] = {**agg(v["v"]), "pending": int(v["p"]),
+                            "m": agg(v["m"]), "w": agg(v["w"]),
+                            "dog": agg(v["v"]), "fav": agg([]),
+                            "m_dog": agg(v["m"]), "m_fav": agg([]),
+                            "w_dog": agg(v["w"]), "w_fav": agg([])}
+
     # PRICE-BAND Best-pick records (2026-10-05, user: live color-coded legend on the Prices
     # tab). For each settled MEN game: the Best pick (top gated signal) bucketed by its price
     # (dog +100..+250 / chalk −300..−600), plus the ALL-10 split (−200..−300 / −140..−200).
