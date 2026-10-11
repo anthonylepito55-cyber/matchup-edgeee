@@ -2583,40 +2583,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return { name: dog1 ? match.player_1 : match.player_2, od,
              pct: Math.round(100 * (dog1 ? mc3.mc_c75_p1 : 1 - mc3.mc_c75_p1)) }
   })()
-  // 🔵 SEASONAL BAND (2026-10-11, user "Mark the band + favorite and band + dog positive roi
-  // ones highlight them blue on the board"). A +100..+200 market DOG, split by which side owns
-  // BOTH seasonal (52-week-on-this-surface) hold% and break%. BOTH cells bet the DOG.
-  //
-  // Measured on the frozen log before shipping (as-of context, no hindsight, flat at frozen
-  // odds): FAV-owns-both +27.2% (73-64, n=137) -- against a band baseline of -0.8% on n=632,
-  // so the filter is doing the work, not the price band; DOG-owns-both +5.1% (45-54, n=99),
-  // and that one is men -2.4% / women +12.5%, so the gender gate below keeps men dark.
-  // The mixed case (one stat each) is the negative remainder and is NOT marked.
-  //
-  // Reads the same two numbers the TR CONTEXT line shows, and must stay in lockstep with
-  // tennis_log.py's s52_fav_band_dog / s52_dog_band_dog pass.
-  const blueS52 = (() => {
-    if (!mc3 || mc3.market_p1 == null) return null
-    const a = ((match.tr_context || {}).p1 || {}).surface_stats
-    const b = ((match.tr_context || {}).p2 || {}).surface_stats
-    if (!a || !b) return null
-    if ([a.sgw, a.rgw, b.sgw, b.rgw].some(v => v == null)) return null
-    const dog1 = mc3.market_p1 < 0.5
-    const od = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
-    if (od == null || isNaN(od) || od < 100 || od > 200) return null
-    const sgn = dog1 ? 1 : -1                      // orient the gaps to the DOG
-    const ds = sgn * (a.sgw - b.sgw)
-    const dr = sgn * (a.rgw - b.rgw)
-    let lane = null
-    if (ds < 0 && dr < 0) lane = 's52_fav_band_dog'
-    else if (ds > 0 && dr > 0) lane = 's52_dog_band_dog'
-    if (!lane) return null
-    return {
-      lane, od, favSide: lane === 's52_fav_band_dog',
-      name: dog1 ? match.player_1 : match.player_2,
-      hold: Math.abs(Math.round(ds * 10) / 10), brk: Math.abs(Math.round(dr * 10) / 10),
-    }
-  })()
   const lvlNote = (() => {
     const lg = String(match.league || '')
     const L = (lg === 'atp' || lg === 'wta') ? 'TOUR'
@@ -3044,11 +3010,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // P edge no longer colours a card at all. Only the dog side and Ⓟ CLOSE can.
   const hlP = (!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.close) && hlOK(`p_close_t${pModel.close_tier || 1}`, gHL))
   // the single switch -- any live-positive cell lights the card, all of them the same way
-  // 🔵 SEASONAL BAND gets its OWN colour (2026-10-11, user "highlight them blue on the
-  // board"). Every other positive-live-ROI cell shares the single green treatment; this one is
-  // explicitly blue by request, so it is a second switch rather than another member of hlAny.
-  // Green still wins when both fire, since the green family is the older, deeper evidence.
-  const hlS52 = !!blueS52 && livePos(blueS52.lane, gHL)
   const hlAny = hlBlack || hlGreen || hlPurple || hlBlue || hlP || hlPink || hlOrange
   // one treatment: green, because it means "positive"
   const HL = {
@@ -3057,15 +3018,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     rail: '#3fb950',
     glow: '0 0 16px rgba(63,185,80,0.26)',
   }
-  const HL_BLUE = {
-    bg: 'rgba(88,166,255,0.13)',
-    border: '1px solid rgba(88,166,255,0.85)',
-    rail: '#58a6ff',
-    glow: '0 0 16px rgba(88,166,255,0.28)',
-  }
-  // green outranks blue when a card qualifies for both
-  const HLs = hlAny ? HL : HL_BLUE
-  const hlOn = hlAny || hlS52
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -3139,10 +3091,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: hlOn ? HLs.bg : 'var(--panel)',
-      border: hlOn ? HLs.border : '1px solid var(--line)', borderRadius: 10,
-      padding: '18px 20px 16px', borderLeft: `3px solid ${hlOn ? HLs.rail : leagueColor}`,
-      boxShadow: hlOn ? HLs.glow : undefined,
+      background: hlAny ? HL.bg : 'var(--panel)',
+      border: hlAny ? HL.border : '1px solid var(--line)', borderRadius: 10,
+      padding: '18px 20px 16px', borderLeft: `3px solid ${hlAny ? HL.rail : leagueColor}`,
+      boxShadow: hlAny ? HL.glow : undefined,
       animationDelay: `${animDelay}s`,
     }}>
       {match.book_prices && (match.book_prices.p1 || match.book_prices.p2) ? (() => {
@@ -3191,29 +3143,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           ) : null}
         </div>
       ) : null}
-      {blueS52 && livePos(blueS52.lane, gHL) ? (() => {
-        const st = (((laneRec && laneRec.study) || {})[blueS52.lane]) || {}
-        const c = st[gHL] || {}
-        const nn = c.n || 0
-        const live = nn
-          ? `LIVE ${gHL === 'w' ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})`
-          : 'LIVE tracking'
-        return (
-          <div className="mono"
-            title={blueS52.favSide
-              ? `🔵 SEASONAL BAND — FAV OWNS BOTH. This is a +100..+200 underdog whose opponent is better on BOTH seasonal numbers (52-week on this court): hold% by ${blueS52.hold}pt and break% by ${blueS52.brk}pt. Counter-intuitively that is the spot to back the DOG. Measured on the frozen log with as-of context (nothing sees its own result), flat at frozen odds: +27.2% ROI, 73-64 over 137 settles, dog winning 52.3% against a 39.6% no-vig line — a +12.7pt edge. The control matters more than the number: ALL +100..+200 dogs ran -0.8% over 632, and the same band with the favourite NOT seasonally better ran -7.7% over 500, so the seasonal filter is doing the work rather than the price band. Both genders agree (men +22.3%, women +33.3%), which is unusual here. CAVEAT: one five-week sample, and this cell is the survivor of comparing three stat windows — the L5 and L10 versions of the same rule are far weaker in this band (+7.3% and +3.8%). Lane s52_fav_band_dog scores every one of these forward; the mark disappears automatically if that gender's live ROI turns negative.`
-              : `🔵 SEASONAL BAND — DOG OWNS BOTH. A +100..+200 underdog who is better on BOTH seasonal numbers (52-week on this court): hold% by ${blueS52.hold}pt and break% by ${blueS52.brk}pt. Frozen-log record, as-of context, flat at frozen odds: +5.1% ROI, 45-54 over 99 settles — positive but FAR weaker than the fav-owns-both cell (+27.2%), and the split is men -2.4% (21-28) against women +12.5% (24-26), so this mark only appears on the gender whose live ROI is currently positive. Band baseline for context: all +100..+200 dogs -0.8% over 632. Thin and unproven; lane s52_dog_band_dog is the judge.`}
-            style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
-            {blueS52.favSide ? '🔵 SEASONAL BAND · FAV OWNS BOTH → ' : '🔵 SEASONAL BAND · DOG OWNS BOTH → '}
-            <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>
-              {'TAKE '}{(blueS52.name || '').split(' ').slice(-1)[0].toUpperCase()}{` +${blueS52.od}`}
-            </span>
-            <span style={{ fontWeight: 400, color: '#d6e9ff' }}>
-              {` · ${blueS52.favSide ? 'fav' : 'dog'} ahead hold ${blueS52.hold}pt / break ${blueS52.brk}pt · ${live}`}
-            </span>
-          </div>
-        )
-      })() : null}
       {stackInfo ? (
         <div className="mono" style={{ fontSize: 9, fontWeight: 900, marginBottom: 5, letterSpacing: '0.04em',
           color: stackInfo.thin ? '#e3b341' : stackInfo.n === 3 ? '#3fb950' : '#8fd18f' }}
