@@ -49,7 +49,14 @@ SHARP_BOOKS = ["Pinnacle", "BetOnline", "Circa Sports"]
 EXCH_BOOKS = ["Kalshi", "Polymarket", "Novig", "Betfair Exchange"]
 RETAIL_BOOKS = ["FanDuel", "DraftKings", "bet365"]
 
-DEFAULT_LEAGUES = ["nba", "nfl", "nhl", "ncaaf"]
+# US majors plus the long tail that the 2026-10-11 coverage sweep found has BOTH a sharp price
+# and a Kalshi/Polymarket price. The tail is where the positive quotes actually are (LoL 25% of
+# in-band quotes positive, challenger 7%) even though its MEAN is worse -- so this is where
+# history is worth accruing. Cost is irrelevant: the 8,000 cap resets per minute.
+DEFAULT_LEAGUES = ["nba", "nfl", "nhl", "ncaaf", "mlb",
+                   "atp", "atp_challenger", "itf_men",
+                   "cs2", "league_of_legends", "mobile_legends_bang_bang",
+                   "afc_-_champions_league"]
 MAX_BOOKS = 5
 MAX_FIXTURES = 5
 
@@ -155,6 +162,12 @@ class Feed:
                     continue
                 for fx in (d.get("data") or []):
                     f = meta.get(fx.get("id")) or fx
+                    # league arrives as a plain id on some sports and as a nested object on
+                    # others. Flatten it here: an unhashable dict in this column silently
+                    # breaks every later groupby("league").
+                    lg = fx.get("league") or f.get("league")
+                    if isinstance(lg, dict):
+                        lg = lg.get("id") or lg.get("name")
                     for o in (fx.get("odds") or []):
                         if o.get("price") is None:
                             continue
@@ -162,7 +175,7 @@ class Feed:
                         lim = (o.get("limits") or {}).get("max")
                         rows.append({
                             "fixture_id": fx.get("id"),
-                            "league": fx.get("league") or f.get("league"),
+                            "league": lg,
                             "start_date": f.get("start_date") or fx.get("start_date"),
                             "home": fx.get("home_team_display") or f.get("home_team_display"),
                             "away": fx.get("away_team_display") or f.get("away_team_display"),

@@ -40,6 +40,17 @@ MIN_EDGE_PP = 1.5        # net of fees, in probability points
 MIN_SIZE = 25.0          # dollars takeable at the flagged price or better
 SHARP_PREF = ["Pinnacle", "BetOnline", "Circa Sports"]
 
+# PRICE BAND GUARD (2026-10-11, added after the first long-tail scan).
+# The only two "qualified" flags that scan produced were a +357 and a +1602 longshot, at $33
+# and $56 of size. They are artifacts of the de-vig, not edges: multiplicative de-vig assumes
+# the book's vig is spread evenly across both sides, and at long odds it is not -- books load
+# more margin onto the longshot. So normalising implied probabilities SYSTEMATICALLY OVERSTATES
+# the fair chance of a longshot, and this scanner would mint a fake edge on every one of them.
+# Until a tail-aware de-vig (Shin or power) is implemented, qualification is restricted to a
+# sane band. Quotes outside it are still scored and still logged -- they are marked `tail` so
+# the bias stays visible and measurable rather than hidden.
+BAND_LO, BAND_HI = 0.10, 0.90
+
 
 def _fair_from_sharp(grp: pd.DataFrame) -> tuple[dict, str] | tuple[None, None]:
     """Two-way fair probabilities per selection, from the best available sharp book.
@@ -101,6 +112,7 @@ def scan(df: pd.DataFrame | None = None, min_edge_pp: float = MIN_EDGE_PP,
             gross = 100.0 * (fv - imp)          # probability points
             net = gross - fee
             size = F.takeable_size(r.order_book, r.price, r.top_size)
+            in_band = (BAND_LO <= imp <= BAND_HI) and (BAND_LO <= fv <= BAND_HI)
             out.append({
                 "flag_ts": now,
                 "fixture_id": fid,
@@ -119,15 +131,22 @@ def scan(df: pd.DataFrame | None = None, min_edge_pp: float = MIN_EDGE_PP,
                 "size_at_price": size,
                 "quote_age_s": (now - float(r.quote_ts)) if r.quote_ts else None,
                 "deep_link": r.deep_link,
+                "tail_price": not in_band,
                 "qualified": bool(net >= min_edge_pp
-                                  and (size is None or size >= min_size)),
+                                  and (size is None or size >= min_size)
+                                  and in_band),
             })
     res = pd.DataFrame(out)
     if verbose and not res.empty:
         q = res[res.qualified]
+        tail_hits = res[(res.net_edge_pp >= min_edge_pp) & res["tail_price"]]
         print("scanned %d fixtures -> %d exchange quotes, %d qualified "
-              "(net >= %.1fpp, size >= $%.0f)"
-              % (latest.fixture_id.nunique(), len(res), len(q), min_edge_pp, min_size))
+              "(net >= %.1fpp, size >= $%.0f, price in %.0f-%.0f%%)"
+              % (latest.fixture_id.nunique(), len(res), len(q), min_edge_pp, min_size,
+                 100 * BAND_LO, 100 * BAND_HI))
+        if len(tail_hits):
+            print("   (+%d would-be hits EXCLUDED as longshot/tail prices, where "
+                  "multiplicative de-vig overstates fair value)" % len(tail_hits))
     return res
 
 
@@ -149,6 +168,19 @@ def log_flags(res: pd.DataFrame, qualified_only: bool = True) -> int:
             rows = pd.concat([old, rows], ignore_index=True)
         except Exception as e:
             print("   WARN could not read flag log (%s); writing fresh" % e)
+    # ONE FLAG PER OPPORTUNITY, not one per poll. A gap that stays open is re-detected every
+    # 20s, and logging each sighting would (a) make the flag count meaningless and (b) weight
+    # the CLV sample by how LONG a gap persisted rather than how often one occurred -- the
+    # stalest prices would dominate the statistic. Keyed on price as well as venue, so a
+    # re-priced gap correctly counts as a new opportunity. keep="first" preserves the moment it
+    # was first takeable, which is the price an alert would actually have given us.
+    key = ["fixture_id", "selection", "venue", "price"]
+    if all(k in rows.columns for k in key):
+        rows = rows.drop_duplicates(subset=key, keep="first").reset_index(drop=True)
+    # league arrives as a dict on some sports; flatten so parquet and groupby both work
+    if "league" in rows.columns:
+        rows["league"] = rows["league"].map(
+            lambda v: (v.get("id") or v.get("name")) if isinstance(v, dict) else v).astype("string")
     os.makedirs(os.path.dirname(FLAGS), exist_ok=True)
     rows.to_parquet(FLAGS, index=False)
     return int(len(rows))
