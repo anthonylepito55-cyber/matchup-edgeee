@@ -1369,6 +1369,11 @@ def get_ab25_record() -> dict:
               "mc_dog_big", "mc_4of4", "mc_gold", "mc_green", "mc_biggray",
               "stardog_prime", "mc_tossup", "cgray_dog_late", "apex_dog",
               "coinflip_c_dog", "mchall_dog_marks",
+              # STACK-COUNT lanes (2026-10-11, user "make sure all the numbers are live
+              # rois"): how many of the four stackable dog families fire on one card. The
+              # board's STACK x1/x2/x3 chip had only an archive backtest number; these give
+              # it a live one. One bet per game on the dog, from registration forward.
+              "stack1", "stack2", "stack3",
               # tracked Model C variants (2026-10-10): same rule, three feature sets, so the
               # control c_ship_dog is what makes the other two readable
               "c_ship_dog", "c_nohb_dog", "c_api_dog",
@@ -1451,8 +1456,10 @@ def get_ab25_record() -> dict:
             _coin9 = _fwd9 and _cdog9 < 0.52
             _mch9 = _fwd9 and (not _isw) and ("challenger" in _lg9)
             _gate_hit = set()
+            _fired9 = set()        # (lane, side) pairs this row bet, for the stack count
 
             def bet(key, side1):
+                _fired9.add((key, bool(side1)))
                 if key in _PICK_LANES:
                     _od9 = r.get("p1_odds") if side1 else r.get("p2_odds")
                     _ug9 = r.get("ue_set5_diff_p1")
@@ -2221,6 +2228,14 @@ def get_ab25_record() -> dict:
                 bet("coinflip_c_dog", dog1)
             elif "mchall_dog_marks" in _gate_hit:
                 bet("mchall_dog_marks", dog1)
+            # STACK COUNT (2026-10-11): the same four families the frontend's STACK chip
+            # counts -- C-ALONE+GRAY, TIER-1, GRAY 4pt+ DOG, FADE-A DOG+GRAY -- all on the
+            # market dog. Must stay in lockstep with TennisSection's STACKABLE set.
+            _nst9 = sum(1 for _k9 in ("c_alone_gray_dog", "tier1", "gray_dog4",
+                                      "fade_a_dog_gray")
+                        if (_k9, bool(dog1)) in _fired9)
+            if _nst9:
+                bet("stack%d" % min(_nst9, 3), dog1)
     study_out = {k: {**agg(d["v"]), "pending": int(d["p"]),
                      "m": agg(d["vm"]), "w": agg(d["vw"]),
                      "dog": agg(d["vd"]), "fav": agg(d["vf"]),

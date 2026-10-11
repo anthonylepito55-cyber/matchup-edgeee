@@ -1009,9 +1009,12 @@ function pureFormTag(m, study) {
   if (!btDog && (n < 12 || roi == null || roi <= 0)) return null
   const pickName = sideP1 == null ? null : (sideP1 ? m.player_1 : m.player_2)
   const oppName = sideP1 == null ? null : (sideP1 ? m.player_2 : m.player_1)
-  const btTxt = btDog ? (gen === 'w' ? 'bt +23.0% (n=3,627)' : 'bt +7.4% (n=5,029)') : null
-  const roiTxt = (btTxt ? btTxt + (n ? ' · live ' : ' · live tracking') : '')
-    + (n ? `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec.wins}-${n - rec.wins}, n${n})` : '')
+  // 2026-10-11 (user "make sure all the numbers are live rois"): live ROI only on the chip;
+  // the dog half's backtest (women +23.0%/n=3,627, men +7.4%/n=5,029) is provenance, not a
+  // displayed number.
+  const roiTxt = n
+    ? `${roi > 0 ? '+' : ''}${Math.round(roi * 10) / 10}% (${rec.wins}-${n - rec.wins}, n${n})`
+    : 'tracking'
   return {
     dis, roi: Math.round(roi * 10) / 10, n, wins: rec.wins, sideP1, pickName,
     // The highlighted name is the one to TAKE. "FADE FORM" = recent form points at the
@@ -1547,8 +1550,8 @@ function LaneTable({ lane, label, note, fmt }) {
 function UeDogPanel({ laneRec }) {
   const study = (laneRec && laneRec.study) || {}
   const OTHERS = [
-    ['allround_dog_w', '🎾 ALL-ROUND DOG · T1', 'TAKE · women +100..+250 dog better than the favourite on BOTH serve-pressure and return-pressure points · bt +10.2% (n=829)'],
-    ['allround_dog_w_big', '🎾 ALL-ROUND DOG · T2', 'TAKE · the same, with both gaps above the median (3.08 / 3.11) · bt +27.5% (n=199)'],
+    ['allround_dog_w', '🎾 ALL-ROUND DOG · T1', 'TAKE · women +100..+250 dog better than the favourite on BOTH serve-pressure and return-pressure points'],
+    ['allround_dog_w_big', '🎾 ALL-ROUND DOG · T2', 'TAKE · the same, with both gaps above the median (3.08 / 3.11)'],
     ['returner_dog_w', '🎾 RETURNER-ONLY DOG', 'WATCH ONLY · big return edge but NOT the better clutch server — the half ALL-ROUND excludes, which backtested −10%'],
   ]
   const o = study.lowerr_dog_w || {}
@@ -1678,9 +1681,9 @@ function ModelPPanel() {
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '14px 0 6px' }}>live lanes — flat $25, from 2026-10-09</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {lane(L.p_dog, 'Ⓟ DOG bets (EV ≥ 5%)', 'the main bet')}
-        {lane(L.p_close_t3, 'Ⓟ CLOSE T3 (15pt+)', 'bt M 80.2% / W 77.5% hit')}
-        {lane(L.p_close_t2, 'Ⓟ CLOSE T2 (10-15pt)', 'bt M 62.5% / W 62.2% hit')}
-        {lane(L.p_close_t1, 'Ⓟ CLOSE T1 (3-10pt)', 'bt M 59.7% / W 63.8% hit')}
+        {lane(L.p_close_t3, 'Ⓟ CLOSE T3 (15pt+)', 'live, auto-updating')}
+        {lane(L.p_close_t2, 'Ⓟ CLOSE T2 (10-15pt)', 'live, auto-updating')}
+        {lane(L.p_close_t1, 'Ⓟ CLOSE T1 (3-10pt)', 'live, auto-updating')}
         {lane(L.p_close, 'Ⓟ CLOSE all tiers', 'close favourites')}
         {lane(L.p_fav, 'Ⓟ FAV (EV ≥ 3%) ⚠ WATCH ONLY', 'favourite side — DEMOTED 2026-10-10, no longer a bet; still scored')}
         {lane(L.p_dog_w250, 'Ⓟ women +200..+250 (new slice)', 'extension check')}
@@ -2423,7 +2426,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     }
     const gtag = bW ? 'W' : 'M'
     // Gendered bt26 in parentheses (2026-09-30): from _tennis_gender_full_bt.py.
-    const b26b = (m, w) => `(bt26 ${bW ? w : m})`
+    // 2026-10-11 (user "make sure all the numbers are live rois"): the gendered bt26
+    // figures stay in each badge's tooltip as provenance but no longer print on the card.
+    // Every number the card shows is now the live frozen-log ROI.
+    const b26b = (_m, _w) => ''
     const alone = ma3 && mb3 && ma3.p1_prob != null && mb3.p1_prob != null
       && (ma3.p1_prob >= 0.5) !== c1x && (mb3.p1_prob >= 0.5) !== c1x
     if (c1x === g1x && g1x === dog1x) {
@@ -3069,7 +3075,18 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const k = Math.min(nS, 3)
     const od = tier1Blue.od
     const banded = od != null && od >= 100 && od <= 200
-    return { n: k, bt: isW9 ? T[k].w : T[k].m, g: isW9 ? 'W' : 'M', thin: k === 1, banded }
+    // LIVE stack record (2026-10-11, user "make sure all the numbers are live rois"): the
+    // stack1/2/3 lanes score every card by its own mark count on the frozen log, so the chip
+    // shows what this stack has actually returned instead of the archive backtest. The
+    // backtest stays in the tooltip as provenance.
+    const sc = (((laneRec && laneRec.study) || {})['stack' + k]) || {}
+    const sg = (isW9 ? sc.w : sc.m) || {}
+    const sn = sg.n || 0
+    return {
+      n: k, bt: isW9 ? T[k].w : T[k].m, g: isW9 ? 'W' : 'M', thin: k === 1, banded,
+      live: sn ? `${sg.roi_pct > 0 ? '+' : ''}${Math.round(sg.roi_pct * 10) / 10}% (${sg.wins}-${sn - sg.wins})` : null,
+      liveN: sn,
+    }
   })()
 
   return (
@@ -3130,7 +3147,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <div className="mono" style={{ fontSize: 9, fontWeight: 900, marginBottom: 5, letterSpacing: '0.04em',
           color: stackInfo.thin ? '#e3b341' : stackInfo.n === 3 ? '#3fb950' : '#8fd18f' }}
           title={`STACK: how many of the four backtested dog marks (C-alone+gray, tier-1, gray 4pt+, fade-A) fire on this pick. Archive backtest (3,710 marked dog matches, 2024-26, true gender): 1 mark men +4.1% / women +5.6%; 2 marks men +11.9% / women +23.1%; 3 marks men +15.8% / women +32.1%. 2026 alone: +4.0% / +7.9% / +11.4%. More marks = a better bet in every split. A single-mark dog priced +100..+200 ran -5.0% in 2026 (n=64), which is why x1 is flagged thin. The c75 dog and the green/black/purple marks were not part of this backtest, so they do not add to the count.`}>
-          {`STACK ×${stackInfo.n} · bt ${stackInfo.g} ${stackInfo.bt}`}
+          {`STACK ×${stackInfo.n} · ${stackInfo.g} LIVE ${stackInfo.live || 'tracking'}`}
           {stackInfo.thin ? (stackInfo.banded
             ? ' · ⚠ THIN — single-mark +100/+200 dogs ran −5.0% in 2026'
             : ' · ⚠ THIN — a single mark is the weakest stack')
@@ -3150,7 +3167,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           <span style={{ fontSize: 12, fontWeight: 900, color: '#ffffff', textShadow: '0 0 10px rgba(255,255,255,0.65)' }}>
             {'TAKE '}{blackC75W.name.split(' ').slice(-1)[0].toUpperCase()}{' +'}{blackC75W.od}
           </span>
-          {` · c75 ${blackC75W.pct}% · bt +8.1% (748-1020, n=1,768) · any price ≥+100 · longer = better`}
+          {` · c75 ${blackC75W.pct}% · any price ≥+100 · longer = better`}
           {(() => {
             const st = ((laneRec && laneRec.study) || {}).c75_dog_100plus || {}
             const c = st.w || {}
@@ -3164,7 +3181,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       {!baitGreen && purpleCGF && hlPurple ? (
         <div className="mono" title={`💜 C-ALONE+GOLD SHALLOW FAVORITE (your mark, 2026-10-08): Model C alone against A and B, the gray line confirms C, and C's side is a -100..-150 favorite. Walk-forward backtest at archive odds - MEN: -1.5% (2024) -> +10.9% (2025) -> +13.4% (2026, 122-67, n=189), improving three straight years. WOMEN: all-years +10.1% (169-103, n=272) but 2026 only +1.7% (46-34, n=80) — the women's half has faded to ~flat. HONESTY: the live all-price lane is men -9.1% (62 settles) / women +7.9% (13) - live has NOT yet confirmed the backtest; the banded cgf_shallow_fav lane now scores this exact mark forward and its record shows here as it settles.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)', }}>
-          💜 C-ALONE+GOLD FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCGF.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCGF.od}</span> · gray +{purpleCGF.gray}pt{purpleCGF.premium ? ` · C +${purpleCGF.cE}pt` : ''} · bt {purpleCGF.isW ? (purpleCGF.premium ? '+26.4% (133-47, n=180)' : '+22.2% (n=298)') : (purpleCGF.premium ? '+31.0% (69-24, n=93)' : '+24.4% (n=133)')}{purpleCGF.premium ? ' ★' : ''}
+          💜 C-ALONE+GOLD FAV → <span style={{ fontSize: 12, fontWeight: 900, color: '#f3eaff', textShadow: '0 0 10px #bc8cff' }}>TAKE {purpleCGF.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCGF.od}</span> · gray +{purpleCGF.gray}pt{purpleCGF.premium ? ` · C +${purpleCGF.cE}pt` : ''}{purpleCGF.premium ? ' ★' : ''}
           {(() => {
             const st = ((laneRec && laneRec.study) || {})[
               purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav'] || {}
@@ -3177,7 +3194,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       {!baitGreen && !purpleCGF && purpleCE5 && livePos('ce5_deep_fav', gHL) ? (
         <div className="mono" title={`💜 C-EDGE5 DEEP FAVORITE (your mark, 2026-10-08): raw Model C prices this favorite ${purpleCE5.edge} points ABOVE the no-vig market, and the price is -150..-200 — the strongest favorite cell in the entire walk-forward backtest. DEMOTED TO WATCH 2026-10-08: the backtest likes this cell -- MEN 2026 +10.8% (327-139, n=466), all-years +5.9% (n=1,453); WOMEN 2026 +5.0% (n=314), all-years +10.8% (n=846) -- but the LIVE record is now 25-32, -30.0% across 57 settles (men -25.8%, women -40.8%), negative in both genders. 57 settles is no longer a small sample for a cell that should win ~67%, so the mark no longer instructs a bet: it shows what it would have picked and keeps scoring itself in the ce5_deep_fav lane. It earns the purple back only if the live record turns. The LANE number is the live frozen-log record for this match's gender (ce5_deep_fav, frozen closing odds, auto-updating as games settle).`}
           style={{ fontSize: 9, fontWeight: 700, color: '#8b949e', marginBottom: 6, letterSpacing: '0.04em' }}>
-          👁 C-EDGE5 WATCH · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span> · would have been {purpleCE5.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCE5.od} · C +{purpleCE5.edge}pt over mkt · bt26 {purpleCE5.isW ? 'W +5.0% (208-106)' : 'M +10.8% (327-139)'} · 3yr {purpleCE5.isW ? '+10.8% (n=846)' : '+5.9% (n=1,453)'}
+          👁 C-EDGE5 WATCH · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span> · would have been {purpleCE5.name.split(' ').slice(-1)[0].toUpperCase()} {purpleCE5.od} · C +{purpleCE5.edge}pt over mkt
           {(() => {
             const st = ((laneRec && laneRec.study) || {}).ce5_deep_fav || {}
             const c = (purpleCE5.isW ? st.w : st.m) || {}
@@ -3189,7 +3206,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       {!baitGreen && !purpleCGF && !purpleCE5 && purpleFGW && livePos('fadegold_pocket_w', gHL) ? (
         <div className="mono" title={`💜 FADE-GOLD POCKET (women, your mark 2026-10-08): the gray line prices this market dog ${purpleFGW.hate} points BELOW her market number (gray HATES the dog), and the favorite sits in the -200..-300 pocket — the one price band where the backtest AND the live log agree this favorite earns. Backtest remeasured 2026-10-08 (true gender, single-count, -200..-300): women all-years +5.9% (1011-344, n=1,355), 2026 +4.4% (359-131, n=490). DEMOTED TO WATCH 2026-10-08: after 67 double-logged matches were removed from the frozen log, this cell's live record went from +3.3% to -3.9% (17-8) -- the duplicates had been propping it up. With a thin +4.4% backtest and a negative clean live record, the mark no longer instructs a bet; it shows what it would have picked and keeps scoring itself in the fadegold_pocket_w lane. The old +16.9%/54-13 was a WTA-tour-only artifact of the broken gender split. Live pocket: 23-8, ~+4.5%. OUT of this band the same signal LOSES live (-20% at -100/-150, -30% at -150/-200, -11% past -300) — the band IS the mark. The LANE number is the live record of this exact banded cell (fadegold_pocket_w), auto-updating.`}
           style={{ fontSize: 9, fontWeight: 800, color: '#bc8cff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(188,140,255,0.5)' }}>
-          👁 FADE-GOLD WATCH · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span> · would have been {purpleFGW.name.split(' ').slice(-1)[0].toUpperCase()} {purpleFGW.od} · gray hates dog {purpleFGW.hate}pt · bt26 W +4.4% (359-131) · live pocket +4.5% (23-8)
+          👁 FADE-GOLD WATCH · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span> · would have been {purpleFGW.name.split(' ').slice(-1)[0].toUpperCase()} {purpleFGW.od} · gray hates dog {purpleFGW.hate}pt
           {(() => {
             const st = ((laneRec && laneRec.study) || {}).fadegold_pocket_w || {}
             const c = st.w && st.w.n ? st.w : st
@@ -3202,9 +3219,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         const st = (((laneRec && laneRec.study) || {}).p_dog) || {}
         const c = st[gHL] || {}
         const live = c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from today'
-        const bt = gHL === 'w'
-          ? (pModel.od != null && pModel.od > 200 ? 'bt 2024-26 W +200..+250 +27.2% (n=666)' : 'bt 2024-26 W +23.9% (n=2,996)')
-          : 'bt 2024-26 M +14.2% (n=3,235)'
         const nm = (pModel.who || '').split(' ').slice(-1)[0].toUpperCase()
         const odS = pModel.od != null ? ` ${pModel.od > 0 ? '+' : ''}${pModel.od}` : ''
         return (
@@ -3223,7 +3237,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             Ⓟ MODEL P → {pModel.bet
               ? <span style={{ fontSize: 12, fontWeight: 900, color: '#d5fbf5', textShadow: '0 0 8px rgba(45,212,191,0.5)' }}>TAKE {nm}{odS}</span>
               : <span style={{ fontWeight: 700 }}>PASS on {nm}{odS}</span>}
-            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_dog * 1000) / 10}% vs mkt {Math.round(pModel.mkt_dog * 1000) / 10}% · EV {pModel.ev >= 0 ? '+' : ''}{Math.round(pModel.ev * 1000) / 10}%{pModel.bet && pModel.p_dog > 0.5 ? ' · 👑 FLIP: P has the dog as the outright favourite · flip bt W +32.6% / M +21.1% vs non-flip +15.2% / +9.1%' : ''}{pModel.bet ? ` · ${bt} · ${live}` : ' (needs ≥ +5%)'}</span>
+            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_dog * 1000) / 10}% vs mkt {Math.round(pModel.mkt_dog * 1000) / 10}% · EV {pModel.ev >= 0 ? '+' : ''}{Math.round(pModel.ev * 1000) / 10}%{pModel.bet && pModel.p_dog > 0.5 ? ' · 👑 FLIP: P has the dog as the outright favourite' : ''}{pModel.bet ? ` · ${live}` : ' (needs ≥ +5%)'}</span>
           </div>
         )
       })() : null}
@@ -3246,7 +3260,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             title={`Ⓟ CLOSE — a close favourite (−100..−150) that Model P reads ${Math.round(pModel.close_edge * 1000) / 10}pt above the market: P ${Math.round(pModel.p_fav * 1000) / 10}% vs market ${Math.round(mf * 1000) / 10}%. Out-of-sample 2024-26 (3pt+): men 63.1% hit, +8.2% (n=869); women 67.8% hit, +16.4% (n=587); every year positive, and the bigger the gap the better (10pt+: men +20.1%, women +21.7%). Live check before shipping: men +2.6% (n=38), women −23.2% (n=14). Lane p_close decides. Take the best price — at these odds a few cents matter.`}
             style={{ fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.03em', color: '#5eead4' }}>
             Ⓟ CLOSE <span style={{ padding: '0 5px', borderRadius: 5, border: '1px solid #5eead4', fontSize: 9, fontWeight: 900, background: tier === 3 ? 'rgba(94,234,212,0.25)' : 'transparent' }}>T{tier} · {TB.lab}</span> → <span style={{ fontSize: 12, fontWeight: 900, color: '#e6fffb', textShadow: '0 0 8px rgba(94,234,212,0.5)' }}>TAKE {fname}{fodd != null && !isNaN(fodd) ? ` ${fodd}` : ''}</span>
-            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_fav * 1000) / 10}% vs mkt {Math.round(mf * 1000) / 10}% (+{Math.round(pModel.close_edge * 1000) / 10}pt) · bt T{tier} {gHL === 'w' ? TB.w : TB.m} · {live}</span>
+            <span style={{ fontWeight: 400 }}> · P {Math.round(pModel.p_fav * 1000) / 10}% vs mkt {Math.round(mf * 1000) / 10}% (+{Math.round(pModel.close_edge * 1000) / 10}pt) · {live}</span>
           </div>
         )
       })() : null}
@@ -3261,7 +3275,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             title={`Ⓟ MODEL P — FAVOURITE side. DEMOTED TO WATCH-ONLY 2026-10-10 (user "Demote P fav"): this line NO LONGER INSTRUCTS A BET. It shows what P would have picked and keeps scoring itself in the p_fav lane. P rates the dog below its price, so it reads the −100..−200 favourite as underpriced: P ${Math.round(pModel.p_fav * 1000) / 10}% → EV +${Math.round(pModel.fav_ev * 1000) / 10}%. The backtest likes it — out-of-sample 2024-26 at fav EV ≥ 3%, men +8.6% (n=1,752), women +17.1% (n=1,476), positive every year — but LIVE it is 7-8, −18.5% (n=15), and the broader favourite side of P's own universe ran −12.4% (men, n=241) and −11.3% (women, n=124) over 365 frozen-log settles since 09-28. Two attempted rescues both failed on 10-10: gating on g_C is refuted (in the walk-forward the extreme-C favourites are the BEST cell, M +19.3% / W +36.4%, so there is nothing to filter — and the live log says the reverse with a matching g_C distribution), and a career-peak-rank feature built from 328,168 player-days carries ~zero weight. This is the fifth favourite edge to pass the backtest and fail live. It earns a colour back only on an explicit sign-off. The LANE number is the live frozen-log record for this match's gender.`}
             style={{ fontSize: 9, fontWeight: 700, marginBottom: 6, letterSpacing: '0.03em', color: 'var(--text-secondary)', opacity: 0.85 }}>
             Ⓟ MODEL P FAV <span style={{ color: '#e3b341' }}>⚠ WATCH ONLY</span> → <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-primary)' }}>would have taken {fname}{fodd != null && !isNaN(fodd) ? ` ${fodd}` : ''}</span>
-            <span style={{ fontWeight: 400 }}> · NO BET — demoted 10-10, favourite edges have failed live 5x · P {Math.round(pModel.p_fav * 1000) / 10}% · EV +{Math.round(pModel.fav_ev * 1000) / 10}% · bt {gHL === 'w' ? 'W +17.1% (n=1,476)' : 'M +8.6% (n=1,752)'} · live all favs {gHL === 'w' ? '−11.3% (124)' : '−12.4% (241)'} · {live}</span>
+            <span style={{ fontWeight: 400 }}> · NO BET — demoted 10-10, favourite edges have failed live 5x · P {Math.round(pModel.p_fav * 1000) / 10}% · EV +{Math.round(pModel.fav_ev * 1000) / 10}% · live all favs {gHL === 'w' ? '−11.3% (124)' : '−12.4% (241)'} · {live}</span>
           </div>
         )
       })() : null}
@@ -3290,7 +3304,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             style={{ fontSize: 9, fontWeight: 800, color: '#f778ba', marginBottom: 6, letterSpacing: '0.03em', textShadow: '0 0 8px rgba(247,120,186,0.45)', opacity: pc.watch ? 0.5 : 1 }}>
             {pc.watch ? noHL('watch only') : null}
             🩷 {pc.n} → <span style={{ fontSize: 12, fontWeight: 900, color: pc.watch ? '#c9a3b8' : '#ffe3f1' }}>{pc.watch ? 'WATCH' : 'TAKE'} {(pc.who || '').split(' ').slice(-1)[0].toUpperCase()} {pc.od > 0 ? '+' : ''}{pc.od}</span>
-            <span style={{ fontWeight: 400, color: '#ffc6e2' }}> · {pc.rule} · {pc.bt} · {live}</span>
+            <span style={{ fontWeight: 400, color: '#ffc6e2' }}> · {pc.rule} · {live}</span>
           </div>
         )
       }) : null}
@@ -3320,8 +3334,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             // all +12.4% (103-91, +24.1u) | men +23.6% (51-44) | women +1.6% (52-47).
             const fam = tier1Blue.isW ? '+1.6% (52-47)' : '+23.6% (51-44)'
             return <span style={{ color: '#d6e9ff', fontWeight: 400 }}>
-              {bt ? ` · bt26 ${g} ${bt}` : ''}
-              {ba ? ` · 3yr ${ba}` : ''}
               {nn ? ` · LIVE ${g} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})`
                   : (lead.lv ? ` · LIVE ${g} ${lead.lv}` : ` · LIVE ${g} tracking`)}
               <span style={{ color: '#8ab4e8' }}>{` · BLUE ${g} fam ${fam}`}</span>
@@ -3388,7 +3400,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
             const g = baitGreen.isW ? 'W' : 'M'
             return <span style={{ color: '#aee5ff', fontWeight: 700 }}
               title={`TIER-1 CONFIRMATION: the same player is also backed by ${names} - cells positive in BOTH the corrected backtest AND the live log. Lead cell ${lead.n}: bt26 ${g} ${bt}${nn ? `, live ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})` : ''}. Two independent families on one side is the strongest configuration on the board.`}>
-              {' · 🏛 +TIER-1 '}{names}{bt ? ` (bt26 ${g} ${bt.split(' ')[0]}` : ''}{nn ? `, live ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}%)` : (bt ? ')' : '')}
+              {' · 🏛 +TIER-1 '}{names}{nn ? ` (live ${g} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}%)` : ''}
             </span>
           })()}
         </div>
@@ -3580,14 +3592,14 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           const l = cell6
           const lvtxt = l && l.n
             ? `${l.roi_pct > 0 ? '+' : ''}${Math.round(l.roi_pct)}% (${l.wins}-${l.n - l.wins})${ic6}`
-            : (all6 ? 'proxy +10% (35-9)' : '0 settled')
+            : 'tracking'
           return (
             <span className="mono" title={all6
               ? `ALL SIX heads agree — the three stats models AND all three market-aware gray lines. Live proxy at registration: +10.0% (35-9) on 44; the exact all6 lane freezes from 2026-09-30 and takes over this chip as it settles. 2026 backtest −2.6% on 10,826 (72.5% hit) — maximal chalk consensus riding the favorite hot streak; on the promotion watchlist if it survives a real sample.`
               : `A+B+C all pick the same side. Live lane: ${lvtxt}. 2026 backtest −2.6% on 12,256 — chalk consensus; the live number is riding the current favorite hot streak (on the promotion watchlist if it survives a real sample).`}
               style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: all6 ? '#79c0ff' : '#58a6ff', border: `1px solid ${all6 ? '#79c0ff55' : '#58a6ff44'}`, borderRadius: 4, padding: '2px 7px', textAlign: 'right', lineHeight: 1.4 }}>
               {all6 ? 'ALL 6 ✓' : 'A+B+C ✓'}
-              <div style={{ fontWeight: 400, fontSize: 8.5, color: 'var(--text-secondary)' }}>{'bt26 −2.6% · live '}{lvtxt}</div>
+              <div style={{ fontWeight: 400, fontSize: 8.5, color: 'var(--text-secondary)' }}>{'live '}{lvtxt}</div>
             </span>
           )
         })()}
@@ -3597,9 +3609,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           borderRadius: 4, padding: '2px 7px', textAlign: 'right', lineHeight: 1.4,
         }}>
           {catShow.txt}
-          {(catShow.bt || catShow.live) ? (
+          {catShow.live ? (
             <div style={{ fontWeight: 400, fontSize: 8.5, color: 'var(--text-secondary)' }}>
-              {catShow.bt}{' · live '}{catShow.live}
+              {'live '}{catShow.live}
             </div>
           ) : null}
         </span>
@@ -3670,7 +3682,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         // Gendered bt26 in parentheses (2026-09-30, user ask): numbers from the full
         // gender-split backtest (_tennis_gender_full_bt.py) — each chip cites ITS
         // gender's 2026 cell, not the blend.
-        const b26 = (m, w) => `(bt26 ${wAll ? w : m})`
+        // 2026-10-11 (user "make sure all the numbers are live rois"): the per-chip bt26
+        // citations stay in the call sites as provenance for which backtest cell each chip
+        // came from, but the chip itself prints only its live lane ROI.
+        const b26 = (m, w) => ''
         const star = c1 === g1 && g1 === dog1
         const hate = (mdog - gdog) >= 0.02
         if (star) {
@@ -4170,7 +4185,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
                 title="GREEN-ONLY (temporary): red/avoid signals and live-negative lanes are hidden while live samples are small. Shows green takes + lanes not yet settled. Backtest + live record per chip.">
                 {shown.map(([label, side, bt, live, color], i) => (
                   <span key={i} className="mono" style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, border: `1px solid ${color}44`, color, background: `${color === '#f5f13b' ? '#f5f13b' : color}0d` }}>
-                    {label}{side ? ` ${side}` : ''} <span style={{ color: 'var(--text-secondary)' }}>{bt} · lv {live}</span>
+                    {label}{side ? ` ${side}` : ''} <span style={{ color: 'var(--text-secondary)' }}>lv {live}</span>
                   </span>
                 ))}
               </div>
