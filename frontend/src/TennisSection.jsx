@@ -2855,8 +2855,21 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   const HL_MIN_FAV = 25
   const FAV_SIDE = new Set(['cgf_shallow_fav', 'cgf_premium', 'p_close', 'p_close_t1',
                             'p_close_t2', 'p_close_t3', 'pink_wall9_fav'])
+  // LIVE ROI IS THE ONLY TEST (2026-10-11, user: "highlight green on every pick that is worth
+  // taking any positive live rois highlight green thats the only board picks i want
+  // highlighted at all"). The HL_BT backtest requirement is GONE as a gate -- a cell lights up
+  // iff its own live lane ROI is above zero on enough settles, and goes dark the moment it is
+  // not. HL_BT is kept only as documentation of each cell's backtest provenance.
   const hlWhy = (lane, g) => {
-    if (!lane || !HL_BT[lane] || !HL_BT[lane][g]) return 'backtest not positive'
+    if (!lane) return 'no lane'
+    // One exception to "live ROI decides" (2026-10-11): a cell whose backtest was MEASURED
+    // negative stays dark. HL_BT present-and-false means exactly that, and it is not the same
+    // thing as having no backtest claim at all (AVOID-DOG, which is allowed through on its
+    // live record alone). Without this, dropping the backtest gate resurrected
+    // pink_cclose_c75fav_m -- a FAVOURITE cell found by scanning a 13-day live window, live
+    // +20.7% on n=23 but bt 2026 −15.1% on n=295 -- and put 8 favourite takes back on the
+    // board against 711 matches of evidence that favourite picks lose.
+    if (HL_BT[lane] && HL_BT[lane][g] === false) return 'backtest MEASURED negative'
     const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[g] || {}
     const floor = FAV_SIDE.has(lane) ? HL_MIN_FAV : 3
     if ((c.n || 0) < floor) return `live ${c.n || 0} settles (<${floor}${FAV_SIDE.has(lane) ? ', favourite cell' : ''})`
@@ -2866,11 +2879,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   const hlOK = (lane, g) => hlWhy(lane, g) === null
   // live-record-only test, for WATCH cells that carry no HL_BT entry (2026-10-11, user
   // "hide negative till its positive"). Negative -> hidden; it comes back on its own.
-  const livePos = (lane, g) => {
-    const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[g] || {}
-    const floor = FAV_SIDE.has(lane) ? HL_MIN_FAV : 3
-    return (c.n || 0) >= floor && c.roi_pct > 0
-  }
+  // same rule as hlOK now that the backtest gate is gone; kept as a named alias because the
+  // WATCH cells read better calling livePos()
+  const livePos = (lane, g) => hlOK(lane, g)
   // ONE COLOUR (2026-10-10, user "make all games the same board color"): every hl* flag below
   // already means exactly the same thing -- a cell whose backtest is positive for this gender
   // AND whose live lane ROI is above zero. So the seven colours carried no information the
