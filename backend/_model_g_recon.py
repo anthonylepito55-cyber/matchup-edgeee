@@ -78,8 +78,15 @@ for yr in yrs:
     pma = lrm.predict_proba(np.column_stack([np.log(mk / (1 - mk)), Xte]))[:, 1]
     sub = key[ite].reset_index(drop=True)
     for i in range(len(sub)):
-        preds[(str(sub.at[i, "date"])[:10], sub.at[i, "player_slug"],
-               str(sub.at[i, "rival_slugname"]))] = (float(p[i]), float(pma[i]))
+        # keyed on the PAIR, carrying every date the archive holds it on. The log's date and
+        # the archive's disagree constantly -- measured on the 509 misses from the exact-date
+        # version, 402 of them (79%) were a pure date mismatch: off by one day for 208, two for
+        # 81. That is the same fixture-date-vs-local-date drift behind the timezone rollover
+        # bug, not a different match. So resolve the date by nearest-within-tolerance instead
+        # of demanding equality.
+        pair = tuple(sorted((str(sub.at[i, "player_slug"]), str(sub.at[i, "rival_slugname"]))))
+        preds.setdefault(pair, []).append(
+            (str(sub.at[i, "date"])[:10], float(p[i]), float(pma[i])))
     print("  %d: trained on %d earlier rows, scored %d" % (yr, int(itr.sum()), int(ite.sum())),
           flush=True)
 
@@ -98,29 +105,44 @@ def slug(nm):
     return rcache[nm]
 
 
-out, miss_slug, miss_row = [], 0, 0
+TOL = 3          # days; beyond this it is a different meeting, not a date discrepancy
+out, miss_slug, miss_row, ambiguous, offs = [], 0, 0, 0, {}
 for r in need.itertuples():
     s1, s2 = slug(r.player_1), slug(r.player_2)
     if not s1 or not s2:
         miss_slug += 1
         continue
-    hit = preds.get((r.d, s1, s2))
-    flip = False
-    if hit is None:
-        hit = preds.get((r.d, s2, s1))
-        flip = True          # the archive row is oriented the other way round
-    if hit is None:
+    cands = preds.get(tuple(sorted((s1, s2))))
+    if not cands:
         miss_row += 1
         continue
-    pg, pma = hit
+    # nearest archive date within tolerance. If two candidate meetings sit the SAME distance
+    # away, the pair played twice that week and there is no way to tell which row is this match
+    # -- skip rather than guess, because attributing the wrong probability to a settled result
+    # would quietly corrupt the record this whole exercise exists to produce.
+    scored = sorted((abs((pd.Timestamp(d) - pd.Timestamp(r.d)).days), d, pg, pma)
+                    for d, pg, pma in cands)
+    if scored[0][0] > TOL:
+        miss_row += 1
+        continue
+    if len(scored) > 1 and scored[1][0] == scored[0][0]:
+        ambiguous += 1
+        continue
+    off, _d, pg, pma = scored[0]
+    offs[off] = offs.get(off, 0) + 1
+    # the archive pair is oriented player_slug < rival_slugname; flip when the log's player_1
+    # is the HIGHER slug, or every probability lands on the wrong player
+    flip = not (s1 < s2)
     out.append({"date": r.d, "player_1": r.player_1, "player_2": r.player_2,
                 "model_g_p1": round(1 - pg if flip else pg, 4),
                 "model_gma_p1": round(1 - pma if flip else pma, 4)})
 
 fill = pd.DataFrame(out)
 fill.to_parquet("data_cache/_model_g_recon_fill.parquet")
-print("\nfilled %d / %d   (no slug %d, not in the as-of archive %d)"
-      % (len(fill), len(need), miss_slug, miss_row), flush=True)
+print("\nfilled %d / %d   (no slug %d, pair not in the as-of archive %d, ambiguous date %d)"
+      % (len(fill), len(need), miss_slug, miss_row, ambiguous), flush=True)
+print("date offset between the log and the archive: %s"
+      % dict(sorted(offs.items())), flush=True)
 
 if len(fill):
     # join on the fill's own key; the suffix cannot be relied on because a log that predates
