@@ -77,6 +77,14 @@ const ROWS = [
   },
   {
     g: 'Models',
+    n: 'G’s two meaningful reads',
+    r: '−7.2% and −7.2%',
+    sub: 'fav-over n=17,804 (se 0.6), dog-flip n=17,493 (se 0.9)',
+    why: 'Narrowing G to the two reads that say something — it rates the market FAVOURITE above the market’s own price, or it flips the UNDERDOG past 50% — does not rescue it. Tight error bars, so these are decisive, not inconclusive. The nuance worth keeping: fav-over is WORSE than backing every favourite on the same rows (−5.6%/−6.0%), while dog-flip does beat backing every dog (−9.2%/−10.0%) by 2–4pts — the flip gate works as a gate, just not by enough to clear the vig, and it decays −4.1% → −7.5% → −9.1% by year. These two are what G’s live lanes record.',
+    hard: true,
+  },
+  {
+    g: 'Models',
     n: 'Shrinking stats by sample size',
     r: 'a wash',
     sub: '+0.1 / 0.0 / −0.1 AUC pts, se 0.35pt',

@@ -2406,19 +2406,31 @@ def get_ab25_record() -> dict:
                             "m_dog": agg(v["m"]), "m_fav": agg([]),
                             "w_dog": agg(v["w"]), "w_fav": agg([])}
 
-    # MODEL G lanes (2026-10-12, user "make a model G"). WATCH ONLY -- nothing reads these to
-    # gate a pick or paint a card. G's backtest has no positive gender x side cell anywhere
-    # (-11.3%/-11.8% dogs, -7.6%/-5.4% favs over 53k bets), so by the bt+AND+live+ rule it can
-    # never qualify for a mark on its own. The lanes exist so the one thing the backtest says
-    # IS real -- the opponent-rank adjustment, +1.2/+2.0/+2.8 AUC pts by year -- gets a forward
-    # test instead of a promise.
+    # MODEL G lanes (2026-10-12). WATCH ONLY -- nothing reads these to gate a pick or paint a
+    # card. The lanes exist so the one thing G's backtest says is real -- the opponent-rank
+    # adjustment, +1.2/+2.0/+2.8 AUC pts by year -- gets a forward test instead of a promise.
+    #
+    # ONLY TWO CELLS, on the user's call ("i only want G live record if G has a favorite over
+    # the market or an underdog flipping"). The first cut used a flat 5pt threshold on either
+    # side, which counted every near-coin-flip wobble; these are the two reads that actually
+    # say something, and they are the same shape as the 👑 P DOG FLIP gate and the c75-flip
+    # gate that both measured real:
+    #   g_fav_over  -- G rates the MARKET FAVOURITE above the market's own price on it. Bets
+    #                  the favourite. Strictly over, no threshold: the user asked for "over
+    #                  the market", and a size cut can be added later if the cell earns it.
+    #   g_dog_flip  -- G puts the market UNDERDOG above 50%, i.e. it does not merely prefer
+    #                  the dog, it picks it outright. Bets the dog.
+    # They partition cleanly and cannot both fire: G above the market on the favourite implies
+    # G has the favourite over 50% (the market favourite is already >= 50%), and flipping the
+    # dog implies the opposite. The excluded remainder -- G leaning to the dog without flipping
+    # it -- is deliberately unlaned, which is the whole point of the narrowing.
     #
     # OWN PASS, for the reason spelled out above the seasonal block: the lane loop is gated on
     # model_c_p1 AND model_cma_p1, and G's availability is different (it needs a 52w window for
     # both players, which ITF usually lacks). Scoring G on C's rows would let C select G's
     # sample. Gated on model_g_p1 alone, so the lane covers exactly the games G priced.
     _g = {k: {"v": [], "m": [], "w": [], "p": 0}
-          for k in ("g_dog", "g_fav", "gma_dog", "gma_fav")}
+          for k in ("g_fav_over", "g_dog_flip", "gma_fav_over", "gma_dog_flip")}
     if "model_g_p1" in log.columns:
         _gq = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["model_g_p1"].notna()]
         for _, rr in _gq.iterrows():
@@ -2431,16 +2443,20 @@ def get_ab25_record() -> dict:
                 if not d1g or not d2g:
                     continue
                 mk1g = (1 / d1g) / ((1 / d1g) + (1 / d2g))
+                fav1 = mk1g >= 0.5                  # player_1 is the market favourite
+                mkfav = mk1g if fav1 else 1 - mk1g  # the market's price on the favourite
                 for _tag, _col in (("g", "model_g_p1"), ("gma", "model_gma_p1")):
                     pv = rr.get(_col)
                     if pv is None or pd.isna(pv):
                         continue
-                    pv = float(pv)
-                    if abs(pv - mk1g) < 0.05:        # same 5pt threshold the backtest used
-                        continue
-                    takes1 = pv > mk1g               # G likes p1 more than the price does
+                    gfav = float(pv) if fav1 else 1 - float(pv)   # G's read on the favourite
+                    if gfav > mkfav:
+                        key, takes1 = _tag + "_fav_over", fav1
+                    elif gfav < 0.5:                 # G flips the market dog outright
+                        key, takes1 = _tag + "_dog_flip", not fav1
+                    else:
+                        continue                     # leans to the dog but never flips it
                     dec = d1g if takes1 else d2g
-                    key = _tag + ("_dog" if dec >= 2.0 else "_fav")
                     if not bool(rr["settled"]) or pd.isna(rr["p1_won"]):
                         _g[key]["p"] += 1
                         continue
@@ -2450,7 +2466,8 @@ def get_ab25_record() -> dict:
                     _g[key]["v"].append(pnl)
                     _g[key]["w" if ("wta" in _lgg or "itf_women" in _lgg) else "m"].append(pnl)
         for k, v in _g.items():
-            _isdog = k.endswith("_dog")
+            # every pick in a cell is the same side by construction, so one of dog/fav is empty
+            _isdog = k.endswith("_dog_flip")
             study_out[k] = {**agg(v["v"]), "pending": int(v["p"]),
                             "m": agg(v["m"]), "w": agg(v["w"]),
                             "dog": agg(v["v"] if _isdog else []),
