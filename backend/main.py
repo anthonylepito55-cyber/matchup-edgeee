@@ -1706,6 +1706,7 @@ def _tennis_freeze_models(r, lr):
             return None
     applied = False
     mc, ma, mb, md = r.get("model_c"), r.get("model_a"), r.get("model_b"), r.get("model_d")
+    mg = r.get("model_g")
     mk = None
     try:
         o1, o2 = float(lr["p1_odds"]), float(lr["p2_odds"])
@@ -1733,6 +1734,15 @@ def _tennis_freeze_models(r, lr):
         v = _f("model_b_p1")
         if v is not None:
             mb["p1_prob"] = round(v, 4); applied = True
+    if isinstance(mg, dict):
+        # MODEL G frozen too (2026-10-12), for the same reason as the rest: a started card
+        # must serve the number it showed at first serve, never a recompute off an in-play
+        # price. G is watch-only, but its forward record is only honest if the frozen value
+        # is what gets scored.
+        for key, col in (("p1_prob", "model_g_p1"), ("market_aware_p1", "model_gma_p1")):
+            v = _f(col)
+            if v is not None:
+                mg[key] = round(v, 4); applied = True
     if isinstance(md, dict):
         for key, col in (("p1_prob", "model_d_p1"), ("market_aware_p1", "model_dma_p1")):
             v = _f(col)
@@ -2203,6 +2213,20 @@ def _compute_tennis_today_inner(date: str = None):
                     except Exception:  # noqa: BLE001
                         mc[_k] = None
             r["model_c"] = mc
+            # MODEL G (2026-10-12, user ask): the nine 52-week stats, opponent-rank-adjusted
+            # and sample-size-shrunk, and nothing else. The adjustment is a real gain over the
+            # raw stat line (+1.2/+2.0/+2.8 AUC pts by year) but G is market-beaten and has NO
+            # betting edge on either side (-11% dogs, -6% favs over 53k backtest bets). So it
+            # is logged to earn a forward record and shown as context -- never a mark or gate.
+            try:
+                mg = _tma.predict_g(r["player_1"], r["player_2"], r.get("surface"),
+                                    market_p1=_mk1, league=r.get("league"))
+            except Exception:  # noqa: BLE001
+                mg = None
+            if mg and _mk1 is not None:
+                mg["market_p1"] = _mk1
+                mg["edge_p1"] = round(mg["p1_prob"] - _mk1, 4)
+            r["model_g"] = mg
             # MODEL D (2026-09-30, user ask): heavy last-10 form -- recent win rates,
             # form vs own 52w baseline, competitiveness vs top-150, recency-weighted
             # L10 serve/return splits, rest, rank anchor. Walk-forward: AUC .67-.69 but
@@ -2644,6 +2668,11 @@ def _compute_tennis_itf_inner(date: str):
         ma = _mdl(_tma.predict)
         mb = _mdl(_tma.predict_b)
         mc = _mdl(_tma.predict_c)
+        # MODEL G on ITF too (2026-10-12): same display-and-log-only head as the board, so
+        # started ITF matches freeze a G probability into the ledger and ITF feeds its
+        # forward record. Most ITF players have no stat context at all (91% per the ITF
+        # stats audit), so predict_g simply returns None for them -- no line, no guess.
+        mg = _mdl(_tma.predict_g, league=m.get("league"))
         md = _mdl(_tma.predict_d, level=m.get("league"))
         if md is not None:
             try:
@@ -2711,6 +2740,7 @@ def _compute_tennis_itf_inner(date: str):
                       "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
                                      "bookmaker": od.get("bookmaker")} if od else None),
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
+                      "model_g": mg,
                       "model_i": model_i, "model_x": model_x, "model_p": model_p, "market_corrupt": _corrupt,
                       "mc2": mc2,
                       "tr_context": {"p1": ctx1, "p2": ctx2},

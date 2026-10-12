@@ -68,6 +68,22 @@ const ROWS = [
     hard: true,
   },
   {
+    g: 'Models',
+    n: 'Model G as a bet',
+    r: 'no edge on any cell',
+    sub: '53,136 bets: dogs −11.3%/−11.8%, favs −7.6%/−5.4%',
+    why: 'The 52w stat line, opponent-rank-adjusted and sample-size-shrunk. AUC .660 vs the market’s .728, behind Model C, and the market-aware version is indistinguishable from the raw price (logloss .6083 vs .6087). No positive gender×side×year cell, no gradient in the edge buckets, every price band negative. Kept as a card line and watch-only lanes — the ONE thing in it that measured real was the opponent adjustment itself (+1.2/+2.0/+2.8 AUC pts), which is a stat correction, not a bet.',
+    hard: true,
+  },
+  {
+    g: 'Models',
+    n: 'Shrinking stats by sample size',
+    r: 'a wash',
+    sub: '+0.1 / 0.0 / −0.1 AUC pts, se 0.35pt',
+    why: 'Empirical-Bayes shrinkage of every 52w rate by its own denominator — service games for hold%, return games for break%, pressure points for the dials — with k estimated from the variance components rather than chosen. It changes the numbers a lot and the predictions not at all, because the n features were already in the model: told how many games a figure rests on, it had already learned how much to discount it. Worth knowing before building it a third time.',
+    hard: true,
+  },
+  {
     g: 'Marks',
     n: '10pt gray-dog threshold',
     r: '2026 gradient is flat',

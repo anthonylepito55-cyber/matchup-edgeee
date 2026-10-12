@@ -64,6 +64,44 @@ def c_variant(tag):
 # Validated: AUC .675/.678/.684 by year (improving), the only single stat besides gray-C
 # that nudges the market's logloss down. Rebuilt by _tennis_sutr_build.py.
 ARTIFACT_SUTR = os.path.join(_here, "model_artifacts", "tennis_sutr.joblib")
+# MODEL G (2026-10-12, user ask): the nine 52-week figures the card prints and NOTHING else
+# -- no last-10, no season, no H2H, no market -- with the two things the stat line has always
+# been missing. (a) every rate shrunk toward the tour mean by its OWN denominator (service
+# games, return games, pressure points, matches) so a hold% off four matches is not read like
+# one off forty; (b) each past match discounted by what that OPPONENT RANK normally concedes,
+# because 70% hold against the top 50 is not 70% hold against #600.
+# WALK-FORWARD VERDICT: the opponent adjustment is real and growing (+1.2/+2.0/+2.8 AUC pts
+# over the identical raw pipeline, against a 0.35pt se) and it is what stops the raw stat
+# line's year-over-year decay. The shrinkage is a wash (+0.1/0.0/-0.1). But G is 6.5 AUC pts
+# BEHIND the market, behind Model C, and has no betting edge anywhere: -11.3%/-11.8% on dogs
+# and -7.6%/-5.4% on favourites over 53k bets, with no positive gender x side x year cell and
+# no gradient in the edge buckets. So: DISPLAY AND LOG ONLY. No mark, no gate, no lane that
+# anything reads. It is logged so it can earn a forward record like every other head.
+ARTIFACT_G = os.path.join(_here, "model_artifacts", "tennis_model_g.joblib")
+_g_cache = {"mtime": None, "obj": None}
+# (name, per-match numerator, per-match denominator) -- None denominator = already a
+# percentage per match, so it shrinks on MATCH count. Must stay identical to the STATS list
+# in _tennis_model_g_build.py or the live features stop matching the training ones.
+G_STATS = [("win", "won", None), ("sv1", "first_serve_points", None),
+           ("sv2", "second_serve_points", None), ("r1", "return_1st_serve_points", None),
+           ("r2", "return_2nd_serve_points", None), ("sgw", "sg_won", "sg_all"),
+           ("rgw", "rg_won", "rg_all"),
+           ("svp", "serve_pressure_won", "serve_pressure_all"),
+           ("rtp", "return_pressure_won", "return_pressure_all")]
+
+
+def g_model():
+    """The Model G artifact, reloaded when the file changes. None if it is not built."""
+    if not os.path.exists(ARTIFACT_G):
+        return None
+    mt = os.path.getmtime(ARTIFACT_G)
+    if _g_cache["mtime"] != mt:
+        try:
+            _g_cache["obj"] = joblib.load(ARTIFACT_G)
+        except Exception:  # noqa: BLE001
+            return None
+        _g_cache["mtime"] = mt
+    return _g_cache["obj"]
 FEATURES_B = ["d_swin", "d_sr10", "d_sgw", "d_rgw", "d_sp", "d_rp",
               "d_faced", "d_beaten", "d_lost", "d_bestwin"]
 
@@ -210,6 +248,43 @@ def _profile(gdf, today):
             e["c52"] = c52
         else:
             e["c52"] = None
+        # MODEL G (2026-10-12): the same prior-365d window, but stored as SUMS so the
+        # opponent-rank discount and the shrinkage can be applied at predict time, when the
+        # league (and therefore the gender) is known. Per stat: the weighted numerator, its
+        # denominator, and the weighted discount under each gender's curve. The discount has
+        # to be applied per PAST MATCH -- each one is deflated by the rank band of the
+        # opponent who produced it -- so it cannot be done after aggregating, which is why
+        # both genders' sums are carried rather than one resolved number.
+        _gm = g_model()
+        e["g52"] = None
+        if _gm is not None and len(w52) >= 5 and w52["logr"].notna().any():
+            _ed = np.asarray(_gm["bin_edges"], dtype=float)
+            _nb = len(_ed) - 1
+            _bin = np.clip(np.searchsorted(_ed, w52["logr"].to_numpy(dtype=float),
+                                           side="left") - 1, 0, _nb - 1)
+            g52 = {"w_n": int(len(w52)),
+                   "faced": float(w52["logr"].dropna().mean()) if w52["logr"].notna().any() else None}
+            for _nm, _num, _den in G_STATS:
+                if _den is None:
+                    _r = pd.to_numeric(w52[_num], errors="coerce").astype(float)
+                    if _nm != "win":
+                        _r = _r / 100.0
+                    _r = _r.where(_r.between(0, 1))       # same inf/out-of-range guard as the build
+                    _d = _r.notna().astype(float)
+                else:
+                    _dd = pd.to_numeric(w52[_den], errors="coerce").astype(float).replace(0, np.nan)
+                    _r = pd.to_numeric(w52[_num], errors="coerce").astype(float) / _dd
+                    _d = _dd.where(_r.notna())
+                _ok = _r.notna().to_numpy() & np.isfinite(_d.to_numpy(dtype=float))
+                _dv = np.where(_ok, _d.to_numpy(dtype=float), 0.0)
+                _rv = np.where(_ok, _r.to_numpy(dtype=float), 0.0)
+                _st = {"num": float((_rv * _dv).sum()), "den": float(_dv.sum())}
+                for _g in ("M", "W"):
+                    _eff = _gm["opp_eff"].get((_g, _nm))
+                    _st["eff" + _g] = (float((np.asarray(_eff)[_bin] * _dv).sum())
+                                       if _eff is not None else 0.0)
+                g52[_nm] = _st
+            e["g52"] = g52
         p["surf"][surf] = e
     # Model C: this-season (calendar year, any surface)
     yr = gdf[gdf["date"].dt.year == today.year]
@@ -567,6 +642,64 @@ def predict_c(name1, name2, surface, market_p1=None, variant=None):
     # its own from the ranks and stays correct whether or not that bug is fixed.
     out["pf"]["d_lrank"] = (float(np.log(min(max(p1.get("rank") or 0, 1), 2000)) - np.log(min(max(p2.get("rank") or 0, 1), 2000)))
                             if (p1.get("rank") and p2.get("rank")) else 0.0)
+    if market_p1 is not None and mdl.get("lr_ms") is not None:
+        Xm = np.column_stack([[_lg(market_p1)], X])
+        out["market_aware_p1"] = round(float(mdl["lr_ms"].predict_proba(Xm)[0, 1]), 4)
+    return out
+
+
+def predict_g(name1, name2, surface, market_p1=None, league=None):
+    """Model G: the nine 52-week stats, opponent-rank-adjusted and sample-size-shrunk, and
+    nothing else. See the ARTIFACT_G comment -- honest forecaster, market-beaten, NO betting
+    edge on either side. Display and log only.
+
+    Gender comes from the league exactly as the lanes derive it, because the rank-discount
+    curves and the shrinkage constants are fit per gender and men's and women's stat levels
+    differ far too much to pool (hold% 75.6% vs 60.2%).
+    """
+    mdl = g_model()
+    c = _load()
+    if mdl is None or not c:
+        return None
+    s1, s2 = resolve(name1), resolve(name2)
+    if not s1 or not s2 or s1 == s2:
+        return None
+    surface = str(surface or "Hard").title()
+    g1 = ((c["profiles"][s1]["surf"].get(surface) or {}).get("g52"))
+    g2 = ((c["profiles"][s2]["surf"].get(surface) or {}).get("g52"))
+    if not g1 or not g2:
+        return None
+    gd = "W" if str(league or "").lower() in ("wta", "itf_women") else "M"
+
+    def stat(blk, nm):
+        """Opponent-adjusted, then shrunk toward the tour mean by this stat's own
+        denominator. k is the sample size at which the raw figure earns half the weight."""
+        st = blk.get(nm)
+        if not st or not st.get("den"):
+            return None, 0.0
+        k = float(mdl["k"].get((gd, nm), 1.0))
+        pr = float(mdl["prior"].get((gd, nm), 0.0))
+        num = st["num"] - st.get("eff" + gd, 0.0)
+        return (num + k * pr) / (st["den"] + k), float(st["den"])
+
+    f = {}
+    for nm, _, _ in G_STATS:
+        v1, d1 = stat(g1, nm)
+        v2, d2 = stat(g2, nm)
+        f["d_" + nm] = (v1 - v2) if (v1 is not None and v2 is not None) else 0.0
+        f["dn_" + nm] = float(np.log1p(d1) - np.log1p(d2))
+    n1, n2 = float(g1.get("w_n") or 0), float(g2.get("w_n") or 0)
+    f["d_matches"] = float(np.log1p(n1) - np.log1p(n2))
+    f["f_nmin"] = float(np.log1p(min(n1, n2)))
+    fa1, fa2 = g1.get("faced"), g2.get("faced")
+    # + = p1 has faced the TOUGHER schedule (lower log-rank), matching the training sign
+    f["d_faced"] = float(fa2 - fa1) if (fa1 is not None and fa2 is not None) else 0.0
+
+    X = np.array([[f.get(k, 0.0) for k in mdl["features"]]])
+    prob = float(0.5 * (mdl["lr"].predict_proba(X)[0, 1] + mdl["xgb"].predict_proba(X)[0, 1]))
+    out = {"p1_prob": round(prob, 4), "p2_prob": round(1 - prob, 4),
+           "trained_at": mdl.get("trained_at"), "gender": gd,
+           "n1": int(n1), "n2": int(n2)}
     if market_p1 is not None and mdl.get("lr_ms") is not None:
         Xm = np.column_stack([[_lg(market_p1)], X])
         out["market_aware_p1"] = round(float(mdl["lr_ms"].predict_proba(Xm)[0, 1]), 4)

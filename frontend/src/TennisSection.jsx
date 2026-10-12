@@ -4428,6 +4428,20 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         </div>
       ) : null}
 
+      {match.model_g ? (
+        <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8fd3a8' }}
+          title={`Ⓖ MODEL G (2026-10-12, user ask): the nine 52-week figures on this card and NOTHING else — win%, 1st/2nd serve points, service games won, return 1st/2nd, return games won, serve- and return-pressure. No last-10, no season, no H2H, no market. What it adds over the stat line as printed is two corrections: (1) every rate is shrunk toward the tour mean by its OWN sample size — service games for hold%, return games for break%, pressure POINTS for the dials, matches for the per-match percentages — so a 70% hold off 4 matches is not read like one off 40; (2) every past match is discounted by what that OPPONENT RANK normally concedes, because 70% hold against the top 50 is not 70% hold against #600.
+
+WALK-FORWARD 2024-26 (each year tested only on earlier years): the opponent adjustment is REAL and growing — +1.2 / +2.0 / +2.8 AUC points over the identical pipeline without it, against a 0.35pt standard error, and it is what stops the raw stat line's year-on-year decay (raw falls .650 → .633 → .626 while adjusted holds .662 / .653 / .660). The sample-size shrinkage is a WASH (+0.1 / 0.0 / −0.1) — the n features already told the model who to distrust.
+
+BUT G DOES NOT BEAT THE PRICE: AUC .660 vs the market's .728, behind Model C (.699 the same year), and the market-aware version is indistinguishable from the raw price (logloss .6083 vs .6087). At a 5pt threshold over 53,136 backtest bets it loses on every cell — dogs −11.3% (men) / −11.8% (women), favourites −7.6% / −5.4%, no positive gender×side×year cell, no gradient in the edge buckets, every price band negative.
+
+So this line is CONTEXT, NOT A SIGNAL. It never marks a card, never gates a pick, and nothing reads it. Its g_dog / g_fav / gma_* lanes on the 🐕/⭐ Splits tab are watch-only, and they exist so the one thing the backtest says is real — the opponent adjustment — gets a forward test instead of a promise. Window: ${match.model_g.n1}/${match.model_g.n2} matches on this surface, ${match.model_g.gender === 'W' ? "women's" : "men's"} curves.`}>
+          Ⓖ G: {match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(100 * match.model_g.p1_prob)}%</b> — <b>{Math.round(100 * (1 - match.model_g.p1_prob))}%</b> {match.player_2.split(' ').slice(-1)[0]}
+          <span style={{ fontWeight: 400, opacity: 0.8 }}> · 52w stats, opponent-adjusted · n={match.model_g.n1}/{match.model_g.n2} · context, not a signal</span>
+        </div>
+      ) : null}
+
       {match.utr ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#93c5fd' }}
           title="REAL UTR (2026-10-07): each player's current singles UTR from utrsports.net's public ratings (fetched fresh daily), with how their 3-MONTH form rating sits vs that established level in parentheses (+ = running hot, − = cold). FORWARD tracker only — current ratings can't be honestly backtested (today's rating already contains past results), so the utr_* lanes judge it on settles from today forward (🐕/⭐ Splits tab): utr_all (higher-rated side), utr_dog (market dog is the higher-rated player), utr_mom hot vs fade (the form-fade thesis says fade the hot side).">

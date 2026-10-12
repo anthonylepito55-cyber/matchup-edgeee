@@ -25,6 +25,11 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
            "model_cnohb_p1", "model_capi_p1",
+           # MODEL G (2026-10-12, user ask): the nine 52w stats, opponent-rank-adjusted and
+           # sample-size-shrunk. Logged to earn a forward record -- WATCH ONLY. No lane in the
+           # bet() loop reads it and no mark depends on it, because its backtest has no
+           # positive gender x side cell anywhere (-11% dogs, -6% favs over 53k bets).
+           "model_g_p1", "model_gma_p1",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
            "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "inplay_suspect", "ue_set5_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
@@ -118,6 +123,7 @@ def log_predictions(matches: list, date: str):
         mb = m.get("model_b") or {}
         mc = m.get("model_c") or {}
         md = m.get("model_d") or {}
+        mg = m.get("model_g") or {}
         mx = m.get("model_x") or {}
         has_flag = m.get("sr_dog") in ("p1", "p2") or m.get("sos") in ("p1", "p2")
         has_ab = ma.get("p1_prob") is not None and mb.get("p1_prob") is not None
@@ -156,6 +162,7 @@ def log_predictions(matches: list, date: str):
             "model_cma_p1": mc.get("market_aware_p1"),
             "model_ama_p1": ma.get("market_aware_p1"), "model_bma_p1": mb.get("market_aware_p1"),
             "model_d_p1": md.get("p1_prob"), "model_dma_p1": md.get("market_aware_p1"),
+            "model_g_p1": mg.get("p1_prob"), "model_gma_p1": mg.get("market_aware_p1"),
             # Monte Carlo pick (2026-10-01, user "track how the MC does under $25"):
             # frozen as p1's win fraction over the sims. mc_p1 = the Model-D serve MC
             # (sUTR-anchored); mc_c_p1 = the Model-C-anchored MC (2026-10-02, user "track
@@ -647,7 +654,7 @@ def _tag_watch_signals(out, r, mk1, dog1, gray_p1, c1, have_mkt):
 _FIXCOLS = ["model_a_p1", "model_ama_p1", "model_b_p1", "model_bma_p1", "model_c_p1",
             "model_cma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1", "mc_c75_p1",
             "mc_cutr_p1", "c_rp_diff_p1", "c_sp_diff_p1", "model_p_dog", "model_p_prob",
-            "model_p_ev", "model_p_fev"]
+            "model_p_ev", "model_p_fev", "model_g_p1", "model_gma_p1"]
 _fixcache = {"mtime": None, "by": {}}
 
 
@@ -2398,6 +2405,60 @@ def get_ab25_record() -> dict:
                             "dog": agg(v["v"]), "fav": agg([]),
                             "m_dog": agg(v["m"]), "m_fav": agg([]),
                             "w_dog": agg(v["w"]), "w_fav": agg([])}
+
+    # MODEL G lanes (2026-10-12, user "make a model G"). WATCH ONLY -- nothing reads these to
+    # gate a pick or paint a card. G's backtest has no positive gender x side cell anywhere
+    # (-11.3%/-11.8% dogs, -7.6%/-5.4% favs over 53k bets), so by the bt+AND+live+ rule it can
+    # never qualify for a mark on its own. The lanes exist so the one thing the backtest says
+    # IS real -- the opponent-rank adjustment, +1.2/+2.0/+2.8 AUC pts by year -- gets a forward
+    # test instead of a promise.
+    #
+    # OWN PASS, for the reason spelled out above the seasonal block: the lane loop is gated on
+    # model_c_p1 AND model_cma_p1, and G's availability is different (it needs a 52w window for
+    # both players, which ITF usually lacks). Scoring G on C's rows would let C select G's
+    # sample. Gated on model_g_p1 alone, so the lane covers exactly the games G priced.
+    _g = {k: {"v": [], "m": [], "w": [], "p": 0}
+          for k in ("g_dog", "g_fav", "gma_dog", "gma_fav")}
+    if "model_g_p1" in log.columns:
+        _gq = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["model_g_p1"].notna()]
+        for _, rr in _gq.iterrows():
+            for _bad in ("surface_bad", "inplay_suspect"):
+                _bv = rr.get(_bad) if _bad in _gq.columns else None
+                if _bv is not None and not pd.isna(_bv) and bool(_bv):
+                    break
+            else:
+                d1g, d2g = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
+                if not d1g or not d2g:
+                    continue
+                mk1g = (1 / d1g) / ((1 / d1g) + (1 / d2g))
+                for _tag, _col in (("g", "model_g_p1"), ("gma", "model_gma_p1")):
+                    pv = rr.get(_col)
+                    if pv is None or pd.isna(pv):
+                        continue
+                    pv = float(pv)
+                    if abs(pv - mk1g) < 0.05:        # same 5pt threshold the backtest used
+                        continue
+                    takes1 = pv > mk1g               # G likes p1 more than the price does
+                    dec = d1g if takes1 else d2g
+                    key = _tag + ("_dog" if dec >= 2.0 else "_fav")
+                    if not bool(rr["settled"]) or pd.isna(rr["p1_won"]):
+                        _g[key]["p"] += 1
+                        continue
+                    hit = bool(rr["p1_won"]) == takes1
+                    pnl = 25.0 * (dec - 1.0) if hit else -25.0
+                    _lgg = str(rr.get("league") or "")
+                    _g[key]["v"].append(pnl)
+                    _g[key]["w" if ("wta" in _lgg or "itf_women" in _lgg) else "m"].append(pnl)
+        for k, v in _g.items():
+            _isdog = k.endswith("_dog")
+            study_out[k] = {**agg(v["v"]), "pending": int(v["p"]),
+                            "m": agg(v["m"]), "w": agg(v["w"]),
+                            "dog": agg(v["v"] if _isdog else []),
+                            "fav": agg([] if _isdog else v["v"]),
+                            "m_dog": agg(v["m"] if _isdog else []),
+                            "m_fav": agg([] if _isdog else v["m"]),
+                            "w_dog": agg(v["w"] if _isdog else []),
+                            "w_fav": agg([] if _isdog else v["w"])}
 
     # PRICE-BAND Best-pick records (2026-10-05, user: live color-coded legend on the Prices
     # tab). For each settled MEN game: the Best pick (top gated signal) bucketed by its price
