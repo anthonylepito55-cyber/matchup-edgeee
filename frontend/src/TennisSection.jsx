@@ -2054,7 +2054,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                         {/* the same surface-unique pressure dials as the board card, as-of */}
                         {(st.svp != null || st.svp52 != null) ? <> · <b style={{ color: '#9fb4d8' }}>svPress {st.svp ?? st.svp52}%{st.svp != null && st.svp52 != null && Math.abs(st.svp52 - st.svp) >= 0.5 ? `/${st.svp52}%` : ''}</b></> : null}
                         {(st.rtp != null || st.rtp52 != null) ? <> · <b style={{ color: '#9fb4d8' }}>rtPress {st.rtp ?? st.rtp52}%{st.rtp != null && st.rtp52 != null && Math.abs(st.rtp52 - st.rtp) >= 0.5 ? `/${st.rtp52}%` : ''}</b></> : null}
-                        {' '}<span style={{ opacity: 0.7 }}>({c.surface_used.toLowerCase()} {st.window}, n={st.n})</span></span>
+                        {' '}<span style={{ opacity: 0.7 }}>({c.surface_used.toLowerCase()} {st.window})</span><b>{` · n=${st.n}`}</b></span>
                     )
                   }
                   // SHORT WINDOWS ON THE PREVIOUS-DAY TAB (2026-10-11, user: "some games the
@@ -2083,7 +2083,8 @@ function HistoryPanel({ query, greenOnly = false }) {
                       return (
                         <span>{(nm || '').split(' ').slice(-1)[0]}: {parts}
                           {dw != null ? <span style={{ color: dw > 0 ? '#3fb950' : dw < 0 ? '#f85149' : 'inherit' }}>{` (${dw > 0 ? '+' : ''}${dw}pt)`}</span> : null}
-                          {q.n !== nominal ? <span style={{ opacity: 0.7 }}>{` (only ${q.n})`}</span> : null}
+                          {/* always state the sample, not only when it is short (2026-10-12) */}
+                          <b>{` · n=${q.n}`}</b>
                         </span>
                       )
                     }
@@ -2269,7 +2270,7 @@ function TrContextRow({ name, ctx }) {
       {s.r2 != null ? ` · Ret2 ${s.r2}%` : ''}
       {s.rgw != null ? ` · RGW ${s.rgw}%${s.rgw_pct != null ? ` (p${s.rgw_pct} ${pool})` : ''}` : ''}
       {ctx.asof ? ` · as of ${ctx.asof} (pre-match)` : ''}
-      {` · win ${(s.win * 100).toFixed(0)}% (${s.n})`}
+      {` · win ${(s.win * 100).toFixed(0)}%`}
       {vt && (vt.w + vt.l) > 0 ? ` · vs top-200: ${vt.w}-${vt.l}` : ''}
       {/* SURFACE-UNIQUE PRESSURE DIALS (2026-10-11, user: "add surface unique return and
           serve pressure points won on every slip so I can see"). These are TennisRatio's two
@@ -2304,6 +2305,15 @@ function TrContextRow({ name, ctx }) {
       })()}
       {ctx.clutch != null ? ` · clutch ${(ctx.clutch * 100).toFixed(0)}%` : ''}
       {ctx.avg_opp_rank != null ? ` · avg opp #${ctx.avg_opp_rank}` : ''}
+      {/* SAMPLE SIZE AT THE END OF THE LINE (2026-10-12, user: "make sure it shows how many
+          matches the stats are based on n= at the end of each persons stats"). It used to be
+          a bare "(21)" tucked after win%, which read as part of the win figure. Now it closes
+          the line explicitly, so every stat above it is known to rest on that many matches.
+          The pressure dials carry their own denominators in POINTS, not matches, which is why
+          they are reported separately in the tooltip rather than folded into this count. */}
+      <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>
+        {` · n=${s.n}`}
+      </span>
       {/* LAST 10 ON THIS SURFACE (2026-10-11, user ask) -- same stats, same court, shorter
           window, with the win% delta against the 52w line directly above so recent form is
           readable without arithmetic. Indented and dimmer so the 52w line stays primary. */}
@@ -2337,6 +2347,7 @@ function TrContextRow({ name, ctx }) {
                 </span>
               ) : null}
               {q.from ? ` · since ${q.from}` : ''}
+              <span style={{ fontWeight: 700 }}>{` · n=${q.n}`}</span>
             </div>
           )
         })}
