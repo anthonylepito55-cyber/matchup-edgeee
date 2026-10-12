@@ -1884,7 +1884,17 @@ function HistoryPanel({ query, greenOnly = false }) {
                       52.3% where G leans to a dog without flipping it, shown dimmed since we
                       never had a position on it. Both cells bet G's own pick, so the tick is the
                       same either way. */}
-                  {m.model_g ? (() => {
+                  {!m.model_g ? (
+                    /* G priced nothing here. Say so rather than rendering nothing, because an
+                       absent chip is indistinguishable from a broken feature -- which is exactly
+                       how it read the first time. Two causes: one or both players have no
+                       52-week window on this surface (G cannot price them at all, ~25-35% of
+                       settled rows), or the stats archive has not finished ingesting the day yet,
+                       which is why the NEWEST day starts near-empty and fills in over the next
+                       day or two as the twice-daily backfill re-runs. */
+                    <span className="mono" title="Model G did not price this match. Either one or both players have no 52-week window on this surface -- G is built only from that window, so it has nothing to read -- or the TennisRatio stats archive has not finished ingesting this day yet. The newest day starts near-empty and fills in over the following day or two; the backfill re-runs twice daily."
+                      style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: '1px dashed rgba(110,118,129,0.35)', color: '#6e7681', opacity: 0.5 }}>Ⓖ–</span>
+                  ) : (() => {
                     const g = m.model_g
                     const cell = g.cell, won = cell ? g.cell_hit : g.hit
                     const tone = !cell ? '#6e7681' : (cell === 'FAV-OVER' ? '#c9d1d9' : '#d29922')
@@ -1898,7 +1908,7 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G rated the market FAVOURITE above the
                                background: won ? (cell === 'DOG-FLIP' ? 'rgba(210,153,34,0.08)' : 'rgba(201,209,217,0.06)') : '#f851490d',
                                opacity: g.recon ? 0.6 : 1, fontWeight: cell ? 700 : 400 }}>
                       {g.recon ? '~' : ''}Ⓖ{cell === 'FAV-OVER' ? '⬛' : cell === 'DOG-FLIP' ? '🟨' : ''}{g.side === 1 ? '◀' : '▶'}{won ? '✓' : '✗'}</span>
-                  })() : null}
+                  })()}
                   {m.model_x ? <span className="mono" title={`Model X (meta)${m.model_x.recon ? ' — walk-forward backfill, display-only (trained only on earlier games)' : ' — genuine frozen pick'}: ${m.model_x.p1_pct}% p1 — ${m.model_x.hit ? 'correct' : 'wrong'}`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.model_x.hit ? '#3fb95055' : '#f8514955'}`, color: m.model_x.hit ? '#3fb950' : '#f85149', background: m.model_x.hit ? '#3fb9500d' : '#f851490d', opacity: m.model_x.recon ? 0.6 : 1 }}>
                     {m.model_x.recon ? '~' : ''}X{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span> : null}
