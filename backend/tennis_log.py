@@ -1434,6 +1434,22 @@ def get_ab25_record() -> dict:
               # board's STACK x1/x2/x3 chip had only an archive backtest number; these give
               # it a live one. One bet per game on the dog, from registration forward.
               "stack1", "stack2", "stack3",
+              # 🔵 C-GRAY DOG (2026-10-11, user "Mark all of those dog picks dark blue with
+              # positive roi in backtest and live for women or men"). The plain cell: Model C's
+              # market-aware head (the board's gray line) on the market UNDERDOG -- no 4pt
+              # threshold, no price band. Qualified on BOTH layers for BOTH genders:
+              # backtest 3y men +14.8% (n=7,706) / women +39.5% (n=951), 2026 men +10.6% /
+              # women +32.2%, live men +1.6% (n=39) / women +14.3% (n=25).
+              # A's and B's gray heads were tested and FAILED the backtest (men -4.9% / -0.2%,
+              # women -21.7%); D's gray head cannot be backtested with the shipped A/B/C prep,
+              # so it is excluded by the both-layers rule despite +26.8% live.
+              "cma_dog",
+              # 🔵 D-GRAY DOG (2026-10-11, user "It's okay mark Ds dark blue too"). Model D's
+              # market-aware head on the market dog. Shipped on the user's explicit call
+              # DESPITE having no backtest: the A/B/C walk-forward prep has no core_d, so D's
+              # gray head cannot be replayed. Live only -- +26.8% (n=33) at the time of the
+              # call. Thinner evidence than cma_dog by construction; the card says so.
+              "dma_dog",
               # 🔵 SEASONAL BAND lanes (2026-10-11, user "Mark the band + favorite and band +
               # dog positive roi ones highlight them blue on the board"). Both BET THE DOG at
               # +100..+200; they differ only in which side owns the seasonal hold%+break%.
@@ -1591,6 +1607,15 @@ def get_ab25_record() -> dict:
                     _gate_hit.add("mchall_dog_marks")
                 else:
                     bet("gray_dog4", dog1)
+            # 🔵 the gray line simply prefers the dog. Deliberately UNFILTERED: gray_dog4
+            # above needs a 4pt margin, and the 2026-only backtest showed that threshold is
+            # not where the edge is (+8.7 / +8.4 / +15.0 by gap bucket in 2026, a far flatter
+            # gradient than the 3-year -3.0 / +6.4 / +25.5), so this lane carries the whole cell.
+            if g1 == dog1:
+                bet("cma_dog", dog1)
+            _dma9 = r.get("model_dma_p1")
+            if _dma9 is not None and pd.notna(_dma9) and (float(_dma9) >= 0.5) == dog1:
+                bet("dma_dog", dog1)
             if mdog - gdog >= 0.02:            # gray-hated dog (dog bt -25..-28%, fav +2..4%)
                 bet("grayhate_dog", dog1)
                 bet("grayhate_fav", not dog1)

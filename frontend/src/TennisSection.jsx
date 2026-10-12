@@ -2586,6 +2586,38 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return { name: dog1 ? match.player_1 : match.player_2, od,
              pct: Math.round(100 * (dog1 ? mc3.mc_c75_p1 : 1 - mc3.mc_c75_p1)) }
   })()
+  // 🔵 DARK-BLUE GRAY-DOG MARKS (2026-10-11, user: "Mark all of those dog picks dark blue
+  // with positive roi in backtest and live for women or men", then "It's okay mark Ds dark
+  // blue too"). A market-aware head (a "gray line") preferring the market UNDERDOG. No
+  // threshold and no price band -- the 2026-only backtest showed the 4pt gray_dog4 cut is not
+  // where the edge sits (+8.7 / +8.4 / +15.0 by gap bucket in 2026 against -3.0 / +6.4 /
+  // +25.5 across three years), so the plain cell carries it.
+  //
+  // Which heads qualified, tested on BOTH layers per gender:
+  //   C gray  bt3y men +14.8% (n=7,706) / women +39.5% (n=951); bt2026 +10.6% / +32.2%;
+  //           live men +12.0% (n=45) / women -2.7% (n=29) -> men only, the gate hides women
+  //   D gray  NO BACKTEST POSSIBLE (the walk-forward prep builds A/B/C cores, no core_d);
+  //           shipped on the user's explicit call on its live record alone,
+  //           men +38.2% (n=17) / women +14.8% (n=16)
+  //   A gray  REFUTED in backtest (men -4.9%) -- not marked
+  //   B gray  REFUTED in backtest (men -0.2%, women -21.7%) -- not marked
+  //
+  // Each head has its own lane and is gated independently per gender, so a cold half goes
+  // dark on its own without touching the other.
+  const grayDogs = (() => {
+    if (!mc3 || mc3.market_p1 == null) return []
+    const dog1 = mc3.market_p1 < 0.5
+    const od = match.live_odds
+      ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+    if (od == null || isNaN(od)) return []
+    const name = dog1 ? match.player_1 : match.player_2
+    return [
+      { lane: 'cma_dog', tag: 'C', p: mc3.market_aware_p1, bt: true },
+      { lane: 'dma_dog', tag: 'D', p: (match.model_d || {}).market_aware_p1, bt: false },
+    ].filter(h => h.p != null && ((Number(h.p) >= 0.5) === dog1))
+     .map(h => ({ ...h, od, name,
+                  pct: Math.round(100 * (dog1 ? Number(h.p) : 1 - Number(h.p))) }))
+  })()
   const lvlNote = (() => {
     const lg = String(match.league || '')
     const L = (lg === 'atp' || lg === 'wta') ? 'TOUR'
@@ -2945,6 +2977,11 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // highlighted at all"). The HL_BT backtest requirement is GONE as a gate -- a cell lights up
   // iff its own live lane ROI is above zero on enough settles, and goes dark the moment it is
   // not. HL_BT is kept only as documentation of each cell's backtest provenance.
+  // backtest provenance for the dark-blue marks. cma_dog is positive in BOTH genders over
+  // three years, so it is true for both and the live gate alone decides which half shows.
+  // dma_dog deliberately gets NO entry: it has no backtest at all, and a missing entry means
+  // "no backtest claim", which the gate allows through on its live record.
+  HL_BT.cma_dog = { m: true, w: true }
   const hlWhy = (lane, g) => {
     if (!lane) return 'no lane'
     // One exception to "live ROI decides" (2026-10-11): a cell whose backtest was MEASURED
@@ -3013,6 +3050,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // P edge no longer colours a card at all. Only the dog side and Ⓟ CLOSE can.
   const hlP = (!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.close) && hlOK(`p_close_t${pModel.close_tier || 1}`, gHL))
   // the single switch -- any live-positive cell lights the card, all of them the same way
+  // the dark-blue marks get their OWN treatment, by request. Green still outranks them when
+  // a card qualifies for both, since the green family is the older and deeper evidence.
+  const hlGrayDog = grayDogs.some(h => livePos(h.lane, gHL))
   const hlAny = hlBlack || hlGreen || hlPurple || hlBlue || hlP || hlPink || hlOrange
   // one treatment: green, because it means "positive"
   const HL = {
@@ -3021,6 +3061,14 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     rail: '#3fb950',
     glow: '0 0 16px rgba(63,185,80,0.26)',
   }
+  const HL_DARKBLUE = {
+    bg: 'rgba(31,111,235,0.16)',
+    border: '1px solid rgba(31,111,235,0.9)',
+    rail: '#1f6feb',
+    glow: '0 0 16px rgba(31,111,235,0.32)',
+  }
+  const HLs = hlAny ? HL : HL_DARKBLUE          // green wins when both fire
+  const hlOn = hlAny || hlGrayDog
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -3094,7 +3142,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
 
   return (
     <div className="game-card card-enter" style={{
-      background: hlAny ? HL.bg : 'var(--panel)',
+      background: hlOn ? HLs.bg : 'var(--panel)',
       border: hlAny ? HL.border : '1px solid var(--line)', borderRadius: 10,
       padding: '18px 20px 16px', borderLeft: `3px solid ${hlAny ? HL.rail : leagueColor}`,
       boxShadow: hlAny ? HL.glow : undefined,
@@ -3146,6 +3194,29 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           ) : null}
         </div>
       ) : null}
+      {grayDogs.filter(h => livePos(h.lane, gHL)).map((h, i) => {
+        const st = (((laneRec && laneRec.study) || {})[h.lane]) || {}
+        const c = st[gHL] || {}
+        const nn = c.n || 0
+        const live = nn
+          ? `LIVE ${gHL === 'w' ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})`
+          : 'LIVE tracking'
+        return (
+          <div key={'gd' + i} className="mono"
+            title={h.bt
+              ? `🔵 C-GRAY DOG — Model C's market-aware head (the board's gray line) makes this market underdog a ${h.pct}% chance, so it prefers the dog outright. Marked because it is positive on BOTH layers. Walk-forward backtest, one row per match: men +14.8% over 7,706 bets (2026 alone +10.6%), women +39.5% over 951 (2026 +32.2%). Live frozen log: men +12.0% (23-22, n=45), women −2.7% (13-16, n=29) — so the women's half is currently DARK and comes back on its own if it turns. Why this cell rather than the 4pt gray_dog4 version: in 2026 the gap buckets run +8.7 / +8.4 / +15.0, a far flatter gradient than the 3-year −3.0 / +6.4 / +25.5, so the 4pt threshold is not where the edge sits. The gray line takes a dog on only ~8% of its picks; on the other 92% (favourites) it runs −6.4% live, which is why only this half is marked.`
+              : `🔵 D-GRAY DOG — Model D's market-aware head makes this market underdog a ${h.pct}% chance. ⚠ LIVE EVIDENCE ONLY: D's gray head CANNOT be backtested — the shipped walk-forward prep builds A/B/C feature cores and has no core_d — so unlike the C version this mark has no archive support whatsoever. Shipped on your explicit call. Live frozen log: men +38.2% (11-6, n=17), women +14.8% (9-7, n=16). Small samples on an unvalidated head; treat it as the weaker of the two blue marks.`}
+            style={{ fontSize: 9, fontWeight: 800, color: '#1f6feb', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(31,111,235,0.55)' }}>
+            {`🔵 ${h.tag}-GRAY DOG${h.bt ? '' : ' ⚠'} → `}
+            <span style={{ fontSize: 12, fontWeight: 900, color: '#dbeafe', textShadow: '0 0 10px #1f6feb' }}>
+              {'TAKE '}{(h.name || '').split(' ').slice(-1)[0].toUpperCase()}{` ${h.od > 0 ? '+' : ''}${h.od}`}
+            </span>
+            <span style={{ fontWeight: 400, color: '#bfdbfe' }}>
+              {` · ${h.tag} gray ${h.pct}% on the dog · ${live}${h.bt ? '' : ' · live only, no backtest'}`}
+            </span>
+          </div>
+        )
+      })}
       {stackInfo ? (
         <div className="mono" style={{ fontSize: 9, fontWeight: 900, marginBottom: 5, letterSpacing: '0.04em',
           color: stackInfo.thin ? '#e3b341' : stackInfo.n === 3 ? '#3fb950' : '#8fd18f' }}
