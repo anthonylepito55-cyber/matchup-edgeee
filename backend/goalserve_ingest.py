@@ -320,6 +320,71 @@ def load() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+# --------------------------------------------------------------- player profiles
+# Goalserve names players "K. Khachanov"; the board uses "Karen Khachanov". Matching on
+# surname + first initial is the same rule the name resolver's tier 5 uses, and it is unique
+# enough within a single tournament field.
+_PROFILE_CACHE = {"mtime": None, "v": None}
+
+
+def _pkey(name: str) -> str:
+    s = str(name or "").replace(".", " ").replace("-", " ").strip().lower()
+    parts = [x for x in s.split() if x]
+    if not parts:
+        return ""
+    surname = max(parts, key=len)
+    initial = next((x[0] for x in parts if x is not surname and x), "")
+    return "%s|%s" % (surname, initial)
+
+
+def profiles() -> dict:
+    """Per-player aggregates of the NEW stats, keyed by surname|initial, cached on store mtime.
+
+    Only the stats TennisRatio does not already carry are aggregated here -- there is no point
+    duplicating hold% and serve numbers the archive has at far greater depth. Coverage is
+    sharply uneven (UE / winners / net points are ATP-only, ~57% of ATP matches and nothing
+    elsewhere), so each field reports its OWN match count and callers must honour it.
+    """
+    try:
+        mt = os.path.getmtime(STORE)
+    except OSError:
+        return {}
+    if _PROFILE_CACHE["mtime"] == mt and _PROFILE_CACHE["v"] is not None:
+        return _PROFILE_CACHE["v"]
+    df = load()
+    out = {}
+    if not df.empty:
+        g = df[df.src == "gamestats"] if "src" in df.columns else df
+        for name, sub in g.groupby("player"):
+            k = _pkey(name)
+            if not k:
+                continue
+            rec = {"name": name, "n": int(len(sub))}
+            for col, lab in (("gs_ue", "ue"), ("gs_winners", "win"),
+                             ("gs_net_won", "net"), ("gs_mp_saved", "mp")):
+                if col in sub.columns:
+                    v = pd.to_numeric(sub[col], errors="coerce").dropna()
+                    if len(v):
+                        rec[lab] = round(float(v.mean()), 1)
+                        rec[lab + "_n"] = int(len(v))
+            # winners-to-unforced ratio: the shot-quality number neither feed gives directly
+            if rec.get("win") and rec.get("ue"):
+                rec["w2ue"] = round(rec["win"] / rec["ue"], 2) if rec["ue"] else None
+            if len(rec) > 2:
+                out[k] = rec
+    _PROFILE_CACHE["mtime"], _PROFILE_CACHE["v"] = mt, out
+    return out
+
+
+def profile_for(name: str) -> dict | None:
+    """Look up one player. Returns None when the trial store is absent or the player is not
+    in it -- which is the common case, so callers must render nothing rather than a blank."""
+    try:
+        return profiles().get(_pkey(name))
+    except Exception:
+        return None
+
+
 def health() -> dict:
     df = load()
     out = {"key_present": enabled(), "rows": len(df), "store": STORE}

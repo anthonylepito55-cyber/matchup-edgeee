@@ -2664,6 +2664,42 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
      .map(h => ({ ...h, od, name,
                   pct: Math.round(100 * (dog1 ? Number(h.p) : 1 - Number(h.p))) }))
   })()
+  // 🔵 SEASONAL BAND (first shipped 2026-10-11, reverted the same day, RESTORED 2026-10-12 on
+  // the user's call after the lanes kept scoring while dark).
+  //
+  // A +100..+200 market DOG, split by which side leads on BOTH seasonal (52-week-on-surface)
+  // hold% and break%. Both cells BET THE DOG. Live record while it sat switched off:
+  //   fav-better-on-both   men +19.0% (41-39, n=80)  women +28.9% (37-33, n=70)
+  //   dog-better-on-both   men  -1.9% (22-29, n=51)  women +13.8% (26-27, n=53)
+  // 150 settles across both genders on the first cell, which is more evidence than anything
+  // else currently marked. The control is what makes it credible rather than the number: all
+  // +100..+200 dogs ran -0.8% over 632, and the same band with the favourite NOT seasonally
+  // better ran -7.7% over 500 -- so the filter earns it, not the price band.
+  // Caveat kept honest in the tooltip: one five-week sample, and this cell is the survivor of
+  // comparing three stat windows. The per-gender gate handles the rest (men's dog-better half
+  // is negative and stays dark on its own).
+  const blueS52 = (() => {
+    if (!mc3 || mc3.market_p1 == null) return null
+    const a = ((match.tr_context || {}).p1 || {}).surface_stats
+    const b = ((match.tr_context || {}).p2 || {}).surface_stats
+    if (!a || !b) return null
+    if ([a.sgw, a.rgw, b.sgw, b.rgw].some(v => v == null)) return null
+    const dog1 = mc3.market_p1 < 0.5
+    const od = match.live_odds ? Number(dog1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
+    if (od == null || isNaN(od) || od < 100 || od > 200) return null
+    const sgn = dog1 ? 1 : -1                      // orient the gaps to the DOG
+    const ds = sgn * (a.sgw - b.sgw)
+    const dr = sgn * (a.rgw - b.rgw)
+    let lane = null
+    if (ds < 0 && dr < 0) lane = 's52_fav_band_dog'
+    else if (ds > 0 && dr > 0) lane = 's52_dog_band_dog'
+    if (!lane) return null
+    return {
+      lane, od, favSide: lane === 's52_fav_band_dog',
+      name: dog1 ? match.player_1 : match.player_2,
+      hold: Math.abs(Math.round(ds * 10) / 10), brk: Math.abs(Math.round(dr * 10) / 10),
+    }
+  })()
   const lvlNote = (() => {
     const lg = String(match.league || '')
     const L = (lg === 'atp' || lg === 'wta') ? 'TOUR'
@@ -3099,6 +3135,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // the dark-blue marks get their OWN treatment, by request. Green still outranks them when
   // a card qualifies for both, since the green family is the older and deeper evidence.
   const hlGrayDog = grayDogs.some(h => livePos(h.lane, gHL))
+  const hlS52 = !!blueS52 && livePos(blueS52.lane, gHL)
   const hlAny = hlBlack || hlGreen || hlPurple || hlBlue || hlP || hlPink || hlOrange
   // one treatment: green, because it means "positive"
   const HL = {
@@ -3114,7 +3151,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     glow: '0 0 16px rgba(31,111,235,0.32)',
   }
   const HLs = hlAny ? HL : HL_DARKBLUE          // green wins when both fire
-  const hlOn = hlAny || hlGrayDog
+  const hlOn = hlAny || hlGrayDog || hlS52
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -3240,6 +3277,29 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           ) : null}
         </div>
       ) : null}
+      {blueS52 && livePos(blueS52.lane, gHL) ? (() => {
+        const st = (((laneRec && laneRec.study) || {})[blueS52.lane]) || {}
+        const c = st[gHL] || {}
+        const nn = c.n || 0
+        const live = nn
+          ? `LIVE ${gHL === 'w' ? 'W' : 'M'} ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${nn - c.wins})`
+          : 'LIVE tracking'
+        return (
+          <div className="mono"
+            title={blueS52.favSide
+              ? `🔵 SEASONAL BAND — FAV OWNS BOTH. A +100..+200 underdog whose opponent leads on BOTH seasonal numbers (52-week on this court): hold% by ${blueS52.hold}pt and break% by ${blueS52.brk}pt. Counter-intuitively that is the spot to back the DOG. Live frozen log: men +19.0% (41-39, n=80), women +28.9% (37-33, n=70) — 150 settles across both genders, more than anything else currently marked. The CONTROL is what makes it credible rather than the raw number: every +100..+200 dog ran −0.8% over 632 settles, and the same band with the favourite NOT seasonally better ran −7.7% over 500, so the filter is doing the work and not the price band. CAVEATS: one five-week sample, and this cell is the survivor of comparing three stat windows (the L5 and L10 versions of the same rule run +7.3% and +3.8% in this band), so some of its margin is selection. First shipped 2026-10-11, pulled the same day, restored 2026-10-12 after the lane kept scoring positive while dark.`
+              : `🔵 SEASONAL BAND — DOG OWNS BOTH. A +100..+200 underdog leading on BOTH seasonal numbers (52-week on this court): hold% by ${blueS52.hold}pt and break% by ${blueS52.brk}pt. The WEAKER of the two seasonal cells and split by gender: live men −1.9% (22-29, n=51) so the men's half stays dark on its own, women +13.8% (26-27, n=53). Band baseline for context: all +100..+200 dogs −0.8% over 632. Thin and unproven next to the fav-owns-both version (+19% / +29%).`}
+            style={{ fontSize: 9, fontWeight: 800, color: '#58a6ff', marginBottom: 6, letterSpacing: '0.04em', textShadow: '0 0 8px rgba(88,166,255,0.5)' }}>
+            {blueS52.favSide ? '🔵 SEASONAL · FAV OWNS BOTH → ' : '🔵 SEASONAL · DOG OWNS BOTH → '}
+            <span style={{ fontSize: 12, fontWeight: 900, color: '#eaf4ff', textShadow: '0 0 10px #58a6ff' }}>
+              {'TAKE '}{(blueS52.name || '').split(' ').slice(-1)[0].toUpperCase()}{` +${blueS52.od}`}
+            </span>
+            <span style={{ fontWeight: 400, color: '#d6e9ff' }}>
+              {` · ${blueS52.favSide ? 'fav' : 'dog'} ahead hold ${blueS52.hold}pt / break ${blueS52.brk}pt · ${live}`}
+            </span>
+          </div>
+        )
+      })() : null}
       {grayDogs.filter(h => livePos(h.lane, gHL)).map((h, i) => {
         const st = (((laneRec && laneRec.study) || {})[h.lane]) || {}
         const c = st[gHL] || {}
@@ -4628,6 +4688,38 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         )
       })() : null}
 
+      {/* NEW STATS FROM THE GOALSERVE TRIAL (2026-10-12, user: "add the new stats").
+          Only the ones TennisRatio does NOT carry -- unforced errors, winners, the
+          winners-to-UE ratio, net points won and match points saved. Everything else
+          Goalserve sends we already have at far greater depth.
+          Coverage is sharply uneven and will look sparse: UE / winners / net points are
+          ATP-only (~57% of ATP matches, nothing below tour), and the store only started
+          collecting on 2026-10-12, so most cards show nothing here by design. Each figure
+          carries its own match count because the fields do NOT share one.
+          This block disappears cleanly if the trial ends -- the API simply stops sending
+          `gs` and the whole thing renders null. */}
+      {match.gs && (match.gs.p1 || match.gs.p2) ? (
+        <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.5, marginTop: 2 }}>
+          {[['p1', match.player_1], ['p2', match.player_2]].map(([k, nm]) => {
+            const g = match.gs[k]
+            if (!g) return null
+            const bits = [
+              g.ue != null ? `UE/match ${g.ue} (n=${g.ue_n})` : null,
+              g.win != null ? `winners ${g.win} (n=${g.win_n})` : null,
+              g.w2ue != null ? `W:UE ${g.w2ue}` : null,
+              g.net != null ? `net pts won ${g.net}` : null,
+              g.mp != null ? `match pts saved ${g.mp}` : null,
+            ].filter(Boolean)
+            if (!bits.length) return null
+            return (
+              <div key={k} style={{ paddingLeft: 12 }}
+                title="Stats only the Goalserve feed carries -- unforced errors, winners, net points won and match points saved. FREE TRIAL source, collecting since 2026-10-12, and the coverage is uneven: unforced errors and winners appear on about 57% of ATP matches and on no WTA, challenger or ITF match at all, so most cards will not show this line. Each figure carries its own match count because the fields do not share one. Note the measured context: a men's dog making FEWER unforced errors than the favourite returns -12.8% (n=1,252) -- for men this stat is an ANTI-signal, so read it, do not bet it.">
+                {`✦ ${String(nm || '').split(' ').slice(-1)[0]} — ${bits.join(' · ')}`}
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
       {(match.tr_context && (match.tr_context.p1 || match.tr_context.p2)) ? (
         <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed var(--line)' }}
           title="TennisRatio profile context, real stat names on the site's 52-week surface window (falls back to last-20 when thin): 1stSv/2ndSv = 1st/2nd-serve points won, SGW/RGW = service/return games won (p## = percentile within OUR ingested pool for that tour), plus last-25 record vs top-200-ranked opponents, pressure-point conversion, and median recent opponent rank. The indented lines per player (2026-10-11 user asks) are the SAME stat set over that player's LAST 10 and LAST 5 MATCHES ON THIS SAME SURFACE, each with its win-rate delta against the 52-week line above it in green/red — recent form on the court actually being played, at two depths, next to the longer baseline. Both need 3+ matches on the surface, and SGW/RGW are rebuilt from game sums exactly as the 52-week figures are, so every line is directly comparable. DISPLAY ONLY: backtested 2026-09-25 and found fully priced into the market (opponent-adjusted included), so it never drives a pick — the validated tennis edge remains the price scanner.">

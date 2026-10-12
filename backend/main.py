@@ -92,6 +92,10 @@ from tennis_data import (
 from tennis_features import get_or_compute_state, build_live_matchup_features, features_to_row as tennis_features_to_row
 import tennis_model
 import tennis_log
+try:                                    # FREE-TRIAL feed; may be removed outright, see
+    import goalserve_ingest             # goalserve_ingest.py. Everything below tolerates None.
+except Exception:                       # noqa: BLE001
+    goalserve_ingest = None
 import tennis_scanner
 import tennis_context
 
@@ -1778,6 +1782,27 @@ def tennis_today(date: str = None):
     return out
 
 
+
+def _gs_pair(p1: str, p2: str):
+    """The NEW Goalserve-only stats for both players, or None.
+
+    Returns None whenever the trial module is gone, the store is empty, or neither player is
+    in it -- which is the usual case today, since unforced errors / winners / net points are
+    ATP-only (~57% of ATP matches and nothing below tour). The card renders nothing then,
+    rather than an empty row.
+    """
+    if goalserve_ingest is None:
+        return None
+    try:
+        a = goalserve_ingest.profile_for(p1)
+        b = goalserve_ingest.profile_for(p2)
+    except Exception:
+        return None
+    if not a and not b:
+        return None
+    return {"p1": a, "p2": b}
+
+
 def _devig_two_way(o1, o2):
     """De-vig two AMERICAN odds to player_1's fair prob, or None if the line is impossible.
     Guards against corrupt books (2026-10-05, Kabbaj/Sensano: OpticOdds's 'Polymarket (USA)'
@@ -2003,6 +2028,7 @@ def _compute_tennis_today_inner(date: str = None):
                 # TennisRatio display context (2026-09-25, user ask): surface form, record vs
                 # top-200, perf-vs-market, clutch — CONTEXT ONLY, backtested as fully priced in.
                 "tr_context": {"p1": ctx1, "p2": ctx2},
+                "gs": _gs_pair(m["player_1"], m["player_2"]),
                 "sr_dog": sr_dog,
                 "sos": sos,
             })
@@ -2064,6 +2090,7 @@ def _compute_tennis_today_inner(date: str = None):
                 "prediction": None, "reason": None, "features": None,
                 "note": "No model for this tour -- TennisRatio context and trackers only",
                 "tr_context": {"p1": ctx1, "p2": ctx2},
+                "gs": _gs_pair(m["player_1"], m["player_2"]),
                 "sr_dog": sr_dog, "sos": sos,
             })
 
@@ -2686,7 +2713,8 @@ def _compute_tennis_itf_inner(date: str):
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
                       "model_i": model_i, "model_x": model_x, "model_p": model_p, "market_corrupt": _corrupt,
                       "mc2": mc2,
-                      "tr_context": {"p1": ctx1, "p2": ctx2}})
+                      "tr_context": {"p1": ctx1, "p2": ctx2},
+                      "gs": _gs_pair(p1, p2)})
     # LOG ITF TO THE LEDGER (2026-10-08): ITF cards were never logged (only mislabeled
     # relics from the first PM build, since purged), so started ITF matches had no frozen
     # closing line to serve and ITF women never fed the lanes. Same closing-line-only
