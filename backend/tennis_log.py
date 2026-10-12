@@ -2491,14 +2491,26 @@ def get_ab25_record() -> dict:
     # model_c_p1 AND model_cma_p1, and G's availability is different (it needs a 52w window for
     # both players, which ITF usually lacks). Scoring G on C's rows would let C select G's
     # sample. Gated on model_g_p1 alone, so the lane covers exactly the games G priced.
+    #
+    # $25 TAB (2026-10-12, user "put model G in the $25 bet tab with all model G's black and
+    # gold highlighted picks from every game since we made it yesterday and the roi"): each cell
+    # keeps its picks and is scored TWICE --
+    #   g_fav_over        / g_dog_flip        = the FORWARD record, frozen live picks only
+    #   g_fav_over_replay / g_dog_flip_replay = the backfilled replay, every earlier game
+    # kept apart because they are different claims. The forward one is a handful of settles and
+    # is the only one that is a record; the replay covers ~1,480 games but was scored after the
+    # fact, so it belongs beside the backtest, not in the bankroll. Each pick carries recon so
+    # the tab can dim the replayed ones.
     _g = {k: {"v": [], "m": [], "w": [], "p": 0}
-          for k in ("g_fav_over", "g_dog_flip", "gma_fav_over", "gma_dog_flip")}
+          for k in ("g_fav_over", "g_dog_flip", "gma_fav_over", "gma_dog_flip",
+                    "g_fav_over_replay", "g_dog_flip_replay")}
+    _gpicks = {k: [] for k in ("g_fav_over", "g_dog_flip",
+                               "g_fav_over_replay", "g_dog_flip_replay")}
     if "model_g_p1" in log.columns:
         _gq = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["model_g_p1"].notna()]
-        if "model_g_recon" in _gq.columns:
-            # a backfill is not a forward pick, however honest its construction
-            _gq = _gq[~_gq["model_g_recon"].fillna(False).astype(bool)]
         for _, rr in _gq.iterrows():
+            _rc9 = rr.get("model_g_recon") if "model_g_recon" in _gq.columns else None
+            _rc9 = bool(_rc9) if (_rc9 is not None and not pd.isna(_rc9)) else False
             for _bad in ("surface_bad", "inplay_suspect"):
                 _bv = rr.get(_bad) if _bad in _gq.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
@@ -2514,6 +2526,8 @@ def get_ab25_record() -> dict:
                     pv = rr.get(_col)
                     if pv is None or pd.isna(pv):
                         continue
+                    if _rc9 and _tag == "gma":
+                        continue                     # replay tracks the stats head only
                     gfav = float(pv) if fav1 else 1 - float(pv)   # G's read on the favourite
                     if gfav > mkfav:
                         key, takes1 = _tag + "_fav_over", fav1
@@ -2521,18 +2535,40 @@ def get_ab25_record() -> dict:
                         key, takes1 = _tag + "_dog_flip", not fav1
                     else:
                         continue                     # leans to the dog but never flips it
+                    # a backfill is not a forward pick, however honest its construction
+                    if _rc9:
+                        key += "_replay"
                     dec = d1g if takes1 else d2g
-                    if not bool(rr["settled"]) or pd.isna(rr["p1_won"]):
+                    _settled9 = bool(rr["settled"]) and not pd.isna(rr["p1_won"])
+                    hit = bool(rr["p1_won"]) == takes1 if _settled9 else None
+                    pnl = (None if hit is None else
+                           round(25.0 * (dec - 1.0) if hit else -25.0, 2))
+                    if key in _gpicks:
+                        # SAME COMPACT KEYS the $25 tab's pick list already renders (d/s/o/pr/w/lg)
+                        # -- a long-form dict here would render blank rows. g/mk are G's and the
+                        # market's number ON THE SIDE TAKEN, and rc dims a replayed pick.
+                        _od9 = rr.get("p1_odds") if takes1 else rr.get("p2_odds")
+                        _gpicks[key].append({
+                            "d": str(rr.get("date") or "")[5:],
+                            "s": str(rr.get("player_1") if takes1 else rr.get("player_2")),
+                            "o": str(rr.get("player_2") if takes1 else rr.get("player_1")),
+                            "pr": (None if pd.isna(_od9) else int(_od9)),
+                            "w": hit,
+                            "lg": "W" if str(rr.get("league")) in ("wta", "itf_women") else "M",
+                            "g": round(100 * (float(pv) if takes1 else 1 - float(pv)), 1),
+                            "mk": round(100 * (mk1g if takes1 else 1 - mk1g), 1),
+                            "pnl": pnl, "rc": _rc9, "_sort": str(rr.get("date") or "")})
+                    if not _settled9:
                         _g[key]["p"] += 1
                         continue
-                    hit = bool(rr["p1_won"]) == takes1
-                    pnl = 25.0 * (dec - 1.0) if hit else -25.0
                     _lgg = str(rr.get("league") or "")
                     _g[key]["v"].append(pnl)
                     _g[key]["w" if ("wta" in _lgg or "itf_women" in _lgg) else "m"].append(pnl)
+        for k in _gpicks:
+            _gpicks[k].sort(key=lambda x: x.pop("_sort"), reverse=True)  # newest first, as the tab expects
         for k, v in _g.items():
             # every pick in a cell is the same side by construction, so one of dog/fav is empty
-            _isdog = k.endswith("_dog_flip")
+            _isdog = "_dog_flip" in k
             study_out[k] = {**agg(v["v"]), "pending": int(v["p"]),
                             "m": agg(v["m"]), "w": agg(v["w"]),
                             "dog": agg(v["v"] if _isdog else []),
@@ -2814,6 +2850,8 @@ def get_ab25_record() -> dict:
     def _mw(g):
         return {"m": agg(g["m"]), "w": agg(g["w"])}
     _picks = _lane_picks()      # populates _sideagg -- must run before _sc merges below
+    # G is scored in its own ungated pass, so its picks never go through bet()/_lane_picks
+    _picks.update({k: v for k, v in _gpicks.items() if v})
 
     def _sc(key):
         b = _sideagg.get(key) or {}
