@@ -297,17 +297,10 @@ function Ab25Panel() {
             <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 3 }}>last {plist.length} picks · newest first · … = pending · click card to close</div>
           </div>
         ) : null}
-        {l && (l.fwd || l.rep) ? (
-          /* a combined cell: say which half is a real forward record and which is replayed,
-             because one number over both would quietly present a backfill as bankroll */
-          <div className="mono" style={{ fontSize: 10, marginTop: 3, color: 'var(--text-tertiary)' }}
-            title="FORWARD = picks frozen live, the only half that is a record. ~REPLAY = the same rule run back over earlier games, scored by a model trained only on seasons before each one; honest, but not money the bankroll made and excluded from every other lane in the app.">
-            {'fwd '}<span style={{ color: l.fwd && l.fwd.n ? (l.fwd.roi_pct > 0 ? '#3fb950' : '#f85149') : 'var(--text-tertiary)' }}>
-              {l.fwd && l.fwd.n ? `${l.fwd.wins}-${l.fwd.n - l.fwd.wins} ${l.fwd.roi_pct > 0 ? '+' : ''}${l.fwd.roi_pct}%` : '0 settled'}
-            </span>
-            {' · ~replay '}<span style={{ opacity: 0.8, color: l.rep && l.rep.n ? (l.rep.roi_pct > 0 ? '#3fb950' : '#f85149') : 'var(--text-tertiary)' }}>
-              {l.rep && l.rep.n ? `${l.rep.wins}-${l.rep.n - l.rep.wins} ${l.rep.roi_pct > 0 ? '+' : ''}${l.rep.roi_pct}%` : '0'}
-            </span>
+        {l && l.from ? (
+          <div className="mono" style={{ fontSize: 9, marginTop: 3, color: 'var(--text-tertiary)' }}
+            title="This lane counts only picks frozen live, for matches starting at or after the registration moment. The earlier backfilled replay is deliberately excluded -- those marks never appeared on a board, so they are not a record.">
+            {'live log from ' + String(l.from).replace('T', ' ').replace(':00Z', 'Z')}
           </div>
         ) : null}
         {l && ((l.m && l.m.n) || (l.w && l.w.n)) ? (
@@ -363,11 +356,17 @@ function Ab25Panel() {
                         seasons before it. ~550 settles, which is why it is the informative
                         number, and why it must not be read as money the bankroll made.
           Click any card for its picks; replayed ones are dimmed and marked ~. */}
-      {section('Ⓖ Model G · ⬛ fav-over-market and 🟨 dog-flip (watch only)',
-        '— every pick each board colour has ever made, $25 a game, newest first. G is the 52-week stat line, opponent-rank-adjusted, and it is NOT a take: both cells backtest −7.2% over ~17.5k bets each, and fav-over is worse than backing every favourite. These lanes exist so the board colours carry a number. Each card splits FORWARD (frozen live picks, the only real record) from ~REPLAY (the same rule run back over earlier games by a model trained only on seasons before each one) — click to see every pick, replayed ones dimmed and marked ~.')}
+      {/* Ⓖ MODEL G LIVE LOG (2026-10-12, user "just restarted the G $25 tab and start a live
+          log starting now ... our first game should be juan bautista torres as a dog").
+          The backfilled replay is GONE from this tab. The user's verdict was "those were not the
+          flips", and they were right -- those marks never appeared on a board, so they have no
+          place in a money tracker. Forward picks only, and only matches starting at or after the
+          registration moment, so the log opens on Torres rather than on games already decided. */}
+      {section('Ⓖ Model G · LIVE LOG from ' + (((rec && rec.study && rec.study.g_dog_flip) || {}).from || '2026-10-12 22:00Z'),
+        '— ⬛ fav-over-market and 🟨 dog-flip, $25 a game, frozen live picks only. Opens on Juan Bautista Torres +152 (G 57.1% on the market dog). WATCH ONLY, not a take: both cells backtest −7.2% over ~17.5k bets each, and fav-over is worse than backing every favourite. Click a card for its picks.')}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-        {card(['st:g_fav_over_all', '⬛ G FAV-OVER · all picks', 'BLACK board mark: G rates the market FAVOURITE above the price the market itself set on it, and you back the favourite. This card holds EVERY such pick -- forward and replay together -- with the split on the line below. Backtest for the cell, walk-forward 2024-26: −7.2% on 17,804 bets (se 0.6), and WORSE than simply backing every favourite on the same rows (−5.6% men / −6.0% women). No gradient: demanding G sit 10pt+ over the market does not help. Watch only, never a take.'], 'rgba(139,148,158,0.85)', '#c9d1d9')}
-        {card(['st:g_dog_flip_all', '🟨 G DOG-FLIP · all picks', 'GOLD board mark: G puts the market UNDERDOG past 50% -- it does not merely lean that way, it picks the dog outright -- and you back the dog. This card holds EVERY such pick, forward and replay, with the split on the line below. Backtest: −7.2% on 17,493 (se 0.9). It DOES beat backing every dog on the same rows (−9.2% men / −10.0% women) by 2–4 points, so the flip works as a gate -- just not by enough to clear the vig -- and it decays −4.1% → −7.5% → −9.1% by year. Watch only.'], 'rgba(210,153,34,0.9)', '#d29922')}
+        {card(['st:g_dog_flip', '🟨 G DOG-FLIP', 'GOLD board mark: G puts the market UNDERDOG past 50% -- it does not merely lean that way, it picks the dog outright -- and you back the dog at the frozen price. LIVE LOG registered 2026-10-12 22:00Z, first pick Juan Bautista Torres +152. Backtest for the cell, walk-forward 2024-26: −7.2% on 17,493 bets (se 0.9). It DOES beat backing every dog on the same rows (−9.2% men / −10.0% women) by 2–4 points, so the flip works as a gate -- just not by enough to clear the vig -- and it decays −4.1% → −7.5% → −9.1% by year. Watch only.'], 'rgba(210,153,34,0.9)', '#d29922')}
+        {card(['st:g_fav_over', '⬛ G FAV-OVER', 'BLACK board mark: G rates the market FAVOURITE above the price the market itself set on it, and you back the favourite at the frozen price. LIVE LOG registered 2026-10-12 22:00Z. Backtest for the cell: −7.2% on 17,804 bets (se 0.6), and WORSE than simply backing every favourite on the same rows (−5.6% men / −6.0% women). No gradient: demanding G sit 10pt+ over the market does not help. Watch only.'], 'rgba(139,148,158,0.85)', '#c9d1d9')}
         {card(['st:gma_fav_over', 'G-MA fav-over (degenerate)', 'The MARKET-AWARE G head on the same rule. Shown for completeness and not worth reading as a signal: because it is a tiny shade on top of the price, it sits just above the market on the favourite in roughly 4 of every 5 games, which makes it approximately “back every favourite” rather than a selective cell. It has never once flipped a dog.'], 'rgba(110,118,129,0.3)', '#6e7681')}
       </div>
       {section('🧊 Fade the form (live take · forward-only)', '— on an mc_c75 pick where quality-adjusted last-10-on-surface form (opponent quality + how competitive, NO serve stats) points at the OPPONENT, $25 on the MODEL side. The market overvalues recent form, so you fade it. Forward-only (reconstructed games excluded). The edge is ALL in the DOGS (🐕 line below); favorite form-fades are flat/negative. The FORM-AGREES card is the no-edge contrast.')}

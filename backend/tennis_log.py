@@ -615,6 +615,15 @@ def _elite_signals_for_row(r, mk1):
 # dogs"). Every lane already tracks aggregate PnL; these also remember WHO each pick was, at
 # what price, and how it finished, so the record is browsable instead of just a running ROI.
 # Kept to an allowlist -- all 128 lanes would bloat /api/tennis/track-record.
+# MODEL G LIVE LOG (2026-10-12, user "just restarted the G $25 tab and start a live log
+# starting now ... our first game should be juan bautista torres as a dog"). Every G lane counts
+# ONLY frozen live picks whose match starts at or after this moment. The backfilled replay is
+# gone from the tab entirely -- the user's verdict on it was "those were not the flips", and they
+# were right that it never showed those marks on a board, so it has no business in a money
+# tracker. The 21 genuine picks that had already started before this cut are excluded too, so the
+# log opens on Juan Bautista Torres +152 (G 57.1% on the market dog = a flip) at 22:00Z.
+G_LIVE_FROM = "2026-10-12T22:00:00Z"
+
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
                "p_dog_flip"}
 
@@ -2502,15 +2511,17 @@ def get_ab25_record() -> dict:
     # fact, so it belongs beside the backtest, not in the bankroll. Each pick carries recon so
     # the tab can dim the replayed ones.
     _g = {k: {"v": [], "m": [], "w": [], "p": 0}
-          for k in ("g_fav_over", "g_dog_flip", "gma_fav_over", "gma_dog_flip",
-                    "g_fav_over_replay", "g_dog_flip_replay")}
-    _gpicks = {k: [] for k in ("g_fav_over", "g_dog_flip",
-                               "g_fav_over_replay", "g_dog_flip_replay")}
+          for k in ("g_fav_over", "g_dog_flip", "gma_fav_over", "gma_dog_flip")}
+    _gpicks = {k: [] for k in ("g_fav_over", "g_dog_flip")}
     if "model_g_p1" in log.columns:
         _gq = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["model_g_p1"].notna()]
+        if "model_g_recon" in _gq.columns:        # a backfill is not a pick we ever showed
+            _gq = _gq[~_gq["model_g_recon"].fillna(False).astype(bool)]
+        if "start_time_utc" in _gq.columns:       # and the log opens at G_LIVE_FROM, not earlier
+            _gq = _gq[_gq["start_time_utc"].notna()
+                      & (_gq["start_time_utc"].astype(str) >= G_LIVE_FROM)]
         for _, rr in _gq.iterrows():
-            _rc9 = rr.get("model_g_recon") if "model_g_recon" in _gq.columns else None
-            _rc9 = bool(_rc9) if (_rc9 is not None and not pd.isna(_rc9)) else False
+            _rc9 = False
             for _bad in ("surface_bad", "inplay_suspect"):
                 _bv = rr.get(_bad) if _bad in _gq.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
@@ -2526,8 +2537,6 @@ def get_ab25_record() -> dict:
                     pv = rr.get(_col)
                     if pv is None or pd.isna(pv):
                         continue
-                    if _rc9 and _tag == "gma":
-                        continue                     # replay tracks the stats head only
                     gfav = float(pv) if fav1 else 1 - float(pv)   # G's read on the favourite
                     if gfav > mkfav:
                         key, takes1 = _tag + "_fav_over", fav1
@@ -2535,9 +2544,6 @@ def get_ab25_record() -> dict:
                         key, takes1 = _tag + "_dog_flip", not fav1
                     else:
                         continue                     # leans to the dog but never flips it
-                    # a backfill is not a forward pick, however honest its construction
-                    if _rc9:
-                        key += "_replay"
                     dec = d1g if takes1 else d2g
                     _settled9 = bool(rr["settled"]) and not pd.isna(rr["p1_won"])
                     hit = bool(rr["p1_won"]) == takes1 if _settled9 else None
@@ -2557,24 +2563,14 @@ def get_ab25_record() -> dict:
                             "lg": "W" if str(rr.get("league")) in ("wta", "itf_women") else "M",
                             "g": round(100 * (float(pv) if takes1 else 1 - float(pv)), 1),
                             "mk": round(100 * (mk1g if takes1 else 1 - mk1g), 1),
-                            "pnl": pnl, "rc": _rc9, "_sort": str(rr.get("date") or "")})
+                            "pnl": pnl, "rc": _rc9,
+                            "_sort": str(rr.get("start_time_utc") or rr.get("date") or "")})
                     if not _settled9:
                         _g[key]["p"] += 1
                         continue
                     _lgg = str(rr.get("league") or "")
                     _g[key]["v"].append(pnl)
                     _g[key]["w" if ("wta" in _lgg or "itf_women" in _lgg) else "m"].append(pnl)
-        # COMBINED cells (2026-10-12, user "way more g dog flips then 4 games"): the forward
-        # lane counts only what has settled since G went live TODAY -- 4 of 38 dog-flips -- and
-        # the other 312 sat on a separate replay card, so the tab read as if G had barely
-        # picked anything. Each colour now also gets an _all cell holding EVERY pick it has
-        # ever made, forward and replay together, with the split carried as fwd/rep so the
-        # headline answers "all of them" without hiding which half is a real record.
-        for _c in ("g_fav_over", "g_dog_flip"):
-            _fw, _rp = _g[_c], _g[_c + "_replay"]
-            _g[_c + "_all"] = {"v": _fw["v"] + _rp["v"], "m": _fw["m"] + _rp["m"],
-                               "w": _fw["w"] + _rp["w"], "p": _fw["p"] + _rp["p"]}
-            _gpicks[_c + "_all"] = _gpicks[_c] + _gpicks[_c + "_replay"]
         for k in _gpicks:
             _gpicks[k].sort(key=lambda x: x.get("_sort") or "", reverse=True)  # newest first
         for k in _gpicks:
@@ -2583,10 +2579,7 @@ def get_ab25_record() -> dict:
         for k, v in _g.items():
             # every pick in a cell is the same side by construction, so one of dog/fav is empty
             _isdog = "_dog_flip" in k
-            _split = {}
-            if k.endswith("_all"):
-                _b = k[:-4]
-                _split = {"fwd": agg(_g[_b]["v"]), "rep": agg(_g[_b + "_replay"]["v"])}
+            _split = {"from": G_LIVE_FROM}
             study_out[k] = {**agg(v["v"]), "pending": int(v["p"]), **_split,
                             "m": agg(v["m"]), "w": agg(v["w"]),
                             "dog": agg(v["v"] if _isdog else []),
