@@ -1846,7 +1846,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                 {takePct != null ? <span style={{ color: '#a78bfa', marginLeft: 8, fontWeight: 400 }} title="Your take: every game where c-MC (c50) and c75 agree — win rate for the day.">· C-MC+c75 take {hr['C-MC+c75']}/{tot['C-MC+c75']} ({takePct}%)</span> : null}
               </span>
               <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-tertiary)' }}>
-                {['A', 'B', 'C', 'gray', 'D', 'MC-D', 'C50', 'C75', 'CU', 'X', 'MC2'].filter(k => tot[k]).map(k => `${k} ${hr[k]}/${tot[k]}`).join(' · ')}
+                {['A', 'B', 'C', 'gray', 'D', 'G', 'MC-D', 'C50', 'C75', 'CU', 'X', 'MC2'].filter(k => tot[k]).map(k => `${k} ${hr[k]}/${tot[k]}`).join(' · ')}
               </span>
             </div>
             {Object.keys(sigT).length ? (
@@ -3151,8 +3151,64 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     rail: '#1f6feb',
     glow: '0 0 16px rgba(31,111,235,0.32)',
   }
-  const HLs = hlAny ? HL : HL_DARKBLUE          // green wins when both fire
-  const hlOn = hlAny || hlGrayDog || hlS52
+  // Ⓖ MODEL G MARKS (2026-10-12, user "highlight all the g picks with favorite over the market
+  // black and all the dogs flipped YELLOW HIGHLIGHT").
+  //
+  // DELIBERATELY UNGATED, and the only marks on the board that are. Every other colour has to
+  // clear hlOK -- a positive live lane ROI, with a measured-negative backtest blocking it
+  // outright -- and G would fail that on both counts: g_fav_over backtests -7.2% on 17,804
+  // (and is WORSE than backing every favourite on the same rows) and g_dog_flip -7.2% on
+  // 17,493, decaying -4.1 -> -7.5 -> -9.1 by year. Routing these through the gate would mean
+  // they never appeared at all, which is not what was asked for. So they are explicitly
+  // user-called VISIBILITY marks: they show where G is saying something, they are not a
+  // recommendation, and the chip says so on the card.
+  //
+  // They sit LAST in precedence so they can never paint over a validated green or dark-blue
+  // card, and the labelled chip renders regardless of who won the background, so a G pick is
+  // always identifiable even on a card another signal has coloured.
+  const gMark = (() => {
+    const mg = match.model_g
+    const mk = mc3 && mc3.market_p1 != null ? mc3.market_p1 : null
+    if (!mg || mg.p1_prob == null || mk == null) return null
+    const fav1 = mk >= 0.5
+    const mkfav = fav1 ? mk : 1 - mk
+    const gfav = fav1 ? mg.p1_prob : 1 - mg.p1_prob
+    const lo = match.live_odds || {}
+    const num = (v) => { const n = Number(v); return isNaN(n) ? null : n }
+    const favOdd = num(fav1 ? lo.player_1 : lo.player_2)
+    const dogOdd = num(fav1 ? lo.player_2 : lo.player_1)
+    const rec = (lane) => {
+      const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[gHL] || {}
+      return c.n ? `lv ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'lv tracking'
+    }
+    const rc = !!mg.recon
+    if (gfav > mkfav) {
+      return { cell: 'FAV-OVER', lane: 'g_fav_over', who: fav1 ? match.player_1 : match.player_2,
+               od: favOdd, amt: Math.round(1000 * (gfav - mkfav)) / 10, live: rec('g_fav_over'), recon: rc }
+    }
+    if (gfav < 0.5) {
+      return { cell: 'DOG-FLIP', lane: 'g_dog_flip', who: fav1 ? match.player_2 : match.player_1,
+               od: dogOdd, amt: Math.round(1000 * (0.5 - gfav)) / 10, live: rec('g_dog_flip'), recon: rc }
+    }
+    return null                       // leans to the dog but never flips it -- not a G read
+  })()
+  const HL_BLACK = {
+    bg: 'rgba(1,4,9,0.72)',
+    border: '1px solid rgba(139,148,158,0.85)',
+    rail: '#6e7681',
+    glow: '0 0 16px rgba(0,0,0,0.55)',
+  }
+  const HL_YELLOW = {
+    bg: 'rgba(210,153,34,0.15)',
+    border: '1px solid rgba(210,153,34,0.95)',
+    rail: '#d29922',
+    glow: '0 0 16px rgba(210,153,34,0.30)',
+  }
+  // green first (oldest, deepest evidence), then the dark-blue marks, then G last
+  const HLs = hlAny ? HL
+    : (hlGrayDog || hlS52) ? HL_DARKBLUE
+      : (gMark && gMark.cell === 'FAV-OVER' && !gMark.recon) ? HL_BLACK : HL_YELLOW
+  const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMark && !gMark.recon)
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -3339,6 +3395,32 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <div className="mono" style={{ fontSize: 8.5, fontWeight: 700, marginBottom: 5, color: lvlNote.tone, letterSpacing: '0.03em' }}
           title={`LEVEL x ROUND, measured 2026-10-08 on 3,822 marked-dog fires (banded +100..+200, true gender, one row per match). By level: TOUR men +16.7% all-years / +15.8% in 2026 (n=384/114), women +43.1% / +40.0% (n=289/71) -- the strongest level AND the only one that held into 2026. CHALLENGER men +10.8% all-years but -1.1% in 2026 (n=766/290), i.e. that level has died; women +39.5% (n=141, 2026 thin). ITF men +13.1% / +8.4%, women +19.4% / +7.9%. SLAMS men +11.7%, women +21.6%. By round: men early +12.0% (n=1,281) / late +17.7% (n=191); women early +32.6% (n=829) / late +9.9% (n=114). Level x round: TOUR EARLY +27.2% (n=622) is the best big cell, ITF EARLY +21.8% (n=500), CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157). HEADLINE: these dog edges are NOT a soft-book ITF artifact -- they are strongest where the liquidity is. ${lvlNote.rnote}.`}>
           {'🏟 '}{lvlNote.tag}{' · '}{lvlNote.note}{lvlNote.late ? ' · late round' : ' · early round'}
+        </div>
+      ) : null}
+      {gMark ? (
+        <div className="mono"
+          title={`Ⓖ MODEL G ${gMark.cell} — where G is saying something, NOT a recommendation.
+
+${gMark.cell === 'FAV-OVER'
+            ? `G rates the market FAVOURITE ${gMark.amt}pt ABOVE the market's own price on it. Backtest for this cell, walk-forward 2024-26: −7.2% on 17,804 bets (se 0.6) — and WORSE than simply backing every favourite on the same rows (−5.6% men / −6.0% women). No gradient: betting it only when G is 10pt+ over the market does not help.`
+            : `G puts the market UNDERDOG past 50% — it does not merely lean that way, it picks the dog outright (${gMark.amt}pt past the line). Backtest for this cell, walk-forward 2024-26: −7.2% on 17,493 bets (se 0.9). It DOES beat backing every dog on the same rows (−9.2% men / −10.0% women) by 2–4 points, so the flip works as a gate — just not by enough to clear the vig — and it is decaying: −4.1% → −7.5% → −9.1% by year.`}
+
+This colour is UNGATED, by your request, and it is the only mark on the board that is. Every other colour has to clear a positive live lane ROI first, and G cannot — both its cells are measured negative. It is here so G's reads are visible, and it sits last in precedence so it never paints over a validated green or dark-blue card. Watch-only lanes ${gMark.lane} on the 🐕/⭐ Splits tab.`}
+          style={{
+            fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.05em',
+            padding: '3px 6px', borderRadius: 4,
+            color: gMark.cell === 'FAV-OVER' ? '#e6edf3' : '#f0d58c',
+            background: gMark.cell === 'FAV-OVER'
+              ? 'linear-gradient(90deg, rgba(1,4,9,0.85), transparent)'
+              : 'linear-gradient(90deg, rgba(210,153,34,0.22), transparent)',
+            border: `1px solid ${gMark.cell === 'FAV-OVER' ? 'rgba(139,148,158,0.75)' : 'rgba(210,153,34,0.75)'}`,
+          }}>
+          {(gMark.recon ? '~' : '') + (gMark.cell === 'FAV-OVER' ? '⬛ Ⓖ G FAV-OVER → ' : '🟨 Ⓖ G DOG-FLIP → ')}
+          <span style={{ fontSize: 11, fontWeight: 900, color: gMark.cell === 'FAV-OVER' ? '#ffffff' : '#ffd666' }}>
+            {gMark.who.split(' ').slice(-1)[0].toUpperCase()}{gMark.od != null ? `${gMark.od > 0 ? ' +' : ' '}${gMark.od}` : ''}
+          </span>
+          {gMark.cell === 'FAV-OVER' ? ` · ${gMark.amt}pt over the market` : ` · flips ${gMark.amt}pt past 50%`}
+          <span style={{ fontWeight: 400, opacity: 0.85 }}>{`${gMark.recon ? ' · walk-forward backfill' : ''} · ${gMark.live} · bt −7.2% — visibility only, not a bet`}</span>
         </div>
       ) : null}
       {blackC75W && hlBlack ? (
@@ -4429,7 +4511,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       ) : null}
 
       {match.model_g ? (
-        <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8fd3a8' }}
+        <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8fd3a8', opacity: match.model_g.recon ? 0.72 : 1 }}
           title={`Ⓖ MODEL G (2026-10-12, user ask): the nine 52-week figures on this card and NOTHING else — win%, 1st/2nd serve points, service games won, return 1st/2nd, return games won, serve- and return-pressure. No last-10, no season, no H2H, no market. What it adds over the stat line as printed is two corrections: (1) every rate is shrunk toward the tour mean by its OWN sample size — service games for hold%, return games for break%, pressure POINTS for the dials, matches for the per-match percentages — so a 70% hold off 4 matches is not read like one off 40; (2) every past match is discounted by what that OPPONENT RANK normally concedes, because 70% hold against the top 50 is not 70% hold against #600.
 
 WALK-FORWARD 2024-26 (each year tested only on earlier years): the opponent adjustment is REAL and growing — +1.2 / +2.0 / +2.8 AUC points over the identical pipeline without it, against a 0.35pt standard error, and it is what stops the raw stat line's year-on-year decay (raw falls .650 → .633 → .626 while adjusted holds .662 / .653 / .660). The sample-size shrinkage is a WASH (+0.1 / 0.0 / −0.1) — the n features already told the model who to distrust.
@@ -4438,9 +4520,9 @@ BUT G DOES NOT BEAT THE PRICE: AUC .660 vs the market's .728, behind Model C (.6
 
 So this line is CONTEXT, NOT A SIGNAL. It never marks a card, never gates a pick, and nothing reads it.
 
-FORWARD RECORD (narrowed on your call 2026-10-12): only two reads are logged, the two that actually say something rather than every 5pt wobble — g_fav_over, where G rates the market FAVOURITE above the market's own price on it, and g_dog_flip, where G puts the UNDERDOG over 50% and picks it outright. G merely leaning to a dog without flipping it (52.3% of its matches) is not recorded at all. Watch-only on the 🐕/⭐ Splits tab. Their backtest prior, same walk-forward: g_fav_over −7.2% on 17,804 (se 0.6) and WORSE than backing every favourite on the same rows (−5.6% men / −6.0% women); g_dog_flip −7.2% on 17,493 (se 0.9), which does beat backing every dog (−9.2% / −10.0%) by 2–4 points but not by enough to clear the vig, and it is decaying (−4.1% → −7.5% → −9.1% by year). No gradient in how far over the market or how hard the flip; no surviving price band. Window: ${match.model_g.n1}/${match.model_g.n2} matches on this surface, ${match.model_g.gender === 'W' ? "women's" : "men's"} curves.`}>
-          Ⓖ G: {match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(100 * match.model_g.p1_prob)}%</b> — <b>{Math.round(100 * (1 - match.model_g.p1_prob))}%</b> {match.player_2.split(' ').slice(-1)[0]}
-          <span style={{ fontWeight: 400, opacity: 0.8 }}> · 52w stats, opponent-adjusted · n={match.model_g.n1}/{match.model_g.n2} · context, not a signal</span>
+FORWARD RECORD (narrowed on your call 2026-10-12): only two reads are logged, the two that actually say something rather than every 5pt wobble — g_fav_over, where G rates the market FAVOURITE above the market's own price on it, and g_dog_flip, where G puts the UNDERDOG over 50% and picks it outright. G merely leaning to a dog without flipping it (52.3% of its matches) is not recorded at all. Watch-only on the 🐕/⭐ Splits tab. Their backtest prior, same walk-forward: g_fav_over −7.2% on 17,804 (se 0.6) and WORSE than backing every favourite on the same rows (−5.6% men / −6.0% women); g_dog_flip −7.2% on 17,493 (se 0.9), which does beat backing every dog (−9.2% / −10.0%) by 2–4 points but not by enough to clear the vig, and it is decaying (−4.1% → −7.5% → −9.1% by year). No gradient in how far over the market or how hard the flip; no surviving price band. ${match.model_g.n1 != null ? `Window: ${match.model_g.n1}/${match.model_g.n2} matches on this surface, ${match.model_g.gender === 'W' ? "women's" : "men's"} curves.` : ''}${match.model_g.recon ? 'WALK-FORWARD BACKFILL (~): this game predates the model, so it was scored by a G trained only on seasons BEFORE it, off the same as-of 365-day window the validation used. The result was never read. Honest hindsight-free read, but it is not a forward pick and it is excluded from the g_* lanes.' : ''}`}>
+          {match.model_g.recon ? '~' : ''}Ⓖ G: {match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(100 * match.model_g.p1_prob)}%</b> — <b>{Math.round(100 * (1 - match.model_g.p1_prob))}%</b> {match.player_2.split(' ').slice(-1)[0]}
+          <span style={{ fontWeight: 400, opacity: 0.8 }}> · 52w stats, opponent-adjusted{match.model_g.n1 != null ? ` · n=${match.model_g.n1}/${match.model_g.n2}` : ''}{match.model_g.recon ? ' · walk-forward backfill' : ''} · context, not a signal</span>
         </div>
       ) : null}
 
