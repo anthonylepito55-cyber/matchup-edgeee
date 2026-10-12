@@ -1,130 +1,138 @@
-"""DOES GOALSERVE POPULATE UNFORCED ERRORS? (2026-10-10, user: "do that")
+"""WHAT DOES GOALSERVE ACTUALLY GIVE US? (2026-10-12, user: "i got a test key to goalserve how
+can i use it")
 
-Why Goalserve is the lead worth testing: the level split (`_ue_edge_by_level.py`) showed the
-women's unforced-error dog edge is a **WTA-TOUR** edge -- +10.8% (n=276), positive 2024/25/26,
-against -0.4% for every charted dog in the same band and level. Tour level is exactly where
-official stats crews record unforced errors. We currently have both players charted on only 47%
-of WTA-tour + slam women's dogs at +100..+250, so full tour coverage roughly doubles the lane
-(~19 picks a month instead of ~9). Goalserve is what dropshotft.com licenses, and Dropshot
-visibly shows unforced errors for tour matches our model is blank on.
+Probed against the two gaps nothing else has filled, rather than as a general tour of the feed:
 
-What is NOT yet known: whether Goalserve's own feed exposes the field. Their public pages list
-"in-game player statistics" without naming fields, and the public live-score sample carries only
-scores -- no stats at all. So this must be verified on their free 30-day trial before paying
-($150/month, $1,200/year).
+  GAP 1 -- ITF STATS.  91% of ITF players have no serve/return context at all
+           (project_itf_stats_audit), and the UE source audit found ITF stats exist nowhere.
+           TennisRatio has no ITF stat lines, OpticOdds serves ITF odds but empty stats, and
+           The Odds API has no ITF at all.
 
-USAGE: put the trial token in backend/.goalserve_key (gitignored, same pattern as the RapidAPI
-key -- never pasted into a command or a chat), then:
-    cd backend && venv/Scripts/python.exe _goalserve_probe.py
+  GAP 2 -- STAT SPEED.  TennisRatio delivers RESULTS same-day but its STAT LINES lag to 37-55%
+           on the freshest three days (reference_result_source_latency), which is why L5/L3
+           windows are often statless on a live card.
 
-It walks a set of candidate feed paths, dumps every field name it finds, and reports whether
-anything resembling unforced errors / winners appears, and at which tournament levels. Goalserve's
-exact stats path is not publicly documented, so the path list is a starting point -- if their
-reply names the right one, add it to PATHS and re-run.
+So the questions are: does `d-1_gamestats` carry real serve/return numbers, does it reach below
+tour level, and is YESTERDAY already populated? Point-by-point matters too -- from a point
+sequence, pressure points and break points can be derived exactly rather than ingested.
+
+Read-only. Key read from backend/.env, never printed.
 """
 import json
 import os
-import re
-import sys
 import urllib.error
 import urllib.request
 from collections import Counter
 
-BASE = "http://www.goalserve.com/getfeed"
-# Goalserve's documented shape is /getfeed/{token}/{feed}/{resource}. The stats resource is not
-# named on their public pages; these are the plausible candidates to try first.
-PATHS = [
-    "tennis_scores/home?json=1",
-    "tennis_scores/stats?json=1",
-    "tennis_scores/livescore?json=1",
-    "tennis/home?json=1",
-    "tennis_scores/d1?json=1",
-]
-UE_WORDS = ("unforced", "winner", "error")
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def token():
-    f = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".goalserve_key")
+def load_key():
+    k = os.environ.get("GOALSERVE_KEY")
+    if k:
+        return k.strip()
+    p = os.path.join(HERE, ".env")
+    if os.path.exists(p):
+        for ln in open(p, encoding="utf-8", errors="replace"):
+            if ln.strip().startswith("GOALSERVE_KEY") and "=" in ln:
+                return ln.split("=", 1)[1].strip().strip('"').strip("'")
+    return None
+
+
+KEY = load_key()
+if not KEY:
+    raise SystemExit("no GOALSERVE_KEY")
+BASE = "https://www.goalserve.com/getfeed/%s/tennis_scores/" % KEY
+
+
+def get(path, timeout=60):
+    url = BASE + path + ("&json=1" if "?" in path else "?json=1")
+    req = urllib.request.Request(url, headers={"Accept": "application/json",
+                                               "User-Agent": "research/1.0"})
     try:
-        with open(f, encoding="utf-8-sig") as fh:
-            return fh.read().strip()
-    except OSError:
-        return ""
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read()
+            return json.loads(raw.decode("utf-8", "replace")), len(raw), None
+    except urllib.error.HTTPError as e:
+        return None, 0, "HTTP %s" % e.code
+    except Exception as e:
+        return None, 0, "%s: %s" % (type(e).__name__, str(e)[:120])
 
 
-def walk(obj, trail="", depth=0):
-    """Every leaf field name in a nested JSON payload, with a sample value."""
-    out = []
-    if depth > 7:
+def walk_keys(o, depth=0, out=None, prefix=""):
+    """collect the leaf key names so the payload shape is visible without dumping it"""
+    if out is None:
+        out = Counter()
+    if depth > 4:
         return out
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            p = f"{trail}.{k}" if trail else k
+    if isinstance(o, dict):
+        for k, v in o.items():
             if isinstance(v, (dict, list)):
-                out += walk(v, p, depth + 1)
+                walk_keys(v, depth + 1, out, prefix + k + ".")
             else:
-                out.append((p, v))
-    elif isinstance(obj, list):
-        for v in obj[:2]:
-            out += walk(v, trail + "[]", depth + 1)
+                out[prefix + k] += 1
+    elif isinstance(o, list):
+        for v in o[:3]:
+            walk_keys(v, depth + 1, out, prefix)
     return out
 
 
-def main():
-    t = token()
-    if not t:
-        print("No token found.\n"
-              "Ask Goalserve for the free 30-day tennis trial, then put the token in\n"
-              "  backend/.goalserve_key\n"
-              "(gitignored; nothing else needed) and run this again.")
-        return
-    print(f"probing {len(PATHS)} candidate Goalserve feeds\n")
-    found_any = False
-    for p in PATHS:
-        url = f"{BASE}/{t}/{p}"
-        shown = url.replace(t, "<TOKEN>")
-        try:
-            with urllib.request.urlopen(url, timeout=40) as r:
-                raw = r.read().decode("utf-8", "replace")
-                st = r.status
-        except urllib.error.HTTPError as e:
-            print(f"  {e.code}  {shown}")
-            continue
-        except Exception as e:  # noqa: BLE001
-            print(f"  ERR  {shown}  {str(e)[:80]}")
-            continue
-        try:
-            body = json.loads(raw)
-            fields = walk(body)
-            names = Counter(re.sub(r"\[\]", "", n.split(".")[-1]) for n, _ in fields)
-        except ValueError:
-            # XML fallback: just pull attribute names
-            names = Counter(re.findall(r'(\w+)=', raw))
-            fields = []
-        print(f"  {st}  {shown}  ({len(raw)} bytes, {len(names)} distinct field names)")
-        hits = [n for n in names if any(w in n.lower() for w in UE_WORDS)]
-        if hits:
-            found_any = True
-            print(f"       *** error/winner-like fields: {hits}")
-            for n, v in fields:
-                if any(w in n.lower() for w in UE_WORDS):
-                    print(f"           {n} = {v!r}")
-        else:
-            top = ", ".join(sorted(names)[:22])
-            print(f"       fields: {top}{' …' if len(names) > 22 else ''}")
-    print()
-    if found_any:
-        print("VERDICT: an unforced-errors-like field EXISTS. Next: confirm it is POPULATED (not\n"
-              "null) on WTA-tour matches, then wire the ingest -- it merges into tennis_ue the\n"
-              "same way manual_ue.csv does, so the 🧤 lane widens with no model change.")
-    else:
-        print("VERDICT: no error/winner field in any feed reached. Either the stats resource is a\n"
-              "different path (ask them for the exact one and add it to PATHS), or the feed does\n"
-              "not carry unforced errors -- in which case do not buy it. The field existing in a\n"
-              "schema is not evidence; the RapidAPI feed documented it and returned null on 21 of\n"
-              "21 matches at every level.")
-    sys.stdout.flush()
+print("=" * 104)
+print("0. DOES THE KEY WORK?")
+print("=" * 104)
+d, nb, err = get("leagues")
+print("   leagues      %s  (%d bytes)" % (err or "OK", nb))
+if err:
+    raise SystemExit("key appears dead")
 
+print("\n" + "=" * 104)
+print("GAP 2 -- STAT SPEED: is YESTERDAY already populated with game stats?")
+print("=" * 104)
+for feed in ("home_gamestats", "d-1_gamestats"):
+    d, nb, err = get(feed)
+    if err:
+        print("   %-16s FAILED %s" % (feed, err))
+        continue
+    ks = walk_keys(d)
+    stat_like = [k for k in ks if any(t in k.lower() for t in
+                                      ("ace", "double", "serve", "break", "point", "winner",
+                                       "unforced", "error", "fault"))]
+    print("   %-16s OK  %6d bytes  | stat-ish fields: %d" % (feed, nb, len(stat_like)))
+    for k in sorted(stat_like)[:16]:
+        print("        %s" % k)
+    if not stat_like:
+        print("        top-level shape: %s" % list(d.keys())[:8])
 
-if __name__ == "__main__":
-    main()
+print("\n" + "=" * 104)
+print("GAP 1 -- ITF: does it reach below tour, and with stats?")
+print("=" * 104)
+for feed in ("itf_today", "itf", "itf_shedule", "itf_men_singles_shedule"):
+    d, nb, err = get(feed)
+    if err:
+        print("   %-26s FAILED %s" % (feed, err))
+        continue
+    blob = json.dumps(d).lower()
+    ks = walk_keys(d)
+    has_stat = any(t in blob for t in ("ace", "double_fault", "first_serve", "breakpoint",
+                                       "break_point"))
+    print("   %-26s OK  %7d bytes  | carries stats: %s | fields: %s"
+          % (feed, nb, "YES" if has_stat else "no", sorted(ks)[:8]))
+
+print("\n" + "=" * 104)
+print("POINT BY POINT -- can pressure points be derived exactly?")
+print("=" * 104)
+for feed in ("home_p2p", "d-1_p2p"):
+    d, nb, err = get(feed)
+    if err:
+        print("   %-12s FAILED %s" % (feed, err))
+        continue
+    ks = walk_keys(d)
+    print("   %-12s OK  %7d bytes  | fields: %s" % (feed, nb, sorted(ks)[:14]))
+
+print("\n" + "=" * 104)
+print("OTHER FEEDS WORTH KNOWING")
+print("=" * 104)
+for feed in ("home", "d-1", "atp", "wta", "challenger_shedule",
+             "itf_women_singles_shedule", "profile?id=2010"):
+    d, nb, err = get(feed)
+    print("   %-28s %s  (%d bytes)" % (feed, err or "OK", nb))
