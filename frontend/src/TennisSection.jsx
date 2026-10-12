@@ -2050,7 +2050,11 @@ function HistoryPanel({ query, greenOnly = false }) {
                     if (!c || !c.surface_stats) return <span>{(nm || '').split(' ').slice(-1)[0]}: —</span>
                     const st = c.surface_stats
                     return (
-                      <span>{(nm || '').split(' ').slice(-1)[0]}: 1stSv {st.sv1 ?? '—'}% · 2ndSv {st.sv2 ?? '—'}% · <b>Hold {st.sgw ?? '—'}%</b> · Ret1 {st.r1 ?? '—'}% · Ret2 {st.r2 ?? '—'}% · <b>Break {st.rgw ?? '—'}%</b> <span style={{ opacity: 0.7 }}>({c.surface_used.toLowerCase()} {st.window}, n={st.n})</span></span>
+                      <span>{(nm || '').split(' ').slice(-1)[0]}: 1stSv {st.sv1 ?? '—'}% · 2ndSv {st.sv2 ?? '—'}% · <b>Hold {st.sgw ?? '—'}%</b> · Ret1 {st.r1 ?? '—'}% · Ret2 {st.r2 ?? '—'}% · <b>Break {st.rgw ?? '—'}%</b>
+                        {/* the same surface-unique pressure dials as the board card, as-of */}
+                        {st.svp != null ? <> · <b style={{ color: '#9fb4d8' }}>svPress {st.svp}%</b></> : null}
+                        {st.rtp != null ? <> · <b style={{ color: '#9fb4d8' }}>rtPress {st.rtp}%</b>{st.p_win ? <span style={{ opacity: 0.7 }}> ({st.p_win})</span> : null}</> : null}
+                        {' '}<span style={{ opacity: 0.7 }}>({c.surface_used.toLowerCase()} {st.window}, n={st.n})</span></span>
                     )
                   }
                   // SHORT WINDOWS ON THE PREVIOUS-DAY TAB (2026-10-11, user: "some games the
@@ -2267,6 +2271,19 @@ function TrContextRow({ name, ctx }) {
       {ctx.asof ? ` · as of ${ctx.asof} (pre-match)` : ''}
       {` · win ${(s.win * 100).toFixed(0)}% (${s.n})`}
       {vt && (vt.w + vt.l) > 0 ? ` · vs top-200: ${vt.w}-${vt.l}` : ''}
+      {/* SURFACE-UNIQUE PRESSURE DIALS (2026-10-11, user: "add surface unique return and
+          serve pressure points won on every slip so I can see"). These are TennisRatio's two
+          Compare-Players circles. Until now the card showed only `clutch`, which SUMS serve
+          and return pressure over the last 25 matches on ANY surface -- so the split was
+          invisible and the surface was ignored. These two are computed on the same 52w
+          surface window as the line they sit on. Validated against the user's screenshot:
+          Bondar 58.1/44.4 here vs 58.8/44.0 there, Pohankova 61.2/49.3 vs 61.4/49.1 -- the
+          small gap is window (52w here, season there).
+          Reading note kept deliberately short on the card: these dials are FULLY PRICED
+          (archive, dog better on both -8.9% over 6,984 bets), so they are for reading the
+          matchup, not for betting off. */}
+      {s.svp != null ? ` · svPress ${s.svp}%` : ''}
+      {s.rtp != null ? ` · rtPress ${s.rtp}%${s.p_win ? ` (${s.p_win})` : ''}` : ''}
       {ctx.clutch != null ? ` · clutch ${(ctx.clutch * 100).toFixed(0)}%` : ''}
       {ctx.avg_opp_rank != null ? ` · avg opp #${ctx.avg_opp_rank}` : ''}
       {/* LAST 10 ON THIS SURFACE (2026-10-11, user ask) -- same stats, same court, shorter

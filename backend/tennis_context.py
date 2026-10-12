@@ -66,6 +66,56 @@ def _tour_map():
     return tours
 
 
+def _pressure_season(sub, year, min_pts=60):
+    """SEASON + COURT pressure dials (2026-10-11, user: "I want the pressure point stats
+    season and court specific").
+
+    TennisRatio's Compare Players screen reads "This Season / All Levels / <surface>", so the
+    window is the CALENDAR SEASON on that court, not a rolling 52 weeks. `sub` arrives already
+    filtered to the surface; this cuts it to `year`.
+
+    Early in a season that leaves almost nothing, so when either dial has fewer than `min_pts`
+    pressure points the window falls back to the trailing 52 weeks and the returned `win` field
+    says which was used -- the card shows the label, so a thin season figure can never be
+    mistaken for a full one.
+    """
+    season = sub[sub["date"].dt.year == year] if year else sub.iloc[0:0]
+    svp, rtp, spn, rpn = _pressure(season)
+    if spn >= min_pts and rpn >= min_pts:
+        return svp, rtp, spn, rpn, "season"
+    return None, None, spn, rpn, "thin"
+
+
+def _pressure(w):
+    """SURFACE-SPECIFIC pressure dials (2026-10-11, user: "add surface unique return and serve
+    pressure points won on every slip so I can see").
+
+    These are the two circles TennisRatio shows on its Compare Players screen, and until now
+    the app computed only their BLEND: `clutch` sums serve and return pressure together over
+    the last 25 matches on ANY surface, so the split was never visible and the surface was
+    never respected. This returns them separately, over whatever window `w` is -- the caller
+    passes the surface-filtered 52-week frame, so the numbers are surface-unique.
+
+        serve  = serve_pressure_won / serve_pressure_all
+        return = return_pressure_won / return_pressure_all
+
+    Returns (serve%, return%, serve_pts, return_pts) with the denominators, because a dial off
+    30 points is not the same claim as one off 500 and the card should be able to say so.
+    None when the window carries no pressure data at all -- coverage is ~46% of archive rows,
+    far short of the serve lines.
+    """
+    try:
+        sa = float(w["serve_pressure_all"].fillna(0).sum())
+        sw = float(w["serve_pressure_won"].fillna(0).sum())
+        ra = float(w["return_pressure_all"].fillna(0).sum())
+        rw = float(w["return_pressure_won"].fillna(0).sum())
+    except Exception:
+        return None, None, 0, 0
+    return (_fin(100 * sw / sa) if sa > 0 else None,
+            _fin(100 * rw / ra) if ra > 0 else None,
+            int(sa), int(ra))
+
+
 def _load():
     try:
         mtime = os.path.getmtime(LOGS_PARQUET)
@@ -114,8 +164,15 @@ def _load():
                           + (0.5 * t10["return_1st_serve_points"] + 0.5 * t10["return_2nd_serve_points"]).mean())
                 sr10 = round(v, 2) if np.isfinite(v) else None
             sga, rga = w["sg_all"].sum(), w["rg_all"].sum()
+            _yr = int(gdf["date"].max().year)
+            _svp, _rtp, _spn, _rpn, _pwin = _pressure_season(sub, _yr)
+            if _pwin == "thin":                       # fall back to the 52w surface window
+                _svp, _rtp, _spn, _rpn = _pressure(w)
+                _pwin = window
             p["surfaces"][surf] = {
                 "sr10": sr10,
+                # season + court pressure dials, with the window actually used
+                "svp": _svp, "rtp": _rtp, "svp_n": _spn, "rtp_n": _rpn, "p_win": _pwin,
                 "n": int(len(w)), "window": window,
                 "sv1": _fin(w["first_serve_points"].mean()),      # 1st Serve Points Won %
                 "sv2": _fin(w["second_serve_points"].mean()),     # 2nd Serve Points Won %
@@ -339,7 +396,13 @@ def _context_asof_uncached(player_name, surface, asof):
         if len(w) < 5:
             return None
     sga, rga = w["sg_all"].sum(), w["rg_all"].sum()
+    # same season+court dials on the replay path, with the season taken from the AS-OF date
+    _svp, _rtp, _spn, _rpn, _pwin = _pressure_season(sub, int(asof.year))
+    if _pwin == "thin":
+        _svp, _rtp, _spn, _rpn = _pressure(w)
+        _pwin = window
     stats = {"n": int(len(w)), "window": window,
+             "svp": _svp, "rtp": _rtp, "svp_n": _spn, "rtp_n": _rpn, "p_win": _pwin,
              "sv1": _fin(w["first_serve_points"].mean()), "sv2": _fin(w["second_serve_points"].mean()),
              "sgw": _fin(100 * w["sg_won"].sum() / sga) if sga else None,
              "r1": _fin(w["return_1st_serve_points"].mean()), "r2": _fin(w["return_2nd_serve_points"].mean()),
