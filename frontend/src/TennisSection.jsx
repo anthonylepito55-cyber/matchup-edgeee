@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { americanOddsToImpliedProb } from './odds.js'
+import TestedPanel from './TestedPanel.jsx'
 
 const LEAGUE_COLOR = { atp: '#4A9EFF', wta: '#FF6FA5', atp_challenger: '#7FB3FF', itf_men: '#5AC8C8', itf_women: '#E08CC0' }
 
@@ -557,7 +558,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P'], ['uedog', '🧤 Low-error dogs']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P'], ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -583,7 +584,7 @@ export default function TennisSection() {
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
       <ModelPStrip matches={matches} />
 
