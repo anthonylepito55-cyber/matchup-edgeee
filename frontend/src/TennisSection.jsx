@@ -366,7 +366,7 @@ function Ab25Panel() {
         '— ⬛ fav-over-market and 🟨 dog-flip, $25 a game, frozen live picks only. Opens on Juan Bautista Torres +152 (G 57.1% on the market dog). WATCH ONLY, not a take: both cells backtest −7.2% over ~17.5k bets each, and fav-over is worse than backing every favourite. Click a card for its picks.')}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {card(['st:g_dog_flip', '🟨 G DOG-FLIP', 'GOLD board mark: G puts the market UNDERDOG past 50% -- it does not merely lean that way, it picks the dog outright -- and you back the dog at the frozen price. LIVE LOG registered 2026-10-12 22:00Z, first pick Juan Bautista Torres +152. Backtest for the cell, walk-forward 2024-26: −7.2% on 17,493 bets (se 0.9). It DOES beat backing every dog on the same rows (−9.2% men / −10.0% women) by 2–4 points, so the flip works as a gate -- just not by enough to clear the vig -- and it decays −4.1% → −7.5% → −9.1% by year. Watch only.'], 'rgba(210,153,34,0.9)', '#d29922')}
-        {card(['st:g_fav_over', '⬛ G FAV-OVER', 'BLACK board mark: G rates the market FAVOURITE at least 4 POINTS above the price the market itself set on it, and you back the favourite at the frozen price. The gate was any-margin until 2026-10-12, which fired on a quarter of all matches, most of them a rounding error above the price. LIVE LOG registered 2026-10-12 22:00Z. Backtest for the cell: −7.2% on 17,804 bets (se 0.6), and WORSE than simply backing every favourite on the same rows (−5.6% men / −6.0% women). No gradient: demanding G sit 10pt+ over the market does not help. Watch only.'], 'rgba(139,148,158,0.85)', '#c9d1d9')}
+        {card(['st:g_fav_over', '⬛ G FAV-OVER', 'BLACK board mark: G rates the market FAVOURITE above the price the market itself set on it, by any margin, and you back the favourite at the frozen price. A 4-point minimum was tried on 2026-10-12 and reverted: it cut the cell from 24% of favourites to 14% and moved ROI from −7.25% to −7.23%, flat out to 12pt, so it bought selectivity rather than accuracy. LIVE LOG registered 2026-10-12 22:00Z. Backtest for the cell: −7.2% on 17,804 bets (se 0.6), and WORSE than simply backing every favourite on the same rows (−5.6% men / −6.0% women). No gradient: demanding G sit 10pt+ over the market does not help. Watch only.'], 'rgba(139,148,158,0.85)', '#c9d1d9')}
         {card(['st:gma_fav_over', 'G-MA fav-over (degenerate)', 'The MARKET-AWARE G head on the same rule. Shown for completeness and not worth reading as a signal: because it is a tiny shade on top of the price, it sits just above the market on the favourite in roughly 4 of every 5 games, which makes it approximately “back every favourite” rather than a selective cell. It has never once flipped a dog.'], 'rgba(110,118,129,0.3)', '#6e7681')}
       </div>
       {section('🧊 Fade the form (live take · forward-only)', '— on an mc_c75 pick where quality-adjusted last-10-on-surface form (opponent quality + how competitive, NO serve stats) points at the OPPONENT, $25 on the MODEL side. The market overvalues recent form, so you fade it. Forward-only (reconstructed games excluded). The edge is ALL in the DOGS (🐕 line below); favorite form-fades are flat/negative. The FORM-AGREES card is the no-edge contrast.')}
@@ -3245,11 +3245,11 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       return c.n ? `lv ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'lv tracking'
     }
     const rc = !!mg.recon
-    // 4pt minimum over the market (2026-10-12, user "lets make the black favorite highlight 4
-    // pts over the market instead of anything over the market"). Must match G_FAV_OVER_MIN in
+    // ANY margin over the market, on the user's call (briefly 4pt on 2026-10-12, reverted the
+    // same day: "nvm all black over the market is fine"). Must match G_FAV_OVER_MIN in
     // tennis_log.py, which gates both the lane and the history verdict -- a mark and its live
     // number have to cover the same games.
-    if (gfav - mkfav >= 0.04) {
+    if (gfav - mkfav > 0) {
       return { cell: 'FAV-OVER', lane: 'g_fav_over', who: fav1 ? match.player_1 : match.player_2,
                od: favOdd, amt: Math.round(1000 * (gfav - mkfav)) / 10, live: rec('g_fav_over'), recon: rc }
     }
@@ -3486,7 +3486,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           <span style={{ fontSize: 11, fontWeight: 900, color: gMark.cell === 'FAV-OVER' ? '#ffffff' : '#ffd666' }}>
             {gMark.who.split(' ').slice(-1)[0].toUpperCase()}{gMark.od != null ? `${gMark.od > 0 ? ' +' : ' '}${gMark.od}` : ''}
           </span>
-          {gMark.cell === 'FAV-OVER' ? ` · ${gMark.amt}pt over the market (needs 4)` : ` · flips ${gMark.amt}pt past 50%`}
+          {gMark.cell === 'FAV-OVER' ? ` · ${gMark.amt}pt over the market` : ` · flips ${gMark.amt}pt past 50%`}
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{`${gMark.recon ? ' · walk-forward backfill' : ''} · ${gMark.live} · bt −7.2% — visibility only, not a bet`}</span>
         </div>
       ) : null}

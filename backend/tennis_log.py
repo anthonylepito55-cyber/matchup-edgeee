@@ -623,13 +623,15 @@ def _elite_signals_for_row(r, mk1):
 # tracker. The 21 genuine picks that had already started before this cut are excluded too, so the
 # log opens on Juan Bautista Torres +152 (G 57.1% on the market dog = a flip) at 22:00Z.
 G_LIVE_FROM = "2026-10-12T22:00:00Z"
-# How far G must sit ABOVE the market's own price on the favourite before the black mark fires
-# (2026-10-12, user "lets make the black favorite highlight 4 pts over the market instead of
-# anything over the market"). Any-margin fired on a quarter of all matches, most of them a
-# rounding error above the price; four points is a real disagreement. It must stay in lockstep
-# with gMark in TennisSection.jsx and with _g_hist below -- a mark and its live number have to
-# cover the same games.
-G_FAV_OVER_MIN = 0.04
+# How far G must sit ABOVE the market's own price on the favourite before the black mark fires.
+# ANY margin, on the user's call: briefly set to 4 points on 2026-10-12 and reverted the same day
+# ("nvm all black over the market is fine"). The measurement supports either choice -- a 4pt gate
+# cut the cell from 24% of favourites to 14% and moved ROI from -7.25% to -7.23%, flat the whole
+# way out to 12pt and every step inside its own standard error -- so the threshold was buying
+# selectivity, not accuracy, and it is not worth the complication on a watch-only cell.
+# Must stay in lockstep with gMark in TennisSection.jsx and with _g_hist below: a mark and its
+# live number have to cover the same games.
+G_FAV_OVER_MIN = 0.0
 
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
                "p_dog_flip"}
@@ -799,7 +801,7 @@ def _g_hist(r, mk1):
     mkfav = mk1 if fav1 else 1 - mk1
     gfav = p1 if fav1 else 1 - p1
     cell = cell_side = None
-    if gfav - mkfav >= G_FAV_OVER_MIN:
+    if gfav - mkfav > G_FAV_OVER_MIN:
         cell, cell_side = "FAV-OVER", (1 if fav1 else 2)
     elif gfav < 0.5:
         cell, cell_side = "DOG-FLIP", (2 if fav1 else 1)
@@ -2545,7 +2547,7 @@ def get_ab25_record() -> dict:
                     if pv is None or pd.isna(pv):
                         continue
                     gfav = float(pv) if fav1 else 1 - float(pv)   # G's read on the favourite
-                    if gfav - mkfav >= G_FAV_OVER_MIN:
+                    if gfav - mkfav > G_FAV_OVER_MIN:
                         key, takes1 = _tag + "_fav_over", fav1
                     elif gfav < 0.5:                 # G flips the market dog outright
                         key, takes1 = _tag + "_dog_flip", not fav1
