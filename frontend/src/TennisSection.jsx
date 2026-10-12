@@ -1876,6 +1876,29 @@ function HistoryPanel({ query, greenOnly = false }) {
                 </span>
                 <span style={{ display: 'flex', flexWrap: 'wrap' }}>
                   {chip('A', m.models.A)}{chip('B', m.models.B)}{chip('C', m.models.C)}{chip('gray', m.models.gray)}{chip('D', m.models.D)}
+                  {/* Ⓖ MODEL G (2026-10-12, user "i want model G to show on previous day picks
+                      we've already finished"). Its own chip rather than a plain models.G entry,
+                      because the CELL is the thing worth seeing: ⬛ = it rated the market
+                      favourite above the price, 🟨 = it flipped the underdog past 50%. Those two
+                      are the only reads the lanes record; a game with neither badge is one of the
+                      52.3% where G leans to a dog without flipping it, shown dimmed since we
+                      never had a position on it. Both cells bet G's own pick, so the tick is the
+                      same either way. */}
+                  {m.model_g ? (() => {
+                    const g = m.model_g
+                    const cell = g.cell, won = cell ? g.cell_hit : g.hit
+                    const tone = !cell ? '#6e7681' : (cell === 'FAV-OVER' ? '#c9d1d9' : '#d29922')
+                    return <span className="mono" title={`Ⓖ Model G: ${g.p1_pct}% p1—${Math.round((100 - g.p1_pct) * 10) / 10}% p2, picked player ${g.side}, ${won ? 'correct' : 'wrong'}.${g.recon ? ' ~ WALK-FORWARD BACKFILL: this game predates the model, so it was scored by a G trained only on seasons BEFORE it, off the same as-of 365-day window the validation used. The result was never read. Not a forward pick and excluded from the g_* lanes.' : ' Genuine frozen pre-match read.'}
+${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G rated the market FAVOURITE above the price the market itself set on it. Backtest for this cell: −7.2% on 17,804, and worse than simply backing every favourite on the same rows.'
+                      : cell === 'DOG-FLIP' ? '🟨 DOG-FLIP — G put the market UNDERDOG past 50% and picked it outright. Backtest: −7.2% on 17,493; it does beat backing every dog by 2–4pts but not enough to clear the vig, and it is decaying by year.'
+                        : 'NOT A RECORDED CELL — G leans toward the dog here without flipping it past 50%, which is 52.3% of its matches and deliberately not a tracked bet.'}`}
+                      style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3,
+                               border: `1px solid ${won ? tone + '66' : '#f8514955'}`,
+                               color: won ? tone : '#f85149',
+                               background: won ? (cell === 'DOG-FLIP' ? 'rgba(210,153,34,0.08)' : 'rgba(201,209,217,0.06)') : '#f851490d',
+                               opacity: g.recon ? 0.6 : 1, fontWeight: cell ? 700 : 400 }}>
+                      {g.recon ? '~' : ''}Ⓖ{cell === 'FAV-OVER' ? '⬛' : cell === 'DOG-FLIP' ? '🟨' : ''}{g.side === 1 ? '◀' : '▶'}{won ? '✓' : '✗'}</span>
+                  })() : null}
                   {m.model_x ? <span className="mono" title={`Model X (meta)${m.model_x.recon ? ' — walk-forward backfill, display-only (trained only on earlier games)' : ' — genuine frozen pick'}: ${m.model_x.p1_pct}% p1 — ${m.model_x.hit ? 'correct' : 'wrong'}`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.model_x.hit ? '#3fb95055' : '#f8514955'}`, color: m.model_x.hit ? '#3fb950' : '#f85149', background: m.model_x.hit ? '#3fb9500d' : '#f851490d', opacity: m.model_x.recon ? 0.6 : 1 }}>
                     {m.model_x.recon ? '~' : ''}X{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span> : null}
@@ -2039,6 +2062,7 @@ function HistoryPanel({ query, greenOnly = false }) {
                     market <span style={{ color: m.postmortem.market_right ? '#3fb950' : '#f85149' }}>{m.postmortem.market_right ? 'right' : 'wrong'}</span>
                     {m.model_x ? <> · X <span style={{ color: m.model_x.hit ? '#3fb950' : '#f85149', opacity: m.model_x.recon ? 0.65 : 1 }} title={m.model_x.recon ? 'walk-forward backfill (trained only on earlier games) — display-only, not in the forward lanes' : 'genuine forward pick'}>{m.model_x.recon ? '~' : ''}{m.model_x.p1_pct}%{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span></> : null}
                     {m.mc2 ? <> · 🧮 <span style={{ color: m.mc2.hit ? '#d2a8ff' : '#f85149', opacity: m.mc2.recon ? 0.65 : 1 }} title={m.mc2.recon ? 'walk-forward backfill (pre-match ratings only; result never used) — display-only' : "MC v2's genuine frozen pre-match read"}>{m.mc2.recon ? '~' : ''}{m.mc2.p1_pct}%{m.mc2.side === 1 ? '◀' : '▶'}{m.mc2.hit ? '✓' : '✗'}</span></> : null}
+                    {m.model_g ? <> · Ⓖ <span style={{ color: m.model_g.cell ? (m.model_g.cell_hit ? (m.model_g.cell === 'DOG-FLIP' ? '#d29922' : '#c9d1d9') : '#f85149') : 'var(--text-tertiary)', opacity: m.model_g.recon ? 0.65 : 1 }} title={m.model_g.recon ? 'walk-forward backfill (trained only on earlier seasons; result never used) — display-only, not in the g_* lanes' : "Model G's genuine frozen pre-match read"}>{m.model_g.recon ? '~' : ''}{m.model_g.p1_pct}%{m.model_g.side === 1 ? '◀' : '▶'}{(m.model_g.cell ? m.model_g.cell_hit : m.model_g.hit) ? '✓' : '✗'}{m.model_g.cell ? (m.model_g.cell === 'FAV-OVER' ? ' ⬛' : ' 🟨') : ''}</span></> : null}
                     {m.postmortem.missed_info && m.postmortem.missed_info.length
                       ? <span style={{ color: '#e3b341' }}> · missed: {m.postmortem.missed_info.join(', ')}</span> : null}
                   </div>
