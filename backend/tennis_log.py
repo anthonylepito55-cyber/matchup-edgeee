@@ -2564,12 +2564,30 @@ def get_ab25_record() -> dict:
                     _lgg = str(rr.get("league") or "")
                     _g[key]["v"].append(pnl)
                     _g[key]["w" if ("wta" in _lgg or "itf_women" in _lgg) else "m"].append(pnl)
+        # COMBINED cells (2026-10-12, user "way more g dog flips then 4 games"): the forward
+        # lane counts only what has settled since G went live TODAY -- 4 of 38 dog-flips -- and
+        # the other 312 sat on a separate replay card, so the tab read as if G had barely
+        # picked anything. Each colour now also gets an _all cell holding EVERY pick it has
+        # ever made, forward and replay together, with the split carried as fwd/rep so the
+        # headline answers "all of them" without hiding which half is a real record.
+        for _c in ("g_fav_over", "g_dog_flip"):
+            _fw, _rp = _g[_c], _g[_c + "_replay"]
+            _g[_c + "_all"] = {"v": _fw["v"] + _rp["v"], "m": _fw["m"] + _rp["m"],
+                               "w": _fw["w"] + _rp["w"], "p": _fw["p"] + _rp["p"]}
+            _gpicks[_c + "_all"] = _gpicks[_c] + _gpicks[_c + "_replay"]
         for k in _gpicks:
-            _gpicks[k].sort(key=lambda x: x.pop("_sort"), reverse=True)  # newest first, as the tab expects
+            _gpicks[k].sort(key=lambda x: x.get("_sort") or "", reverse=True)  # newest first
+        for k in _gpicks:
+            for _x in _gpicks[k]:
+                _x.pop("_sort", None)
         for k, v in _g.items():
             # every pick in a cell is the same side by construction, so one of dog/fav is empty
             _isdog = "_dog_flip" in k
-            study_out[k] = {**agg(v["v"]), "pending": int(v["p"]),
+            _split = {}
+            if k.endswith("_all"):
+                _b = k[:-4]
+                _split = {"fwd": agg(_g[_b]["v"]), "rep": agg(_g[_b + "_replay"]["v"])}
+            study_out[k] = {**agg(v["v"]), "pending": int(v["p"]), **_split,
                             "m": agg(v["m"]), "w": agg(v["w"]),
                             "dog": agg(v["v"] if _isdog else []),
                             "fav": agg([] if _isdog else v["v"]),
