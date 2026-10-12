@@ -2052,8 +2052,8 @@ function HistoryPanel({ query, greenOnly = false }) {
                     return (
                       <span>{(nm || '').split(' ').slice(-1)[0]}: 1stSv {st.sv1 ?? '—'}% · 2ndSv {st.sv2 ?? '—'}% · <b>Hold {st.sgw ?? '—'}%</b> · Ret1 {st.r1 ?? '—'}% · Ret2 {st.r2 ?? '—'}% · <b>Break {st.rgw ?? '—'}%</b>
                         {/* the same surface-unique pressure dials as the board card, as-of */}
-                        {st.svp != null ? <> · <b style={{ color: '#9fb4d8' }}>svPress {st.svp}%</b></> : null}
-                        {st.rtp != null ? <> · <b style={{ color: '#9fb4d8' }}>rtPress {st.rtp}%</b>{st.p_win ? <span style={{ opacity: 0.7 }}> ({st.p_win})</span> : null}</> : null}
+                        {(st.svp != null || st.svp52 != null) ? <> · <b style={{ color: '#9fb4d8' }}>svPress {st.svp ?? st.svp52}%{st.svp != null && st.svp52 != null && Math.abs(st.svp52 - st.svp) >= 0.5 ? `/${st.svp52}%` : ''}</b></> : null}
+                        {(st.rtp != null || st.rtp52 != null) ? <> · <b style={{ color: '#9fb4d8' }}>rtPress {st.rtp ?? st.rtp52}%{st.rtp != null && st.rtp52 != null && Math.abs(st.rtp52 - st.rtp) >= 0.5 ? `/${st.rtp52}%` : ''}</b></> : null}
                         {' '}<span style={{ opacity: 0.7 }}>({c.surface_used.toLowerCase()} {st.window}, n={st.n})</span></span>
                     )
                   }
@@ -2282,8 +2282,26 @@ function TrContextRow({ name, ctx }) {
           Reading note kept deliberately short on the card: these dials are FULLY PRICED
           (archive, dog better on both -8.9% over 6,984 bets), so they are for reading the
           matchup, not for betting off. */}
-      {s.svp != null ? ` · svPress ${s.svp}%` : ''}
-      {s.rtp != null ? ` · rtPress ${s.rtp}%${s.p_win ? ` (${s.p_win})` : ''}` : ''}
+      {(() => {
+        // BOTH WINDOWS (2026-10-11, user chose "Option 3"). Season is what TennisRatio shows,
+        // so the card can be checked against the phone; 52w is the better read (where the two
+        // disagree, 52w picks the winner 52.7% vs 47.3% on serve-pressure, 51.0% vs 49.0% on
+        // return). The 52w figure is only repeated when it differs by at least 0.5pt, so an
+        // agreeing pair stays on one short segment instead of doubling the line length.
+        const seg = (lab, szn, w52) => {
+          if (szn == null && w52 == null) return null
+          if (szn == null) return ` · ${lab} ${w52}% (52w)`
+          if (w52 == null || Math.abs(w52 - szn) < 0.5) return ` · ${lab} ${szn}%`
+          return ` · ${lab} ${szn}%/${w52}%`
+        }
+        const a = seg('svPress', s.svp, s.svp52)
+        const b = seg('rtPress', s.rtp, s.rtp52)
+        if (!a && !b) return null
+        const both = s.svp != null && s.svp52 != null
+        return <span title={both
+          ? `Pressure points won, serve and return. Two windows: THIS SEASON on this court (what TennisRatio's Compare Players screen shows) / TRAILING 52 WEEKS on this court. Shown as season/52w only where they differ by 0.5pt or more. The 52-week figure is the better read: across 77,000 archive matches, where the two windows disagree about who leads, 52w picks the winner 52.7% of the time on serve-pressure against season's 47.3%, and 51.0% vs 49.0% on return-pressure (EDGE +1.7pt vs -1.7pt). Season only wins Oct-Dec, once its window has filled, so the gap is a sample-size effect rather than recency. Neither is a bet: the dials are fully priced -- the player ahead on both returns -8.9% over 6,984 archive bets.`
+          : 'Pressure points won on serve / on return, this surface.'}>{a}{b}</span>
+      })()}
       {ctx.clutch != null ? ` · clutch ${(ctx.clutch * 100).toFixed(0)}%` : ''}
       {ctx.avg_opp_rank != null ? ` · avg opp #${ctx.avg_opp_rank}` : ''}
       {/* LAST 10 ON THIS SURFACE (2026-10-11, user ask) -- same stats, same court, shorter

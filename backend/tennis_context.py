@@ -164,15 +164,25 @@ def _load():
                           + (0.5 * t10["return_1st_serve_points"] + 0.5 * t10["return_2nd_serve_points"]).mean())
                 sr10 = round(v, 2) if np.isfinite(v) else None
             sga, rga = w["sg_all"].sum(), w["rg_all"].sum()
+            # BOTH WINDOWS (2026-10-11, user picked "Option 3" after the season-vs-52w test).
+            # Season matches what TennisRatio's Compare Players screen shows, so the card can
+            # be cross-checked against the phone. But the archive says 52w is the better READ:
+            # where the two disagree about who leads, 52w picks the winner 52.7% of the time on
+            # serve-pressure against season's 47.3%, and 51.0% vs 49.0% on return-pressure
+            # (EDGE +1.7pt vs -1.7pt). Season only wins Oct-Dec, when its window is finally
+            # full -- it is a sample-size effect, not a recency one. So show both and let the
+            # divergence be visible rather than picking one and hiding the disagreement.
             _yr = int(gdf["date"].max().year)
             _svp, _rtp, _spn, _rpn, _pwin = _pressure_season(sub, _yr)
-            if _pwin == "thin":                       # fall back to the 52w surface window
-                _svp, _rtp, _spn, _rpn = _pressure(w)
-                _pwin = window
+            if _pwin == "thin":                       # season too sparse -> no season figure
+                _svp = _rtp = None
+                _pwin = None
+            _svp52, _rtp52, _spn52, _rpn52 = _pressure(w)      # 52w on this surface
             p["surfaces"][surf] = {
                 "sr10": sr10,
-                # season + court pressure dials, with the window actually used
                 "svp": _svp, "rtp": _rtp, "svp_n": _spn, "rtp_n": _rpn, "p_win": _pwin,
+                "svp52": _svp52, "rtp52": _rtp52,
+                "svp52_n": _spn52, "rtp52_n": _rpn52, "p_win52": window,
                 "n": int(len(w)), "window": window,
                 "sv1": _fin(w["first_serve_points"].mean()),      # 1st Serve Points Won %
                 "sv2": _fin(w["second_serve_points"].mean()),     # 2nd Serve Points Won %
@@ -396,13 +406,16 @@ def _context_asof_uncached(player_name, surface, asof):
         if len(w) < 5:
             return None
     sga, rga = w["sg_all"].sum(), w["rg_all"].sum()
-    # same season+court dials on the replay path, with the season taken from the AS-OF date
+    # both windows on the replay path too, season taken from the AS-OF date
     _svp, _rtp, _spn, _rpn, _pwin = _pressure_season(sub, int(asof.year))
     if _pwin == "thin":
-        _svp, _rtp, _spn, _rpn = _pressure(w)
-        _pwin = window
+        _svp = _rtp = None
+        _pwin = None
+    _svp52, _rtp52, _spn52, _rpn52 = _pressure(w)
     stats = {"n": int(len(w)), "window": window,
              "svp": _svp, "rtp": _rtp, "svp_n": _spn, "rtp_n": _rpn, "p_win": _pwin,
+             "svp52": _svp52, "rtp52": _rtp52,
+             "svp52_n": _spn52, "rtp52_n": _rpn52, "p_win52": window,
              "sv1": _fin(w["first_serve_points"].mean()), "sv2": _fin(w["second_serve_points"].mean()),
              "sgw": _fin(100 * w["sg_won"].sum() / sga) if sga else None,
              "r1": _fin(w["return_1st_serve_points"].mean()), "r2": _fin(w["return_2nd_serve_points"].mean()),
