@@ -46,9 +46,12 @@ for slug in cands:
     g52 = prof.get("g52")
     if not g52:
         continue
-    w = raw[(raw["player_slug"] == slug) & (raw["surface"].astype(str).str.title() == SURF)
-            & (raw["date"] >= today - pd.Timedelta(days=365))]
+    on = raw[(raw["player_slug"] == slug) & (raw["surface"].astype(str).str.title() == SURF)]
+    w = on[on["date"] >= today - pd.Timedelta(days=365)]
     if len(w) < 5:
+        # mirror the adaptive window: under 5 in the year, the last 20 on this surface
+        w = on.sort_values("date").tail(20)
+    if not len(w):
         continue
     b = np.clip(np.searchsorted(edges, w["logr"].to_numpy(float), side="left") - 1, 0, NB - 1)
     for nm, num, den in T.G_STATS:

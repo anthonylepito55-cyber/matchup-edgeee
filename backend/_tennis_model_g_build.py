@@ -167,8 +167,33 @@ roll = g.rolling("365D", on="date")[SUMS].sum().reset_index(drop=True)
 roll["w_n"] = g.rolling("365D", on="date")["won"].count().reset_index(drop=True)
 roll["w_logr"] = g.rolling("365D", on="date")["logr"].mean().reset_index(drop=True)
 roll = roll.groupby(df["punit"].to_numpy()).shift(1)          # strictly prior
+
+# ADAPTIVE WINDOW (2026-10-12, user: a Challenger card where one player read "hard L20" and G
+# priced nothing -- "no 52 week on this game"). A player with four hard-court matches in the
+# year is not unpriceable, he is thinly sampled, and the card ALREADY shows him: tennis_context
+# falls back to the last 20 on the surface whenever the 365-day window holds under 5. G now
+# follows the same rule, so it prices exactly the games the card can describe.
+#
+# This is the sUTR fix applied to G (see project_sutr_adaptive_window): widen only when thin.
+# It has to happen HERE as well as live, or the live features drift from the ones the model was
+# fit on, which is precisely how Model E came to inflate favourites.
+#
+# A f_wide feature counts how many of the two sides were widened, so the model can discount a
+# matchup it is reading off stale windows rather than being told they are equivalent.
+roll20 = g.rolling(20, min_periods=1)[SUMS].sum().reset_index(drop=True)
+roll20["l_n"] = g.rolling(20, min_periods=1)["won"].count().reset_index(drop=True)
+roll20["l_logr"] = g.rolling(20, min_periods=1)["logr"].mean().reset_index(drop=True)
+roll20 = roll20.groupby(df["punit"].to_numpy()).shift(1)
+MINW = 5
+wide = (roll["w_n"].fillna(0) < MINW).to_numpy()
+for c in SUMS:
+    roll[c] = np.where(wide, roll20[c].to_numpy(), roll[c].to_numpy())
+roll["w_logr"] = np.where(wide, roll20["l_logr"].to_numpy(), roll["w_logr"].to_numpy())
+roll["w_n"] = np.where(wide, roll20["l_n"].to_numpy(), roll["w_n"].to_numpy())
+roll["wide"] = wide.astype(float)
 df = pd.concat([df.drop(columns=SUMS), roll], axis=1)
-say("52w windows built")
+say("adaptive windows built (%.1f%% of player-rows fall back to last-20 on surface)"
+    % (100 * float(np.nanmean(wide))))
 
 # ---------------------------------------------------------------------------
 # (1) SHRINKAGE BY SAMPLE SIZE. Empirical Bayes: k = within-player sampling variance over
@@ -208,7 +233,7 @@ say("shrunk + adjusted stats done")
 # ---------------------------------------------------------------------------
 SN = [n for n, _, _ in STATS]
 CARRY = (["g_" + n for n in SN] + ["graw_" + n for n in SN] + ["n_" + n for n in SN]
-         + ["w_n", "w_logr", "rival_rank"])
+         + ["w_n", "w_logr", "wide", "rival_rank"])
 mirror = df[["player_slug", "rival_slugname", "date"] + CARRY].copy()
 mirror.columns = ["rival_slugname", "player_slug", "date"] + ["o_" + c for c in CARRY]
 m = df.merge(mirror, on=["player_slug", "rival_slugname", "date"], how="inner")
@@ -231,11 +256,15 @@ for k_, v_ in (("d_matches", np.log1p(m["w_n"]) - np.log1p(m["o_w_n"])),
     feats[k_] = v_
     rawf[k_] = v_
 feats["d_faced"] = m["o_w_logr"] - m["w_logr"]        # + = p1 has faced the tougher schedule
+# how many of the two sides are being read off a widened (last-20) window rather than a real
+# 365-day one -- so the model can discount a thin matchup instead of trusting it equally
+feats["f_wide"] = m["wide"].fillna(0) + m["o_wide"].fillna(0)
 
 FC, RC = list(feats.keys()), list(rawf.keys())
 X = pd.DataFrame({k: pd.to_numeric(v, errors="coerce") for k, v in feats.items()})
 Xr = pd.DataFrame({k: pd.to_numeric(v, errors="coerce") for k, v in rawf.items()})
 keep = m["mkt"].notna() & X.notna().sum(axis=1).ge(14) & m["G"].isin(["M", "W"])
+say("widened on at least one side: %.1f%% of paired rows" % (100 * float((m["wide"].fillna(0) + m["o_wide"].fillna(0)).gt(0).mean())))
 core = m.loc[keep, ["date", "won", "mkt", "player_odd", "rival_odd", "G", "w_n", "o_w_n"]].join(X).reset_index(drop=True)
 core_r = Xr[keep].reset_index(drop=True)
 say("G core: %d rows, %d features (control %d)" % (len(core), len(FC), len(RC)))

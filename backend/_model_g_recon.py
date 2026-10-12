@@ -58,7 +58,19 @@ print("archive as-of rows: %d" % len(core), flush=True)
 # ---- one scorer per log year, trained strictly on earlier years ----
 yrs = sorted({int(y) for y in pd.to_datetime(need["d"]).dt.year.unique()})
 print("log years to score: %s" % yrs, flush=True)
-preds = {}
+preds, fitted = {}, {}
+
+
+def _dec(am):
+    """American odds -> decimal. The log stores American; the model needs a probability."""
+    try:
+        a = float(am)
+    except (TypeError, ValueError):
+        return None
+    if a == 0:
+        return None
+    return 1 + a / 100.0 if a > 0 else 1 + 100.0 / abs(a)
+
 for yr in yrs:
     itr = (core["date"].dt.year < yr).to_numpy()
     if itr.sum() < 5000:
@@ -71,6 +83,7 @@ for yr in yrs:
     lgm = np.log(np.clip(core.loc[itr, "mkt"], 1e-6, 1 - 1e-6)
                  / (1 - np.clip(core.loc[itr, "mkt"], 1e-6, 1 - 1e-6)))
     lrm = LogisticRegression(max_iter=3000, C=0.5).fit(np.column_stack([lgm, Xtr]), ytr)
+    fitted[yr] = (lr, bst, lrm)
     ite = (core["date"].dt.year == yr).to_numpy()
     Xte = core.loc[ite, FC].fillna(0)
     mk = np.clip(core.loc[ite, "mkt"].to_numpy(float), 1e-6, 1 - 1e-6)
@@ -153,6 +166,138 @@ if len(fill):
     acc = ((res["_g"] >= 0.5) == res["p1_won"].astype(bool)).mean()
     print("sanity, DISPLAY-ONLY and not a forward record: recon picked the winner %.1f%% of %d"
           % (100 * acc, len(res)), flush=True)
+
+# ===========================================================================================
+# DIRECT AS-OF FALLBACK (2026-10-12). The paired-archive lookup above cannot reach a match
+# whose two sides were never both ingested -- 219 rows after the date fix, every one of them
+# with both players fully priceable. That dependency is incidental: the paired frame is only how
+# the BUILD convenes a training row, and nothing about scoring needs it. So for whatever the
+# lookup missed, rebuild each player's as-of window straight from the archive and score it the
+# way predict_g does live.
+#
+# Leakage discipline is unchanged and if anything tighter: windows are strictly date < match
+# day, the rank-discount curves and shrinkage constants were frozen on 2015-23, and the scorer
+# is still the one trained only on seasons before the row's year. The market for the
+# market-aware head comes from the LOG's own frozen closing odds, which is the real price this
+# card was shown at rather than whatever the archive later recorded.
+# ===========================================================================================
+import tennis_model_a as _T
+
+MDL = _T.g_model()
+if MDL is not None and (miss_row or miss_slug):
+    raw2 = _T._parse(pd.read_parquet(_T.LOGS_PARQUET))
+    raw2["date"] = pd.to_datetime(raw2["date"]).dt.normalize()
+    raw2["surf"] = raw2["surface"].astype(str).str.title()
+    bysurf = {k: v.sort_values("date") for k, v in raw2.groupby(["player_slug", "surf"])}
+    EDGES = np.asarray(MDL["bin_edges"], dtype=float)
+    NBIN = len(EDGES) - 1
+    GENDER = pd.read_parquet("data_cache/_slug_gender.parquet")["g"].to_dict()
+
+    def _win(sl, surf, day):
+        """The player's as-of window: prior 365 days on this surface, or the last 20 on it when
+        that holds under five. Identical rule to the build and to _profile."""
+        on = bysurf.get((sl, str(surf or "").title()))
+        if on is None or not len(on):
+            return None, 0.0
+        before = on[on["date"] < pd.Timestamp(day)]
+        if not len(before):
+            return None, 0.0
+        w = before[before["date"] >= pd.Timestamp(day) - pd.Timedelta(days=365)]
+        if len(w) >= 5:
+            return w, 0.0
+        return before.tail(20), 1.0
+
+    def _stats(w, gd):
+        """The nine figures, opponent-rank-discounted then shrunk by each one's own denominator."""
+        out = {}
+        b = np.clip(np.searchsorted(EDGES, w["logr"].to_numpy(float), side="left") - 1, 0, NBIN - 1)
+        for nm, num, den in _T.G_STATS:
+            if den is None:
+                r = pd.to_numeric(w[num], errors="coerce").astype(float)
+                if nm != "win":
+                    r = r / 100.0
+                r = r.where(r.between(0, 1))
+                d = r.notna().astype(float)
+            else:
+                dd = pd.to_numeric(w[den], errors="coerce").astype(float).replace(0, np.nan)
+                r = pd.to_numeric(w[num], errors="coerce").astype(float) / dd
+                d = dd.where(r.notna())
+            ok = r.notna().to_numpy() & np.isfinite(d.to_numpy(float))
+            dv = np.where(ok, d.to_numpy(float), 0.0)
+            rv = np.where(ok, r.to_numpy(float), 0.0)
+            if dv.sum() <= 0:
+                out[nm] = (None, 0.0)
+                continue
+            eff = np.asarray(MDL["opp_eff"].get((gd, nm), np.zeros(NBIN)), dtype=float)
+            k = float(MDL["k"].get((gd, nm), 1.0))
+            pr = float(MDL["prior"].get((gd, nm), 0.0))
+            num_ = (rv * dv).sum() - (eff[b] * dv).sum()
+            out[nm] = ((num_ + k * pr) / (dv.sum() + k), float(dv.sum()))
+        return out
+
+    import sklearn  # noqa: F401
+    direct, dmiss = [], 0
+    for r in need.itertuples():
+        s1, s2 = slug(r.player_1), slug(r.player_2)
+        if not s1 or not s2:
+            dmiss += 1
+            continue
+        if any(x["date"] == r.d and x["player_1"] == r.player_1 for x in out):
+            continue                                  # the paired lookup already covered it
+        yr = int(str(r.d)[:4])
+        if yr not in fitted:
+            dmiss += 1
+            continue
+        lg = str(getattr(r, "league", "") or "").lower()
+        gd = "W" if lg in ("wta", "itf_women") else "M"
+        surf = getattr(r, "surface", None)
+        w1, wd1 = _win(s1, surf, r.d)
+        w2, wd2 = _win(s2, surf, r.d)
+        if w1 is None or w2 is None:
+            dmiss += 1
+            continue
+        a, bb = _stats(w1, gd), _stats(w2, gd)
+        f = {}
+        for nm, _, _ in _T.G_STATS:
+            v1, d1 = a[nm]
+            v2, d2 = bb[nm]
+            f["d_" + nm] = (v1 - v2) if (v1 is not None and v2 is not None) else 0.0
+            f["dn_" + nm] = float(np.log1p(d1) - np.log1p(d2))
+        n1, n2 = float(len(w1)), float(len(w2))
+        f["d_matches"] = float(np.log1p(n1) - np.log1p(n2))
+        f["f_nmin"] = float(np.log1p(min(n1, n2)))
+        fa1 = float(w1["logr"].dropna().mean()) if w1["logr"].notna().any() else None
+        fa2 = float(w2["logr"].dropna().mean()) if w2["logr"].notna().any() else None
+        f["d_faced"] = float(fa2 - fa1) if (fa1 is not None and fa2 is not None) else 0.0
+        f["f_wide"] = float(wd1) + float(wd2)
+        lr_, bst_, lrm_ = fitted[yr]
+        X1 = np.array([[f.get(k, 0.0) for k in MDL["features"]]])
+        pg = float(0.5 * (lr_.predict_proba(X1)[0, 1] + bst_.predict_proba(X1)[0, 1]))
+        o1, o2 = getattr(r, "p1_odds", None), getattr(r, "p2_odds", None)
+        pma = None
+        try:
+            d1o, d2o = _dec(o1), _dec(o2)
+            if d1o and d2o:
+                mk = (1 / d1o) / ((1 / d1o) + (1 / d2o))
+                pma = float(lrm_.predict_proba(
+                    np.column_stack([[np.log(mk / (1 - mk))], X1]))[0, 1])
+        except Exception:  # noqa: BLE001
+            pma = None
+        direct.append({"date": r.d, "player_1": r.player_1, "player_2": r.player_2,
+                       "model_g_p1": round(pg, 4),
+                       "model_gma_p1": None if pma is None else round(pma, 4)})
+    print("\ndirect as-of fallback: priced %d more, still unreachable %d"
+          % (len(direct), dmiss), flush=True)
+    if direct:
+        fill = pd.concat([fill, pd.DataFrame(direct)], ignore_index=True)
+        fill.to_parquet("data_cache/_model_g_recon_fill.parquet")
+        res2 = need[["d", "player_1", "player_2", "p1_won"]].merge(
+            pd.DataFrame(direct).rename(columns={"date": "d", "model_g_p1": "_g"}),
+            on=["d", "player_1", "player_2"], how="inner")
+        if len(res2):
+            print("   sanity on the direct rows: picked the winner %.1f%% of %d"
+                  % (100 * ((res2["_g"] >= 0.5) == res2["p1_won"].astype(bool)).mean(), len(res2)),
+                  flush=True)
 
 if APPLY and len(fill):
     L = pd.read_parquet(LOGP)

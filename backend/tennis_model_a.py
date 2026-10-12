@@ -255,25 +255,35 @@ def _profile(gdf, today):
         # to be applied per PAST MATCH -- each one is deflated by the rank band of the
         # opponent who produced it -- so it cannot be done after aggregating, which is why
         # both genders' sums are carried rather than one resolved number.
+        # ADAPTIVE WINDOW (2026-10-12, user: a card where one player read "hard L20" and G
+        # priced nothing -- "no 52 week on this game"). Under 5 matches in the 365-day window,
+        # fall back to the last 20 on this surface, which is exactly what tennis_context already
+        # shows on the card. Two reasons it has to be this rule and not a stricter one:
+        #   * the card can describe the player, so G refusing to is a gap, not a safeguard;
+        #   * the BUILD has no minimum-match floor at all, so the old `len(w52) >= 5` here made
+        #     LIVE STRICTER THAN TRAINING -- a silent live/training mismatch of the exact kind
+        #     that made Model E drift. The build now widens on the same threshold, so the two
+        #     sides agree by construction.
         _gm = g_model()
         e["g52"] = None
-        if _gm is not None and len(w52) >= 5 and w52["logr"].notna().any():
+        _gw = w52 if len(w52) >= 5 else sd.sort_values("date").tail(20)
+        if _gm is not None and len(_gw) and _gw["logr"].notna().any():
             _ed = np.asarray(_gm["bin_edges"], dtype=float)
             _nb = len(_ed) - 1
-            _bin = np.clip(np.searchsorted(_ed, w52["logr"].to_numpy(dtype=float),
+            _bin = np.clip(np.searchsorted(_ed, _gw["logr"].to_numpy(dtype=float),
                                            side="left") - 1, 0, _nb - 1)
-            g52 = {"w_n": int(len(w52)),
-                   "faced": float(w52["logr"].dropna().mean()) if w52["logr"].notna().any() else None}
+            g52 = {"w_n": int(len(_gw)), "wide": 0.0 if len(w52) >= 5 else 1.0,
+                   "faced": float(_gw["logr"].dropna().mean()) if _gw["logr"].notna().any() else None}
             for _nm, _num, _den in G_STATS:
                 if _den is None:
-                    _r = pd.to_numeric(w52[_num], errors="coerce").astype(float)
+                    _r = pd.to_numeric(_gw[_num], errors="coerce").astype(float)
                     if _nm != "win":
                         _r = _r / 100.0
                     _r = _r.where(_r.between(0, 1))       # same inf/out-of-range guard as the build
                     _d = _r.notna().astype(float)
                 else:
-                    _dd = pd.to_numeric(w52[_den], errors="coerce").astype(float).replace(0, np.nan)
-                    _r = pd.to_numeric(w52[_num], errors="coerce").astype(float) / _dd
+                    _dd = pd.to_numeric(_gw[_den], errors="coerce").astype(float).replace(0, np.nan)
+                    _r = pd.to_numeric(_gw[_num], errors="coerce").astype(float) / _dd
                     _d = _dd.where(_r.notna())
                 _ok = _r.notna().to_numpy() & np.isfinite(_d.to_numpy(dtype=float))
                 _dv = np.where(_ok, _d.to_numpy(dtype=float), 0.0)
@@ -694,12 +704,17 @@ def predict_g(name1, name2, surface, market_p1=None, league=None):
     fa1, fa2 = g1.get("faced"), g2.get("faced")
     # + = p1 has faced the TOUGHER schedule (lower log-rank), matching the training sign
     f["d_faced"] = float(fa2 - fa1) if (fa1 is not None and fa2 is not None) else 0.0
+    # how many sides are read off a widened last-20 window rather than a real 365-day one
+    f["f_wide"] = float(g1.get("wide") or 0.0) + float(g2.get("wide") or 0.0)
 
     X = np.array([[f.get(k, 0.0) for k in mdl["features"]]])
     prob = float(0.5 * (mdl["lr"].predict_proba(X)[0, 1] + mdl["xgb"].predict_proba(X)[0, 1]))
     out = {"p1_prob": round(prob, 4), "p2_prob": round(1 - prob, 4),
            "trained_at": mdl.get("trained_at"), "gender": gd,
-           "n1": int(n1), "n2": int(n2)}
+           "n1": int(n1), "n2": int(n2),
+           # which sides are read off a widened last-20 window instead of a real 365-day one,
+           # so the card can say so rather than presenting a thin read as a full one
+           "wide1": bool(g1.get("wide")), "wide2": bool(g2.get("wide"))}
     if market_p1 is not None and mdl.get("lr_ms") is not None:
         Xm = np.column_stack([[_lg(market_p1)], X])
         out["market_aware_p1"] = round(float(mdl["lr_ms"].predict_proba(Xm)[0, 1]), 4)
