@@ -49,7 +49,8 @@ import threading
 
 # The chain has ONE definition, in tennis_mc2. _p_set is the shared set probability; _rnd is the
 # same quantiser so the lru_caches behind it are shared rather than duplicated.
-from tennis_mc2 import _NODES, DAY_SD, _p_set, _rnd, _surf, _slug
+from tennis_mc2 import (_NODES, DAY_SD, _p_set, _rnd, _surf, _slug,
+                        p_match as _p_match_any)
 
 MC3_KS = 20.0          # surface-vs-career shrink; _mc3_build.py imports THIS, never its own copy
 # Measured worse on Brier in every year and surface (see note 3 above). Kept as a switch so the
@@ -98,18 +99,10 @@ def _point_probs(a, b, surf):
     return _rnd(bs + Sa - Rb), _rnd(bs + Sb - Ra)
 
 
-def p_match(pa, pb, best_of_5=False):
-    """Sets -> match. The only piece MC3 defines itself, because it is the piece MC2 got wrong.
-
-    bo3: win 2 before the opponent does  = s^2 * (1 + 2(1-s))
-    bo5: win 3 before the opponent does  = s^3 * (1 + 3(1-s) + 6(1-s)^2)
-    where the coefficients are C(1+k, k) and C(2+k, k) -- the ways to lose k sets first.
-    """
-    s = _p_set(pa, pb)
-    if best_of_5:
-        q = 1 - s
-        return s ** 3 * (1 + 3 * q + 6 * q * q)
-    return s * s * (1 + 2 * (1 - s))
+# sets -> match now has ONE definition, in tennis_mc2, and MC3 re-exports it. It lived here
+# first because MC2 could not express best-of-five at all; now that MC2 can, keeping a second
+# copy would be exactly the drift this module's docstring promises to avoid.
+p_match = _p_match_any
 
 
 def predict(p1_name, p2_name, surface, best_of_5=False, market_p1=None):

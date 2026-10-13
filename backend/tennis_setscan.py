@@ -237,8 +237,20 @@ def scan():
                 continue
             mk1 = a1 / (a1 + a2)
         surf = tc.get_tournament_surface(pmd._tournament(ev)) or "Hard"
+        # BEST-OF-FIVE CHECK (2026-10-13). mc2.distribution() now returns None for a
+        # best-of-five match, because every quantity it emits -- 2-0/2-1 outcomes, 19.5-23.5
+        # game totals, a -1.5 set handicap -- is best-of-three by construction. This feed
+        # carries no format flag, so it is inferred from the tournament name, and the
+        # inference is deliberately BIASED TOWARD DECLINING: a name that merely looks like a
+        # slam is treated as best-of-five unless it is clearly a women's event. Declining
+        # costs a scan; quoting a three-set shape against a real five-set market does not
+        # cost a scan, it produces a confident wrong number.
+        _tn = str(pmd._tournament(ev) or "").lower()
+        _bo5 = (any(k in _tn for k in ("australian open", "roland garros", "french open",
+                                       "wimbledon", "us open"))
+                and not any(k in _tn for k in ("wta", "women", "ladies", "girls")))
         try:
-            D = mc2.distribution(p1, p2, surf, mk1)
+            D = mc2.distribution(p1, p2, surf, mk1, best_of_5=_bo5)
         except Exception:  # noqa: BLE001
             D = None
         if not D:

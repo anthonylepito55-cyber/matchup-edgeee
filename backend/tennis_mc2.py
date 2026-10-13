@@ -99,8 +99,35 @@ def _p_set(pa, pb):
 
 @lru_cache(maxsize=50000)
 def _p_match(pa, pb):
+    """Best-of-THREE. Kept under its original name because the derivative engine and the
+    older recon scripts call it directly; new code should use p_match()."""
     s = _p_set(pa, pb)
     return s * s + 2 * s * s * (1 - s)
+
+
+@lru_cache(maxsize=50000)
+def _p_match5(pa, pb):
+    """Best-of-FIVE: win 3 sets before the opponent does.
+
+        3-0  s^3
+        3-1  C(3,1) s^3 q
+        3-2  C(4,2) s^3 q^2
+    """
+    s = _p_set(pa, pb)
+    q = 1 - s
+    return s ** 3 * (1 + 3 * q + 6 * q * q)
+
+
+def p_match(pa, pb, best_of_5=False):
+    """THE single definition of sets -> match for the whole codebase.
+
+    Added 2026-10-13. Until then `_p_match` was best-of-three unconditionally and nothing
+    passed a format in, so every Grand Slam and Davis Cup match was priced as a three-setter.
+    That is not a tuning choice, it is a straight error: more sets give the better player more
+    chances to convert an edge, so best-of-three systematically UNDERSTATES the favourite.
+    tennis_mc3 re-exports this rather than keeping its own copy.
+    """
+    return _p_match5(pa, pb) if best_of_5 else _p_match(pa, pb)
 
 
 _NODES = ((-1.7320508, 1 / 6), (0.0, 2 / 3), (1.7320508, 1 / 6))
@@ -126,8 +153,12 @@ def _point_probs(st_a, st_b, surf):
     return _rnd(bs + Sa - Rb), _rnd(bs + Sb - Ra)
 
 
-def predict(p1_name, p2_name, surface, market_p1=None):
-    """Independent MC2 head for display/ledger. None when either player is unrated."""
+def predict(p1_name, p2_name, surface, market_p1=None, best_of_5=False):
+    """Independent MC2 head for display/ledger. None when either player is unrated.
+
+    best_of_5 added 2026-10-13; it defaults False so every existing caller keeps its current
+    behaviour, and the slate passes the log's own best_of_5 flag.
+    """
     S = _state()
     surf = _surf(surface)
     s1, s2 = _slug(p1_name, surface), _slug(p2_name, surface)
@@ -141,7 +172,8 @@ def predict(p1_name, p2_name, surface, market_p1=None):
     pm = 0.0
     for xi, wi in _NODES:
         for xj, wj in _NODES:
-            pm += wi * wj * _p_match(_rnd(pa + xi * sg_a), _rnd(pb + xj * sg_b))
+            pm += wi * wj * p_match(_rnd(pa + xi * sg_a), _rnd(pb + xj * sg_b),
+                                    best_of_5)
     # surface-shrunk Elo blend (same formula as the training pass)
     wa = a["ns"][surf] / (a["ns"][surf] + 20.0)
     wb = b["ns"][surf] / (b["ns"][surf] + 20.0)
@@ -153,7 +185,7 @@ def predict(p1_name, p2_name, surface, market_p1=None):
     p_blend = 1 / (1 + math.exp(-(0.5 * lg(p_elo) + 0.5 * lg(pm))))
     return {"p1_prob": round(p_blend, 4), "elo_p1": round(p_elo, 4),
             "mkv_p1": round(pm, 4), "pa_pt": pa, "pb_pt": pb,
-            "n1": int(a["nS"]), "n2": int(b["nS"]),
+            "n1": int(a["nS"]), "n2": int(b["nS"]), "bo5": bool(best_of_5),
             "sigma": round(sg_a + sg_b, 4)}
 
 
@@ -169,9 +201,21 @@ def _anchor(pa, pb, target):
     return 0.5 * (lo + hi)
 
 
-def distribution(p1_name, p2_name, surface, market_p1):
+def distribution(p1_name, p2_name, surface, market_p1, best_of_5=False):
     """ANCHORED derivative prices for PM's set/total/handicap markets. Requires a live
-    no-vig market_p1 (the anchor). None when unrated or unanchored."""
+    no-vig market_p1 (the anchor). None when unrated, unanchored, or best-of-five.
+
+    BEST-OF-FIVE RETURNS None, deliberately (2026-10-13). Every quantity this function emits is
+    best-of-three by construction, not just its match probability: the outcomes are 2-0 and 2-1,
+    the game totals sit on 19.5-23.5 lines, "straight sets" means 2-0 and the set handicap is
+    -1.5. For a five-setter every one of those is the wrong object, and the anchor is solved
+    through a best-of-three match function too. Emitting them anyway would hand the scanner
+    confident nonsense to compare against real Polymarket prices, so it declines instead.
+    A best-of-five derivative engine is a separate piece of work; nothing needs it before the
+    Australian Open, and the match-winner probability above is now correct either way.
+    """
+    if best_of_5:
+        return None
     if market_p1 is None or not (0.02 < market_p1 < 0.98):
         return None
     base = predict(p1_name, p2_name, surface)

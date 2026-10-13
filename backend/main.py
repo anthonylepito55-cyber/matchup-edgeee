@@ -2320,7 +2320,8 @@ def _compute_tennis_today_inner(date: str = None):
             try:
                 import tennis_mc2 as _tm2
                 r["mc2"] = _tm2.predict(r["player_1"], r["player_2"],
-                                        r.get("surface"), market_p1=_mk1)
+                                        r.get("surface"), market_p1=_mk1,
+                                        best_of_5=bool(r.get("best_of_5")))
             except Exception:  # noqa: BLE001
                 r["mc2"] = None
             # MC v3 (2026-10-13): MC2 plus per-surface serve/return ratings shrunk toward
