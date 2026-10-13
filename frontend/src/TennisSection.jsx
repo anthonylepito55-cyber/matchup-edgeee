@@ -3418,7 +3418,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       const mine = c.side === 'fav' ? (fav1 ? p1 : 1 - p1) : (fav1 ? 1 - p1 : p1)
       const base = c.side === 'fav' ? mkfav : 1 - mkfav
       if (mine - base < c.t) continue
-      if (!best || c.roi > best.roi) {
+      // rank on the conservative score (ROI minus one se), not raw ROI: the thresholds within
+      // a head are nested, so raw ROI would always pick whichever one got luckiest
+      const sc = (x) => (x.score != null ? x.score : x.roi)
+      if (!best || sc(c) > sc(best)) {
         best = {
           ...c,
           who: c.side === 'fav' ? (fav1 ? match.player_1 : match.player_2)

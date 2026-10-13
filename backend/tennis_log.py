@@ -3136,7 +3136,11 @@ def get_ab25_record() -> dict:
                  ("c50", "mc_c_p1", "mc_c_recon"), ("c75", "mc_c75_p1", "mc_c_recon"),
                  ("cUTR", "mc_cutr_p1", "mc_c_recon"), ("MCserve", "mc_p1", None)]
     _OR_FAV_T = (0.01, 0.02, 0.03, 0.04, 0.06, 0.08)
-    _OR_DOG_T = (0.01, 0.04)
+    # the dog grid matches the favourite grid (2026-10-13, user "Mark all of those as well too",
+    # about the 3pt dog cells). It previously held only 1pt and 4pt, so the 3pt threshold -- the
+    # best n-to-ROI tradeoff of the three on MC2 (forward +13.2% on 153 in band, all-rows +4.5%
+    # on 485) -- could not enter the catalogue at all.
+    _OR_DOG_T = (0.01, 0.02, 0.03, 0.04, 0.06, 0.08)
     _OR_MIN_N = 20
     _OR_FAV_AM = (-250.0, -100.0)      # American odds on the favourite
     _OR_DOG_AM = (100.0, 250.0)        # American odds on the dog
@@ -3189,12 +3193,22 @@ def get_ab25_record() -> dict:
                             _roi = 100 * float(_pnl[_m].mean())
                             if _roi <= 0:
                                 continue
+                            _se = 100 * float(_pnl[_m].std()) / max(_n, 1) ** 0.5
                             _orange.append({
                                 "head": _lab, "col": _col, "side": _side,
                                 "t": round(_t, 4), "g": _g, "n": _n,
                                 "wins": int(_hit[_m].sum()), "roi": round(_roi, 2),
-                                "se": round(100 * float(_pnl[_m].std()) / max(_n, 1) ** 0.5, 1)})
-            _orange.sort(key=lambda x: -x["roi"])
+                                "se": round(_se, 1),
+                                # RANKING SCORE = ROI minus one standard error, a conservative
+                                # lower bound. Needed because the thresholds within one head are
+                                # NESTED -- 1pt, 2pt, 3pt and 4pt of the same head are largely
+                                # the same bets -- so ranking on raw ROI would always surface
+                                # whichever threshold got luckiest, usually the smallest one.
+                                # This prefers a 156-bet cell at +11.6% over a 20-bet cell at
+                                # +27.3%, which is the right preference. The raw ROI, n and se
+                                # still travel to the card so nothing is hidden.
+                                "score": round(_roi - _se, 2)})
+            _orange.sort(key=lambda x: -x["score"])
     except Exception as _e_or:  # noqa: BLE001
         print(f"[orange scan] {_e_or}")
 
