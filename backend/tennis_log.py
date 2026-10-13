@@ -346,6 +346,56 @@ def _pair_key(a, b):
     return tuple(sorted((n(a), n(b))))
 
 
+def _loose_name_keys(x):
+    """Candidate "surname|initial" keys for one name, as a set.
+
+    Which token is the surname cannot be guessed reliably across feeds, so nothing is guessed.
+    Every token of 5+ characters is offered as a candidate surname, paired with the first
+    letter of EVERY other token. Two names are the same person when their candidate sets
+    intersect, which requires them to agree on BOTH a long token and an initial.
+
+    The two constraints are what keep it safe, and each was put there by a failing case:
+
+      * pairing with every other initial, not just one, because which token is "the first
+        name" is not stable when the feeds disagree about how many tokens there are --
+        "Facundo Diaz Acosta" vs "Facundo Acosta" has to survive a dropped middle name.
+      * the 5-character floor on the candidate surname, because without it a shared GIVEN
+        name becomes a key and "Juan Martin Del Potro" collides with "Juan Monaco" on
+        "juan|m".
+
+    Worked through: "Alexander Zverev" gives {zverev|a, alexander|z} and "Mischa Zverev" gives
+    {zverev|m, mischa|z} -- no overlap, so two Zverevs facing the same opponent are NOT merged.
+    "Abdullah Shelbayh" and "Abedallah Shelbayh" both give shelbayh|a and so are. Reordered
+    names still work: "Tian Jialin" and "Jialin Tian" both give jialin|t.
+    """
+    import unicodedata
+
+    x = unicodedata.normalize("NFKD", str(x or ""))
+    x = "".join(c for c in x if not unicodedata.combining(c)).lower().replace("-", " ")
+    parts = [t for t in x.split() if t]
+    if not parts:
+        return set()
+    if len(parts) == 1:
+        return {"%s|" % parts[0]}
+    out = set()
+    for a9, t in enumerate(parts):
+        if len(t) < 5:
+            continue
+        for b9, o in enumerate(parts):
+            if a9 != b9 and o:
+                out.add("%s|%s" % (t, o[:1]))
+    # a name with no token of 5+ characters still needs one key, or it can never match itself
+    return out or {"%s|%s" % (max(parts, key=len), min(parts, key=len)[:1])}
+
+
+def _pair_keys_loose(a, b):
+    """All order-insensitive candidate pair keys for a fixture. A twin is declared when any
+    one key is shared, which requires BOTH players to agree on a candidate -- the reason a
+    false positive would need two simultaneous surname+initial collisions in one match."""
+    ka, kb = _loose_name_keys(a), _loose_name_keys(b)
+    return {tuple(sorted((x, y))) for x in ka for y in kb}
+
+
 def _drop_cross_feed_twins(keep, new, window_days=3):
     """OpticOdds-vs-Polymarket twin removal (see the note in log_predictions)."""
     if keep.empty and new.empty:
@@ -353,21 +403,37 @@ def _drop_cross_feed_twins(keep, new, window_days=3):
     both = pd.concat([keep.assign(_src="keep"), new.assign(_src="new")], ignore_index=True)
     both["_pm"] = both["fixture_id"].astype(str).str.startswith("pm_")
     both["_pair"] = [_pair_key(a, b) for a, b in zip(both["player_1"], both["player_2"])]
+    both["_pairl"] = [_pair_keys_loose(a, b)
+                      for a, b in zip(both["player_1"], both["player_2"])]
     both["_d"] = pd.to_datetime(both["date"].astype(str).str[:10], errors="coerce")
     oo = both[~both["_pm"]]
     drop = set()
     if not oo.empty:
-        oo_days = {}
-        for pr, dd in zip(oo["_pair"], oo["_d"]):
+        oo_days, oo_days_l = {}, {}
+        for pr, prl, dd in zip(oo["_pair"], oo["_pairl"], oo["_d"]):
             oo_days.setdefault(pr, []).append(dd)
+            for k9 in prl:                      # a row is indexed under every candidate
+                oo_days_l.setdefault(k9, []).append(dd)
+        _n_loose = 0
         for i, r in both[both["_pm"]].iterrows():
-            days = oo_days.get(r["_pair"])
-            if days and pd.notna(r["_d"]) and any(
-                    pd.notna(x) and abs((x - r["_d"]).days) <= window_days for x in days):
+            if pd.isna(r["_d"]):
+                continue
+            def _near(days):
+                return bool(days) and any(
+                    pd.notna(x) and abs((x - r["_d"]).days) <= window_days for x in days)
+            if _near(oo_days.get(r["_pair"])):
                 drop.add(i)
+            elif any(_near(oo_days_l.get(k9)) for k9 in r["_pairl"]):
+                # the strict key missed it and surname+initial caught it: a spelling variant
+                drop.add(i)
+                _n_loose += 1
+        if _n_loose:
+            print(f"[tennis log] {_n_loose} twin(s) matched only on surname+initial "
+                  f"(feed name-spelling variant)")
     if not drop:
         return keep, new
     both = both.drop(index=list(drop))
+    both = both.drop(columns=[c for c in ("_pairl",) if c in both.columns])
     cols = [c for c in keep.columns]
     k2 = both[both["_src"] == "keep"][cols].reset_index(drop=True)
     n2 = both[both["_src"] == "new"][[c for c in new.columns]].reset_index(drop=True)

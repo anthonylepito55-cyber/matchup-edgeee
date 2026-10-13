@@ -276,6 +276,24 @@ except Exception as e:                                             # noqa: BLE00
     say("MC3 recon rescore FAILED (states are fine, history may be stale): %s" % e)
     FAILED.append("mc3_recon: %s" % e)
 
+# --------------------------------------------------------- duplicate watch
+# REPORT ONLY. The live path now dedupes these itself (_drop_cross_feed_twins with the
+# surname+initial fallback), so this is a safety net, not the fix. Deliberately does NOT
+# delete: removing log rows unattended is the kind of thing that should be read by a human
+# first, and 11 of them had to be removed by hand once because nobody was watching.
+say("=" * 70)
+say("duplicate watch (report only)")
+say("=" * 70)
+try:
+    if DRY:
+        say("dry run: skipping")
+    else:
+        rc = os.system("%s _dup_pm_sweep.py" % sys.executable)      # noqa: S605
+        if rc != 0:
+            say("duplicate sweep exited %d -- not fatal, states are already in" % rc)
+except Exception as e:                                             # noqa: BLE001
+    say("duplicate watch failed (not fatal): %s" % e)
+
 # ------------------------------------------------------------------ verdict
 say("=" * 70)
 if FAILED:
