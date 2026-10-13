@@ -252,6 +252,30 @@ except Exception as e:                                             # noqa: BLE00
     say("MC3 FAILED: %s" % e)
     traceback.print_exc()
 
+# ------------------------------------------------------- MC3 history rescore
+# Rebuilding MC3's features invalidates every recon row scored off the previous artifact.
+# Model G taught this the hard way: its history silently moved because ~1,257 rows had been
+# scored by a superseded model and nobody rescored them. So the recon refresh belongs in the
+# same job that does the rebuild, not in a separate one that can drift out of step.
+say("=" * 70)
+say("MC3 history: rescoring recon rows against the freshly built features")
+say("=" * 70)
+try:
+    if DRY:
+        say("dry run: skipping the recon rescore")
+    elif FAILED:
+        say("skipped: a rebuild failed above, so the features are not trustworthy")
+    else:
+        rc = os.system("%s _mc3_history_recon.py --rescore" % sys.executable)   # noqa: S605
+        if rc != 0:
+            raise RuntimeError("_mc3_history_recon.py exited %d" % rc)
+        say("recon rescored")
+except Exception as e:                                             # noqa: BLE001
+    # Not fatal to the run: the rating states are already in and serving. A stale history
+    # display is worth reporting, not worth rolling a good rebuild back for.
+    say("MC3 recon rescore FAILED (states are fine, history may be stale): %s" % e)
+    FAILED.append("mc3_recon: %s" % e)
+
 # ------------------------------------------------------------------ verdict
 say("=" * 70)
 if FAILED:

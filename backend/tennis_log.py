@@ -1234,6 +1234,8 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             # ratings only, shown dimmed with ~, never in the forward lanes.
             "mc2": (lambda p: ({**p, "recon": bool(r.get("mc2_recon"))
                                  if pd.notna(r.get("mc2_recon")) else False} if p else None))(pickpct(r, "mc2_p1")),
+            "mc3": (lambda p: ({**p, "recon": bool(r.get("mc3_recon"))
+                                 if pd.notna(r.get("mc3_recon")) else False} if p else None))(pickpct(r, "mc3_p1")),
             # our headline pick (the favored side shown on the board) + the user's
             # c-MC+c75 take, for the daily hit % in results-history (2026-10-03). The board
             # headlines off prediction -> A -> B -> C (the old tour model is retired, so
