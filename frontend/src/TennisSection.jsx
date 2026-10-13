@@ -3232,6 +3232,20 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // until its own forward log says otherwise.
   const FWD_FLOOR_FAV = 25
   const FWD_FLOOR_DOG = 10
+  // MC2 AUTO-UNMARK, OFF (2026-10-13, user: "i dont want auto unmark yet for those").
+  //
+  // mc2_dog3 crossed the 10-settle dog floor today and came out negative in both halves --
+  // men -2.18% on 11, women -43.23% on 13 -- which silently suppressed all 70 qualifying
+  // cards on the board. Working as designed, but 11 settles is not a basis for killing a
+  // dog cell: at +100..+250 prices a single bet's P&L has a standard deviation near 1.1, so
+  // the standard error on 11 bets is roughly 33 points and the men's -2.18% is pure noise.
+  // The women's -43% is more suggestive but still thin.
+  //
+  // So the MC2 cells keep marking regardless of their lane record while the samples build.
+  // Their lanes still score in the background, so nothing is lost -- only the automatic
+  // suppression is paused. Flip this to true to restore it.
+  const MC2_AUTO_UNMARK = false
+  const mc2Alive = (lane, g, isFav) => (MC2_AUTO_UNMARK ? fwdAlive(lane, g, isFav) : true)
   const fwdAlive = (lane, g, isFav) => {
     const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[g] || {}
     const n = c.n || 0
@@ -3391,12 +3405,12 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // up is -24%, so the edge lives between +200 and +300 and the mark stops at +250 because
     // that is the band you set.
     if (dogAm >= 200 && dogAm <= 250 && over <= -0.10
-        && fwdAlive('mc2_dog_long', gHL, false)) {
+        && mc2Alive('mc2_dog_long', gHL, false)) {
       return { cell: 'DOG LONG', lane: 'mc2_dog_long', who: fav1 ? match.player_2 : match.player_1,
                od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog_long'),
                recon: !!m2.recon }
     }
-    if (dogInBand && over <= -0.03 && fwdAlive('mc2_dog3', gHL, false)) {
+    if (dogInBand && over <= -0.03 && mc2Alive('mc2_dog3', gHL, false)) {
       return { cell: 'DOG 3pt+', lane: 'mc2_dog3', who: fav1 ? match.player_2 : match.player_1,
                od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog3'),
                recon: !!m2.recon }
@@ -3410,10 +3424,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // the favourite price band, -100..-250, now applied to all three brown favourite slices
     const favAm = fav1 ? Number(lo.player_1) : Number(lo.player_2)
     const favInBand = !isNaN(favAm) && favAm <= -100 && favAm >= -250
-    if (over > 0.08 && !fwdAlive('mc2_fav_deep', gHL, true)) return null
-    if (over >= 0.02 && over <= 0.08 && !fwdAlive('mc2_fav_band', gHL, true)) return null
-    if (mcfav < 0.5 && !fwdAlive('mc2_dog_flip', gHL, false)) return null
-    if (favInBand && over >= 0 && over < 0.02 && fwdAlive('mc2_fav_on', gHL, true)) {
+    if (over > 0.08 && !mc2Alive('mc2_fav_deep', gHL, true)) return null
+    if (over >= 0.02 && over <= 0.08 && !mc2Alive('mc2_fav_band', gHL, true)) return null
+    if (mcfav < 0.5 && !mc2Alive('mc2_dog_flip', gHL, false)) return null
+    if (favInBand && over >= 0 && over < 0.02 && mc2Alive('mc2_fav_on', gHL, true)) {
       // 0-2pt: "exactly on the market or over by anything". Fills the gap below the 2pt band so
       // a card whose true margin is 1.9pt is not left unmarked by rounding alone.
       return { cell: 'FAV 0-2pt', lane: 'mc2_fav_on', who: fav1 ? match.player_1 : match.player_2,
