@@ -738,6 +738,27 @@ G2_FAV_OVER_MIN = 0.04
 # Both are WATCH cells on five days of data with standard errors of 12-15 points. The one
 # sturdier fact behind them is the dog side at scale: any-margin dog +6.75% on 256.
 MC2_LIVE_FROM = "2026-10-13T02:00:00Z"
+
+# THE TAKE RULE'S OWN CLOCK (2026-10-13, user: "those arent forward tests though" -- correct).
+#
+# The take lanes lit up with 380 settles the moment they were registered, because the lane pass
+# replays every frozen row it can find. Those probabilities ARE genuinely pre-match -- frozen
+# before each match, so no model input leaks -- but the RULE was written today, after a full day
+# of looking at those same outcomes. The replay is therefore in-sample for the rule, and calling
+# it a forward test would be wrong.
+#
+# So the take lanes only count matches starting from here. The replay numbers are kept in the
+# card tooltips, labelled as replay, and the lane records below are a clean forward test of the
+# rule from this timestamp on.
+#
+# Replay figures at registration, for the record (frozen rows, in-sample for the rule):
+#   mc2_take_fav   men -10.76% / 60    women +12.15% / 53
+#   mc2_take_dog   men  +4.17% /155    women +25.62% /112
+#   mc3_take_fav   men  -4.64% /  3    women  +9.43% /  3
+#   mc3_take_dog   men  -6.00% / 11    women +53.00% / 10
+#   both_take_fav  men  -4.64% /  3    women -17.11% /  2
+#   both_take_dog  men +29.25% /  8    women +72.14% /  7
+TAKE_LIVE_FROM = "2026-10-13T16:00:00Z"
 MC2_FAV_BAND = (0.02, 0.08)
 # DEEP favourite cell (2026-10-13, user "Those can be brown highlighted too", about the 9pt+
 # favourites). Set at 8pt rather than 9 so the two brown favourite cells are CONTINUOUS -- a card
@@ -1837,6 +1858,24 @@ def get_ab25_record() -> dict:
               # the heads agree on most cards and the agreement rows just add identical noise
               # to both -- only the disagreements carry information about which is better.
               "mc3_all", "mc3_edge2", "mc3_dog_band",
+              # THE USER'S OWN TAKE RULE (2026-10-13, stated verbatim): "favorites are anything
+              # mc2 and mc3 have prices over the market or at the same price at the market are
+              # the ones i take, then dogs are anything the market has -4 or more on a favorite
+              # or a completely flipped side dog to 50% or more on the dog".
+              #
+              #   FAV  take when the head rates the market favourite AT or ABOVE the market's
+              #        own de-vigged number                                 (over >= 0)
+              #   DOG  take when the head rates that favourite 4+ points BELOW the market
+              #        (over <= -0.04), OR puts the dog at 50% or more outright.
+              #
+              # The flip clause is NOT redundant with -4pt: a flip on a -300 favourite is
+              # already -26pt, but a flip on a -105 favourite is only about -2pt and would
+              # otherwise fall in the gap between the two rules.
+              #
+              # Logged per head AND as an agreement pair, because "mc2 and mc3" can be read
+              # either way and measuring both settles it rather than guessing.
+              "mc2_take_fav", "mc2_take_dog", "mc3_take_fav", "mc3_take_dog",
+              "both_take_fav", "both_take_dog",
               "mc3_vs_mc2", "mc2_vs_mc3",
               "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
               # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
@@ -2066,6 +2105,34 @@ def get_ab25_record() -> dict:
             # ④ gray hates the dog -> men take the favorite, women take the dog.
             if hate0:
                 bet("cr4_grayhate", dog1 if _isw else (not dog1))
+            # THE USER'S TAKE RULE, per head and as an agreement pair. See the lane-name
+            # block above for the verbatim statement. Forward rows only -- a recon backfill is
+            # not a pick that was ever shown, so it cannot belong in a money lane.
+            _tk = {}
+            _tst = str(r.get("start_time_utc") or "")
+            for _tag, _pv, _rc9 in ((("mc2", r.get("mc2_p1"), r.get("mc2_recon")),
+                                     ("mc3", r.get("mc3_p1"), r.get("mc3_recon")))
+                                    if _tst >= TAKE_LIVE_FROM else ()):
+                if pd.isna(_pv):
+                    continue
+                if pd.notna(_rc9) and bool(_rc9):
+                    continue
+                _pv = float(_pv)
+                _favp = _pv if not dog1 else 1 - _pv      # the head on the MARKET favourite
+                _mkf = max(mk1, 1 - mk1)
+                _ov = _favp - _mkf
+                _flip = _favp < 0.5                        # dog at 50%+ outright
+                if _ov >= 0:
+                    bet("%s_take_fav" % _tag, not dog1)
+                    _tk[_tag] = "fav"
+                elif _ov <= -0.04 or _flip:
+                    bet("%s_take_dog" % _tag, dog1)
+                    _tk[_tag] = "dog"
+                else:
+                    _tk[_tag] = None                       # the dead zone between the rules
+            if _tk.get("mc2") and _tk.get("mc2") == _tk.get("mc3"):
+                # both heads say the same thing, which is the stricter reading of "mc2 and mc3"
+                bet("both_take_%s" % _tk["mc2"], (not dog1) if _tk["mc2"] == "fav" else dog1)
             # ⑤ COLLISION (the "20-8" lane): ALL base models (A,B,C,gray,D) on the market
             # favorite AND gray hates the dog -> take the DOG. Women edge (+8.3% n28 at
             # build); tracked for both via m/w split.
