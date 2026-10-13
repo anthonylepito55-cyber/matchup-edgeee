@@ -39,7 +39,15 @@ def _fp(p):
 before = {p: _fp(p) for p in (MC2_STATE, MC2_FEAT)}
 print("MC3 build: KS=%d  (MC2 state fingerprint %s)" % (KS, before[MC2_STATE]))
 
-SW.build(KS)
+# drop_abandoned is OFF (2026-10-13). The guard was built and measured a complete wash:
+# paired on 120,644 rows, AUC .6708 and Brier .2278 both ways, identical to four decimals, and
+# only AUC .6742 -> .6746 on the 35,000 rows it actually moved. The online update rate
+# 0.8/(n+6) is small enough that 4,389 bad stat lines spread over 616k matches and 1,759
+# players (about 2.5 per player) never move a rating far. Kept as an option because training on
+# matches nobody finished is wrong in principle, but not switched on: MC3 should be frozen
+# while it earns a forward record, and a change with no measured benefit is not worth
+# restarting that record for.
+SW.build(KS, drop_abandoned=False)
 
 src_state = "data_cache/_mc2_state_sk%d.pkl" % KS
 src_feat = SW.FEAT % KS

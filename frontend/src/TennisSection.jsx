@@ -2405,6 +2405,21 @@ function TrContextRow({ name, ctx }) {
       <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>
         {` · n=${s.n}`}
       </span>
+      {/* POINT DENOMINATORS (2026-10-13). This deliberately reverses the earlier choice to
+          keep points out of this line and in the pressure tooltip only. The reason is a
+          specific miss: Facundo Diaz Acosta showed 80.0% service games won on hard against
+          an opponent's 67.1%, and the user caught it by eye -- it came off 128 service
+          points against 975. "n=8" was on the card and did not convey that, because eight
+          matches of one-sided scorelines is a very different amount of evidence from eight
+          long ones. Serve and return rates are per-POINT quantities, so the point count is
+          their real sample size, and a 71% rate carries a 4.0pt standard error at 128
+          points against 1.5pt at 975. Dimmed, so the line still reads stats-first. */}
+      {(s.svp_n != null || s.rtp_n != null) ? (
+        <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}
+          title={`Points behind the serve and return numbers on this line, which is their real sample size -- these are per-point rates, so matches are a poor proxy. A 71% serve-point rate has a standard error of about 4.0 points at 128 service points and about 1.5 at 975, and the Markov engines amplify small serve differences. Under roughly 400 service points, treat the serve and return figures above as indicative rather than settled.`}>
+          {` (${s.svp_n != null ? `${s.svp_n} sv` : ''}${s.svp_n != null && s.rtp_n != null ? ' / ' : ''}${s.rtp_n != null ? `${s.rtp_n} rt` : ''} pts)`}
+        </span>
+      ) : null}
       {/* LAST 10 ON THIS SURFACE (2026-10-11, user ask) -- same stats, same court, shorter
           window, with the win% delta against the 52w line directly above so recent form is
           readable without arithmetic. Indented and dimmer so the 52w line stays primary. */}
@@ -2437,7 +2452,25 @@ function TrContextRow({ name, ctx }) {
                   {` (${dw > 0 ? '+' : ''}${dw}pt vs ${s.window || '52w'})`}
                 </span>
               ) : null}
-              {q.from ? ` · since ${q.from}` : ''}
+              {/* HOW OLD IS THIS WINDOW (2026-10-13). "since 2025-01-14" was already on the
+                  card for Diaz Acosta's hard-court L10 and read as ordinary text, when on a
+                  2026-10-11 card it meant the window had been stretched 21 months back to
+                  find ten matches on this surface -- so an 80% service figure was describing
+                  a player who had barely played the surface recently. The span is now stated
+                  and coloured once it passes a year, which is the point at which "last 10 on
+                  this court" stops describing current form. */}
+              {q.from ? (() => {
+                const asof = ctx.asof ? new Date(ctx.asof) : new Date()
+                const days = Math.round((asof - new Date(q.from)) / 86400000)
+                const old = isFinite(days) && days > 365
+                return (
+                  <span style={old ? { color: '#d29922', fontWeight: 600 } : undefined}
+                    title={old ? `This window reaches back ${days} days. Ten matches on this court took nearly ${(days / 365).toFixed(1)} years to accumulate, so these figures describe how the player used to play this surface more than how they play it now. Read the 52-week line and its point count above in preference.` : undefined}>
+                    {` · since ${q.from}`}
+                    {isFinite(days) ? ` (${days < 400 ? `${days}d` : `${(days / 365).toFixed(1)}y`}${old ? ' — stretched' : ''})` : ''}
+                  </span>
+                )
+              })() : ''}
               <span style={{ fontWeight: 700 }}>{` · n=${q.n}`}</span>
             </div>
           )

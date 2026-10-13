@@ -54,8 +54,63 @@ def _tag(ks):
                                                         else "blend KS=%d" % ks)
 
 
-def build(ks):
+def build(ks, drop_abandoned=False):
+    """drop_abandoned: exclude ABANDONED matches from the serve/return rating updates.
+
+    TennisRatio carries no "ret" or "w/o" strings -- the builder's own is_ret() matches 0 of
+    616,725 rows, so retirements are entirely invisible to it and ret5 is a constant-zero
+    feature. Detected instead the way the G2 work did it, by the winner never reaching the
+    winning set count: 9,011 matches (1.46%), of which 4,389 still carry a serve stat line and
+    therefore feed a serve rate off a handful of games into the ratings at full weight.
+
+    The guard is deliberately NARROW. An abandoned match still has a real winner, so the Elo
+    update stays -- the result is information. What gets skipped is the serve/return rating
+    update and the surface-baseline update, because those read a stat line from a match nobody
+    finished. The feature row is still emitted: its pre-match features are valid and `won` is
+    valid, so it remains usable for scoring.
+    """
     src = open(SRC, encoding="utf-8").read()
+
+    if drop_abandoned:
+        # a module-level helper, injected just before the chronological loop
+        anchor = "AF = 0.12"
+        assert src.count(anchor) == 1
+        src = src.replace(anchor, """def _aband_sets(sc):
+    if not isinstance(sc, str):
+        return 0
+    a = b = 0
+    for tok in sc.split():
+        t = tok.split(chr(40))[0]
+        if "-" not in t:
+            continue
+        x, _, y = t.partition("-")
+        try:
+            x, y = int(x), int(y)
+        except ValueError:
+            continue
+        if x > y:
+            a += 1
+        elif y > x:
+            b += 1
+    return max(a, b)
+
+
+""" + anchor)
+        # compute the flag once per match, inside the loop, before any update runs
+        anchor = "    bs = base[s]"
+        assert src.count(anchor) == 1
+        # Threshold of 2 for everyone, deliberately. The builder does not read a best_of_5
+        # column, and guessing one from tournament_level would need the gender logic too
+        # (WTA slams are best-of-three). Using 2 universally UNDER-flags -- it misses a
+        # best-of-five retirement that got as far as 2 sets -- and never over-flags, so it
+        # cannot discard good data. It also matches exactly how the 9,011 were counted.
+        src = src.replace(anchor, anchor + """
+    _aband = _aband_sets(t.score) < 2""")
+        # guard the two serve-update blocks (which also contain the base[] updates)
+        for who in ("spw_a", "spw_b"):
+            anchor = "    if not np.isnan(%s):" % who
+            assert src.count(anchor) == 1, (anchor, src.count(anchor))
+            src = src.replace(anchor, "    if not np.isnan(%s) and not _aband:" % who)
 
     # 1. per-surface rating fields on the state
     A = '              "S": 0.0, "R": 0.0, "nS": 0, "nR": 0,'
