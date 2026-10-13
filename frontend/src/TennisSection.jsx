@@ -3366,7 +3366,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
                live: rec('mc2_fav_band'), recon: !!m2.recon }
     }
-    if (mcfav < 0.5) {
+    if (mcfav < 0.5 && over <= -0.03) {
       return { cell: 'DOG-FLIP', lane: 'mc2_dog_flip', who: fav1 ? match.player_2 : match.player_1,
                od: num(fav1 ? lo.player_2 : lo.player_1), amt: Math.round(1000 * (0.5 - mcfav)) / 10,
                live: rec('mc2_dog_flip'), recon: !!m2.recon }
@@ -3716,7 +3716,7 @@ The lane behind this badge still bets the dog, because that is the only way to k
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · −17.1% on the 485-row check`}</span>
         </div>
       ) : null}
-      {mc2Mark ? (
+      {mc2Mark && !mc2Mark.avoid ? (
         <div className="mono"
           title={`🟤 MC2 ${mc2Mark.cell} — where MC v2 is saying something, NOT a recommendation.
 

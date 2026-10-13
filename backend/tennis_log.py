@@ -2825,7 +2825,12 @@ def get_ab25_record() -> dict:
                 key, takes1 = "mc2_fav_deep", fav1m
             elif MC2_FAV_BAND[0] <= overm <= MC2_FAV_BAND[1]:
                 key, takes1 = "mc2_fav_band", fav1m
-            elif mcfav < 0.5:
+            elif mcfav < 0.5 and overm <= -MC2_DOG_TAKE:
+                # a flip under 3pt is NOT a take (2026-10-13, user "remove this signal from
+                # anything under 3 pts"). MC2 can cross 50% on a tiny margin when the market is
+                # near even, and those land in the measured dead zone: 1-3pt below on the
+                # favourite is -17.11% on 63 all-rows at a 34.9% hit rate. The flip now needs
+                # the same 3pt disagreement every other take needs.
                 key, takes1 = "mc2_dog_flip", not fav1m
             else:
                 continue
