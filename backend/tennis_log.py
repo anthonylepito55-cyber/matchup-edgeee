@@ -659,6 +659,17 @@ G2_FAV_OVER_MIN = 0.04
 # sturdier fact behind them is the dog side at scale: any-margin dog +6.75% on 256.
 MC2_LIVE_FROM = "2026-10-13T02:00:00Z"
 MC2_FAV_BAND = (0.02, 0.08)
+# DEEP favourite cell (2026-10-13, user "Those can be brown highlighted too", about the 9pt+
+# favourites). Set at 8pt rather than 9 so the two brown favourite cells are CONTINUOUS -- a card
+# at 8.5pt would otherwise fall in a dead zone for no reason, and the 8-9pt sliver is +8.62% on 6
+# forward, so there is nothing to exclude. Kept as its OWN cell rather than folded into the band
+# because the two are different claims: the band is "a modest, plausible edge", the deep cell is
+# "MC2 thinks the market is badly wrong about a favourite". Forward: 8pt+ is +3.28% on 23,
+# 9pt+ +1.40% on 17, both inside noise of chalk (-8.46%), and the backfill disagrees (9pt+
+# -4.25% on 22). Watch only, and the mark auto-unmarks once its own lane is negative at n>=25.
+# Note the shape: at 8pt+ the average favourite is only -158 against -325 for chalk overall, so
+# a big claimed margin almost always means a near-coin-flip favourite, not a mispriced strong one.
+MC2_FAV_DEEP = 0.08
 
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
                "p_dog_flip"}
@@ -2751,7 +2762,8 @@ def get_ab25_record() -> dict:
     # of the model heads, so scoring it inside the model-gated loop would let those heads select
     # its sample. Forward picks only -- mc2_recon backfills are dropped, and matches must start at
     # or after MC2_LIVE_FROM so the log opens clean rather than on games already decided.
-    _m2 = {k: {"v": [], "m": [], "w": [], "p": 0} for k in ("mc2_fav_band", "mc2_dog_flip")}
+    _m2 = {k: {"v": [], "m": [], "w": [], "p": 0}
+           for k in ("mc2_fav_band", "mc2_fav_deep", "mc2_dog_flip")}
     _m2picks = {k: [] for k in _m2}
     if "mc2_p1" in log.columns:
         _q3 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["mc2_p1"].notna()]
@@ -2777,7 +2789,9 @@ def get_ab25_record() -> dict:
             pv = float(rr["mc2_p1"])
             mcfav = pv if fav1m else 1 - pv
             overm = mcfav - mkfavm
-            if MC2_FAV_BAND[0] <= overm <= MC2_FAV_BAND[1]:
+            if overm > MC2_FAV_DEEP:
+                key, takes1 = "mc2_fav_deep", fav1m
+            elif MC2_FAV_BAND[0] <= overm <= MC2_FAV_BAND[1]:
                 key, takes1 = "mc2_fav_band", fav1m
             elif mcfav < 0.5:
                 key, takes1 = "mc2_dog_flip", not fav1m
