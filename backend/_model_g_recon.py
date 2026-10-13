@@ -31,10 +31,17 @@ import xgboost as xgb
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 APPLY = "--apply" in sys.argv
+RESCORE = "--rescore" in sys.argv
 LOGP = args[0] if args else "data_cache/tennis_prediction_log.parquet"
 
 log = pd.read_parquet(LOGP)
 log["d"] = log["date"].astype(str).str[:10]
+if RESCORE and "model_g_recon" in log.columns:
+    _old = log["model_g_recon"].fillna(False).astype(bool)
+    print("--rescore: %d previously backfilled rows will be recomputed with the current artifact"
+          % int(_old.sum()), flush=True)
+    log.loc[_old, "model_g_p1"] = np.nan
+    log.loc[_old, "model_gma_p1"] = np.nan
 have = log["model_g_p1"].notna() if "model_g_p1" in log.columns else pd.Series(False, index=log.index)
 need = log[log["p1_won"].notna() & ~have].copy()
 print("settled log rows missing G: %d  (%s .. %s)"
@@ -182,9 +189,16 @@ if len(fill):
 # card was shown at rather than whatever the archive later recorded.
 # ===========================================================================================
 import tennis_model_a as _T
+import gc  # noqa: E402
 
 MDL = _T.g_model()
 if MDL is not None and (miss_row or miss_slug):
+    # free the build frame before loading the archive again -- holding both is what killed the
+    # G2 recon (OOM at 5.7GB RSS, 2026-10-13 01:32Z)
+    for _n in ("core", "m", "key", "ns"):
+        if _n in dir():
+            del globals()[_n]
+    gc.collect()
     raw2 = _T._parse(pd.read_parquet(_T.LOGS_PARQUET))
     raw2["date"] = pd.to_datetime(raw2["date"]).dt.normalize()
     raw2["surf"] = raw2["surface"].astype(str).str.title()
@@ -310,6 +324,10 @@ if APPLY and len(fill):
     idx = {(r.date, r.player_1, r.player_2): (r.model_g_p1, r.model_gma_p1)
            for r in fill.itertuples()}
     n = 0
+    if RESCORE and "model_g_recon" in L.columns:
+        _o = L["model_g_recon"].fillna(False).astype(bool)
+        L.loc[_o, "model_g_p1"] = np.nan   # clear the stale batch here too, so it can be rewritten
+        L.loc[_o, "model_gma_p1"] = np.nan
     for i in L.index:
         if pd.notna(L.at[i, "model_g_p1"]):
             continue                      # never overwrite a genuine frozen value
