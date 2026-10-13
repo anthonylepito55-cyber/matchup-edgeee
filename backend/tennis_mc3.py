@@ -57,6 +57,15 @@ MC3_KS = 20.0          # surface-vs-career shrink; _mc3_build.py imports THIS, n
 # experiment is reproducible, not because it is a tuning knob.
 MC3_DAY_TILT = False
 
+# MARGIN-AWARE ELO (2026-10-13). The builder trained Elo on the binary result only; this scales
+# each update by the games margin, so a 6-0 6-0 moves a rating more than a 7-6 7-6. Measured
+# better on AUC, Brier and the market gap in all three years at every weight tried, with the
+# optimum bracketed (2026 AUC peaks at 1.0-1.5, declines by 3.0-4.0), so 1.5 is interior.
+# MC3 ONLY: MC2 keeps the binary Elo, both so it stays the stable control for the mc3_vs_mc2
+# head-to-head and so the nightly job's "MC2 from its canonical builder, bit-for-bit" holds.
+# Affects how the STATE is trained, not the runtime -- predict() just reads elo/elo_s.
+MC3_MOV_W = 1.5
+
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _STATE_PATH = os.path.join(_DIR, "data_cache", "_mc3_state.pkl")
 _S = None

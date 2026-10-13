@@ -17,7 +17,7 @@ import hashlib
 import os
 
 import _mc2_surface_sr_sweep as SW
-from tennis_mc3 import MC3_KS
+from tennis_mc3 import MC3_KS, MC3_MOV_W
 
 KS = int(MC3_KS)
 MC2_STATE = "data_cache/_mc2_state.pkl"
@@ -37,7 +37,8 @@ def _fp(p):
 
 
 before = {p: _fp(p) for p in (MC2_STATE, MC2_FEAT)}
-print("MC3 build: KS=%d  (MC2 state fingerprint %s)" % (KS, before[MC2_STATE]))
+print("MC3 build: KS=%d, MOV_W=%.1f  (MC2 state fingerprint %s)"
+      % (KS, MC3_MOV_W, before[MC2_STATE]))
 
 # drop_abandoned is OFF (2026-10-13). The guard was built and measured a complete wash:
 # paired on 120,644 rows, AUC .6708 and Brier .2278 both ways, identical to four decimals, and
@@ -47,7 +48,7 @@ print("MC3 build: KS=%d  (MC2 state fingerprint %s)" % (KS, before[MC2_STATE]))
 # matches nobody finished is wrong in principle, but not switched on: MC3 should be frozen
 # while it earns a forward record, and a change with no measured benefit is not worth
 # restarting that record for.
-SW.build(KS, drop_abandoned=False)
+SW.build(KS, drop_abandoned=False, mov_w=MC3_MOV_W)
 
 src_state = "data_cache/_mc2_state_sk%d.pkl" % KS
 src_feat = SW.FEAT % KS

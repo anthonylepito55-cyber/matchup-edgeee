@@ -54,23 +54,84 @@ def _tag(ks):
                                                         else "blend KS=%d" % ks)
 
 
-def build(ks, drop_abandoned=False):
-    """drop_abandoned: exclude ABANDONED matches from the serve/return rating updates.
+MOV_REF = 0.25
 
-    TennisRatio carries no "ret" or "w/o" strings -- the builder's own is_ret() matches 0 of
-    616,725 rows, so retirements are entirely invisible to it and ret5 is a constant-zero
-    feature. Detected instead the way the G2 work did it, by the winner never reaching the
-    winning set count: 9,011 matches (1.46%), of which 4,389 still carry a serve stat line and
-    therefore feed a serve rate off a handful of games into the ratings at full weight.
+MOV_HELPER = '''def _mov_mult(score, mov_w, ref=0.25):
+    """K multiplier from the games margin. 1.0 when there is no usable margin."""
+    if mov_w <= 0 or not isinstance(score, str) or not score.strip():
+        return 1.0
+    gw = gl = 0
+    nsets = 0
+    for tok in score.split():
+        t = tok.split("(")[0]
+        if "-" not in t:
+            continue
+        x, _, y = t.partition("-")
+        try:
+            x, y = int(x), int(y)
+        except ValueError:
+            continue
+        gw += x
+        gl += y
+        nsets += 1
+    tot = gw + gl
+    if tot < 6 or nsets < 2:
+        return 1.0
+    mov = abs(gw - gl) / float(tot)
+    return min(max(1.0 + mov_w * (mov - ref), 0.5), 2.0)
 
-    The guard is deliberately NARROW. An abandoned match still has a real winner, so the Elo
-    update stays -- the result is information. What gets skipped is the serve/return rating
-    update and the surface-baseline update, because those read a stat line from a match nobody
-    finished. The feature row is still emitted: its pre-match features are valid and `won` is
-    valid, so it remains usable for scoring.
+
+'''
+
+
+def apply_mov_transform(src, mov_w):
+    """Scale every Elo K by a games-margin multiplier.
+
+    The builder updates Elo on the BINARY result alone, so 6-0 6-0 and 7-6 7-6 moved a rating
+    identically and the score -- present on every row -- was discarded. Elo carries half of the
+    blended probability, so this was the largest piece of information the heads threw away.
+
+    Margin enters as a MULTIPLIER on K, never as a replacement for the outcome: a win stays a
+    win and only the SIZE of the move changes. Replacing the outcome with a games share would
+    let a 6-0 6-0 loss score above a 7-6 7-6 win.
+
+    |margin| is used rather than a signed one, so both players scale by the same factor and the
+    result cannot depend on which side the score string is written from -- a dominant win moves
+    the winner up more AND the loser down more, which is the intent.
+
+    Measured over 170,595 matches against an identical control: better on AUC, Brier AND the
+    market gap, in all three years, at every weight tried. Optimum bracketed -- 2026 AUC peaks
+    at 1.0-1.5 and declines by 3.0-4.0 -- so MOV_W=1.5 is an interior choice, not an edge.
     """
-    src = open(SRC, encoding="utf-8").read()
+    if mov_w <= 0:
+        return src
+    anchor = "AF = 0.12"
+    assert src.count(anchor) == 1
+    src = src.replace(anchor, MOV_HELPER + anchor)
+    anchor = "    # ---- updates ----"
+    assert src.count(anchor) == 1
+    src = src.replace(anchor, anchor + ("\n    _mv = _mov_mult(t.score, %r)" % float(mov_w)))
+    for old, new in (
+            ('    K = 250.0 / (5 + a["n"]) + 5.0',
+             '    K = (250.0 / (5 + a["n"]) + 5.0) * _mv'),
+            ('    K2 = 250.0 / (5 + b["n"]) + 5.0',
+             '    K2 = (250.0 / (5 + b["n"]) + 5.0) * _mv'),
+            ('    a["elo_s"][s] += (250.0 / (5 + a["ns"][s]) + 5.0) * (won - pse)',
+             '    a["elo_s"][s] += (250.0 / (5 + a["ns"][s]) + 5.0) * _mv * (won - pse)'),
+            ('    b["elo_s"][s] += (250.0 / (5 + b["ns"][s]) + 5.0) * ((1 - won) - (1 - pse))',
+             '    b["elo_s"][s] += (250.0 / (5 + b["ns"][s]) + 5.0) * _mv * ((1 - won) - (1 - pse))')):
+        assert src.count(old) == 1, old
+        src = src.replace(old, new)
+    return src
 
+
+def apply_surface_transform(src, ks, drop_abandoned=False):
+    """Apply the per-surface serve/return transform to the builder source and return it.
+
+    Extracted 2026-10-13 so the margin-of-victory sweep can build ON TOP of shipped MC3's
+    recipe instead of keeping a second copy of this. A copy would mean the MOV control was not
+    actually shipped MC3, and the whole comparison would be against the wrong baseline.
+    """
     if drop_abandoned:
         # a module-level helper, injected just before the chronological loop
         anchor = "AF = 0.12"
@@ -157,6 +218,28 @@ def build(ks, drop_abandoned=False):
         src = src.replace(A, 'e = bs + _bl(%s, "S", "nS_s", s) - _bl(%s, "R", "nR_s", s)'
                           % (srv, ret))
 
+    return src
+
+
+def build(ks, drop_abandoned=False, mov_w=0.0):
+    """drop_abandoned: exclude ABANDONED matches from the serve/return rating updates.
+
+    TennisRatio carries no "ret" or "w/o" strings -- the builder's own is_ret() matches 0 of
+    616,725 rows, so retirements are entirely invisible to it and ret5 is a constant-zero
+    feature. Detected instead the way the G2 work did it, by the winner never reaching the
+    winning set count: 9,011 matches (1.46%), of which 4,389 still carry a serve stat line and
+    therefore feed a serve rate off a handful of games into the ratings at full weight.
+
+    The guard is deliberately NARROW. An abandoned match still has a real winner, so the Elo
+    update stays -- the result is information. What gets skipped is the serve/return rating
+    update and the surface-baseline update, because those read a stat line from a match nobody
+    finished. The feature row is still emitted: its pre-match features are valid and `won` is
+    valid, so it remains usable for scoring.
+    """
+    src = open(SRC, encoding="utf-8").read()
+
+    src = apply_surface_transform(src, ks, drop_abandoned)
+    src = apply_mov_transform(src, mov_w)
     src = src.replace('"data_cache/_mc2_features.parquet"', '"%s"' % (FEAT % ks))
     src = src.replace('"data_cache/_mc2_state.pkl"',
                       '"data_cache/_mc2_state_sk%d.pkl"' % ks)
