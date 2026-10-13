@@ -1706,7 +1706,7 @@ def _tennis_freeze_models(r, lr):
             return None
     applied = False
     mc, ma, mb, md = r.get("model_c"), r.get("model_a"), r.get("model_b"), r.get("model_d")
-    mg = r.get("model_g")
+    mg, mg2 = r.get("model_g"), r.get("model_g2")
     mk = None
     try:
         o1, o2 = float(lr["p1_odds"]), float(lr["p2_odds"])
@@ -1743,6 +1743,11 @@ def _tennis_freeze_models(r, lr):
             v = _f(col)
             if v is not None:
                 mg[key] = round(v, 4); applied = True
+    if isinstance(mg2, dict):
+        for key, col in (("p1_prob", "model_g2_p1"), ("market_aware_p1", "model_g2ma_p1")):
+            v = _f(col)
+            if v is not None:
+                mg2[key] = round(v, 4); applied = True
     if isinstance(md, dict):
         for key, col in (("p1_prob", "model_d_p1"), ("market_aware_p1", "model_dma_p1")):
             v = _f(col)
@@ -2227,6 +2232,19 @@ def _compute_tennis_today_inner(date: str = None):
                 mg["market_p1"] = _mk1
                 mg["edge_p1"] = round(mg["p1_prob"] - _mk1, 4)
             r["model_g"] = mg
+            # MODEL G2 (2026-10-12, user ask): G plus the last-10-on-this-court block -- who they
+            # beat, who they lost to, who they played, how they performed -- with walkovers and
+            # retirements excluded from that window. Beats G in all three walk-forward years but
+            # still market-beaten with no betting edge, so display and log only, like G.
+            try:
+                mg2 = _tma.predict_g2(r["player_1"], r["player_2"], r.get("surface"),
+                                      market_p1=_mk1, league=r.get("league"))
+            except Exception:  # noqa: BLE001
+                mg2 = None
+            if mg2 and _mk1 is not None:
+                mg2["market_p1"] = _mk1
+                mg2["edge_p1"] = round(mg2["p1_prob"] - _mk1, 4)
+            r["model_g2"] = mg2
             # MODEL D (2026-09-30, user ask): heavy last-10 form -- recent win rates,
             # form vs own 52w baseline, competitiveness vs top-150, recency-weighted
             # L10 serve/return splits, rest, rank anchor. Walk-forward: AUC .67-.69 but
@@ -2673,6 +2691,7 @@ def _compute_tennis_itf_inner(date: str):
         # forward record. Most ITF players have no stat context at all (91% per the ITF
         # stats audit), so predict_g simply returns None for them -- no line, no guess.
         mg = _mdl(_tma.predict_g, league=m.get("league"))
+        mg2 = _mdl(_tma.predict_g2, league=m.get("league"))
         md = _mdl(_tma.predict_d, level=m.get("league"))
         if md is not None:
             try:
@@ -2740,7 +2759,7 @@ def _compute_tennis_itf_inner(date: str):
                       "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
                                      "bookmaker": od.get("bookmaker")} if od else None),
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
-                      "model_g": mg,
+                      "model_g": mg, "model_g2": mg2,
                       "model_i": model_i, "model_x": model_x, "model_p": model_p, "market_corrupt": _corrupt,
                       "mc2": mc2,
                       "tr_context": {"p1": ctx1, "p2": ctx2},

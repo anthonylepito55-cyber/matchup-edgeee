@@ -78,6 +78,62 @@ ARTIFACT_SUTR = os.path.join(_here, "model_artifacts", "tennis_sutr.joblib")
 # no gradient in the edge buckets. So: DISPLAY AND LOG ONLY. No mark, no gate, no lane that
 # anything reads. It is logged so it can earn a forward record like every other head.
 ARTIFACT_G = os.path.join(_here, "model_artifacts", "tennis_model_g.joblib")
+# MODEL G2 (2026-10-12, user "Make a g2 right under G that takes g and then just add in last 10
+# game stats as well with who they won and how they performed and who they lost to and make sure
+# u see if any walkovers to not count them"): every G feature untouched, plus a LAST-10-ON-THIS-
+# COURT block -- the record, who they BEAT (avg + best win), who they LOST TO (avg + worst loss),
+# who they played, and how they performed (games-won share, hold%, break%, how close the losses
+# were). Walkovers and retirements are excluded from that block.
+# WALK-FORWARD: G2 beats G in all three years -- AUC .6648/.6643/.6723 against G's .6546/.6599/
+# .6597 on identical rows, logloss better each year. "Who they lost to" turned out to be the
+# strongest of the new features, ahead of who they beat. Still market-beaten (.727) and still no
+# betting edge (bet@5pt -10.4%), so DISPLAY AND LOG ONLY like G.
+ARTIFACT_G2 = os.path.join(_here, "model_artifacts", "tennis_model_g2.joblib")
+_g2_cache = {"mtime": None, "obj": None}
+G2_T10 = ["t10_win", "t10_faced", "t10_beaten", "t10_bestwin", "t10_lost", "t10_worstloss",
+          "t10_meff", "t10_losscl", "t10_hold", "t10_brk", "t10_n"]
+
+
+def g2_model():
+    """The Model G2 artifact, reloaded when the file changes. None if it is not built."""
+    if not os.path.exists(ARTIFACT_G2):
+        return None
+    mt = os.path.getmtime(ARTIFACT_G2)
+    if _g2_cache["mtime"] != mt:
+        try:
+            _g2_cache["obj"] = joblib.load(ARTIFACT_G2)
+        except Exception:  # noqa: BLE001
+            return None
+        _g2_cache["mtime"] = mt
+    return _g2_cache["obj"]
+
+
+def _walkover_mask(sub):
+    """True where the match never finished. TennisRatio does not flag these -- "ret" appears
+    zero times in 615k scores -- so they are read off the SHAPE of the score: no parseable score
+    at all (WO / BYE / DEF / empty, 53 rows), or the winner never reached a winning set count,
+    2 in a best-of-3 and 3 in a best-of-5 (9,543 rows, 1.55%). Those carry a median of 4 service
+    games against 10 for a completed match, so one of them inside a ten-match window puts a fifth
+    of the weight on a three-game sample. Identical rule to _tennis_model_g2_build.py."""
+    sc = sub["score"].astype(str)
+    pairs = sc.str.findall(r"(\d+)-(\d+)")
+    n = pairs.map(len)
+
+    def _sets(ps):
+        a = b = 0
+        for x, y in ps:
+            x, y = int(x), int(y)
+            if x > y:
+                a += 1
+            elif y > x:
+                b += 1
+        return a, b
+    sw = pairs.map(_sets)
+    sf = np.array([x[0] for x in sw], dtype=float)
+    sa = np.array([x[1] for x in sw], dtype=float)
+    need = np.where((sf + sa) >= 4, 3, 2)
+    winsets = np.where(sub["won"].to_numpy() == 1, sf, sa)
+    return (n.to_numpy() == 0) | ((winsets < need) & (n.to_numpy() > 0))
 _g_cache = {"mtime": None, "obj": None}
 # (name, per-match numerator, per-match denominator) -- None denominator = already a
 # percentage per match, so it shrinks on MATCH count. Must stay identical to the STATS list
@@ -295,6 +351,37 @@ def _profile(gdf, today):
                                        if _eff is not None else 0.0)
                 g52[_nm] = _st
             e["g52"] = g52
+        # MODEL G2 (2026-10-12): the LAST 10 ON THIS COURT -- `sd` is already the per-surface
+        # frame, so this block is court-specific by construction, matching the build where the
+        # rolling window is grouped on player|surface. Walkovers and retirements are dropped
+        # before the window is taken, not down-weighted: a win over someone who retired is not a
+        # win over them, and their 4-service-game stat lines are not a stat line.
+        e["t10g"] = None
+        if g2_model() is not None and len(sd):
+            _sdc = sd[~_walkover_mask(sd)].sort_values("date")
+            _t = _sdc.tail(10)
+            if len(_t) >= 3:                      # same min_periods as the build
+                def _mn(v):
+                    v = pd.to_numeric(v, errors="coerce").dropna()
+                    return float(v.mean()) if len(v) else None
+                _wl = _t.loc[_t["won"] == 1, "logr"].dropna()     # who they BEAT
+                _ll = _t.loc[_t["won"] == 0, "logr"].dropna()     # who they LOST to
+                _sga = _t["sg_all"].replace(0, np.nan)
+                _rga = _t["rg_all"].replace(0, np.nan)
+                e["t10g"] = {
+                    "t10_win": float(_t["won"].mean()),
+                    "t10_faced": _mn(_t["logr"]),
+                    "t10_beaten": float(_wl.mean()) if len(_wl) else None,
+                    "t10_bestwin": float(_wl.min()) if len(_wl) else None,
+                    "t10_lost": float(_ll.mean()) if len(_ll) else None,
+                    "t10_worstloss": float(_ll.max()) if len(_ll) else None,
+                    "t10_meff": _mn(_t["meff"]),
+                    "t10_losscl": _mn(_t["l_meff"]),
+                    "t10_hold": _mn(_t["sg_won"] / _sga),
+                    "t10_brk": _mn(_t["rg_won"] / _rga),
+                    "t10_n": int(len(_t)),
+                    "wo_dropped": int(len(sd) - len(_sdc)),
+                }
         p["surf"][surf] = e
     # Model C: this-season (calendar year, any surface)
     yr = gdf[gdf["date"].dt.year == today.year]
@@ -715,6 +802,76 @@ def predict_g(name1, name2, surface, market_p1=None, league=None):
            # which sides are read off a widened last-20 window instead of a real 365-day one,
            # so the card can say so rather than presenting a thin read as a full one
            "wide1": bool(g1.get("wide")), "wide2": bool(g2.get("wide"))}
+    if market_p1 is not None and mdl.get("lr_ms") is not None:
+        Xm = np.column_stack([[_lg(market_p1)], X])
+        out["market_aware_p1"] = round(float(mdl["lr_ms"].predict_proba(Xm)[0, 1]), 4)
+    return out
+
+
+def predict_g2(name1, name2, surface, market_p1=None, league=None):
+    """Model G2: every Model G feature plus the last-10-on-this-court block (who they beat, who
+    they lost to, who they played, how they performed), walkovers excluded. See the ARTIFACT_G2
+    comment -- beats G in all three walk-forward years but still market-beaten and still no
+    betting edge, so display and log only."""
+    mdl = g2_model()
+    c = _load()
+    if mdl is None or not c:
+        return None
+    s1, s2 = resolve(name1), resolve(name2)
+    if not s1 or not s2 or s1 == s2:
+        return None
+    surface = str(surface or "Hard").title()
+    e1 = (c["profiles"][s1]["surf"].get(surface) or {})
+    e2 = (c["profiles"][s2]["surf"].get(surface) or {})
+    g1, g2 = e1.get("g52"), e2.get("g52")
+    if not g1 or not g2:
+        return None
+    t1, t2 = e1.get("t10g") or {}, e2.get("t10g") or {}
+    gd = "W" if str(league or "").lower() in ("wta", "itf_women") else "M"
+
+    def stat(blk, nm):
+        st = blk.get(nm)
+        if not st or not st.get("den"):
+            return None, 0.0
+        k = float(mdl["k"].get((gd, nm), 1.0))
+        pr = float(mdl["prior"].get((gd, nm), 0.0))
+        return (st["num"] - st.get("eff" + gd, 0.0) + k * pr) / (st["den"] + k), float(st["den"])
+
+    f = {}
+    for nm in mdl["stats"]:
+        v1, d1 = stat(g1, nm)
+        v2, d2 = stat(g2, nm)
+        f["d_" + nm] = (v1 - v2) if (v1 is not None and v2 is not None) else 0.0
+        f["dn_" + nm] = float(np.log1p(d1) - np.log1p(d2))
+    n1, n2 = float(g1.get("w_n") or 0), float(g2.get("w_n") or 0)
+    f["d_matches"] = float(np.log1p(n1) - np.log1p(n2))
+    f["f_nmin"] = float(np.log1p(min(n1, n2)))
+    fa1, fa2 = g1.get("faced"), g2.get("faced")
+    f["d_faced"] = float(fa2 - fa1) if (fa1 is not None and fa2 is not None) else 0.0
+    f["f_wide"] = float(g1.get("wide") or 0.0) + float(g2.get("wide") or 0.0)
+
+    # the last-10 additions. The rank columns are LOG RANKS, so lower = tougher: those diff as
+    # (opponent minus us) to keep "+ = p1 did the harder thing" consistent, exactly as trained.
+    def d_(nm, flip=False):
+        a, b_ = t1.get(nm), t2.get(nm)
+        if a is None or b_ is None:
+            return 0.0
+        return float(b_ - a) if flip else float(a - b_)
+    for nm in ("t10_win", "t10_meff", "t10_hold", "t10_brk", "t10_losscl"):
+        f["d_" + nm] = d_(nm)
+    for nm in ("t10_faced", "t10_beaten", "t10_bestwin", "t10_lost", "t10_worstloss"):
+        f["d_" + nm] = d_(nm, flip=True)
+    f["d_t10_n"] = float((t1.get("t10_n") or 0) - (t2.get("t10_n") or 0))
+    f["f_t10_nmin"] = float(min(t1.get("t10_n") or 0, t2.get("t10_n") or 0))
+
+    X = np.array([[f.get(k, 0.0) for k in mdl["features"]]])
+    prob = float(0.5 * (mdl["lr"].predict_proba(X)[0, 1] + mdl["xgb"].predict_proba(X)[0, 1]))
+    out = {"p1_prob": round(prob, 4), "p2_prob": round(1 - prob, 4),
+           "trained_at": mdl.get("trained_at"), "gender": gd,
+           "n1": int(n1), "n2": int(n2),
+           "t10_n1": int(t1.get("t10_n") or 0), "t10_n2": int(t2.get("t10_n") or 0),
+           "wo1": int(t1.get("wo_dropped") or 0), "wo2": int(t2.get("wo_dropped") or 0),
+           "thin": bool(not t1 or not t2)}
     if market_p1 is not None and mdl.get("lr_ms") is not None:
         Xm = np.column_stack([[_lg(market_p1)], X])
         out["market_aware_p1"] = round(float(mdl["lr_ms"].predict_proba(Xm)[0, 1]), 4)

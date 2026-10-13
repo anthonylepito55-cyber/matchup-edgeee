@@ -33,6 +33,8 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # model (trained only on earlier years, result never read) -- dimmed ~ in the
            # history and EXCLUDED from the g_* forward lanes, the model_x_recon pattern.
            "model_g_p1", "model_gma_p1", "model_g_recon",
+           # MODEL G2 (2026-10-12): G + the last-10-on-court block, walkovers excluded.
+           "model_g2_p1", "model_g2ma_p1",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
            "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "inplay_suspect", "ue_set5_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
@@ -127,6 +129,7 @@ def log_predictions(matches: list, date: str):
         mc = m.get("model_c") or {}
         md = m.get("model_d") or {}
         mg = m.get("model_g") or {}
+        mg2 = m.get("model_g2") or {}
         mx = m.get("model_x") or {}
         has_flag = m.get("sr_dog") in ("p1", "p2") or m.get("sos") in ("p1", "p2")
         has_ab = ma.get("p1_prob") is not None and mb.get("p1_prob") is not None
@@ -167,6 +170,7 @@ def log_predictions(matches: list, date: str):
             "model_d_p1": md.get("p1_prob"), "model_dma_p1": md.get("market_aware_p1"),
             "model_g_p1": mg.get("p1_prob"), "model_gma_p1": mg.get("market_aware_p1"),
             "model_g_recon": False,
+            "model_g2_p1": mg2.get("p1_prob"), "model_g2ma_p1": mg2.get("market_aware_p1"),
             # Monte Carlo pick (2026-10-01, user "track how the MC does under $25"):
             # frozen as p1's win fraction over the sims. mc_p1 = the Model-D serve MC
             # (sUTR-anchored); mc_c_p1 = the Model-C-anchored MC (2026-10-02, user "track
@@ -633,6 +637,14 @@ G_LIVE_FROM = "2026-10-12T22:00:00Z"
 # live number have to cover the same games.
 G_FAV_OVER_MIN = 0.0
 
+# MODEL G2 LIVE LOG (2026-10-12, user "Track g2 live roi as well when it's done" +
+# "Dog flips and favorites over 4+ pts"). G2 = G plus the last-10-on-this-court block. Its
+# favourite cell takes the 4-point gate that G was reverted away from, on the user's explicit
+# call for G2 -- so the two models are tracked under deliberately different favourite rules and
+# the comparison will show whether the gate matters once there is a live sample.
+G2_LIVE_FROM = "2026-10-13T01:00:00Z"
+G2_FAV_OVER_MIN = 0.04
+
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
                "p_dog_flip"}
 
@@ -676,7 +688,8 @@ def _tag_watch_signals(out, r, mk1, dog1, gray_p1, c1, have_mkt):
 _FIXCOLS = ["model_a_p1", "model_ama_p1", "model_b_p1", "model_bma_p1", "model_c_p1",
             "model_cma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1", "mc_c75_p1",
             "mc_cutr_p1", "c_rp_diff_p1", "c_sp_diff_p1", "model_p_dog", "model_p_prob",
-            "model_p_ev", "model_p_fev", "model_g_p1", "model_gma_p1"]
+            "model_p_ev", "model_p_fev", "model_g_p1", "model_gma_p1",
+            "model_g2_p1", "model_g2ma_p1"]
 _fixcache = {"mtime": None, "by": {}}
 
 
@@ -1017,6 +1030,7 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             "model_a": ma, "model_b": mb, "model_c": mcd, "model_d": md,
             # the history card's Ⓖ line. n1/n2/gender are live-only (never frozen), so the
             # line renders without them; recon rides along so a backfilled read is dimmed.
+            "model_g2": _model("model_g2_p1", "model_g2ma_p1", mk1),
             "model_g": (lambda o: ({**o, "recon": bool(r.get("model_g_recon"))
                                     if pd.notna(r.get("model_g_recon")) else False} if o else None))(
                 _model("model_g_p1", "model_gma_p1", mk1)),
@@ -1035,7 +1049,7 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             "models": {k: pick(r, c) for k, c in
                        (("A", "model_a_p1"), ("B", "model_b_p1"), ("C", "model_c_p1"),
                         ("gray", "model_cma_p1"), ("D", "model_d_p1"),
-                        ("G", "model_g_p1"))},
+                        ("G", "model_g_p1"), ("G2", "model_g2_p1"))},
             "mc": (None if pd.isna(mc) else {"p1_pct": round(float(mc) * 100, 1),
                    "side": 1 if float(mc) >= 0.5 else 2,
                    "hit": bool((float(mc) >= 0.5) == bool(r["p1_won"]))}),
@@ -2598,6 +2612,81 @@ def get_ab25_record() -> dict:
                             "w_dog": agg(v["w"] if _isdog else []),
                             "w_fav": agg([] if _isdog else v["w"])}
 
+    # MODEL G2 lanes (2026-10-12, user "Track g2 live roi as well when it's done" + "Dog flips
+    # and favorites over 4+ pts"). Same two-cell shape as G, same own-pass reasoning, but the
+    # favourite cell requires G2 to sit at least 4 points over the market where G's takes any
+    # margin -- the user's call, and it means the pair of models will eventually answer whether
+    # that gate is worth anything on live money rather than only in the archive.
+    _g2 = {k: {"v": [], "m": [], "w": [], "p": 0}
+           for k in ("g2_fav_over", "g2_dog_flip")}
+    _g2picks = {k: [] for k in _g2}
+    if "model_g2_p1" in log.columns:
+        _q2 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["model_g2_p1"].notna()]
+        if "start_time_utc" in _q2.columns:
+            _q2 = _q2[_q2["start_time_utc"].notna()
+                      & (_q2["start_time_utc"].astype(str) >= G2_LIVE_FROM)]
+        for _, rr in _q2.iterrows():
+            _skip = False
+            for _bad in ("surface_bad", "inplay_suspect"):
+                _bv = rr.get(_bad) if _bad in _q2.columns else None
+                if _bv is not None and not pd.isna(_bv) and bool(_bv):
+                    _skip = True
+            if _skip:
+                continue
+            d1h, d2h = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
+            if not d1h or not d2h:
+                continue
+            mk1h = (1 / d1h) / ((1 / d1h) + (1 / d2h))
+            fav1h = mk1h >= 0.5
+            mkfavh = mk1h if fav1h else 1 - mk1h
+            pv = rr.get("model_g2_p1")
+            if pv is None or pd.isna(pv):
+                continue
+            gfavh = float(pv) if fav1h else 1 - float(pv)
+            if gfavh - mkfavh >= G2_FAV_OVER_MIN:
+                key, takes1 = "g2_fav_over", fav1h
+            elif gfavh < 0.5:
+                key, takes1 = "g2_dog_flip", not fav1h
+            else:
+                continue
+            dech = d1h if takes1 else d2h
+            _st2 = bool(rr["settled"]) and not pd.isna(rr["p1_won"])
+            hit2 = (bool(rr["p1_won"]) == takes1) if _st2 else None
+            pnl2 = None if hit2 is None else round(25.0 * (dech - 1.0) if hit2 else -25.0, 2)
+            _od2 = rr.get("p1_odds") if takes1 else rr.get("p2_odds")
+            _g2picks[key].append({
+                "d": str(rr.get("date") or "")[5:],
+                "s": str(rr.get("player_1") if takes1 else rr.get("player_2")),
+                "o": str(rr.get("player_2") if takes1 else rr.get("player_1")),
+                "pr": (None if pd.isna(_od2) else int(_od2)),
+                "w": hit2,
+                "lg": "W" if str(rr.get("league")) in ("wta", "itf_women") else "M",
+                "g": round(100 * (float(pv) if takes1 else 1 - float(pv)), 1),
+                "mk": round(100 * (mk1h if takes1 else 1 - mk1h), 1),
+                "pnl": pnl2, "rc": False,
+                "_sort": str(rr.get("start_time_utc") or rr.get("date") or "")})
+            if not _st2:
+                _g2[key]["p"] += 1
+                continue
+            _lg2 = str(rr.get("league") or "")
+            _g2[key]["v"].append(pnl2)
+            _g2[key]["w" if ("wta" in _lg2 or "itf_women" in _lg2) else "m"].append(pnl2)
+        for k in _g2picks:
+            _g2picks[k].sort(key=lambda x: x.get("_sort") or "", reverse=True)
+            for _x in _g2picks[k]:
+                _x.pop("_sort", None)
+        for k, v in _g2.items():
+            _isdog2 = k.endswith("_dog_flip")
+            study_out[k] = {**agg(v["v"]), "pending": int(v["p"]),
+                            "from": G2_LIVE_FROM,
+                            "m": agg(v["m"]), "w": agg(v["w"]),
+                            "dog": agg(v["v"] if _isdog2 else []),
+                            "fav": agg([] if _isdog2 else v["v"]),
+                            "m_dog": agg(v["m"] if _isdog2 else []),
+                            "m_fav": agg([] if _isdog2 else v["m"]),
+                            "w_dog": agg(v["w"] if _isdog2 else []),
+                            "w_fav": agg([] if _isdog2 else v["w"])}
+
     # PRICE-BAND Best-pick records (2026-10-05, user: live color-coded legend on the Prices
     # tab). For each settled MEN game: the Best pick (top gated signal) bucketed by its price
     # (dog +100..+250 / chalk −300..−600), plus the ALL-10 split (−200..−300 / −140..−200).
@@ -2872,6 +2961,7 @@ def get_ab25_record() -> dict:
     _picks = _lane_picks()      # populates _sideagg -- must run before _sc merges below
     # G is scored in its own ungated pass, so its picks never go through bet()/_lane_picks
     _picks.update({k: v for k, v in _gpicks.items() if v})
+    _picks.update({k: v for k, v in _g2picks.items() if v})
 
     def _sc(key):
         b = _sideagg.get(key) or {}
