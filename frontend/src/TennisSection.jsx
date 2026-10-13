@@ -370,6 +370,7 @@ function Ab25Panel() {
         {card(['st:g2_dog_flip', '🟨² G2 DOG-FLIP', 'G2 (= G plus the last-10-on-this-court block: who they beat, who they lost to, how they performed, walkovers excluded) puts the market UNDERDOG past 50% and picks it outright. Separate live log from 2026-10-13 01:00Z. G2 beats G in all three walk-forward years (AUC .6648/.6643/.6723 vs .6546/.6599/.6597) but is still market-beaten with no betting edge, so this is a watch lane.'], 'rgba(210,153,34,0.75)', '#e0b341')}
         {card(['st:g2_fav_over', '⬛² G2 FAV-OVER 4pt+', 'G2 rates the market FAVOURITE at least 4 POINTS above the price the market set on it. The 4-point gate is deliberate and is the one difference from G’s favourite cell, which takes any margin — so the two lanes together will show whether the gate earns anything on live money. In the archive it did not: it cut G’s cell from 24% of favourites to 14% and moved ROI from −7.25% to −7.23%, flat out to 12pt. Watch only.'], 'rgba(139,148,158,0.7)', '#aab1b8')}
         {card(['st:mc2_dog_flip', '🟤 MC2 DOG-FLIP', 'BROWN board mark: MC v2 puts the market UNDERDOG past 50% and picks it outright, and you back the dog at the frozen price. Separate live log from 2026-10-13 02:00Z. On the five days of forward log that existed when this was registered: +14.63% on 57 (men +23.0%, women −3.4%) against +2.24% for backing every dog on the same rows. The sturdier version at scale is MC2 over the market on ANY dog by any margin, +6.75% on 256. MC2 is the independent head — surface Elo blended 50/50 in log-odds with a point-level Markov engine off opponent-adjusted serve/return ratings — so it is not a second reading of G. Watch only: standard error 14.6 points.'], 'rgba(176,110,60,0.9)', '#c98a5c')}
+        {card(['st:mc2_dog_long', '🟤 MC2 LONG DOG +200..+250', 'BROWN board mark, added 2026-10-13: a +200..+250 underdog that MC v2 rates 10 or more points above its own price. Its own cell rather than part of the 3pt+ dog mark, because it is the only place on this board where a LONG price has beaten the market. At +225 you need about 31% to break even, so a few points of hit rate is worth far more here than the same lift on a short favourite. Measured when registered: +28.27% on 55 all-rows (40.0% hit) and +21.21% on 19 forward, against -1.94% forward / +1.79% all-rows for backing every dog in that band. The price window shuts on both sides at this margin -- +100..+150 -0.67% on 75, +150..+200 -7.22% on 79, this cell +22.55% on 49, +250..+300 +32.11% on 53, +300 and up -24.35% on 107 -- so the edge starts at +200 and dies by +300, and the mark stops at +250 only because that is the band you set. The men’s half is thin (+9.80% on 35 all-rows, +1.10% on 10 forward); the women’s half carries it (+60.60% on 20). Model C75 does not confirm the cell on its own dog gate (-6.22% on 89), so treat it as one head’s finding. Watch only, and it auto-unmarks once its own lane goes negative at 10+ settles.'], 'rgba(176,110,60,0.9)', '#c98a5c')}
         {card(['st:mc2_fav_deep', '🟤 MC2 FAV 8pt+ DEEP', 'BROWN board mark, added 2026-10-13: MC2 sits MORE than 8 points over the market’s price on the favourite — it thinks the price is badly wrong. Separate from the 2-8pt band because they are different claims and their records should not be pooled. Forward evidence is thin and ambiguous: 8pt+ is +3.28% on 23 and 9pt+ is +1.40% on 17, both inside noise of chalk (−8.46%), and the backfill disagrees at 9pt+ (−4.25% on 22). Note the shape — at this margin the average favourite is only −158 against −325 for chalk overall, so a big claimed edge nearly always means a near-coin-flip favourite rather than a mispriced strong one. Watch only; auto-unmarks once this lane is negative at 25+ settles.'], 'rgba(120,74,38,0.75)', '#96683f')}
         {card(['st:mc2_fav_band', '🟤 MC2 FAV 2-8pt BAND', 'BROWN board mark: MC v2 sits between 2 and 8 points over the market’s own price on the FAVOURITE. A BAND rather than a floor, deliberately: MC2’s favourite side is an inverted U on the live log — worthless at any margin (−1.4% on 87), best around 3-4pt, negative again past 10pt — because a huge claimed margin on a short price means MC2 has misread the match rather than found value, so an open-ended 2pt+ gate would sweep that bad end back in. In-band: +4.46% on 36 (men −5.2%, women +17.9%) against −8.55% for backing every favourite on the same rows. Watch only: 36 bets, standard error 11.9 points.'], 'rgba(140,86,45,0.75)', '#a87550')}
         {card(['st:gma_fav_over', 'G-MA fav-over (degenerate)', 'The MARKET-AWARE G head on the same rule. Shown for completeness and not worth reading as a signal: because it is a tiny shade on top of the price, it sits just above the market on the favourite in roughly 4 of every 5 games, which makes it approximately “back every favourite” rather than a selective cell. It has never once flipped a dog.'], 'rgba(110,118,129,0.3)', '#6e7681')}
@@ -3342,6 +3343,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // evidenced -- 485 all-rows bets against 119.
     const dogAm = fav1 ? Number(lo.player_2) : Number(lo.player_1)
     const dogInBand = !isNaN(dogAm) && dogAm >= 100 && dogAm <= 250
+    // THE LONG-DOG CELL: a +200..+250 dog MC2 rates 10pt+ over its price. Checked before
+    // mc2_dog3, which would otherwise swallow it -- it is the more specific claim and the only
+    // place a long price has held up (+28.3% on 55 all-rows, +21.2% on 19 forward, against
+    // -1.9%/+1.8% for every dog in that band). The window is bounded on BOTH sides, which is
+    // what separates it from a scan: at this margin +100..+200 is flat to negative and +300 and
+    // up is -24%, so the edge lives between +200 and +300 and the mark stops at +250 because
+    // that is the band you set.
+    if (dogAm >= 200 && dogAm <= 250 && over <= -0.10
+        && fwdAlive('mc2_dog_long', gHL, false)) {
+      return { cell: 'DOG LONG', lane: 'mc2_dog_long', who: fav1 ? match.player_2 : match.player_1,
+               od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog_long'),
+               recon: !!m2.recon }
+    }
     if (dogInBand && over <= -0.03 && fwdAlive('mc2_dog3', gHL, false)) {
       return { cell: 'DOG 3pt+', lane: 'mc2_dog3', who: fav1 ? match.player_2 : match.player_1,
                od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog3'),
@@ -3353,15 +3367,25 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
                amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog_dead'),
                recon: !!m2.recon }
     }
+    // the favourite price band, -100..-250, now applied to all three brown favourite slices
+    const favAm = fav1 ? Number(lo.player_1) : Number(lo.player_2)
+    const favInBand = !isNaN(favAm) && favAm <= -100 && favAm >= -250
     if (over > 0.08 && !fwdAlive('mc2_fav_deep', gHL, true)) return null
     if (over >= 0.02 && over <= 0.08 && !fwdAlive('mc2_fav_band', gHL, true)) return null
     if (mcfav < 0.5 && !fwdAlive('mc2_dog_flip', gHL, false)) return null
-    if (over > 0.08) {
+    if (favInBand && over >= 0 && over < 0.02 && fwdAlive('mc2_fav_on', gHL, true)) {
+      // 0-2pt: "exactly on the market or over by anything". Fills the gap below the 2pt band so
+      // a card whose true margin is 1.9pt is not left unmarked by rounding alone.
+      return { cell: 'FAV 0-2pt', lane: 'mc2_fav_on', who: fav1 ? match.player_1 : match.player_2,
+               od: favAm, amt: Math.round(1000 * over) / 10, live: rec('mc2_fav_on'),
+               recon: !!m2.recon }
+    }
+    if (favInBand && over > 0.08) {
       return { cell: 'FAV 8pt+', lane: 'mc2_fav_deep', who: fav1 ? match.player_1 : match.player_2,
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
                live: rec('mc2_fav_deep'), recon: !!m2.recon }
     }
-    if (over >= 0.02 && over <= 0.08) {
+    if (favInBand && over >= 0.02 && over <= 0.08) {
       return { cell: 'FAV 2-8pt', lane: 'mc2_fav_band', who: fav1 ? match.player_1 : match.player_2,
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
                live: rec('mc2_fav_band'), recon: !!m2.recon }
@@ -3720,7 +3744,19 @@ The lane behind this badge still bets the dog, because that is the only way to k
         <div className="mono"
           title={`🟤 MC2 ${mc2Mark.cell} — where MC v2 is saying something, NOT a recommendation.
 
-${mc2Mark.cell === 'DOG 3pt+'
+${mc2Mark.cell === 'FAV 0-2pt'
+            ? `MC2 is ${mc2Mark.amt}pt over the market on this favourite — essentially on the price, or a touch above — with the favourite inside −100..−250. This slice exists so a card whose true margin is 1.9pt is not left unmarked by rounding alone: a −140 favourite de-vigs to 55.6%, and a displayed "58%" could be anything from 57.5 to 58.5, so the real gap can sit either side of a hard 2pt edge.
+
+Measured, favourite −100..−250: this slice is −3.04% on 22 forward and −6.55% on 53 all-rows, against a baseline of −6.79% / −7.08% for backing every favourite in the band. It is the WEAKEST of the three brown favourite slices and negative in both samples. It is marked because the combined over≥0 cell is +2.33% on 70 forward and that is the agreed rule — and it will unmark itself once it reaches 25 settles if it stays negative.
+
+The three slices for comparison, forward then all-rows: 0-2pt −3.0 / −6.6, 2-8pt +2.1 / −5.7, 8pt+ +8.0 / −1.2.`
+          : mc2Mark.cell === 'DOG LONG'
+            ? `MC2 rates this LONG DOG ${mc2Mark.amt}pt above its own price, with the dog between +200 and +250 — the one place on the board where a long price has beaten the market.
+At +225 you only have to win about 31% of the time to break even, so a model that lifts the hit rate a few points is worth far more here than the same lift on a short favourite. Measured: +28.27% on 55 all-rows (40.0% hit) and +21.21% on 19 forward, against −1.94% forward / +1.79% all-rows for backing EVERY dog in that band.
+The price window closes on both sides, which is the main reason to believe it: at this same 10pt margin, +100..+150 is −0.67% on 75, +150..+200 is −7.22% on 79, this cell is +22.55% on 49, +250..+300 is +32.11% on 53, and +300 and up is −24.35% on 107. The edge starts at +200 and dies by +300.
+The men's half is weak — +9.80% on 35 all-rows and +1.10% on 10 forward — so nearly all of this is the women's side (+60.60% on 20, +43.56% on 9). It is not gender-gated because both halves are positive in both samples, but read a men's card here as the thin one.
+Note Model C75 does NOT confirm this: on its own 3pt+ dog gate, +200..+250 comes back −6.22% on 89. Different head, so not a refutation, but it is not independent support either.`
+          : mc2Mark.cell === 'DOG 3pt+'
             ? `MC2 puts the market FAVOURITE ${mc2Mark.amt}pt BELOW the market's own price on it — the same as rating this dog ${mc2Mark.amt}pt above its price — with the dog inside +100..+250.
 
 The best-evidenced cell on this board. Forward +13.23% on 153 (45.1% hit), all-rows +4.53% on 485 (41.2% hit), against −0.76% / −0.90% for backing every dog in the band. Both samples positive, and the hit rate clears the ~38.5% break-even at these prices, so it wins matches rather than catching one longshot.
@@ -3745,7 +3781,7 @@ WATCH ONLY: five days of forward data, standard errors of 12-15 points. Lane ${m
           <span style={{ fontSize: 11, fontWeight: 900, color: '#f0cba4' }}>
             {mc2Mark.who.split(' ').slice(-1)[0].toUpperCase()}{mc2Mark.od != null ? `${mc2Mark.od > 0 ? ' +' : ' '}${mc2Mark.od}` : ''}
           </span>
-          {mc2Mark.cell === 'FAV 2-8pt' ? ` · ${mc2Mark.amt}pt over (2-8 band)` : mc2Mark.cell === 'FAV 8pt+' ? ` · ${mc2Mark.amt}pt over (deep)` : mc2Mark.cell === 'DOG 3pt+' ? ` · ${mc2Mark.amt}pt over on the dog` : ` · flips ${mc2Mark.amt}pt past 50%`}
+          {mc2Mark.cell === 'FAV 2-8pt' ? ` · ${mc2Mark.amt}pt over (2-8 band)` : mc2Mark.cell === 'FAV 8pt+' ? ` · ${mc2Mark.amt}pt over (deep)` : mc2Mark.cell === 'FAV 0-2pt' ? ` · ${mc2Mark.amt}pt over (on/just over)` : mc2Mark.cell === 'DOG LONG' ? ` · ${mc2Mark.amt}pt over, long dog` : mc2Mark.cell === 'DOG 3pt+' ? ` · ${mc2Mark.amt}pt over on the dog` : ` · flips ${mc2Mark.amt}pt past 50%`}
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · watch only`}</span>
         </div>
       ) : null}

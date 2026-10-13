@@ -691,6 +691,57 @@ MC2_DOG_TAKE = 0.03          # MC2 at least this far below the market on the fav
 MC2_DOG_DEAD = (0.01, 0.03)  # the dead zone: shading the dog without really disagreeing
 MC2_DOG_AM = (100.0, 250.0)  # dog price band, the user's
 
+# The THIRD brown favourite slice (2026-10-13, user: mark "-100 to -250 that's mc 2 exactly on
+# market or over market by anything", then by example on a Putintseva card at ~2pt over).
+#
+# The 2-8pt band and the 8pt+ deep cell already existed; this fills 0 to 2pt so coverage from
+# "exactly on the market" upward is CONTINUOUS. That also removes a real boundary problem: the
+# card that prompted this showed MC2 58% against a market 56%, but de-vigging -140/+115 gives a
+# 55.6% favourite and MC2's 58% is itself rounded, so the true margin sat somewhere between 1.9
+# and 2.4pt -- right on the old 2pt edge, and liable to fall either side of it from rounding
+# alone.
+#
+# Measured, favourite -100..-250, forward then all-rows:
+#     0-2pt over   -3.04% /  22      -6.55% /  53
+#     2-8pt over   +2.09% /  26      -5.72% /  98
+#     8pt+ over    +7.98% /  22      -1.21% /  48
+#     all over>=0  +2.33% /  70      -4.86% / 199
+#     baseline     -6.79% / 202      -7.08% / 652
+# So every slice beats chalk by 1-6 points and NONE of them is profitable on the all-rows check.
+# The 0-2pt slice is the weakest and is negative in both samples. It ships because the combined
+# cell is positive on forward data and that is the agreed rule, and it will auto-unmark itself
+# once it reaches 25 settles if it stays negative.
+MC2_FAV_ON = (0.0, 0.02)
+# the favourite price band, applied to ALL THREE brown favourite slices. They had no band at all
+# before; the user has now specified -100..-250 for favourites twice.
+MC2_FAV_AM = (-250.0, -100.0)
+
+# THE LONG-DOG CELL (2026-10-13, user "mark it" about MC2 10pt+ over on a +200..+250 dog).
+#
+# Its own cell rather than part of mc2_dog3, because it is the one place a LONGER price has held
+# up and the mechanism is different: at +225 you only need to beat about 31% to profit, so a
+# model that lifts the hit rate 9 points is worth far more there than the same lift on a
+# favourite.
+#
+# Measured, dog +200..+250 with MC2 at least 10pt over on the dog:
+#     forward   +21.21% / 19   (36.8% hit)      women +43.56% /  9,  men +1.10% / 10
+#     all rows  +28.27% / 55   (40.0% hit)      women +60.60% / 20,  men +9.80% / 35
+#     baseline every +200..+250 dog: -1.94% / 50 forward, +1.79% / 146 all-rows
+# Positive for both genders in both samples, which is why it is not gender-gated, though the
+# women's half carries most of it.
+#
+# THE PRICE WINDOW IS BOUNDED ON BOTH SIDES, which is the strongest argument that it is real
+# rather than scanned. At 10pt+ over, by dog price (all rows):
+#     +100..+150   -0.67% /  75
+#     +150..+200   -7.22% /  79
+#     +200..+250  +22.55% /  49    <- this cell
+#     +250..+300  +32.11% /  53    <- also positive, but outside the user's +100..+250 band
+#     +300 and up -24.35% / 107    <- the graveyard the archive already warned about
+# So the effect starts at +200 and dies by +300. The cell stops at +250 because that is the band
+# the user set for marks; +250..+300 is left unmarked and is the obvious extension to discuss.
+MC2_DOG_LONG_AM = (200.0, 250.0)
+MC2_DOG_LONG_T = 0.10
+
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
                "p_dog_flip"}
 
@@ -2783,10 +2834,14 @@ def get_ab25_record() -> dict:
     # its sample. Forward picks only -- mc2_recon backfills are dropped, and matches must start at
     # or after MC2_LIVE_FROM so the log opens clean rather than on games already decided.
     _m2 = {k: {"v": [], "m": [], "w": [], "p": 0}
-           for k in ("mc2_fav_band", "mc2_fav_deep", "mc2_dog_flip",
-                     "mc2_dog3", "mc2_dog_dead")}
+           for k in ("mc2_fav_on", "mc2_fav_band", "mc2_fav_deep", "mc2_dog_flip",
+                     "mc2_dog3", "mc2_dog_dead", "mc2_dog_long")}
     _m2picks = {k: [] for k in _m2}
-    _m2_meta = {"take": MC2_DOG_TAKE, "dead": list(MC2_DOG_DEAD), "dog_am": list(MC2_DOG_AM)}
+    _m2_meta = {"take": MC2_DOG_TAKE, "dead": list(MC2_DOG_DEAD),
+                "dog_am": list(MC2_DOG_AM), "fav_am": list(MC2_FAV_AM),
+                "fav_on": list(MC2_FAV_ON),
+                "dog_long_am": list(MC2_DOG_LONG_AM),
+                "dog_long_t": MC2_DOG_LONG_T}
     if "mc2_p1" in log.columns:
         _q3 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["mc2_p1"].notna()]
         if "mc2_recon" in _q3.columns:
@@ -2814,17 +2869,27 @@ def get_ab25_record() -> dict:
             _dogodd = d2m if fav1m else d1m
             _dogam = (_dogodd - 1) * 100
             _dogband = MC2_DOG_AM[0] <= _dogam <= MC2_DOG_AM[1]
-            if _dogband and overm <= -MC2_DOG_TAKE:
+            _favodd = d1m if fav1m else d2m
+            _favam = ((_favodd - 1) * 100 if _favodd >= 2
+                      else -100.0 / max(_favodd - 1, 1e-9))
+            _favband = MC2_FAV_AM[0] <= _favam <= MC2_FAV_AM[1]
+            if (MC2_DOG_LONG_AM[0] <= _dogam <= MC2_DOG_LONG_AM[1]
+                    and overm <= -MC2_DOG_LONG_T):
+                # checked FIRST: it is the more specific claim and overlaps mc2_dog3
+                key, takes1 = "mc2_dog_long", (not fav1m)
+            elif _dogband and overm <= -MC2_DOG_TAKE:
                 key, takes1 = "mc2_dog3", (not fav1m)
             elif _dogband and -MC2_DOG_DEAD[1] < overm <= -MC2_DOG_DEAD[0]:
                 # the AVOID cell. The lane still bets the dog, because that is the only way to
                 # keep testing whether the avoid is right -- a lane that bets nothing proves
                 # nothing. The board shows it as "do not take", not as a pick.
                 key, takes1 = "mc2_dog_dead", (not fav1m)
-            elif overm > MC2_FAV_DEEP:
+            elif _favband and overm > MC2_FAV_DEEP:
                 key, takes1 = "mc2_fav_deep", fav1m
-            elif MC2_FAV_BAND[0] <= overm <= MC2_FAV_BAND[1]:
+            elif _favband and MC2_FAV_BAND[0] <= overm <= MC2_FAV_BAND[1]:
                 key, takes1 = "mc2_fav_band", fav1m
+            elif _favband and MC2_FAV_ON[0] <= overm < MC2_FAV_ON[1]:
+                key, takes1 = "mc2_fav_on", fav1m
             elif mcfav < 0.5 and overm <= -MC2_DOG_TAKE:
                 # a flip under 3pt is NOT a take (2026-10-13, user "remove this signal from
                 # anything under 3 pts"). MC2 can cross 50% on a tiny margin when the market is
