@@ -1762,6 +1762,14 @@ def get_ab25_record() -> dict:
               "pf_c75_dis", "pf_c75_agr",
               "utr_all", "utr_dog", "utr_mom_hot", "utr_mom_fade",
               "mc2_all", "mc2_edge2", "mc2_dog_band",
+              # MC v3 watch lanes (2026-10-13). The first three mirror MC2's exactly so the
+              # two heads are measured on the same rules. The last two are the point of
+              # building MC3 separately: a PAIRED head-to-head on the rows where the two
+              # disagree about which side to take. Pooled records cannot settle it, because
+              # the heads agree on most cards and the agreement rows just add identical noise
+              # to both -- only the disagreements carry information about which is better.
+              "mc3_all", "mc3_edge2", "mc3_dog_band",
+              "mc3_vs_mc2", "mc2_vs_mc3",
               "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
               # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
               # favorites lose (−5%). The board/Best 🧊 tag reads these so it only greens on dogs.
@@ -2081,6 +2089,35 @@ def get_ab25_record() -> dict:
                     _od2 = r.get("p1_odds") if _m2b else r.get("p2_odds")
                     if pd.notna(_od2) and 100 <= float(_od2) <= 250:
                         bet("mc2_dog_band", _m2b)
+            # 🧮³ MC v3 watch lanes (2026-10-13): MC2 plus per-surface serve/return
+            # ratings and best-of-five actually modelled. Same three reads as MC2 above, on
+            # the same rows and under the same bet() gate, so the pair is comparable.
+            #
+            # mc3_vs_mc2 / mc2_vs_mc3 are the pair that matters. On cards where the two heads
+            # take DIFFERENT sides, each lane backs its own head. The heads agree on most
+            # cards, and those rows contribute the same result to both records, so a pooled
+            # comparison is mostly noise cancelling out -- the disagreements are the only
+            # rows that can tell them apart, and they are paired by construction (same match,
+            # same price, opposite sides, so the two ROIs are a zero-sum read on each other).
+            _m39 = r.get("mc3_p1")
+            _m3rec = bool(r.get("mc3_recon")) if pd.notna(r.get("mc3_recon")) else False
+            if pd.notna(_m39) and not _m3rec:
+                _m3b = float(_m39) >= 0.5
+                bet("mc3_all", _m3b)
+                _ms3 = float(_m39) if _m3b else 1 - float(_m39)
+                _mk3 = mk1 if _m3b else 1 - mk1
+                if _ms3 - _mk3 >= 0.02:
+                    bet("mc3_edge2", _m3b)
+                if _m3b == dog1:
+                    _od3 = r.get("p1_odds") if _m3b else r.get("p2_odds")
+                    if pd.notna(_od3) and 100 <= float(_od3) <= 250:
+                        bet("mc3_dog_band", _m3b)
+                # the head-to-head, only where they actually differ
+                if pd.notna(_m29) and not _m2rec:
+                    _m2side = float(_m29) >= 0.5
+                    if _m2side != _m3b:
+                        bet("mc3_vs_mc2", _m3b)
+                        bet("mc2_vs_mc3", _m2side)
             # 🟠 MC2 DOG-EDGE CELLS (2026-10-08, user picked 5-8pt as a watch band; the
             # board paints those cards orange): three forward lanes adjudicate today's
             # replay cells before any of them becomes a bet mark. Genuine mc2 rows only
