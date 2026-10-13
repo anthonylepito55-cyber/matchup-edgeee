@@ -3175,6 +3175,27 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // same rule as hlOK now that the backtest gate is gone; kept as a named alias because the
   // WATCH cells read better calling livePos()
   const livePos = (lane, g) => hlOK(lane, g)
+  // FORWARD-ONLY, UNMARK ON NEGATIVE (2026-10-13, user "let's use forward only for now until
+  // they go negative"). The G and MC2 marks are judged on their own FROZEN lane and nothing
+  // else -- no backtest, no backfill. A mark shows while its forward record is empty or
+  // positive, and goes dark once that record is established and negative.
+  //
+  // Established = n at or above the floor: 25 for a favourite cell, 10 for a dog cell.
+  // Favourites get the higher bar because they are where this project has been fooled before
+  // (six favourite cells have passed a backtest and failed forward) and because a favourite
+  // cell wins ~60% of the time, so ten bets can look fine while losing money.
+  //
+  // Deliberately NOT hlOK: that one also demands a positive record to show at all, which would
+  // hide a brand-new mark until it had earned its way on. Here a mark is presumed interesting
+  // until its own forward log says otherwise.
+  const FWD_FLOOR_FAV = 25
+  const FWD_FLOOR_DOG = 10
+  const fwdAlive = (lane, g, isFav) => {
+    const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[g] || {}
+    const n = c.n || 0
+    if (n < (isFav ? FWD_FLOOR_FAV : FWD_FLOOR_DOG)) return true   // not established yet
+    return c.roi_pct > 0
+  }
   // ONE COLOUR (2026-10-10, user "make all games the same board color"): every hl* flag below
   // already means exactly the same thing -- a cell whose backtest is positive for this gender
   // AND whose live lane ROI is above zero. So the seven colours carried no information the
@@ -3270,6 +3291,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       return c.n ? `lv ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'lv tracking'
     }
     const rc = !!mg.recon
+    if (gfav - mkfav > 0 && !fwdAlive('g_fav_over', gHL, true)) return null
+    if (gfav < 0.5 && !fwdAlive('g_dog_flip', gHL, false)) return null
     // ANY margin over the market, on the user's call (briefly 4pt on 2026-10-12, reverted the
     // same day: "nvm all black over the market is fine"). Must match G_FAV_OVER_MIN in
     // tennis_log.py, which gates both the lane and the history verdict -- a mark and its live
@@ -3309,6 +3332,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
       const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[gHL] || {}
       return c.n ? `lv ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'lv tracking'
     }
+    if (over >= 0.02 && over <= 0.08 && !fwdAlive('mc2_fav_band', gHL, true)) return null
+    if (mcfav < 0.5 && !fwdAlive('mc2_dog_flip', gHL, false)) return null
     if (over >= 0.02 && over <= 0.08) {
       return { cell: 'FAV 2-8pt', lane: 'mc2_fav_band', who: fav1 ? match.player_1 : match.player_2,
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
