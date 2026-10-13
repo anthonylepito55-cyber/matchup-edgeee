@@ -1940,6 +1940,26 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G rated the market FAVOURITE above the
                                opacity: g.recon ? 0.6 : 1, fontWeight: cell ? 700 : 400 }}>
                       {g.recon ? '~' : ''}Ⓖ{cell === 'FAV-OVER' ? '⬛' : cell === 'DOG-FLIP' ? '🟨' : ''}{g.side === 1 ? '◀' : '▶'}{won ? '✓' : '✗'}</span>
                   })()}
+                  {/* Ⓖ² MODEL G2 on the previous-day rows (2026-10-12, user "And I want g2 to
+                      show on previous day slips also" / "the games we've already logged"). Same
+                      chip shape as G's so the two read side by side: the badge is the CELL, and
+                      G2's ⬛ needs 4+ points over the market where G's takes any margin. A row
+                      with no badge is one G2 priced but neither cell claimed. */}
+                  {m.model_g2 ? (() => {
+                    const g = m.model_g2
+                    const cell = g.cell, won = cell ? g.cell_hit : g.hit
+                    const tone = !cell ? '#6e7681' : (cell === 'FAV-OVER' ? '#aab1b8' : '#e0b341')
+                    return <span className="mono" title={`Ⓖ² Model G2 (G + the last-10-on-this-court block): ${g.p1_pct}% p1, picked player ${g.side}, ${won ? 'correct' : 'wrong'}.${g.recon ? ' ~ WALK-FORWARD BACKFILL: G2 only began logging at 01:00Z, so this game was priced afterwards by a G2 trained only on seasons BEFORE it, off strictly-prior windows, with walkovers dropped from the last-10. The result was never read. Not a forward pick and excluded from the g2_* lanes.' : ' Genuine frozen pre-match read.'}
+${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least 4 points above the price the market set on it. The 4pt gate is the one deliberate difference from G, whose black mark takes any margin.'
+                      : cell === 'DOG-FLIP' ? '🟨 DOG-FLIP — G2 put the market UNDERDOG past 50% and picked it outright.'
+                        : 'Neither cell fired: G2 priced the match but did not clear 4 points over the market on the favourite, nor flip the dog past 50%.'}`}
+                      style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3,
+                               border: `1px solid ${won ? tone + '66' : '#f8514955'}`,
+                               color: won ? tone : '#f85149',
+                               background: won ? (cell === 'DOG-FLIP' ? 'rgba(224,179,65,0.08)' : 'rgba(170,177,184,0.06)') : '#f851490d',
+                               opacity: g.recon ? 0.6 : 1, fontWeight: cell ? 700 : 400 }}>
+                      {g.recon ? '~' : ''}Ⓖ²{cell === 'FAV-OVER' ? '⬛' : cell === 'DOG-FLIP' ? '🟨' : ''}{g.side === 1 ? '◀' : '▶'}{won ? '✓' : '✗'}</span>
+                  })() : null}
                   {m.model_x ? <span className="mono" title={`Model X (meta)${m.model_x.recon ? ' — walk-forward backfill, display-only (trained only on earlier games)' : ' — genuine frozen pick'}: ${m.model_x.p1_pct}% p1 — ${m.model_x.hit ? 'correct' : 'wrong'}`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.model_x.hit ? '#3fb95055' : '#f8514955'}`, color: m.model_x.hit ? '#3fb950' : '#f85149', background: m.model_x.hit ? '#3fb9500d' : '#f851490d', opacity: m.model_x.recon ? 0.6 : 1 }}>
                     {m.model_x.recon ? '~' : ''}X{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span> : null}
@@ -2103,6 +2123,7 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G rated the market FAVOURITE above the
                     market <span style={{ color: m.postmortem.market_right ? '#3fb950' : '#f85149' }}>{m.postmortem.market_right ? 'right' : 'wrong'}</span>
                     {m.model_x ? <> · X <span style={{ color: m.model_x.hit ? '#3fb950' : '#f85149', opacity: m.model_x.recon ? 0.65 : 1 }} title={m.model_x.recon ? 'walk-forward backfill (trained only on earlier games) — display-only, not in the forward lanes' : 'genuine forward pick'}>{m.model_x.recon ? '~' : ''}{m.model_x.p1_pct}%{m.model_x.side === 1 ? '◀' : '▶'}{m.model_x.hit ? '✓' : '✗'}</span></> : null}
                     {m.mc2 ? <> · 🧮 <span style={{ color: m.mc2.hit ? '#d2a8ff' : '#f85149', opacity: m.mc2.recon ? 0.65 : 1 }} title={m.mc2.recon ? 'walk-forward backfill (pre-match ratings only; result never used) — display-only' : "MC v2's genuine frozen pre-match read"}>{m.mc2.recon ? '~' : ''}{m.mc2.p1_pct}%{m.mc2.side === 1 ? '◀' : '▶'}{m.mc2.hit ? '✓' : '✗'}</span></> : null}
+                    {m.model_g2 ? <> · Ⓖ² <span style={{ color: m.model_g2.cell ? (m.model_g2.cell_hit ? (m.model_g2.cell === 'DOG-FLIP' ? '#e0b341' : '#aab1b8') : '#f85149') : 'var(--text-tertiary)', opacity: m.model_g2.recon ? 0.65 : 1 }} title={m.model_g2.recon ? 'walk-forward backfill (trained only on earlier seasons; result never used) — display-only, not in the g2_* lanes' : "Model G2's genuine frozen pre-match read"}>{m.model_g2.recon ? '~' : ''}{m.model_g2.p1_pct}%{m.model_g2.side === 1 ? '◀' : '▶'}{(m.model_g2.cell ? m.model_g2.cell_hit : m.model_g2.hit) ? '✓' : '✗'}{m.model_g2.cell ? (m.model_g2.cell === 'FAV-OVER' ? ' ⬛' : ' 🟨') : ''}</span></> : null}
                     {m.model_g ? <> · Ⓖ <span style={{ color: m.model_g.cell ? (m.model_g.cell_hit ? (m.model_g.cell === 'DOG-FLIP' ? '#d29922' : '#c9d1d9') : '#f85149') : 'var(--text-tertiary)', opacity: m.model_g.recon ? 0.65 : 1 }} title={m.model_g.recon ? 'walk-forward backfill (trained only on earlier seasons; result never used) — display-only, not in the g_* lanes' : "Model G's genuine frozen pre-match read"}>{m.model_g.recon ? '~' : ''}{m.model_g.p1_pct}%{m.model_g.side === 1 ? '◀' : '▶'}{(m.model_g.cell ? m.model_g.cell_hit : m.model_g.hit) ? '✓' : '✗'}{m.model_g.cell ? (m.model_g.cell === 'FAV-OVER' ? ' ⬛' : ' 🟨') : ''}</span></> : null}
                     {m.postmortem.missed_info && m.postmortem.missed_info.length
                       ? <span style={{ color: '#e3b341' }}> · missed: {m.postmortem.missed_info.join(', ')}</span> : null}

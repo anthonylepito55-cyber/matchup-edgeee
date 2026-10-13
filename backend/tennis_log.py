@@ -34,7 +34,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # history and EXCLUDED from the g_* forward lanes, the model_x_recon pattern.
            "model_g_p1", "model_gma_p1", "model_g_recon",
            # MODEL G2 (2026-10-12): G + the last-10-on-court block, walkovers excluded.
-           "model_g2_p1", "model_g2ma_p1",
+           "model_g2_p1", "model_g2ma_p1", "model_g2_recon",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
            "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "inplay_suspect", "ue_set5_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
@@ -171,6 +171,7 @@ def log_predictions(matches: list, date: str):
             "model_g_p1": mg.get("p1_prob"), "model_gma_p1": mg.get("market_aware_p1"),
             "model_g_recon": False,
             "model_g2_p1": mg2.get("p1_prob"), "model_g2ma_p1": mg2.get("market_aware_p1"),
+            "model_g2_recon": False,
             # Monte Carlo pick (2026-10-01, user "track how the MC does under $25"):
             # frozen as p1's win fraction over the sims. mc_p1 = the Model-D serve MC
             # (sUTR-anchored); mc_c_p1 = the Model-C-anchored MC (2026-10-02, user "track
@@ -830,6 +831,45 @@ def _g_hist(r, mk1):
     return out
 
 
+def _g2_hist(r, mk1):
+    """Ⓖ² MODEL G2 for one finished row (2026-10-12, user "And I want g2 to show on previous
+    day slips also"). Same two readings as _g_hist, with G2's own favourite gate: its FAV-OVER
+    cell needs 4+ points over the market where G's takes any margin, so the two models can be
+    read side by side on the same game and the gate's effect is visible."""
+    v = r.get("model_g2_p1")
+    if v is None or pd.isna(v) or pd.isna(r.get("p1_won")) or mk1 is None:
+        return None
+    p1, p1won = float(v), bool(r["p1_won"])
+    fav1 = mk1 >= 0.5
+    mkfav = mk1 if fav1 else 1 - mk1
+    gfav = p1 if fav1 else 1 - p1
+    cell = cell_side = None
+    if gfav - mkfav >= G2_FAV_OVER_MIN:
+        cell, cell_side = "FAV-OVER", (1 if fav1 else 2)
+    elif gfav < 0.5:
+        cell, cell_side = "DOG-FLIP", (2 if fav1 else 1)
+    _rc = r.get("model_g2_recon")
+    out = {"recon": bool(_rc) if (_rc is not None and not pd.isna(_rc)) else False,
+           "p1_pct": round(100 * p1, 1), "side": 1 if p1 >= 0.5 else 2,
+           "hit": bool((p1 >= 0.5) == p1won), "over_fav": round(gfav - mkfav, 4),
+           "cell": cell, "cell_side": cell_side,
+           "cell_hit": (None if cell is None else bool((cell_side == 1) == p1won))}
+    gm = r.get("model_g2ma_p1")
+    if gm is not None and not pd.isna(gm):
+        out["ma_p1_pct"] = round(100 * float(gm), 1)
+    return out
+
+
+def _g2_signals(r, mk1):
+    """Ⓖ² entry for the results-history signal line. Watch-only, like G's."""
+    hg = _g2_hist(r, mk1)
+    if not hg or not hg.get("cell"):
+        return []
+    pre = "~" if hg.get("recon") else ""
+    return [{"label": pre + "Ⓖ² " + hg["cell"] + " ⚠", "side": hg["cell_side"],
+             "hit": bool(hg["cell_hit"]), "watch": True, "recon": bool(hg.get("recon"))}]
+
+
 def _g_signals(r, mk1):
     """Ⓖ entry for the results-history signal line. Only the two RECORDED cells appear, and
     each is flagged watch-only -- G has no positive backtest cell, so this is a tracker and must
@@ -1030,7 +1070,9 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             "model_a": ma, "model_b": mb, "model_c": mcd, "model_d": md,
             # the history card's Ⓖ line. n1/n2/gender are live-only (never frozen), so the
             # line renders without them; recon rides along so a backfilled read is dimmed.
-            "model_g2": _model("model_g2_p1", "model_g2ma_p1", mk1),
+            "model_g2": (lambda o: ({**o, "recon": bool(r.get("model_g2_recon"))
+                                     if pd.notna(r.get("model_g2_recon")) else False} if o else None))(
+                _model("model_g2_p1", "model_g2ma_p1", mk1)),
             "model_g": (lambda o: ({**o, "recon": bool(r.get("model_g_recon"))
                                     if pd.notna(r.get("model_g_recon")) else False} if o else None))(
                 _model("model_g_p1", "model_gma_p1", mk1)),
@@ -1082,11 +1124,13 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             # new elite lane-signals per finished game (2026-10-05, user "update previous
             # games with the new signals"): which Best-tab signals fired + hit, from frozen
             # probs only. Shown as a compact sub-line in results-history.
-            "signals": _elite_signals_for_row(r, mk1) + _p_signals(r, mk1) + _g_signals(r, mk1),
+            "signals": (_elite_signals_for_row(r, mk1) + _p_signals(r, mk1)
+                        + _g_signals(r, mk1) + _g2_signals(r, mk1)),
             "model_p": _p_hist(r, mk1),
             # Ⓖ MODEL G per finished game (2026-10-12, user "show the new model on the
             # results history as well"): the probability plus which recorded cell fired.
             "model_g": _g_hist(r, mk1),
+            "model_g2": _g2_hist(r, mk1),
             "ue": _ue_asof(r),
             "conflicts": _conflict_resolvers_for_row(r, mk1),
             "card": card,
@@ -2622,6 +2666,8 @@ def get_ab25_record() -> dict:
     _g2picks = {k: [] for k in _g2}
     if "model_g2_p1" in log.columns:
         _q2 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["model_g2_p1"].notna()]
+        if "model_g2_recon" in _q2.columns:       # a backfill is never a forward pick
+            _q2 = _q2[~_q2["model_g2_recon"].fillna(False).astype(bool)]
         if "start_time_utc" in _q2.columns:
             _q2 = _q2[_q2["start_time_utc"].notna()
                       & (_q2["start_time_utc"].astype(str) >= G2_LIVE_FROM)]
