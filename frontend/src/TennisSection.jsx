@@ -3341,20 +3341,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // above -3 pts take the dog Anything -1 to below -3 mark don't take dog"). Checked BEFORE
     // the favourite cells because a card can satisfy both and the dog read is far better
     // evidenced -- 485 all-rows bets against 119.
-    // INPUT-QUALITY GATE (2026-10-13). MC2 is a point-level Markov chain on serve/return
-    // RATES, so the point count behind those rates is what says whether to trust it. A thin
-    // or stale line does not just add noise, it makes MC2 more confident: mean |MC2-market|
-    // 12.5pt on stale rows vs 8.5pt on fresh, Brier gap to the market +0.066 vs +0.006.
-    // Measured both ways in both samples, so no mark is shown behind the gate.
-    const iqSvp = m2.svp_min == null ? null : Number(m2.svp_min)
-    const iqStr = m2.stretch_d == null ? null : Number(m2.stretch_d)
-    const iqThin = iqSvp != null && iqSvp < 400
-    const iqStale = iqStr != null && iqStr > 450
-    if (iqThin || iqStale) {
-      return { cell: 'THIN INPUT', thin: true, svp: iqSvp, stretch: iqStr,
-               stale: iqStale, who: fav1 ? match.player_1 : match.player_2,
-               amt: Math.round(1000 * over) / 10, recon: !!m2.recon }
-    }
     const dogAm = fav1 ? Number(lo.player_2) : Number(lo.player_1)
     const dogInBand = !isNaN(dogAm) && dogAm >= 100 && dogAm <= 250
     // THE LONG-DOG CELL: a +200..+250 dog MC2 rates 10pt+ over its price. Checked before
@@ -3516,10 +3502,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   const HLs = hlAny ? HL
     : (hlGrayDog || hlS52) ? HL_DARKBLUE
       : (gMark && !gMark.recon) ? ((gMark.cell === 'FAV-OVER') ? HL_BLACK : HL_YELLOW)
-        : (mc2Mark && !mc2Mark.recon && !mc2Mark.avoid && !mc2Mark.thin) ? HL_BROWN : HL_ORANGE
+        : (mc2Mark && !mc2Mark.recon && !mc2Mark.avoid) ? HL_BROWN : HL_ORANGE
   // an AVOID cell must never paint the card like a pick -- it is the opposite instruction
   const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMark && !gMark.recon)
-    || !!(mc2Mark && !mc2Mark.recon && !mc2Mark.avoid && !mc2Mark.thin) || !!orangeMark
+    || !!(mc2Mark && !mc2Mark.recon && !mc2Mark.avoid) || !!orangeMark
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -3731,27 +3717,6 @@ READ THIS BEFORE TRUSTING IT. The catalogue keeps whatever is up out of 143 favo
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · fwd ${orangeMark.roi > 0 ? '+' : ''}${orangeMark.roi}% (${orangeMark.wins}-${orangeMark.n - orangeMark.wins}) ±${orangeMark.se} · watch only`}</span>
         </div>
       ) : null}
-      {mc2Mark && mc2Mark.thin ? (
-        <div style={{ fontSize: 11, marginTop: 3, color: '#9a8f86', fontWeight: 600 }}
-          title={`⚠ MC2 IS RUNNING ON A THIN OR STALE STAT LINE HERE, so no MC2 mark is shown.
-
-MC2 is a point-level Markov chain driven by serve and return RATES. What matters is how many points those rates rest on, and on this card the thinner side has ${mc2Mark.svp == null ? 'an unknown number of' : mc2Mark.svp} service points on this surface${mc2Mark.stretch == null ? '' : `, with the last-10 window reaching back ${mc2Mark.stretch} days`}.
-
-Why it is gated, measured 2026-10-13 on 1157 settled MC2 rows (356 of them forward):
-  - thinner side under 400 service points: −11.20% on 566 all-rows, −6.93% on 178 forward. At 400+: +2.50% and +15.64%.
-  - last-10 window stretched past 450 days: −51.57% on 36 all-rows, −74.81% on 13 forward. Past 730 days it is 0 wins from 8.
-
-The reason is overconfidence rather than ordinary noise: MC2 departs from the price MORE as its inputs get worse (mean 12.5pt on stale rows against 8.5pt on fresh), and its Brier gap to the market widens from +0.006 to +0.066. A 71% serve-point rate carries a 4.0pt standard error at 128 points and 1.5pt at 975, and the Markov chain amplifies small serve differences.
-
-Not gated on match COUNT: that measured noisy and flipped sign between samples (under 12 matches was −24.27% on 72 all-rows but +21.19% on 29 forward), so the gate uses points.
-
-MC2 still shows its probability on the card — only the mark is withheld.`}>
-          {'⚠ MC2 INPUT ' + (mc2Mark.stale ? 'STALE' : 'THIN')}
-          {mc2Mark.svp == null ? '' : ` · ${mc2Mark.svp} svc pts`}
-          {mc2Mark.stretch == null ? '' : ` · L10 back ${mc2Mark.stretch}d`}
-          <span style={{ fontWeight: 400, opacity: 0.8 }}>{' · mark withheld'}</span>
-        </div>
-      ) : null}
       {mc2Mark && mc2Mark.avoid ? (
         <div className="mono"
           title={`⛔ DO NOT BACK THIS DOG. MC2 sits only ${mc2Mark.amt}pt below the market on the favourite — inside the 1 to 3 point dead zone, where it shades toward the dog without really disagreeing with the price.
@@ -3775,7 +3740,7 @@ The lane behind this badge still bets the dog, because that is the only way to k
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · −17.1% on the 485-row check`}</span>
         </div>
       ) : null}
-      {mc2Mark && !mc2Mark.avoid && !mc2Mark.thin ? (
+      {mc2Mark && !mc2Mark.avoid ? (
         <div className="mono"
           title={`🟤 MC2 ${mc2Mark.cell} — where MC v2 is saying something, NOT a recommendation.
 

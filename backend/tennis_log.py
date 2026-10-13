@@ -755,8 +755,14 @@ MC2_FAV_AM = (-250.0, -100.0)
 #     L10 stretch > 450 days         : -51.57% / 36 all, -74.81% / 13 fwd (>730d: 0 wins in 8)
 # Deliberately NOT gated on match count: that measured noisy and flipped sign between samples
 # (<12 matches was -24.27% on 72 all-rows but +21.19% on 29 forward), so points are the knob.
-MC2_IQ_MIN_SVP = 400.0
-MC2_IQ_MAX_STRETCH = 450.0
+# NOT IN USE (reverted 2026-10-13, user: "leave mc2 how it was"). Kept only as the record of
+# what was measured, because mc2_svp_min / mc2_stretch_d are still frozen per card and the
+# question can be revisited. Nothing reads these two numbers -- no mark and no lane is gated.
+# They are also NOT the explanation I first gave: MC2 never reads the TennisRatio stat line
+# (tennis_mc2 uses tennis_context only to resolve a name to a slug), so svp_n was a proxy,
+# most likely for level and data coverage, not a measure of MC2's own inputs.
+_UNUSED_MC2_IQ_MIN_SVP = 400.0
+_UNUSED_MC2_IQ_MAX_STRETCH = 450.0
 MC2_DOG_LONG_AM = (200.0, 250.0)
 MC2_DOG_LONG_T = 0.10
 
@@ -2859,8 +2865,7 @@ def get_ab25_record() -> dict:
                 "dog_am": list(MC2_DOG_AM), "fav_am": list(MC2_FAV_AM),
                 "fav_on": list(MC2_FAV_ON),
                 "dog_long_am": list(MC2_DOG_LONG_AM),
-                "dog_long_t": MC2_DOG_LONG_T,
-                "iq_min_svp": MC2_IQ_MIN_SVP, "iq_max_stretch": MC2_IQ_MAX_STRETCH}
+                "dog_long_t": MC2_DOG_LONG_T}
     if "mc2_p1" in log.columns:
         _q3 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["mc2_p1"].notna()]
         if "mc2_recon" in _q3.columns:
@@ -2875,17 +2880,6 @@ def get_ab25_record() -> dict:
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     _sk = True
             if _sk:
-                continue
-            # INPUT-QUALITY GATE (2026-10-13). The board withholds the mark on these rows,
-            # so the lane must not bet them either or the record it reports would not be
-            # the record of what the board showed. A NULL is "unknown", never "bad": every
-            # row logged before this shipped carries nulls and is left alone, so the gate
-            # only bites going forward and no past lane number silently changes.
-            _iqv = rr.get("mc2_svp_min") if "mc2_svp_min" in _q3.columns else None
-            _iqs = rr.get("mc2_stretch_d") if "mc2_stretch_d" in _q3.columns else None
-            if _iqv is not None and not pd.isna(_iqv) and float(_iqv) < MC2_IQ_MIN_SVP:
-                continue
-            if _iqs is not None and not pd.isna(_iqs) and float(_iqs) > MC2_IQ_MAX_STRETCH:
                 continue
             d1m, d2m = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
             if not d1m or not d2m:
