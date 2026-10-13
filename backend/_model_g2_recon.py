@@ -77,11 +77,34 @@ for yr in yrs:
     print("  %d: trained on %d earlier rows" % (yr, int(itr.sum())), flush=True)
 
 # ---- as-of windows, rebuilt per player ----
+# MEMORY: release the build frame FIRST. It is ~616k rows with every rolling intermediate still
+# attached, and holding it while parsing the same archive again is what drove this to 5.7GB RSS
+# and an OOM kill on a 7.7GB box (2026-10-13 01:32:42Z). The fitted models are all that is still
+# needed from it.
+import gc  # noqa: E402
+
+del core, ns
+gc.collect()
+
+KEEP = ["player_slug", "surface", "date", "won", "logr", "score",
+        "sg_won", "sg_all", "rg_won", "rg_all", "meff", "l_meff",
+        "first_serve_points", "second_serve_points",
+        "return_1st_serve_points", "return_2nd_serve_points",
+        "serve_pressure_won", "serve_pressure_all",
+        "return_pressure_won", "return_pressure_all"]
 raw = T._parse(pd.read_parquet(T.LOGS_PARQUET))
 raw["date"] = pd.to_datetime(raw["date"]).dt.normalize()
 raw["surf"] = raw["surface"].astype(str).str.title()
 raw["wo"] = T._walkover_mask(raw)
-bysurf = {k: v.sort_values("date") for k, v in raw.groupby(["player_slug", "surf"])}
+raw = raw[[c for c in KEEP if c in raw.columns] + ["surf", "wo"]].copy()
+gc.collect()
+# index positions per (player, surface) rather than a dict of 5,000 sub-frames, which would
+# duplicate the whole archive a second time
+_order = np.lexsort((raw["date"].to_numpy("datetime64[ns]"),))
+raw = raw.iloc[_order].reset_index(drop=True)
+bysurf = {k: raw.iloc[v] for k, v in raw.groupby(["player_slug", "surf"], sort=False).indices.items()}
+print("archive slimmed to %d cols, %d player-surface groups" % (raw.shape[1], len(bysurf)),
+      flush=True)
 EDGES = np.asarray(MDL["bin_edges"], dtype=float)
 NBIN = len(EDGES) - 1
 rc = {}
