@@ -2323,6 +2323,39 @@ def _compute_tennis_today_inner(date: str = None):
                                         r.get("surface"), market_p1=_mk1)
             except Exception:  # noqa: BLE001
                 r["mc2"] = None
+            # MC2 INPUT QUALITY (2026-10-13). MC2's engine is a point-level Markov chain
+            # driven by serve/return RATES, so the number of points behind those rates is
+            # the real measure of how much to trust it -- not the match count, which
+            # measured noisy and sign-flipped between samples. Two frozen numbers:
+            #   svp_min   the thinner side's 52w service-point count on this surface
+            #   stretch   how many days back the L10 window had to reach, max of the two
+            # Facundo Diaz Acosta on 2026-10-11 was 128 service points and a 635-day
+            # stretch, showing 80.0% service games won against his opponent's 67.1% off an
+            # eighth of the sample, with MC2 the only head above the market on him.
+            try:
+                if r.get("mc2"):
+                    _today = pd.Timestamp(todays_date_et())
+                    _vs, _sts = [], []
+                    for _pl in (r.get("player_1"), r.get("player_2")):
+                        _cq = tennis_context.get_context(_pl, r.get("surface")) or {}
+                        _vn = (_cq.get("surface_stats") or {}).get("svp_n")
+                        _vs.append(float(_vn) if _vn is not None else None)
+                        # get_context nests the L10 block inside surface_stats as
+                        # "l10"; context_asof puts it at the top level as "surface_l10".
+                        # Read both, or the staleness half of the gate is silently dead.
+                        _l10 = ((_cq.get("surface_stats") or {}).get("l10")
+                                or _cq.get("surface_l10") or {})
+                        _fr = _l10.get("from")
+                        if _fr:
+                            try:
+                                _sts.append(int((_today - pd.Timestamp(_fr)).days))
+                            except Exception:  # noqa: BLE001
+                                pass
+                    _ok = [x for x in _vs if x is not None]
+                    r["mc2"]["svp_min"] = (min(_ok) if len(_ok) == 2 else None)
+                    r["mc2"]["stretch_d"] = (max(_sts) if _sts else None)
+            except Exception:  # noqa: BLE001
+                pass
     except Exception as _e_tma:  # noqa: BLE001 -- never let the display models break the slate
         print(f"[tennis models] {_e_tma}")
 

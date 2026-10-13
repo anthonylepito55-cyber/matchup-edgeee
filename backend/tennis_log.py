@@ -51,6 +51,12 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # mc2_recon=True marks a walk-forward BACKFILL (pre-match ratings only, result
            # never used) -- display-only, excluded from the mc2_* forward lanes.
            "mc2_p1", "mc2_recon",
+           # MC2 input quality, frozen at log time (2026-10-13). mc2_svp_min = the thinner
+           # side's 52w service-point count on this surface; mc2_stretch_d = how far back
+           # the L10 window reached. NULL on every row logged before this shipped, and a
+           # null is treated as "unknown", never as "bad" -- so the gate only ever applies
+           # to rows that actually carry the measurement.
+           "mc2_svp_min", "mc2_stretch_d",
            # FAV-VALUE fatigue freeze (2026-10-08): each side's settled matches + sets
            # played in the prior 7 days, counted from THIS log's own settled rows at log
            # time (the archive lags ~10d; our log is live). Lower-bound counts (we only
@@ -231,6 +237,8 @@ def log_predictions(matches: list, date: str):
             "utr_mom_p1": (m.get("utr") or {}).get("mom"),
             "mc2_p1": (m.get("mc2") or {}).get("p1_prob"),
             "mc2_recon": False,
+            "mc2_svp_min": (m.get("mc2") or {}).get("svp_min"),
+            "mc2_stretch_d": (m.get("mc2") or {}).get("stretch_d"),
             "p1_m7": load7.get(str(m.get("player_1")), [0, 0])[0],
             "p1_sets7": load7.get(str(m.get("player_1")), [0, 0])[1],
             "p2_m7": load7.get(str(m.get("player_2")), [0, 0])[0],
@@ -739,6 +747,16 @@ MC2_FAV_AM = (-250.0, -100.0)
 #     +300 and up -24.35% / 107    <- the graveyard the archive already warned about
 # So the effect starts at +200 and dies by +300. The cell stops at +250 because that is the band
 # the user set for marks; +250..+300 is left unmarked and is the obvious extension to discuss.
+# THE INPUT-QUALITY GATE (2026-10-13). A thin or stale stat line does not merely add noise to
+# MC2, it makes MC2 MORE confident: mean |MC2 - market| is 12.5pt on stale rows against 8.5pt on
+# fresh ones, and its Brier gap to the market widens from +0.006 to +0.066. Both gates measured
+# in the same direction in the forward sample and the backfill, which is why they ship together:
+#     thinner side < 400 service pts : -11.20% /566 all, -6.93% /178 fwd  (>=400: +2.50%, +15.64%)
+#     L10 stretch > 450 days         : -51.57% / 36 all, -74.81% / 13 fwd (>730d: 0 wins in 8)
+# Deliberately NOT gated on match count: that measured noisy and flipped sign between samples
+# (<12 matches was -24.27% on 72 all-rows but +21.19% on 29 forward), so points are the knob.
+MC2_IQ_MIN_SVP = 400.0
+MC2_IQ_MAX_STRETCH = 450.0
 MC2_DOG_LONG_AM = (200.0, 250.0)
 MC2_DOG_LONG_T = 0.10
 
