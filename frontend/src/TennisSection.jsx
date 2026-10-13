@@ -3356,6 +3356,86 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     }
     return null
   })()
+  // ORANGE SCAN MARK (2026-10-13, user: "mark all the positive roi forward tests on favorites
+  // for men and women ... dark orange", then the underdog cells, then "make sure it's only on
+  // -100 to -250 favorites or +100 to +250 dogs").
+  //
+  // The backend scores a grid of head x side x threshold x gender cells on FORWARD rows only,
+  // inside the price band, and returns the positive ones at n>=20 (laneRec.orange, best ROI
+  // first). Each card is tested against that catalogue and marked with the SINGLE
+  // best-performing cell that fires, named on the chip with its live n and ROI -- the chosen
+  // "one orange per card, best cell", so the colour ranks rather than merely flags.
+  //
+  // WHY IT IS LAST IN PRECEDENCE AND LABELLED WATCH-ONLY: about 87% of cards match something in
+  // the catalogue, so this colour cannot carry the weight a green does. And the catalogue was
+  // built by keeping whatever was up out of 143 favourite and 50 dog cells -- dogs come back
+  // ~52% positive, favourites ~10%, where chance alone would give about half either way. So the
+  // dog entries look like a real tendency and the favourite entries look like the lucky tail of
+  // a negative distribution. The chip carries n and the error bar so a 20-bet cell cannot pass
+  // for a 221-bet one, and a cell leaves the catalogue the moment its forward record turns
+  // negative.
+  const ORANGE_HEADP = {
+    model_a_p1: (m) => (m.model_a || {}).p1_prob,
+    model_ama_p1: (m) => (m.model_a || {}).market_aware_p1,
+    model_b_p1: (m) => (m.model_b || {}).p1_prob,
+    model_bma_p1: (m) => (m.model_b || {}).market_aware_p1,
+    model_c_p1: (m) => (m.model_c || {}).p1_prob,
+    model_cma_p1: (m) => (m.model_c || {}).market_aware_p1,
+    model_d_p1: (m) => (m.model_d || {}).p1_prob,
+    model_dma_p1: (m) => (m.model_d || {}).market_aware_p1,
+    model_g_p1: (m) => (m.model_g || {}).p1_prob,
+    model_gma_p1: (m) => (m.model_g || {}).market_aware_p1,
+    model_g2_p1: (m) => (m.model_g2 || {}).p1_prob,
+    model_g2ma_p1: (m) => (m.model_g2 || {}).market_aware_p1,
+    mc2_p1: (m) => (m.mc2 || {}).p1_prob,
+    model_x_p1: (m) => (m.model_x || {}).p1_prob,
+    mc_c_p1: (m) => { const v = ((m.model_c || {}).mc || {}).p1_pct; return v == null ? null : v / 100 },
+    mc_c75_p1: (m) => (m.model_c || {}).mc_c75_p1,
+    mc_cutr_p1: (m) => (m.model_c || {}).mc_cutr_p1,
+    mc_p1: (m) => { const v = ((m.model_d || {}).mc || {}).p1_pct; return v == null ? null : v / 100 },
+  }
+  const orangeMark = (() => {
+    const cat = (laneRec && laneRec.orange) || []
+    const mk = mc3 && mc3.market_p1 != null ? mc3.market_p1 : null
+    if (!cat.length || mk == null || !match.live_odds) return null
+    const fav1 = mk >= 0.5
+    const mkfav = fav1 ? mk : 1 - mk
+    const lo = match.live_odds
+    const favOdd = Number(fav1 ? lo.player_1 : lo.player_2)
+    const dogOdd = Number(fav1 ? lo.player_2 : lo.player_1)
+    if (isNaN(favOdd) || isNaN(dogOdd)) return null
+    // the price band, checked on the side the cell would actually bet
+    const favOK = favOdd <= -100 && favOdd >= -250
+    const dogOK = dogOdd >= 100 && dogOdd <= 250
+    let best = null
+    for (const c of cat) {
+      if (c.g !== gHL) continue
+      if (c.side === 'fav' ? !favOK : !dogOK) continue
+      const f = ORANGE_HEADP[c.col]
+      if (!f) continue
+      const p1 = f(match)
+      if (p1 == null) continue
+      const mine = c.side === 'fav' ? (fav1 ? p1 : 1 - p1) : (fav1 ? 1 - p1 : p1)
+      const base = c.side === 'fav' ? mkfav : 1 - mkfav
+      if (mine - base < c.t) continue
+      if (!best || c.roi > best.roi) {
+        best = {
+          ...c,
+          who: c.side === 'fav' ? (fav1 ? match.player_1 : match.player_2)
+                                : (fav1 ? match.player_2 : match.player_1),
+          od: c.side === 'fav' ? favOdd : dogOdd,
+          edge: Math.round(1000 * (mine - base)) / 10,
+        }
+      }
+    }
+    return best
+  })()
+  const HL_ORANGE = {
+    bg: 'rgba(179,83,9,0.17)',
+    border: '1px solid rgba(214,110,30,0.92)',
+    rail: '#c2570a',
+    glow: '0 0 16px rgba(194,87,10,0.30)',
+  }
   const HL_BROWN = {
     bg: 'rgba(140,86,45,0.20)',
     border: '1px solid rgba(176,110,60,0.95)',
@@ -3378,9 +3458,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   const HLs = hlAny ? HL
     : (hlGrayDog || hlS52) ? HL_DARKBLUE
       : (gMark && !gMark.recon) ? ((gMark.cell === 'FAV-OVER') ? HL_BLACK : HL_YELLOW)
-        : HL_BROWN
+        : (mc2Mark && !mc2Mark.recon) ? HL_BROWN : HL_ORANGE
   const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMark && !gMark.recon)
-    || !!(mc2Mark && !mc2Mark.recon)
+    || !!(mc2Mark && !mc2Mark.recon) || !!orangeMark
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -3567,6 +3647,29 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <div className="mono" style={{ fontSize: 8.5, fontWeight: 700, marginBottom: 5, color: lvlNote.tone, letterSpacing: '0.03em' }}
           title={`LEVEL x ROUND, measured 2026-10-08 on 3,822 marked-dog fires (banded +100..+200, true gender, one row per match). By level: TOUR men +16.7% all-years / +15.8% in 2026 (n=384/114), women +43.1% / +40.0% (n=289/71) -- the strongest level AND the only one that held into 2026. CHALLENGER men +10.8% all-years but -1.1% in 2026 (n=766/290), i.e. that level has died; women +39.5% (n=141, 2026 thin). ITF men +13.1% / +8.4%, women +19.4% / +7.9%. SLAMS men +11.7%, women +21.6%. By round: men early +12.0% (n=1,281) / late +17.7% (n=191); women early +32.6% (n=829) / late +9.9% (n=114). Level x round: TOUR EARLY +27.2% (n=622) is the best big cell, ITF EARLY +21.8% (n=500), CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157). HEADLINE: these dog edges are NOT a soft-book ITF artifact -- they are strongest where the liquidity is. ${lvlNote.rnote}.`}>
           {'🏟 '}{lvlNote.tag}{' · '}{lvlNote.note}{lvlNote.late ? ' · late round' : ' · early round'}
+        </div>
+      ) : null}
+      {orangeMark ? (
+        <div className="mono"
+          title={`🟧 ORANGE SCAN — the best-performing forward cell that fires on this card. NOT a recommendation.
+
+THIS CELL: ${orangeMark.head} on the ${orangeMark.side === 'fav' ? 'FAVOURITE' : 'DOG'}, at least ${Math.round(100 * orangeMark.t)}pt over the market price on that side, ${orangeMark.g === 'W' ? 'women' : 'men'}, inside the price band. Forward record: ${orangeMark.roi > 0 ? '+' : ''}${orangeMark.roi}% on ${orangeMark.n} bets (${orangeMark.wins}-${orangeMark.n - orangeMark.wins}), standard error ${orangeMark.se}pt. On this card it sits ${orangeMark.edge}pt over.
+
+HOW THE CATALOGUE IS BUILT: every head x side x threshold x gender cell is scored on FORWARD rows only — frozen picks, no backfill — restricted to favourites −100..−250 and dogs +100..+250, and the positive ones with 20+ settles are kept. A cell leaves the catalogue the moment its forward record turns negative, so the mark maintains itself.
+
+READ THIS BEFORE TRUSTING IT. The catalogue keeps whatever is up out of 143 favourite cells and 50 dog cells. Dogs come back about 52% positive, favourites about 10% — chance alone would give roughly half either way. So the DOG entries look like a real tendency, and the FAVOURITE entries look like the lucky tail of a distribution that is negative overall. Around 87% of cards match something here, which is why orange sits last in precedence behind every other colour and is labelled watch-only.`}
+          style={{
+            fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.05em',
+            padding: '3px 6px', borderRadius: 4, color: '#f0b483',
+            background: 'linear-gradient(90deg, rgba(179,83,9,0.28), transparent)',
+            border: '1px solid rgba(214,110,30,0.70)',
+          }}>
+          {'🟧 ' + orangeMark.head + ' ' + (orangeMark.side === 'fav' ? 'FAV' : 'DOG') + ' ' + Math.round(100 * orangeMark.t) + 'pt+ → '}
+          <span style={{ fontSize: 11, fontWeight: 900, color: '#ffc896' }}>
+            {orangeMark.who.split(' ').slice(-1)[0].toUpperCase()}{`${orangeMark.od > 0 ? ' +' : ' '}${orangeMark.od}`}
+          </span>
+          {` · ${orangeMark.edge}pt over`}
+          <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · fwd ${orangeMark.roi > 0 ? '+' : ''}${orangeMark.roi}% (${orangeMark.wins}-${orangeMark.n - orangeMark.wins}) ±${orangeMark.se} · watch only`}</span>
         </div>
       ) : null}
       {mc2Mark ? (

@@ -3103,6 +3103,101 @@ def get_ab25_record() -> dict:
     study_out["ovl_dog"] = {**agg(_ovd["m"] + _ovd["w"]), "m": agg(_ovd["m"]), "w": agg(_ovd["w"])}
     study_out["price_dog_w"] = {**agg(_pdw), "m": agg([]), "w": agg(_pdw)}
 
+    # ===================================================================================
+    # ORANGE SCAN (2026-10-13, user: "mark all the positive roi forward tests on favorites for
+    # men and women ... dark orange", then "and for the underdogs when favorites are 1 pts",
+    # "Negative points by 4+ from our test", and "make sure it's only on -100 to -250 favorites
+    # or +100 to +250 dogs").
+    #
+    # A catalogue of head x side x threshold x gender cells scored on FORWARD rows only, inside
+    # the price band, with the positive ones at n >= 20 returned so the board can mark whichever
+    # qualifying cell is performing best on a given card. Recomputed every call, so a cell drops
+    # out the moment its forward record turns negative -- the forward-only rule applied to the
+    # whole grid rather than to a few hand-picked marks.
+    #
+    # PRICE BAND: favourites -100..-250, dogs +100..+250. The user's constraint, and it matches
+    # where this log has ever shown anything: longer dogs are a graveyard (+300 dogs went 2-14 in
+    # one cell here) and deep chalk is unbeatable after vig.
+    #
+    # READ THE COVERAGE BEFORE READING THE CELLS. Over the full grid, dog cells come back ~52%
+    # positive and favourite cells ~10%. If nothing were real you would expect about half either
+    # way, so the dog side looks genuinely positive while the favourite side is a negative
+    # distribution whose positives are its lucky tail -- kept BECAUSE they were up, out of 143
+    # tries. The n and ROI travel with every mark so a 21-bet cell cannot pass for a 204-bet one.
+    # ===================================================================================
+    _OR_HEADS = [("A", "model_a_p1", None), ("B", "model_b_p1", None), ("C", "model_c_p1", None),
+                 ("A-MA", "model_ama_p1", None), ("B-MA", "model_bma_p1", None),
+                 ("C-MA", "model_cma_p1", None), ("D", "model_d_p1", None),
+                 ("D-MA", "model_dma_p1", None), ("G", "model_g_p1", "model_g_recon"),
+                 ("G-MA", "model_gma_p1", "model_g_recon"),
+                 ("G2", "model_g2_p1", "model_g2_recon"),
+                 ("G2-MA", "model_g2ma_p1", "model_g2_recon"),
+                 ("MC2", "mc2_p1", "mc2_recon"), ("X", "model_x_p1", "model_x_recon"),
+                 ("c50", "mc_c_p1", "mc_c_recon"), ("c75", "mc_c75_p1", "mc_c_recon"),
+                 ("cUTR", "mc_cutr_p1", "mc_c_recon"), ("MCserve", "mc_p1", None)]
+    _OR_FAV_T = (0.01, 0.02, 0.03, 0.04, 0.06, 0.08)
+    _OR_DOG_T = (0.01, 0.04)
+    _OR_MIN_N = 20
+    _OR_FAV_AM = (-250.0, -100.0)      # American odds on the favourite
+    _OR_DOG_AM = (100.0, 250.0)        # American odds on the dog
+    _orange = []
+    try:
+        _ob = log[(log["settled"] == True) & log["p1_won"].notna()            # noqa: E712
+                  & log["p1_odds"].notna() & log["p2_odds"].notna()].copy()
+        for _c in ("surface_bad", "inplay_suspect"):
+            if _c in _ob.columns:
+                _ob = _ob[~_ob[_c].fillna(False).astype(bool)]
+        if len(_ob) >= 50:
+            _o1 = _ob["p1_odds"].map(_decimal).to_numpy(dtype=float)
+            _o2 = _ob["p2_odds"].map(_decimal).to_numpy(dtype=float)
+            _mk = (1 / _o1) / ((1 / _o1) + (1 / _o2))
+            _w1 = _ob["p1_won"].astype(bool).to_numpy()
+            _f1 = _mk >= 0.5
+            _mkf = np.where(_f1, _mk, 1 - _mk)
+            _fo = np.where(_f1, _o1, _o2)
+            _fw = np.where(_f1, _w1, ~_w1)
+            _fp = np.where(_fw, _fo - 1, -1.0)
+            _do = np.where(_f1, _o2, _o1)
+            _dw = ~_fw
+            _dp = np.where(_dw, _do - 1, -1.0)
+            # American prices, for the band guard
+            _fam = np.where(_fo >= 2, (_fo - 1) * 100, -100 / np.maximum(_fo - 1, 1e-9))
+            _dam = (_do - 1) * 100
+            _infav = (_fam >= _OR_FAV_AM[0]) & (_fam <= _OR_FAV_AM[1])
+            _indog = (_dam >= _OR_DOG_AM[0]) & (_dam <= _OR_DOG_AM[1])
+            _gg = np.where(_ob["league"].astype(str).isin(["wta", "itf_women"]), "W", "M")
+            for _lab, _col, _rc in _OR_HEADS:
+                if _col not in _ob.columns:
+                    continue
+                _pv = pd.to_numeric(_ob[_col], errors="coerce").to_numpy(dtype=float)
+                _hv = ~np.isnan(_pv)
+                _rcm = (_ob[_rc].fillna(False).astype(bool).to_numpy()
+                        if (_rc and _rc in _ob.columns) else np.zeros(len(_ob), bool))
+                _fwd = _hv & ~_rcm                      # forward rows only, as asked
+                for _side, _ts in (("fav", _OR_FAV_T), ("dog", _OR_DOG_T)):
+                    _hd = (np.where(_f1, _pv, 1 - _pv) if _side == "fav"
+                           else np.where(_f1, 1 - _pv, _pv))
+                    _base = _mkf if _side == "fav" else (1 - _mkf)
+                    _pnl, _hit = (_fp, _fw) if _side == "fav" else (_dp, _dw)
+                    _band = _infav if _side == "fav" else _indog
+                    for _t in _ts:
+                        for _g in ("M", "W"):
+                            _m = _fwd & _band & ((_hd - _base) >= _t) & (_gg == _g)
+                            _n = int(_m.sum())
+                            if _n < _OR_MIN_N:
+                                continue
+                            _roi = 100 * float(_pnl[_m].mean())
+                            if _roi <= 0:
+                                continue
+                            _orange.append({
+                                "head": _lab, "col": _col, "side": _side,
+                                "t": round(_t, 4), "g": _g, "n": _n,
+                                "wins": int(_hit[_m].sum()), "roi": round(_roi, 2),
+                                "se": round(100 * float(_pnl[_m].std()) / max(_n, 1) ** 0.5, 1)})
+            _orange.sort(key=lambda x: -x["roi"])
+    except Exception as _e_or:  # noqa: BLE001
+        print(f"[orange scan] {_e_or}")
+
     def _mw(g):
         return {"m": agg(g["m"]), "w": agg(g["w"])}
     _picks = _lane_picks()      # populates _sideagg -- must run before _sc merges below
@@ -3117,6 +3212,10 @@ def get_ab25_record() -> dict:
                 "m_dog": agg(b.get("md") or []), "m_fav": agg(b.get("mf") or []),
                 "w_dog": agg(b.get("wd") or []), "w_fav": agg(b.get("wf") or [])}
     return {"registered": "2026-09-28", "stake_usd": 25,
+            # the orange catalogue: positive FORWARD cells at n>=20 inside the
+            # price band (fav -100..-250, dog +100..+250), best ROI first
+            "orange": _orange, "orange_min_n": _OR_MIN_N,
+            "orange_band": {"fav": _OR_FAV_AM, "dog": _OR_DOG_AM},
             "picks": _picks,
             "lanes": {k: {**agg(v), **_mw(lanes_g[k]), **_sc(k)} for k, v in lanes.items()},
             "study": study_out,
