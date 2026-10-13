@@ -51,6 +51,10 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # mc2_recon=True marks a walk-forward BACKFILL (pre-match ratings only, result
            # never used) -- display-only, excluded from the mc2_* forward lanes.
            "mc2_p1", "mc2_recon",
+           # MC v3 head (2026-10-13): MC2 + per-surface serve/return (shrunk toward career),
+           # best-of-five modelled, day tilt in the pick. Own column so MC2's record stays
+           # its own. WATCH ONLY on arrival -- no mark and no lane reads it yet.
+           "mc3_p1", "mc3_recon",
            # MC2 input quality, frozen at log time (2026-10-13). mc2_svp_min = the thinner
            # side's 52w service-point count on this surface; mc2_stretch_d = how far back
            # the L10 window reached. NULL on every row logged before this shipped, and a
@@ -237,6 +241,8 @@ def log_predictions(matches: list, date: str):
             "utr_mom_p1": (m.get("utr") or {}).get("mom"),
             "mc2_p1": (m.get("mc2") or {}).get("p1_prob"),
             "mc2_recon": False,
+            "mc3_p1": (m.get("mc3") or {}).get("p1_prob"),
+            "mc3_recon": False,
             "mc2_svp_min": (m.get("mc2") or {}).get("svp_min"),
             "mc2_stretch_d": (m.get("mc2") or {}).get("stretch_d"),
             "p1_m7": load7.get(str(m.get("player_1")), [0, 0])[0],

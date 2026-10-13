@@ -2323,6 +2323,17 @@ def _compute_tennis_today_inner(date: str = None):
                                         r.get("surface"), market_p1=_mk1)
             except Exception:  # noqa: BLE001
                 r["mc2"] = None
+            # MC v3 (2026-10-13): MC2 plus per-surface serve/return ratings shrunk toward
+            # career, best-of-five actually modelled, and the day-form tilt applied to the
+            # pick instead of only to the set distributions. A SEPARATE head with its own
+            # state and log column -- MC2 is untouched so the two can be compared on a live
+            # forward record. See tennis_mc3.py for the measurements behind each change.
+            try:
+                import tennis_mc3 as _tm3
+                r["mc3"] = _tm3.predict(r["player_1"], r["player_2"], r.get("surface"),
+                                        best_of_5=bool(r.get("best_of_5")))
+            except Exception:  # noqa: BLE001
+                r["mc3"] = None
             # MC2 INPUT QUALITY (2026-10-13). MC2's engine is a point-level Markov chain
             # driven by serve/return RATES, so the number of points behind those rates is
             # the real measure of how much to trust it -- not the match count, which
