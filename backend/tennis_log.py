@@ -2859,7 +2859,8 @@ def get_ab25_record() -> dict:
                 "dog_am": list(MC2_DOG_AM), "fav_am": list(MC2_FAV_AM),
                 "fav_on": list(MC2_FAV_ON),
                 "dog_long_am": list(MC2_DOG_LONG_AM),
-                "dog_long_t": MC2_DOG_LONG_T}
+                "dog_long_t": MC2_DOG_LONG_T,
+                "iq_min_svp": MC2_IQ_MIN_SVP, "iq_max_stretch": MC2_IQ_MAX_STRETCH}
     if "mc2_p1" in log.columns:
         _q3 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["mc2_p1"].notna()]
         if "mc2_recon" in _q3.columns:
@@ -2874,6 +2875,17 @@ def get_ab25_record() -> dict:
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     _sk = True
             if _sk:
+                continue
+            # INPUT-QUALITY GATE (2026-10-13). The board withholds the mark on these rows,
+            # so the lane must not bet them either or the record it reports would not be
+            # the record of what the board showed. A NULL is "unknown", never "bad": every
+            # row logged before this shipped carries nulls and is left alone, so the gate
+            # only bites going forward and no past lane number silently changes.
+            _iqv = rr.get("mc2_svp_min") if "mc2_svp_min" in _q3.columns else None
+            _iqs = rr.get("mc2_stretch_d") if "mc2_stretch_d" in _q3.columns else None
+            if _iqv is not None and not pd.isna(_iqv) and float(_iqv) < MC2_IQ_MIN_SVP:
+                continue
+            if _iqs is not None and not pd.isna(_iqs) and float(_iqs) > MC2_IQ_MAX_STRETCH:
                 continue
             d1m, d2m = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
             if not d1m or not d2m:
