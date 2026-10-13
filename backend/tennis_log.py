@@ -671,6 +671,26 @@ MC2_FAV_BAND = (0.02, 0.08)
 # a big claimed margin almost always means a near-coin-flip favourite, not a mispriced strong one.
 MC2_FAV_DEEP = 0.08
 
+# MC2 DOG: TAKE vs DEAD ZONE (2026-10-13, user "mark everything above -3 pts take the dog
+# Anything -1 to below -3 mark don't take dog").
+#
+# How far MC2 sits BELOW the market on the favourite, which is the same as how far above it on
+# the dog. The measured shape, dog +100..+250, forward then all-rows:
+#     within 1pt (agrees)   -44.00% / 26      -30.12% /  66     <- worst state of all
+#     -1 to -3 (dead zone)  -64.75% / 12      -17.11% /  63     <- hit 16.7% / 34.9%
+#     -3pt or more          +13.23% / 153      +4.53% / 485     <- hit 45.1% / 41.2%
+# against a baseline of -0.76% / -0.90% for backing every dog in the band. Both samples agree
+# on the sign in all three states and on where it flips, so this is a real threshold rather than
+# a tuned one: it takes about three points before MC2 is saying anything, and below that its
+# shading is noise that costs money.
+#
+# So two cells, and the second one is an AVOID -- the first anti-signal mark on this board. Its
+# lane bets the dog anyway, which is the only way to keep proving the avoid is right; a lane that
+# bets nothing can never be checked.
+MC2_DOG_TAKE = 0.03          # MC2 at least this far below the market on the favourite
+MC2_DOG_DEAD = (0.01, 0.03)  # the dead zone: shading the dog without really disagreeing
+MC2_DOG_AM = (100.0, 250.0)  # dog price band, the user's
+
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
                "p_dog_flip"}
 
@@ -2763,8 +2783,10 @@ def get_ab25_record() -> dict:
     # its sample. Forward picks only -- mc2_recon backfills are dropped, and matches must start at
     # or after MC2_LIVE_FROM so the log opens clean rather than on games already decided.
     _m2 = {k: {"v": [], "m": [], "w": [], "p": 0}
-           for k in ("mc2_fav_band", "mc2_fav_deep", "mc2_dog_flip")}
+           for k in ("mc2_fav_band", "mc2_fav_deep", "mc2_dog_flip",
+                     "mc2_dog3", "mc2_dog_dead")}
     _m2picks = {k: [] for k in _m2}
+    _m2_meta = {"take": MC2_DOG_TAKE, "dead": list(MC2_DOG_DEAD), "dog_am": list(MC2_DOG_AM)}
     if "mc2_p1" in log.columns:
         _q3 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["mc2_p1"].notna()]
         if "mc2_recon" in _q3.columns:
@@ -2789,7 +2811,17 @@ def get_ab25_record() -> dict:
             pv = float(rr["mc2_p1"])
             mcfav = pv if fav1m else 1 - pv
             overm = mcfav - mkfavm
-            if overm > MC2_FAV_DEEP:
+            _dogodd = d2m if fav1m else d1m
+            _dogam = (_dogodd - 1) * 100
+            _dogband = MC2_DOG_AM[0] <= _dogam <= MC2_DOG_AM[1]
+            if _dogband and overm <= -MC2_DOG_TAKE:
+                key, takes1 = "mc2_dog3", (not fav1m)
+            elif _dogband and -MC2_DOG_DEAD[1] < overm <= -MC2_DOG_DEAD[0]:
+                # the AVOID cell. The lane still bets the dog, because that is the only way to
+                # keep testing whether the avoid is right -- a lane that bets nothing proves
+                # nothing. The board shows it as "do not take", not as a pick.
+                key, takes1 = "mc2_dog_dead", (not fav1m)
+            elif overm > MC2_FAV_DEEP:
                 key, takes1 = "mc2_fav_deep", fav1m
             elif MC2_FAV_BAND[0] <= overm <= MC2_FAV_BAND[1]:
                 key, takes1 = "mc2_fav_band", fav1m
@@ -3229,6 +3261,7 @@ def get_ab25_record() -> dict:
             # the orange catalogue: positive FORWARD cells at n>=20 inside the
             # price band (fav -100..-250, dog +100..+250), best ROI first
             "orange": _orange, "orange_min_n": _OR_MIN_N,
+            "mc2_dog_rule": _m2_meta,
             "orange_band": {"fav": _OR_FAV_AM, "dog": _OR_DOG_AM},
             "picks": _picks,
             "lanes": {k: {**agg(v), **_mw(lanes_g[k]), **_sc(k)} for k, v in lanes.items()},
