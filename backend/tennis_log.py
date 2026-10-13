@@ -646,6 +646,20 @@ G_FAV_OVER_MIN = 0.0
 G2_LIVE_FROM = "2026-10-13T01:00:00Z"
 G2_FAV_OVER_MIN = 0.04
 
+# MC2 BROWN MARKS (2026-10-13, user "Okay highlight all favorites 2pt + to 8pt a brown and all
+# underdog flips a brown for mc2"). Two cells, one colour:
+#   mc2_fav_band -- MC2 between 2 and 8 points over the market's price on the FAVOURITE. A BAND,
+#                   not a floor: on the live log the favourite side is an inverted U, worthless
+#                   at any margin (-1.4% on 87), best around 3-4pt, and negative again past 10pt
+#                   -- a huge claimed margin on a short price means MC2 has misread the match,
+#                   not found value. Measured in-band: +4.46% on 36 (M -5.2 / W +17.9).
+#   mc2_dog_flip -- MC2 puts the market UNDERDOG past 50%. +14.63% on 57 (M +23.0 / W -3.4),
+#                   against +2.24% for backing every dog on the same rows.
+# Both are WATCH cells on five days of data with standard errors of 12-15 points. The one
+# sturdier fact behind them is the dog side at scale: any-margin dog +6.75% on 256.
+MC2_LIVE_FROM = "2026-10-13T02:00:00Z"
+MC2_FAV_BAND = (0.02, 0.08)
+
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
                "p_dog_flip"}
 
@@ -2733,6 +2747,79 @@ def get_ab25_record() -> dict:
                             "w_dog": agg(v["w"] if _isdog2 else []),
                             "w_fav": agg([] if _isdog2 else v["w"])}
 
+    # MC2 BROWN lanes (2026-10-13). Own pass, same reasoning as G's: MC2 is frozen independently
+    # of the model heads, so scoring it inside the model-gated loop would let those heads select
+    # its sample. Forward picks only -- mc2_recon backfills are dropped, and matches must start at
+    # or after MC2_LIVE_FROM so the log opens clean rather than on games already decided.
+    _m2 = {k: {"v": [], "m": [], "w": [], "p": 0} for k in ("mc2_fav_band", "mc2_dog_flip")}
+    _m2picks = {k: [] for k in _m2}
+    if "mc2_p1" in log.columns:
+        _q3 = log[log["p1_odds"].notna() & log["p2_odds"].notna() & log["mc2_p1"].notna()]
+        if "mc2_recon" in _q3.columns:
+            _q3 = _q3[~_q3["mc2_recon"].fillna(False).astype(bool)]
+        if "start_time_utc" in _q3.columns:
+            _q3 = _q3[_q3["start_time_utc"].notna()
+                      & (_q3["start_time_utc"].astype(str) >= MC2_LIVE_FROM)]
+        for _, rr in _q3.iterrows():
+            _sk = False
+            for _bad in ("surface_bad", "inplay_suspect"):
+                _bv = rr.get(_bad) if _bad in _q3.columns else None
+                if _bv is not None and not pd.isna(_bv) and bool(_bv):
+                    _sk = True
+            if _sk:
+                continue
+            d1m, d2m = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
+            if not d1m or not d2m:
+                continue
+            mk1m = (1 / d1m) / ((1 / d1m) + (1 / d2m))
+            fav1m = mk1m >= 0.5
+            mkfavm = mk1m if fav1m else 1 - mk1m
+            pv = float(rr["mc2_p1"])
+            mcfav = pv if fav1m else 1 - pv
+            overm = mcfav - mkfavm
+            if MC2_FAV_BAND[0] <= overm <= MC2_FAV_BAND[1]:
+                key, takes1 = "mc2_fav_band", fav1m
+            elif mcfav < 0.5:
+                key, takes1 = "mc2_dog_flip", not fav1m
+            else:
+                continue
+            decm = d1m if takes1 else d2m
+            _st3 = bool(rr["settled"]) and not pd.isna(rr["p1_won"])
+            hit3 = (bool(rr["p1_won"]) == takes1) if _st3 else None
+            pnl3 = None if hit3 is None else round(25.0 * (decm - 1.0) if hit3 else -25.0, 2)
+            _od3 = rr.get("p1_odds") if takes1 else rr.get("p2_odds")
+            _m2picks[key].append({
+                "d": str(rr.get("date") or "")[5:],
+                "s": str(rr.get("player_1") if takes1 else rr.get("player_2")),
+                "o": str(rr.get("player_2") if takes1 else rr.get("player_1")),
+                "pr": (None if pd.isna(_od3) else int(_od3)),
+                "w": hit3,
+                "lg": "W" if str(rr.get("league")) in ("wta", "itf_women") else "M",
+                "g": round(100 * (pv if takes1 else 1 - pv), 1),
+                "mk": round(100 * (mk1m if takes1 else 1 - mk1m), 1),
+                "pnl": pnl3, "rc": False,
+                "_sort": str(rr.get("start_time_utc") or rr.get("date") or "")})
+            if not _st3:
+                _m2[key]["p"] += 1
+                continue
+            _lg3 = str(rr.get("league") or "")
+            _m2[key]["v"].append(pnl3)
+            _m2[key]["w" if ("wta" in _lg3 or "itf_women" in _lg3) else "m"].append(pnl3)
+        for k in _m2picks:
+            _m2picks[k].sort(key=lambda x: x.get("_sort") or "", reverse=True)
+            for _x in _m2picks[k]:
+                _x.pop("_sort", None)
+        for k, v in _m2.items():
+            _isdog3 = k.endswith("_dog_flip")
+            study_out[k] = {**agg(v["v"]), "pending": int(v["p"]), "from": MC2_LIVE_FROM,
+                            "m": agg(v["m"]), "w": agg(v["w"]),
+                            "dog": agg(v["v"] if _isdog3 else []),
+                            "fav": agg([] if _isdog3 else v["v"]),
+                            "m_dog": agg(v["m"] if _isdog3 else []),
+                            "m_fav": agg([] if _isdog3 else v["m"]),
+                            "w_dog": agg(v["w"] if _isdog3 else []),
+                            "w_fav": agg([] if _isdog3 else v["w"])}
+
     # PRICE-BAND Best-pick records (2026-10-05, user: live color-coded legend on the Prices
     # tab). For each settled MEN game: the Best pick (top gated signal) bucketed by its price
     # (dog +100..+250 / chalk −300..−600), plus the ALL-10 split (−200..−300 / −140..−200).
@@ -3008,6 +3095,7 @@ def get_ab25_record() -> dict:
     # G is scored in its own ungated pass, so its picks never go through bet()/_lane_picks
     _picks.update({k: v for k, v in _gpicks.items() if v})
     _picks.update({k: v for k, v in _g2picks.items() if v})
+    _picks.update({k: v for k, v in _m2picks.items() if v})
 
     def _sc(key):
         b = _sideagg.get(key) or {}

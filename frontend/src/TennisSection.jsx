@@ -3282,6 +3282,49 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     }
     return null                       // leans to the dog but never flips it -- not a G read
   })()
+  // 🟤 MC2 BROWN MARKS (2026-10-13, user "Okay highlight all favorites 2pt + to 8pt a brown
+  // and all underdog flips a brown for mc2"). Two cells, one colour:
+  //   FAV 2-8pt  -- MC2 between 2 and 8 points over the market's price on the favourite. A BAND,
+  //                 not a floor, and that is the point: on the live log the favourite side is an
+  //                 inverted U -- worthless at any margin (-1.4% on 87), best at 3-4pt, negative
+  //                 again past 10pt. A huge claimed margin on a short price means MC2 has misread
+  //                 the match rather than found value. In-band: +4.46% on 36 (M -5.2 / W +17.9).
+  //   DOG-FLIP   -- MC2 puts the market underdog past 50%: +14.63% on 57 (M +23.0 / W -3.4)
+  //                 against +2.24% for backing every dog on the same rows.
+  // Watch marks, like G's and for the same reason: five days of data and standard errors of
+  // 12-15 points. Last in precedence with G, so neither can paint over a validated card.
+  const mc2Mark = (() => {
+    const m2 = match.mc2
+    const mk = mc3 && mc3.market_p1 != null ? mc3.market_p1 : null
+    if (!m2 || m2.p1_prob == null || mk == null) return null
+    const fav1 = mk >= 0.5
+    const mkfav = fav1 ? mk : 1 - mk
+    const mcfav = fav1 ? m2.p1_prob : 1 - m2.p1_prob
+    const over = mcfav - mkfav
+    const lo = match.live_odds || {}
+    const num = (v) => { const n = Number(v); return isNaN(n) ? null : n }
+    const rec = (lane) => {
+      const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[gHL] || {}
+      return c.n ? `lv ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'lv tracking'
+    }
+    if (over >= 0.02 && over <= 0.08) {
+      return { cell: 'FAV 2-8pt', lane: 'mc2_fav_band', who: fav1 ? match.player_1 : match.player_2,
+               od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
+               live: rec('mc2_fav_band'), recon: !!m2.recon }
+    }
+    if (mcfav < 0.5) {
+      return { cell: 'DOG-FLIP', lane: 'mc2_dog_flip', who: fav1 ? match.player_2 : match.player_1,
+               od: num(fav1 ? lo.player_2 : lo.player_1), amt: Math.round(1000 * (0.5 - mcfav)) / 10,
+               live: rec('mc2_dog_flip'), recon: !!m2.recon }
+    }
+    return null
+  })()
+  const HL_BROWN = {
+    bg: 'rgba(140,86,45,0.20)',
+    border: '1px solid rgba(176,110,60,0.95)',
+    rail: '#8c562d',
+    glow: '0 0 16px rgba(140,86,45,0.34)',
+  }
   const HL_BLACK = {
     bg: 'rgba(1,4,9,0.72)',
     border: '1px solid rgba(139,148,158,0.85)',
@@ -3297,8 +3340,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // green first (oldest, deepest evidence), then the dark-blue marks, then G last
   const HLs = hlAny ? HL
     : (hlGrayDog || hlS52) ? HL_DARKBLUE
-      : (gMark && gMark.cell === 'FAV-OVER' && !gMark.recon) ? HL_BLACK : HL_YELLOW
+      : (gMark && !gMark.recon) ? ((gMark.cell === 'FAV-OVER') ? HL_BLACK : HL_YELLOW)
+        : HL_BROWN
   const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMark && !gMark.recon)
+    || !!(mc2Mark && !mc2Mark.recon)
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -3485,6 +3530,31 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         <div className="mono" style={{ fontSize: 8.5, fontWeight: 700, marginBottom: 5, color: lvlNote.tone, letterSpacing: '0.03em' }}
           title={`LEVEL x ROUND, measured 2026-10-08 on 3,822 marked-dog fires (banded +100..+200, true gender, one row per match). By level: TOUR men +16.7% all-years / +15.8% in 2026 (n=384/114), women +43.1% / +40.0% (n=289/71) -- the strongest level AND the only one that held into 2026. CHALLENGER men +10.8% all-years but -1.1% in 2026 (n=766/290), i.e. that level has died; women +39.5% (n=141, 2026 thin). ITF men +13.1% / +8.4%, women +19.4% / +7.9%. SLAMS men +11.7%, women +21.6%. By round: men early +12.0% (n=1,281) / late +17.7% (n=191); women early +32.6% (n=829) / late +9.9% (n=114). Level x round: TOUR EARLY +27.2% (n=622) is the best big cell, ITF EARLY +21.8% (n=500), CH LATE +21.1% (n=95), ITF LATE only +3.2% (n=157). HEADLINE: these dog edges are NOT a soft-book ITF artifact -- they are strongest where the liquidity is. ${lvlNote.rnote}.`}>
           {'🏟 '}{lvlNote.tag}{' · '}{lvlNote.note}{lvlNote.late ? ' · late round' : ' · early round'}
+        </div>
+      ) : null}
+      {mc2Mark ? (
+        <div className="mono"
+          title={`🟤 MC2 ${mc2Mark.cell} — where MC v2 is saying something, NOT a recommendation.
+
+${mc2Mark.cell === 'FAV 2-8pt'
+            ? `MC2 rates the market FAVOURITE ${mc2Mark.amt}pt over the market's own price on it, inside the 2-8 point band. It is a BAND rather than a floor because the favourite side is an inverted U on the live log: worthless at ANY margin (−1.4% on 87), best around 3-4pt, and negative again past 10pt — a huge claimed margin on a short price means MC2 has misread the match, not found value. In-band so far: +4.46% on 36 (men −5.2%, women +17.9%), against −8.55% for backing every favourite on the same rows.`
+            : `MC2 puts the market UNDERDOG ${mc2Mark.amt}pt past 50% — it picks the dog outright rather than merely leaning that way. +14.63% on 57 (men +23.0%, women −3.4%), against +2.24% for backing every dog on the same rows. The sturdier version of this at scale: MC2 over the market on ANY dog by any margin is +6.75% on 256.`}
+
+MC2 is the independent third opinion — surface Elo blended 50/50 in log-odds with a point-level Markov engine off opponent-adjusted serve/return ratings, integrated over rating uncertainty. It is NOT a stat-diff model like G, which is why the two disagree on which cell fires 45% of the time. Its own reckoning measured residual-vs-close as market-minus-vig, so it never bets alone.
+
+WATCH ONLY: five days of forward data, standard errors of 12-15 points. Lane ${mc2Mark.lane} on the 🐕/⭐ Splits tab.`}
+          style={{
+            fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.05em',
+            padding: '3px 6px', borderRadius: 4, color: '#e3b98f',
+            background: 'linear-gradient(90deg, rgba(140,86,45,0.30), transparent)',
+            border: '1px solid rgba(176,110,60,0.70)',
+          }}>
+          {(mc2Mark.recon ? '~' : '') + '🟤 🧮 MC2 ' + mc2Mark.cell + ' → '}
+          <span style={{ fontSize: 11, fontWeight: 900, color: '#f0cba4' }}>
+            {mc2Mark.who.split(' ').slice(-1)[0].toUpperCase()}{mc2Mark.od != null ? `${mc2Mark.od > 0 ? ' +' : ' '}${mc2Mark.od}` : ''}
+          </span>
+          {mc2Mark.cell === 'FAV 2-8pt' ? ` · ${mc2Mark.amt}pt over (2-8 band)` : ` · flips ${mc2Mark.amt}pt past 50%`}
+          <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · watch only`}</span>
         </div>
       ) : null}
       {gMark ? (
