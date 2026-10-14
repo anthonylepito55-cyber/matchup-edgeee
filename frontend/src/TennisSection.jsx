@@ -627,9 +627,8 @@ export default function TennisSection() {
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
-      <ModelPStrip matches={matches} />
 
       {error && (
         <div style={{
@@ -1673,14 +1672,23 @@ function UeDogPanel({ laneRec }) {
 }
 
 // Ⓟ MODEL P TAB (2026-10-09, user "yes" to a Model P tab + "build the p favorite picks").
-function ModelPPanel() {
+function ModelPPanel({ matches }) {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(null)
   useEffect(() => {
     fetch('/api/tennis/model-p').then(r => r.json()).then(setD).catch(e => setErr(String(e)))
   }, [])
-  if (err) return <div className="mono" style={{ marginTop: 16, color: '#f85149' }}>Model P failed to load: {err}</div>
-  if (!d) return <div className="mono" style={{ marginTop: 16, color: 'var(--text-tertiary)' }}>loading Model P…</div>
+  // TODAY'S PICKS, MOVED HERE (2026-10-13, user: "the P ev picks at the top can u tab them").
+  // The strip used to sit above the board on every view, so it was the first thing on the page
+  // whether or not you were looking at Model P. It belongs with the rest of Model P: today's
+  // picks and the record that judges them on one tab. The strip loads the ITF slate itself, so
+  // it works here unchanged -- it only needed the main slate passed in.
+  //
+  // Rendered BEFORE the loading guards below, so today's picks appear immediately rather than
+  // waiting on /api/tennis/model-p.
+  const today = <ModelPStrip matches={matches || []} />
+  if (err) return <div>{today}<div className="mono" style={{ marginTop: 16, color: '#f85149' }}>Model P record failed to load: {err}</div></div>
+  if (!d) return <div>{today}<div className="mono" style={{ marginTop: 16, color: 'var(--text-tertiary)' }}>loading the Model P record…</div></div>
   const lane = (L, label, sub) => (
     <div style={{ padding: '12px 16px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel)', minWidth: 190 }}>
       <div className="mono" style={{ fontSize: 10, color: '#2dd4bf', fontWeight: 700 }}>{label}</div>
@@ -1712,6 +1720,8 @@ function ModelPPanel() {
     </div>
   )
   return (
+    <>
+    {today}
     <div style={{ marginTop: 16 }}>
       <div className="mono" style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid var(--line)', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.55 }}>
         <b style={{ color: '#2dd4bf' }}>Ⓟ MODEL P</b> — the profit model. It starts from the market price and only learns where that price is wrong (an offset model), using record vs the rival's level, C / gray / D-MA gaps to the market, contrarian form, match quality, sUTR and rank. Separate men / women weights. Rules: <b>DOG</b> = {d.rules && d.rules.dog}; <b>FAV</b> = {d.rules && d.rules.fav}. Strict walk-forward 2024-26 (every year tested only on earlier years).
@@ -1739,6 +1749,7 @@ function ModelPPanel() {
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, margin: '16px 0 6px' }}>settled P picks ({done.length}) · {done.filter(p => p.won).length}-{done.filter(p => !p.won).length}</div>
       {done.length ? done.map(row) : <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>no settled picks yet — P went live 2026-10-09</div>}
     </div>
+    </>
   )
 }
 
