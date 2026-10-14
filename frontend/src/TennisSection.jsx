@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { americanOddsToImpliedProb } from './odds.js'
 import TestedPanel from './TestedPanel.jsx'
 import DogPicksPanel from './DogPicksPanel.jsx'
@@ -612,12 +612,34 @@ export default function TennisSection() {
   // ITF, fetched in the BACKGROUND so the board never waits on it -- /api/tennis/itf can take
   // ~30s cold, and a slow or failing ITF feed must not hold up /today. Only MC2-marked dogs merge.
   const [itfBoardExtra, setItfBoardExtra] = useState([])
+  // THE PRICE IS FROZEN AT FIRST SIGHT (2026-10-14, user "make sure itf markets don't move on main
+  // board it moved for kuzmova"). ITF markets are thin and move hard, and the band test is ON THE
+  // PRICE -- +102 is inside +100..+150 and +98 is not -- so rebuilding the list each poll let a
+  // card change its number, and its mark, under the user. The first price a match is seen at is
+  // the price it keeps; only status and score refresh, so a live match still updates its score.
+  // Qualification freezes with it: a card that qualified stays at the price it qualified at.
+  const itfFrozen = useRef(new Map())
   useEffect(() => {
     let dead = false
     const go = () => fetch('/api/tennis/itf').then(r => r.json()).then(d => {
       if (dead) return
-      const keep = (d.matches || []).filter(m => m.status !== 'completed' && mc2DogMarked(m))
-      setItfBoardExtra(keep)
+      const store = itfFrozen.current
+      const live = new Set()
+      for (const m of (d.matches || [])) {
+        const id = m.fixture_id
+        if (id == null) continue
+        if (m.status === 'completed') { store.delete(id); continue }
+        live.add(id)
+        const had = store.get(id)
+        if (had) {
+          // keep the frozen price (and therefore the mark); refresh only what should move
+          store.set(id, { ...had, status: m.status, score: m.score })
+        } else if (mc2DogMarked(m)) {
+          store.set(id, m)
+        }
+      }
+      for (const id of [...store.keys()]) if (!live.has(id)) store.delete(id)
+      setItfBoardExtra([...store.values()])
     }).catch(() => {})
     go()
     const id = setInterval(go, 300000)   // 5 min; these cards change slowly and the call is heavy
