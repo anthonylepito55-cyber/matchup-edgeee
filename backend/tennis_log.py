@@ -2986,8 +2986,13 @@ def get_ab25_record() -> dict:
     #
     # Both lanes BET THE DOG at +100..+200; they differ only in which side owns BOTH seasonal
     # hold% and break%. The mixed case (one stat each) is the negative remainder, left unlaned.
-    _s52 = {k: {"v": [], "m": [], "w": [], "p": 0}
+    _s52 = {k: {"v": [], "m": [], "w": [], "p": 0, "picks": []}
             for k in ("s52_fav_band_dog", "s52_dog_band_dog")}
+    # 🥇 vs 🧡 CONFLICTS (2026-10-14, user "add that lane"). One match, two marks, opposite
+    # sides. Only a NON-MC2 dog mark can conflict with the MC2 gold favourite -- the MC2 dog
+    # marks are the same number with the sign flipped, so they can never both fire. Watch only.
+    _cfl = {k: {"v": [], "m": [], "w": [], "p": 0, "picks": []}
+            for k in ("conflict_gold_fav", "conflict_pink_dog")}
     _s52cols = ("s52_sgw_p1", "s52_rgw_p1", "s52_sgw_p2", "s52_rgw_p2")
     if all(c in log.columns for c in _s52cols):
         _sq = log[log["p1_odds"].notna() & log["p2_odds"].notna()
@@ -3015,7 +3020,28 @@ def get_ab25_record() -> dict:
                 key = "s52_dog_band_dog"
             else:
                 continue
-            if not bool(rr["settled"]) or pd.isna(rr["p1_won"]):
+            # ---- the pick record, in bet()'s exact shape (2026-10-14) ----
+            # This cell scores in its own pass rather than through bet(), so without this it
+            # recorded nothing and could not appear on the Dog picks tab at all. Written for
+            # UNSETTLED rows too, because the live list is built from unsettled picks.
+            _s52set = bool(rr["settled"]) and not pd.isna(rr["p1_won"])
+            _s52w = (bool(rr["p1_won"]) == dgb) if _s52set else None
+            _s52dec = d1b if dgb else d2b
+            _s52[key]["picks"].append({
+                "date": str(rr.get("date"))[:10], "league": rr.get("league"),
+                "start": str(rr.get("start_time_utc") or ""),
+                "tournament": rr.get("tournament"), "surface": rr.get("surface"),
+                "p1": rr.get("player_1"), "p2": rr.get("player_2"),
+                "pick": rr.get("player_1") if dgb else rr.get("player_2"),
+                "opp": rr.get("player_2") if dgb else rr.get("player_1"),
+                "odds": int(rr["p1_odds"] if dgb else rr["p2_odds"]),
+                "ue_gap": None,
+                "score": rr.get("score"), "settled": _s52set,
+                "won": _s52w,
+                "pnl": (None if not _s52set else round(
+                    25.0 * (_s52dec - 1.0) if _s52w else -25.0, 2)),
+            })
+            if not _s52set:
                 _s52[key]["p"] += 1
                 continue
             won1b = bool(rr["p1_won"])
@@ -3024,9 +3050,91 @@ def get_ab25_record() -> dict:
             _lgb = str(rr.get("league") or "")
             _s52[key]["v"].append(pnl)
             _s52[key]["w" if ("wta" in _lgb or "itf_women" in _lgb) else "m"].append(pnl)
+        # ---- 🥇 vs 🧡 CONFLICT PASS (2026-10-14) ----
+        # A row qualifies when the GOLD favourite mark and a non-MC2 PINK dog mark both fire on
+        # it. Both lanes then record the SAME rows on OPPOSITE sides, so the comparison is paired.
+        _c75col = "mc_c75_p1" in log.columns
+        for _, rr in _sq.iterrows():
+            if "surface_bad" in _sq.columns:
+                _sbx = rr.get("surface_bad")
+                if _sbx is not None and not pd.isna(_sbx) and bool(_sbx):
+                    continue
+            _m2 = rr.get("mc2_p1")
+            _rc = rr.get("mc2_recon")
+            if pd.isna(_m2) or (pd.notna(_rc) and bool(_rc)):
+                continue                       # forward rows only
+            d1c, d2c = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
+            if not d1c or not d2c:
+                continue
+            i1c, i2c = 1 / d1c, 1 / d2c
+            mk1c = i1c / (i1c + i2c)
+            dg1 = mk1c < 0.5                   # player_1 is the market dog
+            _lgc = str(rr.get("league") or "").lower()
+            _isw = ("wta" in _lgc) or ("itf_women" in _lgc)
+            dodd = float(rr["p1_odds"] if dg1 else rr["p2_odds"])
+            fdec = d2c if dg1 else d1c
+            famt = ((fdec - 1) * 100 if fdec >= 2 else -100.0 / max(fdec - 1, 1e-9))
+
+            # --- the GOLD favourite mark ---
+            _fp = (1 - float(_m2)) if dg1 else float(_m2)      # MC2 on the favourite
+            _ov = _fp - max(mk1c, 1 - mk1c)
+            _lo = -200.0 if _isw else -150.0                   # mens deep half is NOT marked
+            if not (_ov >= 0.04 and _lo <= famt <= -100.0):
+                continue
+
+            # --- a non-MC2 PINK dog mark on the other side ---
+            _pink = False
+            _ds = (1.0 if dg1 else -1.0) * (float(rr["s52_sgw_p1"]) - float(rr["s52_sgw_p2"]))
+            _dr = (1.0 if dg1 else -1.0) * (float(rr["s52_rgw_p1"]) - float(rr["s52_rgw_p2"]))
+            if _ds < 0 and _dr < 0 and 100 <= dodd <= (200 if _isw else 150):
+                _pink = True                                   # s52 seasonal-band dog
+            if not _pink and _c75col and not _isw and 100 <= dodd <= 150:
+                _c75 = rr.get("mc_c75_p1")
+                if pd.notna(_c75):
+                    _c75d = (float(_c75) if dg1 else 1 - float(_c75))
+                    if _c75d >= 0.5:
+                        _pink = True                           # c75 dog flip, men +100..+150
+            if not _pink:
+                continue
+
+            _set = bool(rr["settled"]) and not pd.isna(rr["p1_won"])
+            for _k, _side1 in (("conflict_gold_fav", not dg1), ("conflict_pink_dog", dg1)):
+                _dec = d1c if _side1 else d2c
+                _w = (bool(rr["p1_won"]) == _side1) if _set else None
+                _cfl[_k]["picks"].append({
+                    "date": str(rr.get("date"))[:10], "league": rr.get("league"),
+                    "start": str(rr.get("start_time_utc") or ""),
+                    "tournament": rr.get("tournament"), "surface": rr.get("surface"),
+                    "p1": rr.get("player_1"), "p2": rr.get("player_2"),
+                    "pick": rr.get("player_1") if _side1 else rr.get("player_2"),
+                    "opp": rr.get("player_2") if _side1 else rr.get("player_1"),
+                    "odds": int(rr["p1_odds"] if _side1 else rr["p2_odds"]),
+                    "ue_gap": None, "score": rr.get("score"), "settled": _set,
+                    "won": _w,
+                    "pnl": (None if not _set else round(
+                        25.0 * (_dec - 1.0) if _w else -25.0, 2)),
+                })
+                if not _set:
+                    _cfl[_k]["p"] += 1
+                    continue
+                _p = 25.0 * (_dec - 1.0) if _w else -25.0
+                _cfl[_k]["v"].append(_p)
+                _cfl[_k]["w" if _isw else "m"].append(_p)
+        for k, v in _cfl.items():
+            _isfav = k.endswith("_fav")
+            study_out[k] = {**agg(v["v"]), "pending": int(v["p"]), "picks": v["picks"],
+                            "m": agg(v["m"]), "w": agg(v["w"]),
+                            "dog": agg([] if _isfav else v["v"]),
+                            "fav": agg(v["v"] if _isfav else []),
+                            "m_dog": agg([] if _isfav else v["m"]),
+                            "m_fav": agg(v["m"] if _isfav else []),
+                            "w_dog": agg([] if _isfav else v["w"]),
+                            "w_fav": agg(v["w"] if _isfav else [])}
+
         for k, v in _s52.items():
             # every pick is a DOG by construction, so dog == overall and fav is empty
             study_out[k] = {**agg(v["v"]), "pending": int(v["p"]),
+                            "picks": v["picks"],
                             "m": agg(v["m"]), "w": agg(v["w"]),
                             "dog": agg(v["v"]), "fav": agg([]),
                             "m_dog": agg(v["m"]), "m_fav": agg([]),
