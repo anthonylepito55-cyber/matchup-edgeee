@@ -279,6 +279,7 @@ function badBandGenders(cells) {
     for (const p of cel.picks) {
       if (!priceOK(p) || !leagueOK(p)) continue
       if (!genderOK(cel.c, genderOf(p))) continue
+      if (!cellThick(cel.c, genderOf(p))) continue
       const k = `${p.date}|||${p.pick}|||${p.opp}`
       if (!seen.has(k)) seen.set(k, p)
     }
@@ -311,6 +312,7 @@ function dedupe(cells, filterFn) {
     for (const p of cel.picks) {
       if (!priceOK(p) || !leagueOK(p)) continue
       if (!genderOK(cel.c, genderOf(p))) continue
+      if (!cellThick(cel.c, genderOf(p))) continue   // too few settles for this gender to read
       if (bad.has(bandKey(p))) continue        // this gender x band loses money forward
       if (filterFn && !filterFn(p)) continue
       const k = `${p.date}|||${p.pick}|||${p.opp}`
@@ -338,6 +340,24 @@ function agg(ps) {
 // "new": suppressing it would hide every cell on its first pick of a gender. Once it settles
 // into negative territory it drops out on its own.
 const genderOf = p => (/wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm')
+
+// THIN CELLS STOP COUNTING (2026-10-14, user "remove matches like this" on a card whose only two
+// cells were 6-4 SPLIT W +17%/12 and D-MA DOG W +6%/23). A cell is ignored for a gender whose
+// record has fewer than MIN_CELL_N settles, and a card left with no qualifying cell drops off the
+// list entirely.
+//
+// A SAMPLE floor rather than an ROI floor: at dog prices a 12-bet cell carries a standard error
+// near 40 points, so +17% on 12 is not distinguishable from zero. An ROI floor would keep that
+// cell and drop a 200-bet cell at +8%, which is backwards.
+//
+// 25 is roughly where a dog cell's standard error falls under ~25 points, and the smallest floor
+// that removes the card this came from. It does NOT affect the gender gate, the band gate or the
+// pink/gold rules, and a thin cell still shows in the "by cell" list with its own numbers.
+const MIN_CELL_N = 25
+const cellThick = (c, g) => {
+  const d = genderRec(c, g)
+  return !d.n || d.n >= MIN_CELL_N
+}
 
 // EVERYTHING ON THIS TAB IS ORDERED EARLIEST -> LATEST (2026-10-14, user "I want it in order
 // from earliest time to latest" / "All the dog tab"), by the match's own start time rather than
@@ -439,6 +459,7 @@ export default function DogPicksPanel({ query }) {
       if (!priceOK(p) || !leagueOK(p)) continue   // nothing above +300, no ITF men
       const g = genderOf(p)
       if (!genderOK(cel.c, g)) continue       // this gender's half of the cell loses money
+      if (!cellThick(cel.c, g)) continue      // ...and this gender's half is too small to read
       if (badBG.has(bandKey(p))) continue     // ...and this gender x price band loses money
       const k = `${p.pick}|||${p.opp}`
       if (!byMatch[k]) byMatch[k] = { p, g, cells: [] }
@@ -462,6 +483,7 @@ export default function DogPicksPanel({ query }) {
   const favHist = (p) => histCells(p).some(
     c => c.key === (genderOf(p) === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m')) ? favBandOf(p) : null
   const histCells = (p) => cells.filter(cel => genderOK(cel.c, genderOf(p))
+    && cellThick(cel.c, genderOf(p))
     && cel.picks.some(x => x.date === p.date && x.pick === p.pick && x.opp === p.opp))
   const histDays = []
   for (const p of finished) {
@@ -492,7 +514,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men at the <b>6pt</b> gate — +30.61% on 18 (t 0.79), moved up from 4pt where it was +6.86% on 22; the trade is that its corrected recon goes flat (−0.00%) where at 4pt both windows were positive; <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Also pink: the <b>s52 seasonal-band dog</b> — back the dog when the FAVOURITE owns both 52-week hold% and break%, i.e. fade the seasonal stat leader. <b>Women +100..+200</b>; <b>men +100..+150 only</b>, the deeper men’s half held back until it has more games (+4.29% on 28, inside a band that is −6.57% on 84 deduped and already gated off the tab). The only cell on this board clearing <b>t = 2</b> (+19.80% on 183; men +13.49%/94, women +26.46%/89). Its own +200 ceiling is earned: re-run without it, +200..+250 is −14.94%/65 and +250..+300 is −11.21%/38. Also pink: the <b>c75 dog flip</b> — C75 puts the market underdog past 50% and picks it outright — <b>men at +100..+150 only</b> (+22.88% on 65, t 1.73). The men’s record collapses outside that band (−26.27% at +150..+200) and the women’s half is −23.53% at +100..+150, so neither is marked. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: GOLD }}>🥇 Gold = a FAVOURITE</b>, kept visually and numerically separate from the dogs, and gender×band on the same forward rule as pink: <b>women −100..−200</b> (both bands — +22.85% on 51, t 2.16, positive in both windows) and <b>men −100..−150 only</b> (⚠ +18.51% forward on <b>twelve</b> bets, but −30.54% on recon and pooled −13.72% against a blind band of −13.60% — a watch mark). The men’s −150..−200 half is −13.95% forward and is <b>not</b> marked. Cells under ten settled forward bets are not marked at all, which is why −200..−250 and deeper stay off. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men at the <b>6pt</b> gate — +30.61% on 18 (t 0.79), moved up from 4pt where it was +6.86% on 22; the trade is that its corrected recon goes flat (−0.00%) where at 4pt both windows were positive; <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Also pink: the <b>s52 seasonal-band dog</b> — back the dog when the FAVOURITE owns both 52-week hold% and break%, i.e. fade the seasonal stat leader. <b>Women +100..+200</b>; <b>men +100..+150 only</b>, the deeper men’s half held back until it has more games (+4.29% on 28, inside a band that is −6.57% on 84 deduped and already gated off the tab). The only cell on this board clearing <b>t = 2</b> (+19.80% on 183; men +13.49%/94, women +26.46%/89). Its own +200 ceiling is earned: re-run without it, +200..+250 is −14.94%/65 and +250..+300 is −11.21%/38. Also pink: the <b>c75 dog flip</b> — C75 puts the market underdog past 50% and picks it outright — <b>men at +100..+150 only</b> (+22.88% on 65, t 1.73). The men’s record collapses outside that band (−26.27% at +150..+200) and the women’s half is −23.53% at +100..+150, so neither is marked. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: GOLD }}>🥇 Gold = a FAVOURITE</b>, kept visually and numerically separate from the dogs, and gender×band on the same forward rule as pink: <b>women −100..−200</b> (both bands — +22.85% on 51, t 2.16, positive in both windows) and <b>men −100..−150 only</b> (⚠ +18.51% forward on <b>twelve</b> bets, but −30.54% on recon and pooled −13.72% against a blind band of −13.60% — a watch mark). The men’s −150..−200 half is −13.95% forward and is <b>not</b> marked. Cells under ten settled forward bets are not marked at all, which is why −200..−250 and deeper stay off. A cell whose record for that gender has <b>fewer than 25 settles</b> no longer counts — at dog prices a 12-bet cell has a standard error near 40 points, so it cannot be read — and a card left with no qualifying cell drops off this list (it still appears under <i>by cell</i>). <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
