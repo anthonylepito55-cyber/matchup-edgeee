@@ -1,4 +1,4 @@
-"""SETTLE ITF ROWS FROM TENNISEXPLORER (2026-10-10, user: "fix").
+"""SETTLE ROWS FROM TENNISEXPLORER BY NAME + DATE (2026-10-10; widened past ITF 2026-10-14).
 
 THE BUG: all 130 ITF rows in the ledger had never settled -- none, going back to 2026-10-07, all
 with score=None. Every ITF pick was therefore permanently pending: absent from every lane record,
@@ -36,7 +36,8 @@ import tennis_log
 
 BASE = "https://www.tennisexplorer.com/results/"
 H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (matchup-edge research)"}
-MAX_AGE = 30          # don't chase rows older than this
+MAX_AGE = 45          # don't chase rows older than this. Raised from 30 on 2026-10-14:
+                      # the stranded backlog reached 2026-09-07, which 30 days could not touch.
 
 
 def _ascii(s):
@@ -148,12 +149,21 @@ def settle(max_age_days=MAX_AGE, dry_run=False, verbose=True):
         return {"rows": 0}
     today = pd.Timestamp.utcnow().tz_localize(None).normalize()
     dates = pd.to_datetime(log["date"].astype(str).str[:10], errors="coerce")
-    todo = log[(log["settled"] != True) & log["league"].astype(str).str.startswith("itf")  # noqa: E712
+    # EVERY LEAGUE, not just ITF (2026-10-14). This was ITF-only because ITF was the league
+    # whose fixture ids no source could match. But OpticOdds also fails on RETIREMENTS in every
+    # league: it returns status="completed" with level set totals and no winner field (Djokovic
+    # v De Minaur, Beijing final -- 7-6 then 0-1, abandoned in set two), so tennis_log.settle()
+    # correctly declines to guess and the row stays pending forever. TennisExplorer publishes
+    # the winner for those, so the same name+date matcher resolves them. The strict matching
+    # below is unchanged and is what makes widening safe: both players must match on
+    # surname+initial, the pair must resolve to exactly ONE match on the date, and the sets must
+    # be decisive -- anything ambiguous is still left alone.
+    todo = log[(log["settled"] != True)                                            # noqa: E712
                & (dates >= today - pd.Timedelta(days=max_age_days))
                & (dates <= today)].copy()
     if todo.empty:
         if verbose:
-            print("[itf settle] nothing pending")
+            print("[te settle] nothing pending")
         return {"rows": 0}
     out = {"pending": int(len(todo)), "settled": 0, "ambiguous": 0, "not_found": 0}
     by_date = {}
@@ -176,7 +186,7 @@ def settle(max_age_days=MAX_AGE, dry_run=False, verbose=True):
             time.sleep(1.0)
         by_date[d] = got
         if verbose:
-            print(f"[itf settle] {d}: {len(got)} completed matches on TennisExplorer", flush=True)
+            print(f"[te settle] {d}: {len(got)} completed matches on TennisExplorer", flush=True)
     for i, r in todo.iterrows():
         d = str(r["date"])[:10]
         K1, K2 = name_keys(r["player_1"]), name_keys(r["player_2"])
