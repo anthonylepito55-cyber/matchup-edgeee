@@ -27,6 +27,15 @@ const SHOW_MODEL_P = false
 // ITF men are excluded, matching the tab, which drops them as the only league with a negative dog
 // ROI there (-26.15% on 27). Flip ITF_MEN_ON_BOARD to include them.
 const ITF_MEN_ON_BOARD = false
+
+// TABS HIDDEN (2026-10-14, user: "Remove, best tab, prices, p/l, sets, star picks, dog and star
+// splits, low error dogs, and model x tab, leave dog picks tab, board, $25 tab, and results
+// history"). Hidden, not deleted -- the panels, their data and their routes are untouched, so any
+// of these returns by removing one string from this set.
+//
+// 'itf' and 'tested' are in NEITHER the remove list nor the keep list, so they stay. Note ITF is
+// now merged into the board for MC2-marked dogs, which makes its own tab largely redundant.
+const HIDDEN_TABS = new Set(['best', 'prices', 'tabpl', 'sets', 'picks', 'splits', 'uedog', 'modelx'])
 const ITF_DOG_CELLS = [
   { g: 'm', lo: 100, hi: 150, pt: 0.04 },
   { g: 'w', lo: 100, hi: 150, pt: 0.04 },
@@ -537,7 +546,9 @@ export default function TennisSection() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [view, setView] = useState('board')
+  const [viewRaw, setView] = useState('board')
+  // a hidden tab (or a stale remembered one) falls back to the board rather than an empty page
+  const view = HIDDEN_TABS.has(viewRaw) ? 'board' : viewRaw
   const [query, setQuery] = useState('')
   const [laneRec, setLaneRec] = useState(null)
   // green-only mode (2026-10-02, user ask): hide red/avoid + live-negative signals.
@@ -711,7 +722,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['dogpicks', '🐕 Dog picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ...(SHOW_MODEL_P ? [['modelp', 'Ⓟ Model P']] : []), ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['dogpicks', '🐕 Dog picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ...(SHOW_MODEL_P ? [['modelp', 'Ⓟ Model P']] : []), ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].filter(([k]) => !HIDDEN_TABS.has(k)).map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
