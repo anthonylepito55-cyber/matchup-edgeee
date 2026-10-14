@@ -85,6 +85,47 @@ const priceOK = p => p.odds != null && p.odds <= MAX_AM
 // cell -- though it fits the ITF stats audit, where 91% of ITF players have no stat context and
 // the heads are working from nearly nothing. The LANE records underneath still include ITF men,
 // so the per-cell ROI and t columns stay full-sample and this is one constant to reverse.
+// BAND-SPECIFIC PINK (2026-10-14, user asks). The cells behave differently by band, so the rule
+// does too. Every number behind this is in _patch_pink_bands.py.
+//
+//   +100..+150  ANY MC2-family cell. Every bucket on the board clearing |t| >= 2 is here and is
+//               MC2: pink +29.97%/119 (t 3.11), band +29.61%/62 (t 2.26), take +26.34%/79 (t 2.19).
+//   +150..+200  ONLY MC2 6pt / TAKE (+21.30%/54, t 1.15) and FADE FORM (+22.70% on just 11),
+//               because the rest invert here: MC2 pink -12.41%/22, MC2 band -12.20%,
+//               c75 flip -2.79%/39, c50+c75 -5.09%/34, tier-avoid -1.98%/41.
+//
+// Only the first band has real support, and even there 3 of 40 buckets clear t=2 against ~2
+// expected by chance -- what lifts it is that the hits cluster in one band and one family where
+// chance scatters. The second band is a lean (t 1.15, and eleven bets for fade form).
+//
+//   +200..+250  the C75 FAMILY, which swaps places with MC2 (c75 +50.4% against MC2 -2.89%/37).
+//               SHIPPED ON THE USER'S EXPLICIT CALL after the sample was shown and the concern
+//               raised: deduped it is THIRTEEN BETS, 6-7, t 1.12, all inside one ten-day window,
+//               and c75_dog_100plus alone IS all 13 -- the four cells are the same bets counted
+//               four times, not four confirmations. The badge carries "n13" so the sample is
+//               never out of sight, and one bad week flips it negative.
+//
+// Display only: no lane, no board mark, nothing filtered out.
+const PINK = '#f778ba'
+const PINK_TAG = '\u{1F9E1} '
+const PINK_RULES = [
+  { lo: 100, hi: 150, tag: 'MC2', tip: 'MC2 dog at +100..+150 - the one cell x band concentration on this board. MC2 pink +29.97% on 119 (t 3.11, the highest t anywhere), MC2 band +29.61% on 62 (t 2.26), MC2 take +26.34% on 79 (t 2.19). Caveat: 3 of 40 buckets clear t=2 against ~2 expected by chance, but they cluster in one band and one family where chance scatters, and this band is positive for 19 of 20 cells. The three cells overlap, so this is one finding, not three.',
+    cells: new Set(['pink_mc2_dog', 'mc2_dog_band', 'mc2_take_dog_all', 'mc2_dog6_all',
+                    'mc2_dog_flip']) },
+  { lo: 150, hi: 200, tag: '6pt/FADE', tip: 'MC2 6pt / TAKE or FADE FORM at +150..+200 - the only cells that survive this band. MC2 6pt/take +21.30% on 54 (t 1.15); fade form +22.70% on just 11. Everything else inverts here: MC2 pink -12.41% on 22, MC2 band -12.20%, c75 flip -2.79% on 39, c50+c75 -5.09% on 34, tier-avoid -1.98% on 41. A LEAN, not a result.',
+    cells: new Set(['mc2_dog6_all', 'mc2_take_dog_all', 'pf_c75_dis_dog']) },
+  { lo: 200, hi: 250, tag: 'c75 n13', tip: 'c75 family at +200..+250 - the band where c75 and MC2 swap places (c75 +50.4%, MC2 -2.89% on 37). THIRTEEN BETS, 6-7, t 1.12, all inside one ten-day window. The four c75 cells are NOT four confirmations: c75_dog_100plus alone is all 13, so they are the same bets counted four times. Marked on your call with the sample stated - one bad week flips it negative.',
+    cells: new Set(['mc_c75_dog', 'c75_dog_100plus', 'cc75_dog', 'cc75_nod_dog']) },
+]
+const pinkRule = (p, cellKeys) => {
+  if (p.odds == null) return null
+  const keys = [...(cellKeys || [])]
+  for (const r of PINK_RULES) {
+    if (p.odds >= r.lo && p.odds <= r.hi && keys.some(k => r.cells.has(k))) return r
+  }
+  return null
+}
+
 const DROP_LEAGUES = new Set(['itf_men'])
 const leagueOK = p => !DROP_LEAGUES.has(String(p.league || '').toLowerCase())
 
@@ -255,7 +296,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2</b> at <b>+100..+150</b> (every bucket clearing t=2 is here and is MC2: pink +29.97%/119 t 3.11, band +29.61%/62 t 2.26, take +26.34%/79 t 2.19), or <b>MC2 6pt/take or fade form</b> at <b>+150..+200</b> (+21.30%/54 t 1.15 and +22.70% on 11 — a lean; the other cells invert there), or the <b>c75 family</b> at <b>+200..+250</b> (c75 and MC2 swap places there, but this is <b>13 bets, 6-7, t 1.12</b> — the four c75 cells are the same 13 bets counted four times). <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
@@ -322,10 +363,14 @@ export default function DogPicksPanel({ query }) {
             {stacked.map((s, i) => {
               const n = s.cells.length
               const col = n >= 3 ? '#3fb950' : n === 2 ? '#e3b341' : 'var(--text-secondary)'
+              const pr = pinkRule(s.p, s.cells.map(c => c.key))
               return (
                 <div key={i} className="mono" style={{
-                  padding: '9px 13px', borderRadius: 8, background: 'var(--panel)',
-                  border: `1px solid ${n >= 3 ? 'rgba(63,185,80,0.55)' : 'var(--line)'}`,
+                  padding: '9px 13px', borderRadius: 8,
+                  background: pr ? 'rgba(247,120,186,0.10)' : 'var(--panel)',
+                  border: `1px solid ${pr ? 'rgba(247,120,186,0.85)'
+                    : n >= 3 ? 'rgba(63,185,80,0.55)' : 'var(--line)'}`,
+                  boxShadow: pr ? '0 0 14px rgba(247,120,186,0.22)' : undefined,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ color: 'var(--text-tertiary)', fontSize: 10, fontWeight: 700, minWidth: 92 }}>
@@ -340,7 +385,13 @@ export default function DogPicksPanel({ query }) {
                     <span style={{ color: col, fontWeight: 800, fontSize: 10, minWidth: 54 }}>
                       {n} cell{n === 1 ? '' : 's'}
                     </span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{s.p.pick}</span>
+                    {pr ? (
+                      <span title={pr.tip} style={{ fontSize: 10, fontWeight: 800, color: PINK,
+                        border: '1px solid ' + PINK + '88', borderRadius: 6, padding: '0 5px' }}>
+                        {PINK_TAG}{pr.tag}
+                      </span>
+                    ) : null}
+                    <span style={{ fontSize: 13, fontWeight: 700, color: pr ? PINK : 'var(--text-primary)' }}>{s.p.pick}</span>
                     <span style={{ fontSize: 11, color: '#3fb950', fontWeight: 700 }}>
                       {s.p.odds != null ? (s.p.odds > 0 ? `+${s.p.odds}` : s.p.odds) : ''}
                     </span>
@@ -391,8 +442,10 @@ export default function DogPicksPanel({ query }) {
                     {grp.ps.slice().sort((x, y) => whenMs(x) - whenMs(y)).map((p, i) => (
                       <div key={i} className="mono" style={{
                         display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap',
-                        padding: '5px 11px', borderRadius: 7, background: 'var(--panel)',
-                        border: `1px solid ${p.won ? 'rgba(63,185,80,0.3)' : 'var(--line)'}`,
+                        padding: '5px 11px', borderRadius: 7,
+                        background: pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.09)' : 'var(--panel)',
+                        border: `1px solid ${pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.6)'
+                          : p.won ? 'rgba(63,185,80,0.3)' : 'var(--line)'}`,
                       }}>
                         <span style={{ fontSize: 10, color: 'var(--text-tertiary)', minWidth: 52 }}>{fmtPT(p.start)}</span>
                         <span style={{ fontSize: 11, fontWeight: 800, minWidth: 14, color: p.won ? '#3fb950' : '#f85149' }}>
