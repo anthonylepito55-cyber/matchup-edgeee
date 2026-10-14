@@ -61,6 +61,23 @@ function tstat(c) {
 
 const usd = v => `${v < 0 ? '-' : '+'}$${Math.abs(v || 0).toFixed(2)}`
 
+// GENDER-SPECIFIC (2026-10-14, user: "Make sure they're gender specific picks if one gender is
+// negative dog roi I don't want it"). Every cell on this board has split by gender, often
+// hard -- mc2_dog_band is men +20.3% / women -1.0%, cgray_dog_late men +22.1% / women -8.4% --
+// so a blended number hides a losing half. A cell is shown for a gender only when THAT gender's
+// dog ROI is above zero, and the badge reports that gender's record rather than the blend.
+//
+// A gender with no settles yet is not negative, it is unknown, so it is kept and labelled
+// "new": suppressing it would hide every cell on its first pick of a gender. Once it settles
+// into negative territory it drops out on its own.
+const genderOf = p => (/wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm')
+const genderRec = (c, g) => ((c || {})[g] || {})
+const genderOK = (c, g) => {
+  const d = genderRec(c, g)
+  if (!d.n) return true                       // no settles for this gender -> unknown, not bad
+  return (d.roi_pct || 0) > 0
+}
+
 export default function DogPicksPanel({ query }) {
   const [rec, setRec] = useState(null)
   const [open, setOpen] = useState(null)
@@ -85,8 +102,10 @@ export default function DogPicksPanel({ query }) {
   for (const cel of cells) {
     for (const p of cel.picks) {
       if (p.won != null || p.settled) continue
+      const g = genderOf(p)
+      if (!genderOK(cel.c, g)) continue       // this gender's half of the cell loses money
       const k = `${p.pick}|||${p.opp}`
-      if (!byMatch[k]) byMatch[k] = { p, cells: [] }
+      if (!byMatch[k]) byMatch[k] = { p, g, cells: [] }
       byMatch[k].cells.push(cel)
     }
   }
@@ -114,7 +133,8 @@ export default function DogPicksPanel({ query }) {
     <div style={{ padding: '4px 0 20px' }}>
       <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>
         <b style={{ color: '#3fb950' }}>🐕 DOG PICKS</b> — every dog cell with a positive forward record, and the
-        picks each one is on. Records come straight from the lanes that score them, so nothing here can disagree
+        picks each one is on, <b>gender-gated</b>: a cell only appears for a gender whose own dog ROI is
+        above zero, and each badge shows that gender’s record rather than the blend. Records come straight from the lanes that score them, so nothing here can disagree
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
@@ -151,13 +171,15 @@ export default function DogPicksPanel({ query }) {
                   </div>
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
                     {s.cells.map((cel, j) => (
-                      <span key={j} title={cel.note} style={{
+                      <span key={j} title={`${cel.note}  [record shown is the ${s.g === 'w' ? "WOMEN'S" : "MEN'S"} half of this cell, which is what applies to this match]`} style={{
                         fontSize: 9, padding: '1px 6px', borderRadius: 7,
                         border: '1px solid rgba(63,185,80,0.35)', color: '#3fb950',
                       }}>
                         {cel.label} <span style={{ color: 'var(--text-tertiary)' }}>
-                          {cel.c.n ? `${cel.c.roi_pct > 0 ? '+' : ''}${Math.round(cel.c.roi_pct)}%/${cel.c.n}` : 'new'}
-                          {cel.t != null ? ` t${cel.t.toFixed(1)}` : ''}
+                          {(() => {
+                            const d = genderRec(cel.c, s.g)
+                            return d.n ? `${s.g.toUpperCase()} ${d.roi_pct > 0 ? '+' : ''}${Math.round(d.roi_pct)}%/${d.n}` : `${s.g.toUpperCase()} new`
+                          })()}
                         </span>
                       </span>
                     ))}
@@ -202,14 +224,30 @@ export default function DogPicksPanel({ query }) {
                   }}>
                     {cel.t == null ? '' : `t ${cel.t.toFixed(2)}`}{cel.t != null && cel.t >= 2 ? ' ✓2se' : ''}
                   </span>
-                  <span style={{ fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
-                    {cel.picks.length ? `${cel.picks.length} picks${isOpen ? ' ▾' : ' ▸'}` : ''}
+                  <span style={{ fontSize: 10, marginLeft: 'auto', display: 'flex', gap: 7 }}>
+                    {['m', 'w'].map(g => {
+                      const d = genderRec(cel.c, g)
+                      const ok = genderOK(cel.c, g)
+                      return (
+                        <span key={g} title={ok
+                          ? `${g === 'w' ? 'Women' : 'Men'}: shown on this tab.`
+                          : `${g === 'w' ? 'Women' : 'Men'}: HIDDEN -- this gender's dog ROI is negative, so its picks are not listed.`}
+                          style={{ color: !d.n ? 'var(--text-tertiary)' : ok ? '#3fb950' : '#f85149', fontWeight: 700 }}>
+                          {g.toUpperCase()} {d.n ? `${d.roi_pct > 0 ? '+' : ''}${Math.round(d.roi_pct)}%/${d.n}` : '—'}
+                          {d.n && !ok ? ' ✕' : ''}
+                        </span>
+                      )
+                    })}
+                    <span style={{ color: 'var(--text-tertiary)' }}>
+                      {cel.picks.length ? `${cel.picks.length} picks${isOpen ? ' ▾' : ' ▸'}` : ''}
+                    </span>
                   </span>
                 </div>
                 {isOpen && cel.picks.length ? (
                   <div style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 6, maxHeight: 320, overflowY: 'auto' }}>
                     {cel.picks.slice().reverse().map((p, i) => (
-                      <div key={i} style={{ fontSize: 10, display: 'flex', gap: 7, padding: '2px 0', color: 'var(--text-secondary)' }}>
+                      <div key={i} title={genderOK(cel.c, genderOf(p)) ? undefined : 'this gender’s half of the cell is negative, so picks like this are not listed on the today tab'}
+                        style={{ fontSize: 10, display: 'flex', gap: 7, padding: '2px 0', color: 'var(--text-secondary)', opacity: genderOK(cel.c, genderOf(p)) ? 1 : 0.4 }}>
                         <span style={{ color: 'var(--text-tertiary)', minWidth: 58 }}>{p.date}</span>
                         <span style={{ minWidth: 14, fontWeight: 700, color: p.won == null ? '#e3b341' : p.won ? '#3fb950' : '#f85149' }}>
                           {p.won == null ? '…' : p.won ? 'W' : 'L'}
