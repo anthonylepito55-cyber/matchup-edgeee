@@ -278,8 +278,10 @@ function badBandGenders(cells) {
     if (FAV_CELLS.has(cel.key)) continue
     for (const p of cel.picks) {
       if (!priceOK(p) || !leagueOK(p)) continue
-      if (!genderOK(cel.c, genderOf(p))) continue
-      if (!cellThick(cel.c, genderOf(p))) continue
+      if (!MARK_CELLS.has(cel.key)) {
+        if (!genderOK(cel.c, genderOf(p))) continue
+        if (!cellThick(cel.c, genderOf(p))) continue
+      }
       const k = `${p.date}|||${p.pick}|||${p.opp}`
       if (!seen.has(k)) seen.set(k, p)
     }
@@ -311,8 +313,10 @@ function dedupe(cells, filterFn) {
     if (FAV_CELLS.has(cel.key)) continue      // favourites never enter the dog maths
     for (const p of cel.picks) {
       if (!priceOK(p) || !leagueOK(p)) continue
-      if (!genderOK(cel.c, genderOf(p))) continue
-      if (!cellThick(cel.c, genderOf(p))) continue   // too few settles for this gender to read
+      if (!MARK_CELLS.has(cel.key)) {
+        if (!genderOK(cel.c, genderOf(p))) continue
+        if (!cellThick(cel.c, genderOf(p))) continue  // too few settles for this gender to read
+      }
       if (bad.has(bandKey(p))) continue        // this gender x band loses money forward
       if (filterFn && !filterFn(p)) continue
       const k = `${p.date}|||${p.pick}|||${p.opp}`
@@ -353,6 +357,23 @@ const genderOf = p => (/wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'
 // 25 is roughly where a dog cell's standard error falls under ~25 points, and the smallest floor
 // that removes the card this came from. It does NOT affect the gender gate, the band gate or the
 // pink/gold rules, and a thin cell still shows in the "by cell" list with its own numbers.
+// MARK_CELLS (2026-10-14, user "a few mc2 6p+ dogs that should be highlighted still").
+// genderOK hides a cell whose ALL-PRICE record for a gender is negative. mc2_dog4_all is -3.04%
+// on 185 for men across every price, so it was hidden for men entirely -- including at +100..+150
+// where it is +27.48% on 48 -- and the pink rule that reads it could never fire.
+//
+// The marks are BAND-specific; that gate is ALL-PRICE. A cell can be bad overall and good in one
+// band, which is the whole finding of this session. So a cell named by a pink or gold rule is
+// exempt from genderOK and from the thin-cell floor. Every other gate still applies: the price
+// cap, the league gate, the gender x band board gate, and the rule's own band + gender test,
+// which is what actually decides the paint.
+//
+// Consequence: a mark-source cell can also appear as a BADGE outside its marked band. It is a
+// badge, not a mark.
+const MARK_CELLS = new Set([
+  ...PINK_RULES.flatMap(r => [...r.cells]),
+  'mc2_fav4_w', 'mc2_fav4_m',
+])
 const MIN_CELL_N = 25
 const cellThick = (c, g) => {
   const d = genderRec(c, g)
@@ -458,8 +479,11 @@ export default function DogPicksPanel({ query }) {
       if (whenMs(p) < CUTOFF) continue
       if (!priceOK(p) || !leagueOK(p)) continue   // nothing above +300, no ITF men
       const g = genderOf(p)
-      if (!genderOK(cel.c, g)) continue       // this gender's half of the cell loses money
-      if (!cellThick(cel.c, g)) continue      // ...and this gender's half is too small to read
+      // a cell the board marks from is judged by its RULE's band, not by its blended record
+      if (!MARK_CELLS.has(cel.key)) {
+        if (!genderOK(cel.c, g)) continue     // this gender's half of the cell loses money
+        if (!cellThick(cel.c, g)) continue    // ...and this gender's half is too small to read
+      }
       if (badBG.has(bandKey(p))) continue     // ...and this gender x price band loses money
       const k = `${p.pick}|||${p.opp}`
       if (!byMatch[k]) byMatch[k] = { p, g, cells: [] }
@@ -512,8 +536,8 @@ export default function DogPicksPanel({ query }) {
   // the same women-only rule for the history rows
   const favHist = (p) => histCells(p).some(
     c => c.key === (genderOf(p) === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m')) ? favBandOf(p) : null
-  const histCells = (p) => cells.filter(cel => genderOK(cel.c, genderOf(p))
-    && cellThick(cel.c, genderOf(p))
+  const histCells = (p) => cells.filter(cel => (MARK_CELLS.has(cel.key)
+      || (genderOK(cel.c, genderOf(p)) && cellThick(cel.c, genderOf(p))))
     && cel.picks.some(x => x.date === p.date && x.pick === p.pick && x.opp === p.opp))
   const histDays = []
   for (const p of finished) {
