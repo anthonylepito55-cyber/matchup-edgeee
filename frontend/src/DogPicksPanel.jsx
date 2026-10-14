@@ -79,6 +79,35 @@ const usd = v => `${v < 0 ? '-' : '+'}$${Math.abs(v || 0).toFixed(2)}`
 // "new": suppressing it would hide every cell on its first pick of a gender. Once it settles
 // into negative territory it drops out on its own.
 const genderOf = p => (/wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm')
+
+// EVERYTHING ON THIS TAB IS ORDERED EARLIEST -> LATEST (2026-10-14, user "I want it in order
+// from earliest time to latest" / "All the dog tab"), by the match's own start time rather than
+// by conviction or by ROI, so the list reads the way the day actually runs.
+const fmtPT = (utc) => {
+  if (!utc) return ''
+  try {
+    const d = new Date(utc)
+    if (isNaN(d)) return ''
+    return d.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).replace(' ', '') + ' PT'
+  } catch (e) { return '' }
+}
+// SORT ON A PARSED TIMESTAMP, not on the string. The log carries two stamp formats
+// ("2026-10-14T10:00:00Z" and "2026-10-14T03:47:22.075256+00:00") and comparing those
+// lexically puts the fractional ones first within the same second -- the first version of this
+// sort did exactly that and the list came out scrambled.
+const whenMs = p => {
+  const t = Date.parse(p.start || '')
+  if (!isNaN(t)) return t
+  const d = Date.parse(`${p.date || ''}T23:59:59Z`)   // no stamp -> end of its own day
+  return isNaN(d) ? 8.64e15 : d
+}
+// a date label, shown only when the match is not on the same local day as the next one, so the
+// chronological list stays readable when it spans the UTC rollover
+const dayLabel = (ms) => {
+  try {
+    return new Date(ms).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'numeric', day: 'numeric' })
+  } catch (e) { return '' }
+}
 const genderRec = (c, g) => ((c || {})[g] || {})
 const genderOK = (c, g) => {
   const d = genderRec(c, g)
@@ -106,10 +135,15 @@ export default function DogPicksPanel({ query }) {
   }).filter(x => x.c && (x.c.n || x.picks.length))
 
   // TODAY: every unsettled pick, grouped by match, so a dog several cells agree on is visible
+  // an unsettled pick whose match started long ago never got a result -- it is a gap in the
+  // log, not an upcoming bet, so it does not belong on a picks list. Everything from six hours
+  // ago onward is kept, which covers in-play matches without dragging in last week's orphans.
+  const CUTOFF = Date.now() - 6 * 3600 * 1000
   const byMatch = {}
   for (const cel of cells) {
     for (const p of cel.picks) {
       if (p.won != null || p.settled) continue
+      if (whenMs(p) < CUTOFF) continue
       const g = genderOf(p)
       if (!genderOK(cel.c, g)) continue       // this gender's half of the cell loses money
       const k = `${p.pick}|||${p.opp}`
@@ -121,8 +155,10 @@ export default function DogPicksPanel({ query }) {
   if (q) {
     stacked = stacked.filter(s => (`${s.p.pick} ${s.p.opp} ${s.p.tournament || ''}`).toLowerCase().includes(q))
   }
-  stacked.sort((a, b) => b.cells.length - a.cells.length
-    || (a.p.pick || '').localeCompare(b.p.pick || ''))
+  stacked.sort((a, b) => (whenMs(a.p) - whenMs(b.p)) || (b.cells.length - a.cells.length))
+
+  // when the list spans more than one local day, each row gets its date so the order reads
+  const multiDay = new Set(stacked.map(x => dayLabel(whenMs(x.p)))).size > 1
 
   const pill = (on, label, onClick) => (
     <button onClick={onClick} className="mono" style={{
@@ -146,7 +182,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>.
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {pill(mode === 'today', `today (${stacked.length})`, () => setMode('today'))}
@@ -165,6 +201,9 @@ export default function DogPicksPanel({ query }) {
                   border: `1px solid ${n >= 3 ? 'rgba(63,185,80,0.55)' : 'var(--line)'}`,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: 10, fontWeight: 700, minWidth: 92 }}>
+                      {multiDay ? `${dayLabel(whenMs(s.p))} ` : ''}{fmtPT(s.p.start) || s.p.date}
+                    </span>
                     <span style={{ color: col, fontWeight: 800, fontSize: 10, minWidth: 54 }}>
                       {n} cell{n === 1 ? '' : 's'}
                     </span>
@@ -253,10 +292,11 @@ export default function DogPicksPanel({ query }) {
                 </div>
                 {isOpen && cel.picks.length ? (
                   <div style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 6, maxHeight: 320, overflowY: 'auto' }}>
-                    {cel.picks.slice().reverse().map((p, i) => (
+                    {cel.picks.slice().sort((a, b) => whenMs(a) - whenMs(b)).map((p, i) => (
                       <div key={i} title={genderOK(cel.c, genderOf(p)) ? undefined : 'this gender’s half of the cell is negative, so picks like this are not listed on the today tab'}
                         style={{ fontSize: 10, display: 'flex', gap: 7, padding: '2px 0', color: 'var(--text-secondary)', opacity: genderOK(cel.c, genderOf(p)) ? 1 : 0.4 }}>
                         <span style={{ color: 'var(--text-tertiary)', minWidth: 58 }}>{p.date}</span>
+                        <span style={{ color: 'var(--text-tertiary)', minWidth: 52 }}>{fmtPT(p.start)}</span>
                         <span style={{ minWidth: 14, fontWeight: 700, color: p.won == null ? '#e3b341' : p.won ? '#3fb950' : '#f85149' }}>
                           {p.won == null ? '…' : p.won ? 'W' : 'L'}
                         </span>

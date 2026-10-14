@@ -2010,6 +2010,7 @@ def get_ab25_record() -> dict:
                     _ug9 = r.get("ue_set5_diff_p1")
                     study[key]["picks"].append({
                         "date": str(r.get("date"))[:10], "league": r.get("league"),
+                        "start": str(r.get("start_time_utc") or ""),
                         "tournament": r.get("tournament"), "surface": r.get("surface"),
                         "p1": r.get("player_1"), "p2": r.get("player_2"),
                         "pick": r.get("player_1") if side1 else r.get("player_2"),
