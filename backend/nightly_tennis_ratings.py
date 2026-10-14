@@ -252,6 +252,42 @@ except Exception as e:                                             # noqa: BLE00
     say("MC3 FAILED: %s" % e)
     traceback.print_exc()
 
+# ------------------------------------------------------------------- MC5
+# MC5's state carries a longer per-player history and a per-(year, surface) season tally, so it
+# goes stale the same way MC2's and MC3's do -- and its season tally especially, since that is
+# the term whose whole point is being current. Failure is reported but not fatal: MC2 and MC3
+# are already swapped in and serving by this point, and MC5 is watch-only.
+say("=" * 70)
+say("MC5: _mc5_build.py (own state, asserts MC2/MC3 untouched)")
+say("=" * 70)
+try:
+    import tennis_mc5 as M5
+    p5 = "data_cache/_mc5_state.pkl"
+    old5_n = 0
+    if os.path.exists(p5):
+        with open(p5, "rb") as f:
+            old5_n = len(pickle.load(f)["players"])
+        say("current MC5 state: %d players, %.1f days old" % (old5_n, age_days(p5)))
+        shutil.copy2(p5, p5 + ".bak")
+    if DRY:
+        say("dry run: skipping MC5")
+    else:
+        rc = os.system("%s _mc5_build.py" % sys.executable)         # noqa: S605
+        if rc != 0:
+            raise RuntimeError("_mc5_build.py exited %d" % rc)
+        good, why = validate(M5, p5, old5_n)
+        say("validation: %s -- %s" % ("PASS" if good else "FAIL", why))
+        if not good:
+            if os.path.exists(p5 + ".bak"):
+                shutil.copy2(p5 + ".bak", p5)
+                say("MC5 rolled back to .bak")
+            raise RuntimeError("MC5 validation failed: %s" % why)
+        M5._S = None
+        M5._MT = None
+except Exception as e:                                             # noqa: BLE001
+    say("MC5 FAILED (not fatal, MC2/MC3 already serving): %s" % e)
+    FAILED.append("mc5: %s" % e)
+
 # ------------------------------------------------------- MC3 history rescore
 # Rebuilding MC3's features invalidates every recon row scored off the previous artifact.
 # Model G taught this the hard way: its history silently moved because ~1,257 rows had been

@@ -2335,6 +2335,17 @@ def _compute_tennis_today_inner(date: str = None):
                                         best_of_5=bool(r.get("best_of_5")))
             except Exception:  # noqa: BLE001
                 r["mc3"] = None
+            # MC v5 (2026-10-13): MC3 plus a recency-weighted last five ON THIS SURFACE and a
+            # pressure/clutch term, both at the user's request. Shipped at their explicit
+            # direction after every term measured neutral-to-worse against MC3 -- see the
+            # module docstring for the numbers. Weights are set where the measured cost is
+            # zero, so MC5 tracks MC3 closely by construction.
+            try:
+                import tennis_mc5 as _tm5
+                r["mc5"] = _tm5.predict(r["player_1"], r["player_2"], r.get("surface"),
+                                        best_of_5=bool(r.get("best_of_5")))
+            except Exception:  # noqa: BLE001
+                r["mc5"] = None
             # MC2 INPUT QUALITY (2026-10-13). MC2's engine is a point-level Markov chain
             # driven by serve/return RATES, so the number of points behind those rates is
             # the real measure of how much to trust it -- not the match count, which

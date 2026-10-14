@@ -55,6 +55,11 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # best-of-five modelled, day tilt in the pick. Own column so MC2's record stays
            # its own. WATCH ONLY on arrival -- no mark and no lane reads it yet.
            "mc3_p1", "mc3_recon",
+           # MC v5 head (2026-10-13): MC3 + surface last-5 (recency weighted) + clutch.
+           # WATCH ONLY on arrival. Every added term measured neutral-to-worse than MC3 on
+           # 120,877 rows; shipped on the user's explicit call with the weights set where
+           # that cost is zero.
+           "mc5_p1", "mc5_recon",
            # MC2 input quality, frozen at log time (2026-10-13). mc2_svp_min = the thinner
            # side's 52w service-point count on this surface; mc2_stretch_d = how far back
            # the L10 window reached. NULL on every row logged before this shipped, and a
@@ -243,6 +248,8 @@ def log_predictions(matches: list, date: str):
             "mc2_recon": False,
             "mc3_p1": (m.get("mc3") or {}).get("p1_prob"),
             "mc3_recon": False,
+            "mc5_p1": (m.get("mc5") or {}).get("p1_prob"),
+            "mc5_recon": False,
             "mc2_svp_min": (m.get("mc2") or {}).get("svp_min"),
             "mc2_stretch_d": (m.get("mc2") or {}).get("stretch_d"),
             "p1_m7": load7.get(str(m.get("player_1")), [0, 0])[0],
@@ -1323,6 +1330,8 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
                                  if pd.notna(r.get("mc2_recon")) else False} if p else None))(pickpct(r, "mc2_p1")),
             "mc3": (lambda p: ({**p, "recon": bool(r.get("mc3_recon"))
                                  if pd.notna(r.get("mc3_recon")) else False} if p else None))(pickpct(r, "mc3_p1")),
+            "mc5": (lambda p: ({**p, "recon": bool(r.get("mc5_recon"))
+                                 if pd.notna(r.get("mc5_recon")) else False} if p else None))(pickpct(r, "mc5_p1")),
             # our headline pick (the favored side shown on the board) + the user's
             # c-MC+c75 take, for the daily hit % in results-history (2026-10-03). The board
             # headlines off prediction -> A -> B -> C (the old tour model is retired, so
@@ -1858,6 +1867,8 @@ def get_ab25_record() -> dict:
               # the heads agree on most cards and the agreement rows just add identical noise
               # to both -- only the disagreements carry information about which is better.
               "mc3_all", "mc3_edge2", "mc3_dog_band",
+              "mc5_all", "mc5_edge2", "mc5_dog_band", "mc5_vs_mc3",
+              "mc5_take_fav", "mc5_take_dog",
               # THE USER'S OWN TAKE RULE (2026-10-13, stated verbatim): "favorites are anything
               # mc2 and mc3 have prices over the market or at the same price at the market are
               # the ones i take, then dogs are anything the market has -4 or more on a favorite
@@ -2105,13 +2116,33 @@ def get_ab25_record() -> dict:
             # ④ gray hates the dog -> men take the favorite, women take the dog.
             if hate0:
                 bet("cr4_grayhate", dog1 if _isw else (not dog1))
+            # MC v5 watch lanes (2026-10-13), mirroring MC3's so the two are measured on the
+            # same rules, plus mc5_vs_mc3 for the rows where the pair disagrees -- the only
+            # rows that can separate them, since MC5's weights are deliberately set so that
+            # it tracks MC3 closely.
+            _m59 = r.get("mc5_p1")
+            _m5rec = bool(r.get("mc5_recon")) if pd.notna(r.get("mc5_recon")) else False
+            if pd.notna(_m59) and not _m5rec:
+                _m5b = float(_m59) >= 0.5
+                bet("mc5_all", _m5b)
+                _ms5 = float(_m59) if _m5b else 1 - float(_m59)
+                _mk5 = mk1 if _m5b else 1 - mk1
+                if _ms5 - _mk5 >= 0.02:
+                    bet("mc5_edge2", _m5b)
+                if _m5b == dog1:
+                    _od5 = r.get("p1_odds") if _m5b else r.get("p2_odds")
+                    if pd.notna(_od5) and 100 <= float(_od5) <= 250:
+                        bet("mc5_dog_band", _m5b)
+                if pd.notna(_m39) and not _m3rec and (float(_m39) >= 0.5) != _m5b:
+                    bet("mc5_vs_mc3", _m5b)
             # THE USER'S TAKE RULE, per head and as an agreement pair. See the lane-name
             # block above for the verbatim statement. Forward rows only -- a recon backfill is
             # not a pick that was ever shown, so it cannot belong in a money lane.
             _tk = {}
             _tst = str(r.get("start_time_utc") or "")
             for _tag, _pv, _rc9 in ((("mc2", r.get("mc2_p1"), r.get("mc2_recon")),
-                                     ("mc3", r.get("mc3_p1"), r.get("mc3_recon")))
+                                     ("mc3", r.get("mc3_p1"), r.get("mc3_recon")),
+                                     ("mc5", r.get("mc5_p1"), r.get("mc5_recon")))
                                     if _tst >= TAKE_LIVE_FROM else ()):
                 if pd.isna(_pv):
                     continue
