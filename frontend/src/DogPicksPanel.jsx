@@ -76,6 +76,18 @@ const usd = v => `${v < 0 ? '-' : '+'}$${Math.abs(v || 0).toFixed(2)}`
 const MAX_AM = 300
 const priceOK = p => p.odds != null && p.odds <= MAX_AM
 
+// LEAGUE GATE (2026-10-14, user "Okay remove all itf men"). ITF men is the only league whose
+// dog ROI is negative on this tab's own basis: -26.15% on 27 (9-18, -$176.50, t -1.30) against
+// WTA +20.98%, ATP challenger +11.56%, ATP tour +11.43% and ITF women +14.39%. It was also the
+// half dragging collapsed ITF down to +1.66% while ITF women alone is +14.39%.
+//
+// 27 bets is not a settled verdict, so this is a lean the user called rather than a proven dead
+// cell -- though it fits the ITF stats audit, where 91% of ITF players have no stat context and
+// the heads are working from nearly nothing. The LANE records underneath still include ITF men,
+// so the per-cell ROI and t columns stay full-sample and this is one constant to reverse.
+const DROP_LEAGUES = new Set(['itf_men'])
+const leagueOK = p => !DROP_LEAGUES.has(String(p.league || '').toLowerCase())
+
 // PRICE BANDS (2026-10-14, user ask). The four bands the user bets in, in order.
 const BANDS = [
   ['+100..+150', 100, 150],
@@ -92,7 +104,7 @@ function dedupe(cells, filterFn) {
   const out = new Map()
   for (const cel of cells) {
     for (const p of cel.picks) {
-      if (!priceOK(p)) continue
+      if (!priceOK(p) || !leagueOK(p)) continue
       if (!genderOK(cel.c, genderOf(p))) continue
       if (filterFn && !filterFn(p)) continue
       const k = `${p.date}|||${p.pick}|||${p.opp}`
@@ -191,7 +203,7 @@ export default function DogPicksPanel({ query }) {
     for (const p of cel.picks) {
       if (p.won != null || p.settled) continue
       if (whenMs(p) < CUTOFF) continue
-      if (!priceOK(p)) continue          // nothing above +300
+      if (!priceOK(p) || !leagueOK(p)) continue   // nothing above +300, no ITF men
       const g = genderOf(p)
       if (!genderOK(cel.c, g)) continue       // this gender's half of the cell loses money
       const k = `${p.pick}|||${p.opp}`
@@ -243,7 +255,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
@@ -282,7 +294,7 @@ export default function DogPicksPanel({ query }) {
         return (
           <>
             <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 5 }}>
-              DAILY — one row per dog, deduped across cells, $25 flat, nothing above +{MAX_AM}
+              DAILY — one row per dog, deduped across cells, $25 flat, ≤ +{MAX_AM}, no ITF men
             </div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
               {recent.map(d => box(d, agg(byDay.get(d)), `Every deduped dog pick that settled on ${d}.`))}
@@ -460,7 +472,7 @@ export default function DogPicksPanel({ query }) {
                 </div>
                 {isOpen && cel.picks.length ? (
                   <div style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 6, maxHeight: 320, overflowY: 'auto' }}>
-                    {cel.picks.filter(priceOK).slice().sort((a, b) => whenMs(a) - whenMs(b)).map((p, i) => (
+                    {cel.picks.filter(p => priceOK(p) && leagueOK(p)).slice().sort((a, b) => whenMs(a) - whenMs(b)).map((p, i) => (
                       <div key={i} title={genderOK(cel.c, genderOf(p)) ? undefined : 'this gender’s half of the cell is negative, so picks like this are not listed on the today tab'}
                         style={{ fontSize: 10, display: 'flex', gap: 7, padding: '2px 0', color: 'var(--text-secondary)', opacity: genderOK(cel.c, genderOf(p)) ? 1 : 0.4 }}>
                         <span style={{ color: 'var(--text-tertiary)', minWidth: 58 }}>{p.date}</span>
