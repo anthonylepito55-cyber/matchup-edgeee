@@ -914,8 +914,9 @@ _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner
                "c75_dog_100plus", "cc75_nod_dog", "cc75_dog", "cr1_stardog",
                "s52_fav_band_dog", "pink_fadeb_dog_m", "pink_mc2_dog", "tier_avoid_dog",
                "dma_dog", "mc2_dog_band", "cgray_dog_late", "ovl_dog", "fight_mc4_dog",
-               # 2026-10-14: MC2 6pt+ on the dog, any price, and the unstamped take-dog lanes
-               "mc2_dog6_all", "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all",
+               # 2026-10-14: MC2 6pt+ / 4pt+ on the dog, any price, and the unstamped take lanes
+               "mc2_dog6_all", "mc2_dog4_all",
+               "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all",
                # the women's favourite cell and its men's control (2026-10-14)
                "mc2_fav4_w", "mc2_fav4_m"}
 
@@ -1952,8 +1953,9 @@ def get_ab25_record() -> dict:
               "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all",
               "mc2_take_fav_all", "mc3_take_fav_all", "mc5_take_fav_all",
               # MC2 6pt+ over on the dog at ANY price -- the Dog picks tab cell
-              # (2026-10-14, user "add All mc2 6 pt to dog tab")
-              "mc2_dog6_all",
+              # (2026-10-14, user "add All mc2 6 pt to dog tab"), plus its 4pt sibling
+              # the women-s pink mark reads (see the bet() site for the two ladders)
+              "mc2_dog6_all", "mc2_dog4_all",
               # 🟡 THE WOMEN'S FAVOURITE CELL (2026-10-14, user "add the women lane on the dog
               # tab"). A women's favourite at -100..-200 that MC2 rates 4pt+ above the de-vigged
               # market. On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against
@@ -2271,6 +2273,13 @@ def get_ab25_record() -> dict:
                 # plain "MC2 is 6 points better than the price on this dog" statement.
                 if _tag9 == "mc2" and _ov9 <= -0.06:
                     bet("mc2_dog6_all", dog1)
+                # ...and the 4pt version. Two thresholds, not one, because the ladder runs in
+                # OPPOSITE directions by gender on +100..+150 dogs (forward + corrected recon):
+                #   men   2pt +12.48  3pt +15.68  4pt +15.39  6pt +18.70  10pt +23.27  (climbs)
+                #   women 2pt  +6.64  3pt  +9.77  4pt +13.15  6pt  +3.07  10pt  +3.55  (peaks at 4)
+                # so the women's pink mark reads this lane and the men's reads the 6pt one.
+                if _tag9 == "mc2" and _ov9 <= -0.04:
+                    bet("mc2_dog4_all", dog1)
                 # 🟡 MC2 4pt+ OVER THE MARKET ON A FAVOURITE at -100..-200, split by gender
                 # because that is where the whole effect lives: women +22.85% on 51 (t 2.16),
                 # men -9.21% on 74. Both lanes run so the split keeps being tested rather than

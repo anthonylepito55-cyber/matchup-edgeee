@@ -33,9 +33,9 @@ const isFavPick = p => p.odds != null && p.odds < 0
 //     -150..-200  n=23  18-5   78.3% hit vs 63.2% needed  +23.50%  t 1.73  -> gold
 // The badge carries the band and the n so the two are never read as one number.
 const FAV_BANDS = [
-  { lo: -150, hi: -100, tag: 'FAV \u2212100/150', col: YELLOW, rgba: '227,179,65',
+  { lo: -150, hi: -100, tag: 'FAV −100/150', col: YELLOW, rgba: '227,179,65',
     note: '-100..-150: +22.31% on 28 (19-9), 67.9% hit against 55.5% needed, t 1.40.' },
-  { lo: -200, hi: -150, tag: 'FAV \u2212150/200', col: GOLD, rgba: '255,215,0',
+  { lo: -200, hi: -150, tag: 'FAV −150/200', col: GOLD, rgba: '255,215,0',
     note: '-150..-200: +23.50% on 23 (18-5), 78.3% hit against 63.2% needed, t 1.73 -- the stronger half.' },
 ]
 const favBandOf = p => (p.odds == null || p.odds >= 0) ? null
@@ -46,6 +46,8 @@ const CELLS = [
   ['🟡 MC2 4pt+ FAV · men (control)', 'mc2_fav4_m', 'The MENS half of the same cut, kept visible as the control that justifies the womens cell: +1.63% on 25 forward, -9.21% on 74 pooled. NOT a take -- it is here so the split keeps being tested on screen instead of assumed.'],
   ['🟤 MC2 6pt+ DOG · all prices', 'mc2_dog6_all',
    'MC2 six or more points over the market on the dog, ANY price (2026-10-14, your ask). The forward ladder is why the bar is 6 and not 4: 3-4pt -1.9% on 27, 4-6pt -4.2% on 45, then 6-8pt +14.1% on 48 and 8pt+ +6.9% on 207. Both genders positive.'],
+  ['🟤 MC2 4pt+ DOG · all prices', 'mc2_dog4_all',
+   'MC2 four or more points over the market on the dog, ANY price. The 4pt sibling of the 6pt cell, added 2026-10-14 because the WOMENS ladder at +100..+150 peaks at 4pt (+13.15% on 91) and dies at 6pt (+3.07% on 68), the reverse of the mens, which climbs to 10pt. This lane feeds the womens pink mark. Its displayed record is a REPLAY of the frozen log, not a forward test -- the rule was written today.'],
   ['🟤 MC2 TAKE DOG · unstamped', 'mc2_take_dog_all',
    'Your take rule at the new -6 threshold, counting every frozen row rather than only those after the rule was written. The date-stamped lane (mc2_take_dog) is the in-sample-free version and is much smaller.'],
   ['🧮³ MC3 TAKE DOG · unstamped', 'mc3_take_dog_all',
@@ -111,42 +113,60 @@ const priceOK = p => p.odds != null && p.odds <= MAX_AM
 // cell -- though it fits the ITF stats audit, where 91% of ITF players have no stat context and
 // the heads are working from nearly nothing. The LANE records underneath still include ITF men,
 // so the per-cell ROI and t columns stay full-sample and this is one constant to reverse.
-// BAND-SPECIFIC PINK (2026-10-14, user asks). The cells behave differently by band, so the rule
-// does too. Every number behind this is in _patch_pink_bands.py.
+// PINK_FORWARD_ONLY (2026-10-14, user: "only mark positive cells pink gender specifc / for
+// mc2", then "by add all the positive ones i meant forward test postiive ones btw").
 //
-//   +100..+150  ANY MC2-family cell. Every bucket on the board clearing |t| >= 2 is here and is
-//               MC2: pink +29.97%/119 (t 3.11), band +29.61%/62 (t 2.26), take +26.34%/79 (t 2.19).
-//   +150..+200  ONLY MC2 6pt / TAKE (+21.30%/54, t 1.15) and FADE FORM (+22.70% on just 11),
-//               because the rest invert here: MC2 pink -12.41%/22, MC2 band -12.20%,
-//               c75 flip -2.79%/39, c50+c75 -5.09%/34, tier-avoid -1.98%/41.
+// THE GATE IS THE FORWARD RECORD ALONE -- the frozen pre-match log. The corrected recon is
+// reported in every tooltip but does not decide, which is the standing rule for this project.
+// That admits two cells whose recon half is bad; both say so on the card.
 //
-// Only the first band has real support, and even there 3 of 40 buckets clear t=2 against ~2
-// expected by chance -- what lifts it is that the hits cluster in one band and one family where
-// chance scatters. The second band is a lean (t 1.15, and eleven bets for fade form).
+// MC2 4pt+ over the de-vigged market on the dog, by gender x band. Lane discipline
+// (surface_bad / resolve_bad / inplay_suspect / void out, ITF men out), $25 flat. Numbers and
+// method: backend/_patch_pink_forward_only.py and backend/_dog_band_ladder.py.
 //
-//   +200..+250  the C75 FAMILY, which swaps places with MC2 (c75 +50.4% against MC2 -2.89%/37).
-//               SHIPPED ON THE USER'S EXPLICIT CALL after the sample was shown and the concern
-//               raised: deduped it is THIRTEEN BETS, 6-7, t 1.12, all inside one ten-day window,
-//               and c75_dog_100plus alone IS all 13 -- the four cells are the same bets counted
-//               four times, not four confirmations. The badge carries "n13" so the sample is
-//               never out of sight, and one bad week flips it negative.
+// PINK_BAND_FIXED 2026-10-14: my scan scripts tested each band with `lo <= odds <= hi`
+// INDEPENDENTLY, so every dog priced at a round boundary (+150/+200/+250) was counted in two
+// bands. bandOf here has always assigned one band per pick, first match wins, so the board was
+// right and the scan was wrong. Fixing it flipped men +250..+300 from +5.24% to -16.11% forward,
+// and that pink rule is gone. Corrected, all MC2 4pt+ on the dog, forward (recon in brackets):
+//
+//     band        gender  n   W-L    FORWARD      t      (recon)         blind band
+//     +100..+150  men     48  28-20  +27.48%     1.77    (+7.20% / 85)   +7.39% / 291   PINK
+//     +100..+150  women   38  21-17  +21.95%     1.23    (+6.85% / 53)   -8.81% / 200   PINK
+//     +150..+200  men     36  10-26  -25.39%    -1.27    (-17.98% / 53)  -17.12% / 145  no
+//     +150..+200  women   30  15-15  +37.73%     1.50    (-10.33% / 46)  +8.38% / 111   PINK
+//     +200..+250  men     22   7-15   +6.86%     0.21    (+3.11% / 37)   +1.51% / 87    PINK
+//     +200..+250  women   21   5-16  -23.00%    -0.77    (+85.42% / 12)  -1.74% / 66    no
+//     +250..+300  men     18   4-14  -16.11%    -0.44    (-46.86% / 22)  -40.36% / 58   no
+//     +250..+300  women   20   8-12  +47.80%     1.18    (+4.00% / 25)   +24.24% / 51   PINK
+//
+// ONE THRESHOLD, NOT ONE PER CELL: 4pt is forward-positive in every cell that is forward-positive
+// at all, so nothing is tuned per band. It is also the more inclusive of the two lanes that exist
+// -- at 6pt the same six cells are all positive too, but on 16-41 bets instead of 21-48. The two
+// excluded cells are negative at EVERY rung from 2pt to 10pt.
+//
+// WEAKEST ADMISSIONS, flagged on their own badges: men +250..+300 (forward +5.24%/21 against a
+// recon of -43.74% and a blind band of -28.54% -- the most violent disagreement on the board);
+// women +250..+300 (blind band already +31.89%, recon exactly 0.00%); men +200..+250 (t 0.21).
 //
 // Display only: no lane, no board mark, nothing filtered out.
 const PINK = '#f778ba'
 const PINK_TAG = '\u{1F9E1} '
 const PINK_RULES = [
-  { lo: 100, hi: 150, tag: 'MC2', tip: 'MC2 dog at +100..+150 - the one cell x band concentration on this board. MC2 pink +29.97% on 119 (t 3.11, the highest t anywhere), MC2 band +29.61% on 62 (t 2.26), MC2 take +26.34% on 79 (t 2.19). Caveat: 3 of 40 buckets clear t=2 against ~2 expected by chance, but they cluster in one band and one family where chance scatters, and this band is positive for 19 of 20 cells. The three cells overlap, so this is one finding, not three.',
-    cells: new Set(['pink_mc2_dog', 'mc2_dog_band', 'mc2_take_dog_all', 'mc2_dog6_all',
-                    'mc2_dog_flip']) },
-  { lo: 150, hi: 200, tag: '6pt/FADE', tip: 'MC2 6pt / TAKE or FADE FORM at +150..+200 - the only cells that survive this band. MC2 6pt/take +21.30% on 54 (t 1.15); fade form +22.70% on just 11. Everything else inverts here: MC2 pink -12.41% on 22, MC2 band -12.20%, c75 flip -2.79% on 39, c50+c75 -5.09% on 34, tier-avoid -1.98% on 41. A LEAN, not a result.',
-    cells: new Set(['mc2_dog6_all', 'mc2_take_dog_all', 'pf_c75_dis_dog']) },
-  { lo: 200, hi: 250, tag: 'c75 n13', tip: 'c75 family at +200..+250 - the band where c75 and MC2 swap places (c75 +50.4%, MC2 -2.89% on 37). THIRTEEN BETS, 6-7, t 1.12, all inside one ten-day window. The four c75 cells are NOT four confirmations: c75_dog_100plus alone is all 13, so they are the same bets counted four times. Marked on your call with the sample stated - one bad week flips it negative.',
-    cells: new Set(['mc_c75_dog', 'c75_dog_100plus', 'cc75_dog', 'cc75_nod_dog']) },
+  { lo: 100, hi: 150, g: 'm', tag: 'MC2 4pt+ M', cells: new Set(['mc2_dog4_all']), tip: 'MEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +27.48% on 48 (28-20, 58.3% hit against 45.7% needed, t 1.77). The corrected recon agrees at +7.20% on 85, and blind mens dogs in this band are +7.39% on 291, so MC2 adds about 20 points forward. THE STRONGEST of the five pink cells: the only one where the forward ROI, the recon and the blind baseline all point the same way. On the board as a whole this is the best gender x band cell there is, +22.36% on 161 at t 2.61.' },
+  { lo: 100, hi: 150, g: 'w', tag: 'MC2 4pt+ W', cells: new Set(['mc2_dog4_all']), tip: 'WOMEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +21.95% on 38 (21-17, 55.3% hit against 45.3% needed, t 1.23). Corrected recon +6.85% on 53, also positive. Blind womens dogs in this band are -8.81% on 200, so the entire edge is MC2 selecting inside a LOSING band -- real, but it dies the moment MC2 drifts. Note the womens ladder peaks at 4pt and falls to +3.07% at 6pt, the reverse of the mens, which climbs all the way to +23.27% at 10pt.' },
+  { lo: 150, hi: 200, g: 'w', tag: 'MC2 4pt+ W', cells: new Set(['mc2_dog4_all']), tip: 'WOMEN, +150..+200. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +37.73% on 30 (15-15, 50.0% hit against 36.6% needed, t 1.50), and every rung from 2pt to 6pt is about the same forward. READ THE OTHER WINDOW: the corrected recon is -10.33% on 46 and negative at every rung. Blind womens dogs in the band are +8.38% on 111, so part of this is the price rather than MC2. In on the forward rule alone. The MENS half of this band is the worst cell on the board at -25.39% forward on 36, and it is excluded from the tab entirely.' },
+  { lo: 200, hi: 250, g: 'm', tag: 'MC2 4pt+ M', cells: new Set(['mc2_dog4_all']), tip: 'MEN, +200..+250. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +6.86% on 22 (7-15, 31.8% hit against 30.8% needed, t 0.21). THE THINNEST EDGE OF THE FIVE -- under seven points at t 0.21 is barely distinguishable from the blind band, which is +1.51% on 87. What recommends it is that both windows agree (recon +3.11% on 37) and that the deduped board cell is +32.43% on 30. The womens half of this band is excluded from the tab (-23.00% forward on 21).' },
+  { lo: 250, hi: 300, g: 'w', tag: 'MC2 4pt+ W', cells: new Set(['mc2_dog4_all']), tip: 'WOMEN, +250..+300. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +47.80% on 20 (8-12, 40.0% hit against 27.0% needed, t 1.18), the best forward ROI of the five. CAVEAT: blind womens dogs in this band are ALREADY +24.24% on 51, so a large part of this is the price and not MC2, and the corrected recon half is only +4.00% on 25. Long womens dogs are the one place this log says the market is persistently wrong; MC2 sharpens that rather than creating it. The MENS half of this band is excluded from the tab: -16.11% forward on 18, against a blind baseline of -40.36% on 58 (t -2.21), the most clearly dead cell on the board.' },
 ]
+
 const pinkRule = (p, cellKeys) => {
-  if (p.odds == null) return null
+  if (p.odds == null || p.odds < 0) return null       // favourites are yellow/gold, never pink
+  // gender inlined rather than calling genderOf, which is declared further down this module
+  const g = /wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'
   const keys = [...(cellKeys || [])]
   for (const r of PINK_RULES) {
+    if (r.g !== g) continue
     if (p.odds >= r.lo && p.odds <= r.hi && keys.some(k => r.cells.has(k))) return r
   }
   return null
@@ -164,16 +184,71 @@ const BANDS = [
 ]
 const bandOf = od => (od == null ? null : (BANDS.find(([, lo, hi]) => od >= lo && od <= hi) || [null])[0])
 
+// NOTHING FORWARD-NEGATIVE ON THE BOARD (2026-10-14, user: "make sure nothing that falls into
+// negative forward test is marked or on the board in dog tab").
+//
+// genderOK already drops a CELL for a losing gender. This is the other axis: the gender x PRICE
+// BAND combination, measured on the boards OWN deduped pick list -- one row per dog per day,
+// which is what betting the tab would actually return. Forward only.
+//
+//     +100..+150  men   +22.36% (161, t 2.61)      women   +4.66% (100, t 0.43)
+//     +150..+200  men    -9.30% ( 66, t -0.59) <-- women  +39.53% ( 55, t 2.14)
+//     +200..+250  men   +37.84% ( 31, t 1.30)      women   +6.67% ( 30, t 0.24)
+//     +250..+300  men   +23.89% ( 27, t 0.71)      women  +52.75% ( 24, t 1.43)
+//
+// COMPUTED, NOT HARDCODED: the records are rebuilt from the live lane payload on every render and
+// anything at or below zero is dropped, so this follows the data instead of freezing todays
+// answer. The records are built BEFORE the gate is applied, so it cannot feed on itself.
+// Accept the consequence: a combination near zero can flip in or out on one result, and men
+// +150..+200 at t -0.59 is a losing record rather than a settled verdict -- which is the bar the
+// user set.
+//
+// This is a DIFFERENT population from the pink gate, and where the two disagree that is correct:
+// pink is measured on the MC2 4pt+ subset only. A pick can be on the board without being pink.
+const bandKey = p => {
+  const b = bandOf(p.odds)
+  return b ? `${/wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'}|${b}` : null
+}
+function badBandGenders(cells) {
+  const seen = new Map()
+  for (const cel of cells) {
+    if (FAV_CELLS.has(cel.key)) continue
+    for (const p of cel.picks) {
+      if (!priceOK(p) || !leagueOK(p)) continue
+      if (!genderOK(cel.c, genderOf(p))) continue
+      const k = `${p.date}|||${p.pick}|||${p.opp}`
+      if (!seen.has(k)) seen.set(k, p)
+    }
+  }
+  const tot = {}
+  for (const p of seen.values()) {
+    const k = bandKey(p)
+    if (!k || p.won == null) continue
+    if (!tot[k]) tot[k] = { n: 0, w: 0, profit: 0 }
+    tot[k].n += 1
+    tot[k].w += p.won ? 1 : 0
+    tot[k].profit += (p.pnl || 0)
+  }
+  const bad = new Map()
+  for (const [k, v] of Object.entries(tot)) {
+    const roi = 100 * v.profit / (25 * v.n)
+    if (roi <= 0) bad.set(k, { ...v, roi })
+  }
+  return bad
+}
+
 // A DOG PICK COUNTED ONCE. The cells overlap heavily -- the same dog can carry nine badges --
 // so summing cell records would multiply one bet into nine. These aggregates key on the match
 // itself, take the pick once, and use its own P/L, which is what betting the tab would return.
 function dedupe(cells, filterFn) {
   const out = new Map()
+  const bad = badBandGenders(cells)
   for (const cel of cells) {
     if (FAV_CELLS.has(cel.key)) continue      // favourites never enter the dog maths
     for (const p of cel.picks) {
       if (!priceOK(p) || !leagueOK(p)) continue
       if (!genderOK(cel.c, genderOf(p))) continue
+      if (bad.has(bandKey(p))) continue        // this gender x band loses money forward
       if (filterFn && !filterFn(p)) continue
       const k = `${p.date}|||${p.pick}|||${p.opp}`
       if (!out.has(k)) out.set(k, p)
@@ -235,7 +310,17 @@ const dayLabel = (ms) => {
     return new Date(ms).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'numeric', day: 'numeric' })
   } catch (e) { return '' }
 }
-const genderRec = (c, g) => ((c || {})[g] || {})
+// ALL_GENDER_SPECIFIC (2026-10-14, user "make sure everything ur checking is gender specific").
+// c.m / c.w blend a cell's DOG and FAVOURITE picks; c.m_dog / c.w_dog are the dog-side only.
+// This tab is a dog board, so the dog-side record is the right one. Verified on live data: for
+// every dog cell here the two are identical (these cells only ever record dog picks), so no gate
+// was wrong -- except ovl_dog, which has NO m_dog/w_dog at all, so a blind switch would silently
+// disable its gate. Hence prefer the dog-side record and fall back.
+const genderRec = (c, g) => {
+  const d = (c || {})[g + '_dog']
+  if (d && d.n) return d
+  return (c || {})[g] || {}
+}
 const genderOK = (c, g) => {
   const d = genderRec(c, g)
   if (!d.n) return true                       // no settles for this gender -> unknown, not bad
@@ -256,9 +341,25 @@ export default function DogPicksPanel({ query }) {
   const st = (rec && rec.study) || {}
   const q = (query || '').trim().toLowerCase()
 
+  // THE HEADLINE IS THE SHOWN GENDERS, NOT THE BLEND. A cell whose men's half is hidden must not
+  // still report the men's dollars in its green number -- that is a figure for bets the tab is
+  // not listing. cShown sums only the genders that pass genderOK; hidden names which one is out.
   const cells = CELLS.map(([label, key, note]) => {
     const c = st[key] || {}
-    return { label, key, note, c, picks: c.picks || [], t: tstat(c) }
+    const shown = ['m', 'w'].filter(g => genderOK(c, g))
+    const hidden = ['m', 'w'].filter(g => !genderOK(c, g))
+    let cShown = c
+    if (hidden.length) {
+      const parts = shown.map(g => genderRec(c, g)).filter(d => d && d.n)
+      if (parts.length) {
+        const n = parts.reduce((a, d) => a + d.n, 0)
+        const wins = parts.reduce((a, d) => a + (d.wins || 0), 0)
+        const profit_usd = parts.reduce((a, d) => a + (d.profit_usd || 0), 0)
+        cShown = { ...c, n, wins, profit_usd,
+                   roi_pct: Math.round(1000 * profit_usd / (25 * n)) / 10 }
+      }
+    }
+    return { label, key, note, c, cShown, hidden, picks: c.picks || [], t: tstat(cShown) }
   }).filter(x => x.c && (x.c.n || x.picks.length))
 
   // TODAY: every unsettled pick, grouped by match, so a dog several cells agree on is visible
@@ -266,6 +367,7 @@ export default function DogPicksPanel({ query }) {
   // log, not an upcoming bet, so it does not belong on a picks list. Everything from six hours
   // ago onward is kept, which covers in-play matches without dragging in last week's orphans.
   const CUTOFF = Date.now() - 6 * 3600 * 1000
+  const badBG = badBandGenders(cells)          // gender x band combinations that lose forward
   const byMatch = {}
   for (const cel of cells) {
     for (const p of cel.picks) {
@@ -274,6 +376,7 @@ export default function DogPicksPanel({ query }) {
       if (!priceOK(p) || !leagueOK(p)) continue   // nothing above +300, no ITF men
       const g = genderOf(p)
       if (!genderOK(cel.c, g)) continue       // this gender's half of the cell loses money
+      if (badBG.has(bandKey(p))) continue     // ...and this gender x price band loses money
       const k = `${p.pick}|||${p.opp}`
       if (!byMatch[k]) byMatch[k] = { p, g, cells: [] }
       byMatch[k].cells.push(cel)
@@ -292,6 +395,9 @@ export default function DogPicksPanel({ query }) {
   // FINISHED picks for the history view: deduped to one row per dog, newest day first, and
   // grouped by day so each day carries its own record and P/L.
   const finished = dedupe(cells, isFinished).sort((a, b) => whenMs(b) - whenMs(a))
+  // the same women-only rule for the history rows
+  const favHist = (p) => (genderOf(p) === 'w'
+    && histCells(p).some(c => c.key === 'mc2_fav4_w')) ? favBandOf(p) : null
   const histCells = (p) => cells.filter(cel => genderOK(cel.c, genderOf(p))
     && cel.picks.some(x => x.date === p.date && x.pick === p.pick && x.opp === p.opp))
   const histDays = []
@@ -323,7 +429,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2</b> at <b>+100..+150</b> (every bucket clearing t=2 is here and is MC2: pink +29.97%/119 t 3.11, band +29.61%/62 t 2.26, take +26.34%/79 t 2.19), or <b>MC2 6pt/take or fade form</b> at <b>+150..+200</b> (+21.30%/54 t 1.15 and +22.70% on 11 — a lean; the other cells invert there), or the <b>c75 family</b> at <b>+200..+250</b> (c75 and MC2 swap places there, but this is <b>13 bets, 6-7, t 1.12</b> — the four c75 cells are the same 13 bets counted four times). <b style={{ color: YELLOW }}>\u2b50 Yellow (\u2212100..\u2212150) and \ud83e\udd47 gold (\u2212150..\u2212200) = a FAVOURITE</b>, kept visually and numerically separate from the dogs: MC2 4pt+ over the market on a <b>women\u2019s</b> favourite at \u2212100..\u2212200 \u2014 +22.85% on 51 (t 2.16), positive in both windows and both bands, against \u22129.21% for the men\u2019s half. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men +6.86%/22 (thinnest, t 0.21); <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: YELLOW }}>⭐ Yellow (−100..−150) and 🥇 gold (−150..−200) = a FAVOURITE</b>, kept visually and numerically separate from the dogs: MC2 4pt+ over the market on a <b>women’s</b> favourite at −100..−200 — +22.85% on 51 (t 2.16), positive in both windows and both bands, against −9.21% for the men’s half. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
@@ -423,12 +529,40 @@ export default function DogPicksPanel({ query }) {
                 </>
               )
             })()}
+            {badBG.size ? (
+              <div style={{ fontSize: 10, color: '#f85149', fontWeight: 700, marginBottom: 9,
+                padding: '6px 10px', borderRadius: 7, border: '1px solid rgba(248,81,73,0.45)',
+                background: 'rgba(248,81,73,0.07)' }}>
+                {'\u26d4 EXCLUDED \u2014 forward-negative gender \u00d7 band, dropped from the list, the history and every total: '}
+                {[...badBG.entries()].map(([k, v]) => {
+                  const [g, b] = k.split('|')
+                  return `${g === 'w' ? 'women' : 'men'} ${b} (${v.roi > 0 ? '+' : ''}${v.roi.toFixed(2)}% on ${v.n}, ${v.w}-${v.n - v.w}, ${usd(v.profit)})`
+                }).join(' \u00b7 ')}
+              </div>
+            ) : null}
             <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 5 }}>
-              BY PRICE BAND — all days, deduped
+              BY PRICE BAND — all days, deduped, one band per pick · M/W shown because the gate works on gender × band
             </div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
-              {BANDS.map(([lab, lo, hi]) => box(lab, agg(all.filter(p => p.odds >= lo && p.odds <= hi)),
-                `Every deduped dog pick priced ${lab}.`))}
+              {BANDS.map(([lab]) => {
+                const inb = all.filter(p => bandOf(p.odds) === lab)
+                const gm = agg(inb.filter(p => genderOf(p) === 'm'))
+                const gw = agg(inb.filter(p => genderOf(p) === 'w'))
+                const line = (g, a, col) => (
+                  <span style={{ color: !a.n ? 'var(--text-tertiary)' : a.roi > 0 ? '#3fb950' : '#f85149' }}>
+                    {g} {a.n ? `${a.roi > 0 ? '+' : ''}${a.roi.toFixed(0)}%/${a.n}` : '—'}
+                  </span>
+                )
+                return (
+                  <div key={lab}>
+                    {box(lab, agg(inb), `Every deduped dog pick priced ${lab}, one band per pick.`)}
+                    <div className="mono" style={{ fontSize: 9, fontWeight: 700, display: 'flex',
+                      gap: 7, justifyContent: 'center', marginTop: 3 }}>
+                      {line('M', gm)}{line('W', gw)}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </>
         )
@@ -447,8 +581,10 @@ export default function DogPicksPanel({ query }) {
               const col = n >= 3 ? '#3fb950' : n === 2 ? '#e3b341' : 'var(--text-secondary)'
               const pr = pinkRule(s.p, s.cells.map(c => c.key))
               // a FAVOURITE pick -- yellow, and never pink, so the two can never be confused
-              const fb = (isFavPick(s.p) && s.cells.some(c => FAV_CELLS.has(c.key)))
-                ? favBandOf(s.p) : null
+              // WOMEN ONLY (2026-10-14). mc2_fav4_m is the CONTROL, never a take, and painting a
+              // mens favourite with the womens colours also handed it the womens tooltip.
+              const fb = (isFavPick(s.p) && s.g === 'w'
+                && s.cells.some(c => c.key === 'mc2_fav4_w')) ? favBandOf(s.p) : null
               const yel = !!fb
               return (
                 <div key={i} className="mono" style={{
@@ -466,7 +602,7 @@ export default function DogPicksPanel({ query }) {
                     {isLive(s.p) ? (
                       <span title="Started and not settled yet -- this match is in progress."
                         style={{ fontSize: 9, fontWeight: 800, color: '#f85149', border: '1px solid #f8514988', borderRadius: 6, padding: '0 5px' }}>
-                        {'\u25cf LIVE'}
+                        {'● LIVE'}
                       </span>
                     ) : null}
                     <span style={{ color: col, fontWeight: 800, fontSize: 10, minWidth: 54 }}>
@@ -476,7 +612,7 @@ export default function DogPicksPanel({ query }) {
                       <span title={fb.note + '  ' + ((cells.find(c => c.key === 'mc2_fav4_w') || {}).note || '')}
                         style={{ fontSize: 10, fontWeight: 800, color: fb.col,
                           border: '1px solid ' + fb.col + '99', borderRadius: 6, padding: '0 5px' }}>
-                        {'\u2b50 ' + fb.tag}
+                        {'⭐ ' + fb.tag}
                       </span>
                     ) : null}
                     {pr && !yel ? (
@@ -529,7 +665,7 @@ export default function DogPicksPanel({ query }) {
                     <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-primary)' }}>{grp.d}</span>
                     <span style={{ fontSize: 12, fontWeight: 800, color: a.profit >= 0 ? '#3fb950' : '#f85149' }}>{usd(a.profit)}</span>
                     <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-                      {a.w}-{a.l}{a.roi != null ? ` \u00b7 ${a.roi > 0 ? '+' : ''}${a.roi.toFixed(1)}%` : ''}
+                      {a.w}-{a.l}{a.roi != null ? ` · ${a.roi > 0 ? '+' : ''}${a.roi.toFixed(1)}%` : ''}
                     </span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -537,9 +673,9 @@ export default function DogPicksPanel({ query }) {
                       <div key={i} className="mono" style={{
                         display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap',
                         padding: '5px 11px', borderRadius: 7,
-                        background: favBandOf(p) ? `rgba(${favBandOf(p).rgba},0.09)`
+                        background: favHist(p) ? `rgba(${favHist(p).rgba},0.09)`
                           : pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.09)' : 'var(--panel)',
-                        border: `1px solid ${favBandOf(p) ? `rgba(${favBandOf(p).rgba},0.65)`
+                        border: `1px solid ${favHist(p) ? `rgba(${favHist(p).rgba},0.65)`
                           : pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.6)'
                           : p.won ? 'rgba(63,185,80,0.3)' : 'var(--line)'}`,
                       }}>
@@ -572,7 +708,7 @@ export default function DogPicksPanel({ query }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {cells.sort((a, b) => (b.t || -9) - (a.t || -9)).map((cel) => {
-            const c = cel.c
+            const c = cel.cShown || cel.c          // the genders actually listed, not the blend
             const isOpen = open === cel.key
             const pos = (c.roi_pct || 0) > 0
             return (
@@ -594,6 +730,15 @@ export default function DogPicksPanel({ query }) {
                     {c.n ? `${c.wins}-${c.n - c.wins} · ${c.roi_pct > 0 ? '+' : ''}${c.roi_pct}%` : '0 settled'}
                     {c.pending ? ` · ${c.pending} pending` : ''}
                   </span>
+                  {cel.hidden && cel.hidden.length ? (
+                    <span title={'This headline counts only the gender(s) listed on the tab. '
+                      + cel.hidden.map(g => g === 'w' ? 'Women' : 'Men').join(' and ')
+                      + ' excluded: negative dog ROI.'}
+                      style={{ fontSize: 9, fontWeight: 700, color: '#f85149',
+                        border: '1px solid rgba(248,81,73,0.45)', borderRadius: 5, padding: '0 4px' }}>
+                      {cel.hidden.map(g => g === 'w' ? 'W' : 'M').join('/') + ' excluded'}
+                    </span>
+                  ) : null}
                   <span style={{
                     fontSize: 10, fontWeight: 700,
                     color: cel.t == null ? 'var(--text-tertiary)' : cel.t >= 2 ? '#3fb950' : cel.t >= 1.5 ? '#e3b341' : 'var(--text-tertiary)',
