@@ -33,9 +33,10 @@ const ITF_MEN_ON_BOARD = false
 // history"). Hidden, not deleted -- the panels, their data and their routes are untouched, so any
 // of these returns by removing one string from this set.
 //
-// 'itf' and 'tested' are in NEITHER the remove list nor the keep list, so they stay. Note ITF is
-// now merged into the board for MC2-marked dogs, which makes its own tab largely redundant.
-const HIDDEN_TABS = new Set(['best', 'prices', 'tabpl', 'sets', 'picks', 'splits', 'uedog', 'modelx'])
+// 'tested' added 2026-10-14 (user "Remove tested and keep itf m+W"). ITF KEEPS its tab on the
+// same instruction, even though MC2-marked ITF dogs now also appear on the board -- the tab is
+// the only place the rest of the ITF card (model C/I, the full slate) can be seen.
+const HIDDEN_TABS = new Set(['best', 'prices', 'tabpl', 'sets', 'picks', 'splits', 'uedog', 'modelx', 'tested'])
 const ITF_DOG_CELLS = [
   { g: 'm', lo: 100, hi: 150, pt: 0.04 },
   { g: 'w', lo: 100, hi: 150, pt: 0.04 },
