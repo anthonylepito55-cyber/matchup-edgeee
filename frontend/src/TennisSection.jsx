@@ -2,6 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { americanOddsToImpliedProb } from './odds.js'
 import TestedPanel from './TestedPanel.jsx'
 
+// MC2/MC3/MC5 ONLY (2026-10-13, user "any signals under the picks u can remove them
+// unless its mc2 mc3 and mc5 also any highlights that arent mc2 mc3 and mc5"). Display-only
+// gate: every predicate, lane and bet() underneath still runs, so the live records keep
+// accumulating and flipping this back to false restores the old board untouched.
+const MC_ONLY = true
+
 const LEAGUE_COLOR = { atp: '#4A9EFF', wta: '#FF6FA5', atp_challenger: '#7FB3FF', itf_men: '#5AC8C8', itf_women: '#E08CC0' }
 
 const SURFACE_COLOR = {
@@ -2623,6 +2629,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     return (mdog - gdog) >= 0.02 ? dog1 : null
   })()
   const nameHighlight = isP1 => {
+    if (MC_ONLY) return null          // every family here is Model C / gray line, not MC2
     if (starDogSideP1 !== null && starDogSideP1 === isP1) {
       return { color: '#f5f13b', title: '★ C+GRAY DOG: Model C AND the market-aware gray line both pick this market underdog — the best backtest cell of the build (54.8% at plus prices, +13.7% in 2026). Feeds the ★ lane.' }
     }
@@ -2708,7 +2715,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   })()
   // GREEN-ONLY mode (2026-10-02, user ask): a red/avoid category badge renders as a
   // neutral NO BET while live samples mature (the lanes still track in the background).
-  const catShow = (greenOnly && catBadge && catBadge.color === '#f85149')
+  // MC_ONLY: the category badge names whichever non-MC lane family the card fell in
+  // (c75 / gray / CGF / tier-1 / FADE / P), so it is removed with the rest of them.
+  const catShow = MC_ONLY ? null
+    : (greenOnly && catBadge && catBadge.color === '#f85149')
     ? { txt: 'NO BET', color: 'var(--text-tertiary)', bt: '', live: '',
         tip: 'Red/avoid signal hidden while live ROIs are small (green-only mode). No take here.' }
     : catBadge
@@ -3328,11 +3338,14 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // already means exactly the same thing -- a cell whose backtest is positive for this gender
   // AND whose live lane ROI is above zero. So the seven colours carried no information the
   // badges did not already carry. hlAny is the single switch; HL is the one treatment.
-  const hlBlack = !!blackC75W && hlOK('c75_dog_100plus', 'w')
-  const hlGreen = !!baitGreen && baitGreen.c75Flip !== false && hlOK('bait_mcflip', gHL)
-  const hlPurple = !!purpleCGF && hlOK(purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav', gHL)
-  const hlBlue = !!tier1Blue && tier1Blue.cells.some(c => hlOK(c.lane, gHL))
-  const hlPink = !!pinkCells && pinkCells.some(c => !c.watch && hlOK(c.lane, c.g))
+  // MC_ONLY: the green and dark-blue families are c75 / bait / CGF / tier-1 / Model P /
+  // pink / gray-dog / s52 -- none of them MC2, MC3 or MC5 -- so they stop painting cards.
+  // The underlying predicates are left intact above so their lanes keep scoring.
+  const hlBlack = !MC_ONLY && !!blackC75W && hlOK('c75_dog_100plus', 'w')
+  const hlGreen = !MC_ONLY && (!!baitGreen && baitGreen.c75Flip !== false && hlOK('bait_mcflip', gHL))
+  const hlPurple = !MC_ONLY && (!!purpleCGF && hlOK(purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav', gHL))
+  const hlBlue = !MC_ONLY && (!!tier1Blue && tier1Blue.cells.some(c => hlOK(c.lane, gHL)))
+  const hlPink = !MC_ONLY && (!!pinkCells && pinkCells.some(c => !c.watch && hlOK(c.lane, c.g)))
   const hlOrange = false
   const blueWhy = tier1Blue ? tier1Blue.cells.map(c => `${c.n}: ${hlWhy(c.lane, gHL) || 'ok'}`).join(' · ') : ''
   const noHL = (why) => <span style={{ color: 'var(--text-tertiary)', fontWeight: 700 }}>⚪ NO HIGHLIGHT ({why}) · </span>
@@ -3368,12 +3381,12 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   })()
   // Ⓟ FAV was removed from this chain on 2026-10-10 (user "Demote P fav"): a favourite-side
   // P edge no longer colours a card at all. Only the dog side and Ⓟ CLOSE can.
-  const hlP = (!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.close) && hlOK(`p_close_t${pModel.close_tier || 1}`, gHL))
+  const hlP = !MC_ONLY && ((!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.close) && hlOK(`p_close_t${pModel.close_tier || 1}`, gHL)))
   // the single switch -- any live-positive cell lights the card, all of them the same way
   // the dark-blue marks get their OWN treatment, by request. Green still outranks them when
   // a card qualifies for both, since the green family is the older and deeper evidence.
-  const hlGrayDog = grayDogs.some(h => livePos(h.lane, gHL))
-  const hlS52 = !!blueS52 && livePos(blueS52.lane, gHL)
+  const hlGrayDog = !MC_ONLY && grayDogs.some(h => livePos(h.lane, gHL))
+  const hlS52 = !MC_ONLY && !!blueS52 && livePos(blueS52.lane, gHL)
   const hlAny = hlBlack || hlGreen || hlPurple || hlBlue || hlP || hlPink || hlOrange
   // one treatment: green, because it means "positive"
   const HL = {
@@ -3650,12 +3663,15 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     glow: '0 0 16px rgba(210,153,34,0.30)',
   }
   // green first (oldest, deepest evidence), then the dark-blue marks, then G last
+  // MC_ONLY: G's black/yellow marks are a third model's visibility marks, so they go too;
+  // brown (MC2+MC3+MC5 agreement) and the orange MC2 watch mark are all that can paint.
+  const gMarkShow = !MC_ONLY && gMark
   const HLs = hlAny ? HL
     : (hlGrayDog || hlS52) ? HL_DARKBLUE
-      : (gMark && !gMark.recon) ? ((gMark.cell === 'FAV-OVER') ? HL_BLACK : HL_YELLOW)
+      : (gMarkShow && !gMark.recon) ? ((gMark.cell === 'FAV-OVER') ? HL_BLACK : HL_YELLOW)
         : (mc2Mark && !mc2Mark.recon && !mc2Mark.avoid) ? HL_BROWN : HL_ORANGE
   // an AVOID cell must never paint the card like a pick -- it is the opposite instruction
-  const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMark && !gMark.recon)
+  const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMarkShow && !gMark.recon)
     || !!(mc2Mark && !mc2Mark.recon && !mc2Mark.avoid) || !!orangeMark
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
@@ -3765,7 +3781,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           </div>
         )
       })() : null}
-      {markVerdict ? (
+      {markVerdict && !MC_ONLY ? (
         <div className="mono" style={{ fontSize: 9, fontWeight: 900, marginBottom: 5, letterSpacing: '0.04em',
           color: markVerdict.ok === null ? 'var(--text-tertiary)' : markVerdict.ok ? '#3fb950' : '#f85149' }}
           title={`CELL VERDICT -- the live frozen-log record of THIS card's own cell (${markVerdict.label}), for this match's gender where that cell has settles, otherwise the whole cell. It updates itself as games settle, so a cell that stops paying stops showing green. 5-day family records (2026-10-04..08, 308 marked picks): c75 dog +31.1% (44-34) | BAIT MC-confirms +24.1% (30-27) | gray4 +22.1% | tier1 +13.2% | BLACK women c75 +12.1% | c-alone+gray -11.7% | BAIT MC-refuses -56.7% (2-9) | CE5 -48.8% (10-21) | FADE-GOLD -6.2% (12-6, a 67% win rate that still loses because -200/-300 needs ~70%).`}>
@@ -3782,7 +3798,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
           ) : null}
         </div>
       ) : null}
-      {blueS52 && livePos(blueS52.lane, gHL) ? (() => {
+      {!MC_ONLY && blueS52 && livePos(blueS52.lane, gHL) ? (() => {
         const st = (((laneRec && laneRec.study) || {})[blueS52.lane]) || {}
         const c = st[gHL] || {}
         const nn = c.n || 0
@@ -3936,7 +3952,7 @@ ALL THREE MC HEADS AGREE on this side (MC2, MC3 and MC5 are all on the same side
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · watch only`}</span>
         </div>
       ) : null}
-      {gMark ? (
+      {gMarkShow ? (
         <div className="mono"
           title={`Ⓖ MODEL G ${gMark.cell} — where G is saying something, NOT a recommendation.
 
@@ -4017,7 +4033,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           })()}
         </div>
       ) : null}
-      {pModel ? (() => {
+      {!MC_ONLY && pModel ? (() => {
         const st = (((laneRec && laneRec.study) || {}).p_dog) || {}
         const c = st[gHL] || {}
         const live = c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from today'
@@ -4043,7 +4059,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           </div>
         )
       })() : null}
-      {pModel && pModel.close ? (() => {
+      {!MC_ONLY && pModel && pModel.close ? (() => {
         const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
         const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
         const tier = pModel.close_tier || 1
@@ -4066,7 +4082,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           </div>
         )
       })() : null}
-      {pModel && pModel.fav_bet && !pModel.close && livePos('p_fav', gHL) ? (() => {
+      {!MC_ONLY && pModel && pModel.fav_bet && !pModel.close && livePos('p_fav', gHL) ? (() => {
         const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
         const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
         const st = (((laneRec && laneRec.study) || {}).p_fav) || {}
@@ -4081,7 +4097,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           </div>
         )
       })() : null}
-      {xDog ? (
+      {xDog && !MC_ONLY ? (
         <div className="mono"
           title={`✖ X DOG — the market-free Model X (C + D stacker; the market and the gray heads were removed from its inputs on 2026-10-09) picks the underdog here: X ${Math.round(xDog.x * 1000) / 10}% vs market ${Math.round(xDog.mk * 1000) / 10}%. Walk-forward on the frozen log, dog picks +12.5% (57-63, n=120); X picks the dog on about 21% of games. Not a card color until its own live lane (x_dog) is positive.${xDog.recon ? ' This one is a walk-forward backfill (~), not a pre-match pick.' : ''}`}
           style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(210,168,255,0.55)', background: 'rgba(210,168,255,0.07)' }}>
@@ -4095,7 +4111,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
       {/* 2026-10-11: a pink TAKE cell that fails its live gate is dropped entirely; the
           explicit WATCH cells stay, because they are labelled NO BET and their record is the
           evidence for the demotion. */}
-      {pinkCells ? pinkCells.filter(pc => pc.watch ? livePos(pc.lane, pc.g) : hlOK(pc.lane, pc.g)).map((pc, j) => {
+      {!MC_ONLY && pinkCells ? pinkCells.filter(pc => pc.watch ? livePos(pc.lane, pc.g) : hlOK(pc.lane, pc.g)).map((pc, j) => {
         const st = (((laneRec && laneRec.study) || {})[pc.lane]) || {}
         const c = st[pc.g] || {}
         const nn = c.n || 0
@@ -4251,6 +4267,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           const aP = ma3 && ma3.p1_prob != null ? ma3.p1_prob >= 0.5 : null
           const bP = mb3 && mb3.p1_prob != null ? mb3.p1_prob >= 0.5 : null
           const star = c1 === g1 && g1 === dog1
+          if (MC_ONLY) return null        // tiers are the C/gray/A-B verdict, not MC2/MC3/MC5
           const alone = aP !== null && bP !== null && aP !== c1 && bP !== c1
           const hate = (mdog - gdog) >= 0.02
           const isW = match.league === 'wta'
@@ -4345,6 +4362,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         {(() => {
           // B-over-A chip (2026-09-30, user ask): when A and B disagree, mark B's side --
           // the fully-settled mirror lanes ran B +5.4% (39-13) vs A-alone -34.1% (13-39).
+          if (MC_ONLY) return null        // Models A and B, not MC2/MC3/MC5
           if (!ma3 || !mb3 || ma3.p1_prob == null || mb3.p1_prob == null) return null
           const aS = ma3.p1_prob >= 0.5
           const bS = mb3.p1_prob >= 0.5
@@ -4368,6 +4386,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           )
         })()}
         {(() => {
+          if (MC_ONLY) return null        // A + B + C agreement, not MC2/MC3/MC5
           if (!ma3 || !mb3 || !mc3 || ma3.p1_prob == null || mb3.p1_prob == null || mc3.p1_prob == null) return null
           const s = mc3.p1_prob >= 0.5
           if ((ma3.p1_prob >= 0.5) !== s || (mb3.p1_prob >= 0.5) !== s) return null
@@ -4405,18 +4424,20 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
             </span>
           )
         })()}
-        <span className="mono" title={catShow.tip} style={{
-          fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: catShow.color,
-          border: `1px solid ${catShow.color === 'var(--text-tertiary)' ? 'var(--line)' : catShow.color + '55'}`,
-          borderRadius: 4, padding: '2px 7px', textAlign: 'right', lineHeight: 1.4,
-        }}>
-          {catShow.txt}
-          {catShow.live ? (
-            <div style={{ fontWeight: 400, fontSize: 8.5, color: 'var(--text-secondary)' }}>
-              {'live '}{catShow.live}
-            </div>
-          ) : null}
-        </span>
+        {catShow ? (
+          <span className="mono" title={catShow.tip} style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: catShow.color,
+            border: `1px solid ${catShow.color === 'var(--text-tertiary)' ? 'var(--line)' : catShow.color + '55'}`,
+            borderRadius: 4, padding: '2px 7px', textAlign: 'right', lineHeight: 1.4,
+          }}>
+            {catShow.txt}
+            {catShow.live ? (
+              <div style={{ fontWeight: 400, fontSize: 8.5, color: 'var(--text-secondary)' }}>
+                {'live '}{catShow.live}
+              </div>
+            ) : null}
+          </span>
+        ) : null}
       </div>
 
       <div className="mono" style={{ fontSize: 13, color: 'var(--text-primary)', marginTop: 8 }}>
@@ -4428,6 +4449,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
       {(() => {
         // FULL SIGNAL STRIP (2026-09-30, user ask: everything on each pick) -- every lane
         // this match belongs to, with 2026 backtest + that lane's LIVE record.
+        if (MC_ONLY) return null       // no chip in this strip is MC2, MC3 or MC5
         if (!mc3 || mc3.p1_prob == null || mc3.market_aware_p1 == null || mc3.market_p1 == null) return null
         const stx = (laneRec && laneRec.study) || {}
         const lnx = (laneRec && laneRec.lanes) || {}
@@ -5002,7 +5024,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Favored:</span>
-          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{favoredName}</span>{headlineTag}{(match.model_a && match.model_b && ((match.model_a.p1_prob >= 0.5) === (match.model_b.p1_prob >= 0.5))) ? (
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{favoredName}</span>{headlineTag}{(!MC_ONLY && match.model_a && match.model_b && ((match.model_a.p1_prob >= 0.5) === (match.model_b.p1_prob >= 0.5))) ? (
             <span className="mono" style={{ fontSize: 9, color: '#3fb950', marginLeft: 6, border: '1px solid #3fb95055', borderRadius: 8, padding: '1px 6px' }}
               title="Models A and B pick the same winner — this match feeds the AGREE lane on the A vs B $25 tab.">A+B agree</span>
           ) : null}
@@ -5343,6 +5365,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
       })() : null}
 
       {(() => {
+        if (MC_ONLY) return null        // Model P is its own head, not MC2/MC3/MC5
         const mp = match.model_p
         const lo = match.live_odds || {}
         const mk = match.model_c && match.model_c.market_p1 != null ? match.model_c.market_p1 : null

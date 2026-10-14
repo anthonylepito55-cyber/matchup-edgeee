@@ -36,7 +36,7 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # MODEL G2 (2026-10-12): G + the last-10-on-court block, walkovers excluded.
            "model_g2_p1", "model_g2ma_p1", "model_g2_recon",
            "model_p_dog", "model_p_prob", "model_p_ev", "model_p_fev", "ac_v",
-           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "inplay_suspect", "ue_set5_diff_p1", "score",
+           "open_p1_odds", "open_p2_odds", "open_at", "c_rp_diff_p1", "c_sp_diff_p1", "surface_bad", "inplay_suspect", "resolve_bad", "ue_set5_diff_p1", "score",
            "h2h_n", "h2h_p1w", "h2h_p2w", "h2h_sn", "h2h_sp1w",
            # PURE-RESULTS FORM overlay (2026-10-06): p1 form minus p2 form, quality- +
            # competitiveness-adjusted last-10-on-surface, NO serve stats. Frozen at first
@@ -1940,6 +1940,16 @@ def get_ab25_record() -> dict:
             # so the pick it implies was never on offer pre-match. Same treatment as surface_bad.
             _ip9 = r.get("inplay_suspect")
             if _ip9 is not None and not pd.isna(_ip9) and bool(_ip9):
+                continue
+            # WRONG PLAYER (2026-10-13): resolver tier 5 substituted a different human when a
+            # player was absent from the rating pool -- 15 of 1,120 logged players, several
+            # borrowing a tour player's ratings (Ekaterina Agureeva -> EkaterinaAlexandrova,
+            # Pedro Henrique Chabalgoity -> PedroCachin). The resolver is fixed so it cannot
+            # recur, but the frozen numbers on these rows are about someone else, so the pick
+            # they imply was never a pick about these players. Same treatment as surface_bad:
+            # row kept, excluded from every lane.
+            _rb9 = r.get("resolve_bad")
+            if _rb9 is not None and not pd.isna(_rb9) and bool(_rb9):
                 continue
             # BLUE GATES (2026-10-09, lockstep with TennisSection tier1Blue): from 10-09
             # forward, a coin-flip C (C < 52% on the dog) no longer counts for

@@ -532,9 +532,52 @@ def resolve(name):
                     hits = [v for k, v in c["name_map"].items()
                             if (lambda p: len(p) >= 2 and p[-1] == _sur
                                 and p[0][:1] == _ini)(k.split())]
+                    # (silva, a) matches strangers, so confirm it is the same person
+                    if len(hits) == 1 and not _t5_same_person(
+                            nm, [k for k, v in c["name_map"].items() if v == hits[0]]):
+                        hits = []
             if len(hits) == 1:
                 s = hits[0]
     return s
+
+
+
+# Tier-5 safety check (2026-10-13). See _patch_tier5.py: tier 5 reduces a name to
+# (alphabetically-last token, alphabetically-first token's initial), which collides across
+# different people -- "adan freire da silva" and "andrade da lucas silva" both give
+# (silva, a). This confirms the candidate is the SAME PERSON before tier 5 is trusted.
+_T5_PARTICLES = {"da", "de", "del", "dos", "das", "van", "von", "la", "le", "di", "el",
+                 "bin", "al", "ben", "der", "den", "do", "dela"}
+
+
+def _t5_same_person(query_norm, profile_keys):
+    """True when every substantive token of the profile has a partner in the query.
+
+    Partner = identical, a 3+ character shared prefix (caty~catherine), or a close spelling
+    (Deigo~Diego, Giorgia~Georgia, which differ at character 2 so a prefix rule misses them).
+    Checked in this direction because boards legitimately ADD tokens to a name; requiring
+    every QUERY token to match was measured and destroyed four correct resolutions.
+    """
+    import difflib
+    import os as _os
+    sub = lambda k: [t for t in k.split() if t not in _T5_PARTICLES]
+    qs = sub(query_norm)
+    if not qs:
+        return False
+
+    def partner(p):
+        for t in qs:
+            if p == t or len(_os.path.commonprefix([p, t])) >= 3:
+                return True
+            if difflib.SequenceMatcher(None, p, t).ratio() >= 0.75:
+                return True
+        return False
+
+    for k in profile_keys:
+        ps = sub(k)
+        if ps and all(partner(p) for p in ps):
+            return True
+    return False
 
 
 def _feats(p1, p2, surface, h):
