@@ -48,20 +48,30 @@ const isFavPick = p => p.odds != null && p.odds < 0
 //
 // The BAND TAGS stay on the badge so the price is still readable, and each band keeps its own
 // record in the tooltip -- what goes is the claim, carried by the colour, that one beats the other.
-const FAV_BANDS = [
-  { lo: -150, hi: -100, tag: 'FAV −100/150', col: GOLD, rgba: '255,215,0',
-    note: '-100..-150: +22.31% on 28 (19-9), 67.9% hit against 55.5% needed, t 1.40. '
-      + 'Forward +21.92% on 12, corrected recon +22.60% on 16 -- the two windows agree almost exactly, '
-      + 'which is the most consistent thing on this board. Same colour as the deeper band because the '
-      + 'two are one cell: 1.2 points apart pooled, and this half is the BETTER one on the recon window.' },
-  { lo: -200, hi: -150, tag: 'FAV −150/200', col: GOLD, rgba: '255,215,0',
-    note: '-150..-200: +23.50% on 23 (18-5), 78.3% hit against 63.2% needed, t 1.73. '
-      + 'Forward +31.53% on 12, corrected recon +14.74% on 11 -- the higher headline is the forward '
-      + 'week, and this half is the WEAKER one on recon. Same colour as the shallower band because '
-      + 'they are one cell; the earlier claim that this was "the stronger half" is retracted.' },
+// FAV_GENDER_BANDS (2026-10-14, user "add any positive dog cells or favorite cells to the pink
+// or gold highlight"). Gold is now gender x band, on the same forward-only rule as pink, with a
+// floor of TEN settled forward bets -- without it this marks cells of one and two bets, three of
+// which read 100% hit. MC2 4pt+ over the de-vigged market, forward / (corrected recon):
+//
+//     -100..-150   women +21.92% /12  (+22.60% /16)   men +18.51% /12  (-30.54% /23)  <- ADDED
+//     -150..-200   women +31.53% /12  (+14.74% /11)   men -13.95% /13                 no
+//     -200..-250   women -100.0% /1   under floor     men +46.49% /2   under floor
+//     -250..-400   women +34.37% /2   under floor     men -21.51% /5                  no
+//
+// So gold is NOT symmetric: women get both bands, men get the shallow one only. The mens cell is
+// marked because the rule is the forward record, but its forward half is its ONLY positive
+// evidence -- see its tooltip, which leads with the twelve bets.
+const FAV_GENDER_BANDS = [
+  { lo: -150, hi: -100, g: 'w', tag: 'FAV −100/150', col: GOLD, rgba: '255,215,0', note: 'WOMEN -100..-150. Forward +21.92% on 12, corrected recon +22.60% on 16 -- the two windows agree almost exactly, which is the most consistent thing on this board. Pooled +22.31% on 28 (19-9, 67.9% hit against 55.5% needed, t 1.40). Same colour as the deeper band because the two are one cell, 1.2 points apart pooled.' },
+  { lo: -200, hi: -150, g: 'w', tag: 'FAV −150/200', col: GOLD, rgba: '255,215,0', note: 'WOMEN -150..-200. Forward +31.53% on 12, corrected recon +14.74% on 11. Pooled +23.50% on 23 (18-5, 78.3% hit against 63.2% needed, t 1.73). The higher headline is the forward week; this half is the weaker one on recon, so it is not "the stronger half" and is not coloured as one.' },
+  { lo: -150, hi: -100, g: 'm', tag: 'FAV −100/150 ⚠', col: GOLD, rgba: '255,215,0', note: 'MEN -100..-150. ADDED 2026-10-14 under the rule that a positive FORWARD record earns the highlight -- READ THE SAMPLE. Forward +18.51% on TWELVE bets across five days (8-4, 66.7% hit against 56.8% needed, t 0.77). Everything else about it is negative: corrected recon -30.54% on 23, nearly twice the sample; pooled -13.72% on 35 against a blind band of -14.14% on 152, so MC2 adds nothing pooled. There is also NO threshold gradient -- 4pt+ and 6pt+ are the IDENTICAL twelve bets, so not one forward pick sits between 4 and 6 points and the threshold was never really tested here. Three of the twelve are ITF men, the league excluded from the dog side. The womens half of this band is +21.92% forward AND +22.60% on recon, which is what a real cell looks like. Treat this as a watch mark.' },
 ]
-const favBandOf = p => (p.odds == null || p.odds >= 0) ? null
-  : (FAV_BANDS.find(b => p.odds >= b.lo && p.odds <= b.hi) || null)
+// gender inlined; genderOf is declared further down this module
+const favBandOf = (p) => {
+  if (p.odds == null || p.odds >= 0) return null
+  const g = /wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'
+  return FAV_GENDER_BANDS.find(b => b.g === g && p.odds >= b.lo && p.odds <= b.hi) || null
+}
 
 const CELLS = [
   ['🟡 MC2 4pt+ FAV · WOMEN −100..−200', 'mc2_fav4_w', 'MC2 rates this WOMENS favourite 4+ points above the de-vigged market, priced -100..-200. Forward +26.72% on 24 (18-6). On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against 59.0% needed, t 2.16) -- positive in BOTH windows (fwd +26.72%/24, recon +19.40%/27) and BOTH bands (-100..-150 +22.31%/28, -150..-200 +23.50%/23). The MENS half of the same cut is -9.21% on 74, and every womens favourite in that range is -3.64%, so this is not a generic favourite effect. The only favourite cell in this project to clear t=2. STILL THIN: 51 bets, and the gender split and 4pt threshold were both found by scanning this data.'],
@@ -418,8 +428,8 @@ export default function DogPicksPanel({ query }) {
   // grouped by day so each day carries its own record and P/L.
   const finished = dedupe(cells, isFinished).sort((a, b) => whenMs(b) - whenMs(a))
   // the same women-only rule for the history rows
-  const favHist = (p) => (genderOf(p) === 'w'
-    && histCells(p).some(c => c.key === 'mc2_fav4_w')) ? favBandOf(p) : null
+  const favHist = (p) => histCells(p).some(
+    c => c.key === (genderOf(p) === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m')) ? favBandOf(p) : null
   const histCells = (p) => cells.filter(cel => genderOK(cel.c, genderOf(p))
     && cel.picks.some(x => x.date === p.date && x.pick === p.pick && x.opp === p.opp))
   const histDays = []
@@ -451,7 +461,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men +6.86%/22 (thinnest, t 0.21); <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: GOLD }}>🥇 Gold = a WOMEN’S FAVOURITE</b>, kept visually and numerically separate from the dogs: MC2 4pt+ over the market at −100..−200 — +22.85% on 51 (t 2.16), positive in both windows and both bands, against −9.21% pooled for the men’s half (men are not marked). <b>One colour across both bands</b>: they are +22.31%/28 and +23.50%/23, 1.2 points apart, and the deeper band leads only on the forward week while the shallower one leads on the recon — so the card still carries its band tag, but the colour no longer claims one is stronger. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men +6.86%/22 (thinnest, t 0.21); <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: GOLD }}>🥇 Gold = a FAVOURITE</b>, kept visually and numerically separate from the dogs, and gender×band on the same forward rule as pink: <b>women −100..−200</b> (both bands — +22.85% on 51, t 2.16, positive in both windows) and <b>men −100..−150 only</b> (⚠ +18.51% forward on <b>twelve</b> bets over five days; its corrected recon is −30.54%/23 and pooled it is −13.72%/35 against a blind band of −14.14%, so outside the forward week MC2 adds nothing there — a watch mark). The men’s −150..−200 half is −13.95% forward and is <b>not</b> marked. Cells under ten settled forward bets are not marked at all, which is why −200..−250 and deeper stay off. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
@@ -539,10 +549,12 @@ export default function DogPicksPanel({ query }) {
                     <span style={{ color: GOLD }}>{'🥇 −100..−200 — WOMEN'}</span>
                     <span style={{ color: 'var(--text-tertiary)' }}>
                       {' — FAVOURITES, separate from every dog number above. MC2 4pt+ over the market. '}
-                      {'Combined +22.85%/51 t 2.16, positive in both windows. One colour: the two halves are '}
-                      {'+22.31%/28 and +23.50%/23, 1.2 points apart, and the deeper one is only ahead on the '}
-                      {'forward week (the shallower wins the recon window by 8). The band tag on each card still '}
-                      {'says which price it is. Men are NOT marked: +1.63% on 25 forward, −9.21% pooled.'}
+                      {'WOMEN, both bands: combined +22.85%/51 t 2.16, positive in both windows; the halves are '}
+                      {'+22.31%/28 and +23.50%/23, 1.2 points apart, so one colour. '}
+                      {'MEN are marked at −100..−150 ONLY (⚠), added on the forward rule at +18.51% — but that is '}
+                      {'TWELVE bets over five days, its recon is −30.54%/23 and pooled it is −13.72%/35 against a '}
+                      {'blind band of −14.14%, so MC2 adds nothing there outside the forward week. The mens '}
+                      {'−150..−200 half is −13.95% forward and stays unmarked.'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -604,10 +616,11 @@ export default function DogPicksPanel({ query }) {
               const col = n >= 3 ? '#3fb950' : n === 2 ? '#e3b341' : 'var(--text-secondary)'
               const pr = pinkRule(s.p, s.cells.map(c => c.key))
               // a FAVOURITE pick -- yellow, and never pink, so the two can never be confused
-              // WOMEN ONLY (2026-10-14). mc2_fav4_m is the CONTROL, never a take, and painting a
-              // mens favourite with the womens colours also handed it the womens tooltip.
-              const fb = (isFavPick(s.p) && s.g === 'w'
-                && s.cells.some(c => c.key === 'mc2_fav4_w')) ? favBandOf(s.p) : null
+              // the gender's own favourite lane must be the one that fired, and favBandOf then
+              // decides whether THAT gender has a marked band at this price (men: shallow only)
+              const fb = (isFavPick(s.p)
+                && s.cells.some(c => c.key === (s.g === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m')))
+                ? favBandOf(s.p) : null
               const yel = !!fb
               return (
                 <div key={i} className="mono" style={{
