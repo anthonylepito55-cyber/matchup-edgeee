@@ -2548,6 +2548,17 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // a show-everything override, so `showModels || cardModels` is the real switch.
   const [cardModels, setCardModels] = useState(false)
   const showMods = showModels || cardModels
+  // PER-CARD STATS DROPDOWN (2026-10-13, user: "i want u to have a drop down for the stats at
+  // the bottom of each card too"). Same pattern as the models expander above, for the three
+  // stat blocks that make up the bottom of the card: unforced errors, the Goalserve extras
+  // (winners, net points, match points saved) and the TennisRatio context block -- which is
+  // the tall one, carrying the 52-week line with its point denominators, the L10/L5/L3 surface
+  // windows and the pressure dials.
+  //
+  // These are CONTEXT, not predictions: the TR block says so itself ("NOT AN EDGE") and the
+  // full-sweep work found no stat on it that beats the price. So collapsed is the right default
+  // -- they are there to explain a number, not to generate one.
+  const [cardStats, setCardStats] = useState(false)
   const [showFeatures, setShowFeatures] = useState(false)
   const predSrc = match.prediction ? 'main' : (match.model_a ? 'A' : match.model_b ? 'B' : match.model_c ? 'C' : match.model_i ? 'I' : 'D')
   // fall through every available model so a card with only Model I/C/D (ITF gap players,
@@ -5332,7 +5343,25 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
           </div>
         )
       })()}
-      {match.ue && (match.ue.p1 || match.ue.p2) ? (() => {
+      {/* the stats expander. Only rendered when the card actually HAS something to show,
+          so a fixture with no context does not get a button that opens nothing. */}
+      {(match.ue && (match.ue.p1 || match.ue.p2))
+        || (match.gs && (match.gs.p1 || match.gs.p2))
+        || (match.tr_context && (match.tr_context.p1 || match.tr_context.p2)) ? (
+        <div className="mono" style={{ marginTop: 6 }}>
+          <button onClick={() => setCardStats(v => !v)}
+            title={cardStats ? 'Hide the stat blocks: unforced errors, the Goalserve extras, and the TennisRatio context with its 52-week line, point denominators, L10/L5/L3 surface windows and pressure dials.' : 'Show the stat blocks for this match: unforced errors, the Goalserve extras (winners, net points, match points saved), and the TennisRatio context -- the 52-week surface line with its service and return POINT counts, the L10/L5/L3 windows with how far back each reaches, and the pressure dials. Context for reading the numbers above, not an edge in itself.'}
+            style={{
+              padding: '2px 8px', borderRadius: 6, cursor: 'pointer',
+              fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 700,
+              border: `1px solid ${cardStats ? '#d29922' : 'var(--line)'}`,
+              background: cardStats ? 'rgba(210,153,34,0.12)' : 'transparent',
+              color: cardStats ? '#d29922' : 'var(--text-tertiary)',
+            }}>{cardStats ? '\u25be stats' : '\u25b8 stats'}</button>
+        </div>
+      ) : null}
+
+      {cardStats && match.ue && (match.ue.p1 || match.ue.p2) ? (() => {
         const f = (v, d = 1) => v == null ? '—' : (Math.round(v * Math.pow(10, d)) / Math.pow(10, d))
         const one = (nm, u) => u ? (
           <span>{(nm || '').split(' ').slice(-1)[0]}: <b style={{ color: 'var(--text-primary)' }}>{f(u.ue_set_5)}</b>/set · {f(u.ue_match_10)}/match · {f(u.ue_100_10)}/100pts{u.ue_100_surf10 != null ? ` (${match.surface} ${f(u.ue_100_surf10)})` : ''} · W/UE {f(u.wue_10, 2)} · FH {u.fh_share_10 != null ? Math.round(100 * u.fh_share_10) : '—'}% / BH {u.fh_share_10 != null ? 100 - Math.round(100 * u.fh_share_10) : '—'}% · {f(u.pts_10, 0)} pts/match · n={u.n_10}
@@ -5387,7 +5416,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
           carries its own match count because the fields do NOT share one.
           This block disappears cleanly if the trial ends -- the API simply stops sending
           `gs` and the whole thing renders null. */}
-      {match.gs && (match.gs.p1 || match.gs.p2) ? (
+      {cardStats && match.gs && (match.gs.p1 || match.gs.p2) ? (
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.5, marginTop: 2 }}>
           {[['p1', match.player_1], ['p2', match.player_2]].map(([k, nm]) => {
             const g = match.gs[k]
@@ -5409,7 +5438,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
           })}
         </div>
       ) : null}
-      {(match.tr_context && (match.tr_context.p1 || match.tr_context.p2)) ? (
+      {(cardStats && match.tr_context && (match.tr_context.p1 || match.tr_context.p2)) ? (
         <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed var(--line)' }}
           title="TennisRatio profile context, real stat names on the site's 52-week surface window (falls back to last-20 when thin): 1stSv/2ndSv = 1st/2nd-serve points won, SGW/RGW = service/return games won (p## = percentile within OUR ingested pool for that tour), plus last-25 record vs top-200-ranked opponents, pressure-point conversion, and median recent opponent rank. The indented lines per player (2026-10-11 user asks) are the SAME stat set over that player's LAST 10 and LAST 5 MATCHES ON THIS SAME SURFACE, each with its win-rate delta against the 52-week line above it in green/red — recent form on the court actually being played, at two depths, next to the longer baseline. Both need 3+ matches on the surface, and SGW/RGW are rebuilt from game sums exactly as the 52-week figures are, so every line is directly comparable. DISPLAY ONLY: backtested 2026-09-25 and found fully priced into the market (opponent-adjusted included), so it never drives a pick — the validated tennis edge remains the price scanner.">
           <TrContextRow name={match.player_1} ctx={match.tr_context.p1} />
