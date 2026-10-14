@@ -3454,6 +3454,29 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const mkfav = fav1 ? mk : 1 - mk
     const mcfav = fav1 ? m2.p1_prob : 1 - m2.p1_prob
     const over = mcfav - mkfav
+    // ALL THREE MC HEADS MUST AGREE ON THE SIDE (2026-10-13, user: "make sure all 3 mc2, mc3,
+    // and mc5 all agree on dogs or favorites before labeling them brown").
+    //
+    // A head's SIDE is where it sits against the DE-VIGGED market, which is the same definition
+    // the user's own take rule uses: at or above the market on the favourite means it is on the
+    // favourite, below means it is on the dog. So a brown dog cell now needs all three under the
+    // market and a brown favourite cell needs all three at or over it.
+    //
+    // CARE: the bare `mc3` on the market line above is NOT Model MC3 -- it is an outer-scope
+    // object that happens to carry market_p1. The models are read off match.mc3 / match.mc5.
+    //
+    // A MISSING head blocks the mark rather than being ignored. "All three agree" cannot be
+    // confirmed from two, and all three share the same >=4-serve-rated-matches gate, so a card
+    // missing one is a thin card -- exactly where agreement mattered in the first place.
+    // MC5 tracks MC3 closely by design, so in practice this bites mainly where MC2 and MC3
+    // disagree, which is the ~12% of cards the mc3_vs_mc2 lane counts.
+    const sideOf = (h) => {
+      if (!h || h.p1_prob == null) return null
+      const hf = fav1 ? h.p1_prob : 1 - h.p1_prob
+      return hf >= mkfav ? 'fav' : 'dog'
+    }
+    const mcSides = [sideOf(match.mc2), sideOf(match.mc3), sideOf(match.mc5)]
+    const agree = (want) => mcSides.every(sd => sd === want)
     const lo = match.live_odds || {}
     const num = (v) => { const n = Number(v); return isNaN(n) ? null : n }
     const rec = (lane) => {
@@ -3476,17 +3499,19 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // what separates it from a scan: at this margin +100..+200 is flat to negative and +300 and
     // up is -24%, so the edge lives between +200 and +300 and the mark stops at +250 because
     // that is the band you set.
-    if (dogAm >= 200 && dogAm <= 250 && over <= -0.10
+    if (dogAm >= 200 && dogAm <= 250 && over <= -0.10 && agree('dog')
         && mc2Alive('mc2_dog_long', gHL, false)) {
       return { cell: 'DOG LONG', lane: 'mc2_dog_long', who: fav1 ? match.player_2 : match.player_1,
                od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog_long'),
                recon: !!m2.recon }
     }
-    if (dogInBand && over <= -0.03 && mc2Alive('mc2_dog3', gHL, false)) {
+    if (dogInBand && over <= -0.03 && agree('dog') && mc2Alive('mc2_dog3', gHL, false)) {
       return { cell: 'DOG 3pt+', lane: 'mc2_dog3', who: fav1 ? match.player_2 : match.player_1,
                od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog3'),
                recon: !!m2.recon }
     }
+    // the AVOID cell is deliberately NOT gated on agreement: it says do not back this dog, and
+    // withholding a warning because the heads disagree would be backwards.
     if (dogInBand && over > -0.03 && over <= -0.01) {
       return { cell: 'NO DOG', avoid: true, lane: 'mc2_dog_dead',
                who: fav1 ? match.player_2 : match.player_1, od: dogAm,
@@ -3499,24 +3524,24 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     if (over > 0.08 && !mc2Alive('mc2_fav_deep', gHL, true)) return null
     if (over >= 0.02 && over <= 0.08 && !mc2Alive('mc2_fav_band', gHL, true)) return null
     if (mcfav < 0.5 && !mc2Alive('mc2_dog_flip', gHL, false)) return null
-    if (favInBand && over >= 0 && over < 0.02 && mc2Alive('mc2_fav_on', gHL, true)) {
+    if (favInBand && over >= 0 && over < 0.02 && agree('fav') && mc2Alive('mc2_fav_on', gHL, true)) {
       // 0-2pt: "exactly on the market or over by anything". Fills the gap below the 2pt band so
       // a card whose true margin is 1.9pt is not left unmarked by rounding alone.
       return { cell: 'FAV 0-2pt', lane: 'mc2_fav_on', who: fav1 ? match.player_1 : match.player_2,
                od: favAm, amt: Math.round(1000 * over) / 10, live: rec('mc2_fav_on'),
                recon: !!m2.recon }
     }
-    if (favInBand && over > 0.08) {
+    if (favInBand && over > 0.08 && agree('fav')) {
       return { cell: 'FAV 8pt+', lane: 'mc2_fav_deep', who: fav1 ? match.player_1 : match.player_2,
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
                live: rec('mc2_fav_deep'), recon: !!m2.recon }
     }
-    if (favInBand && over >= 0.02 && over <= 0.08) {
+    if (favInBand && over >= 0.02 && over <= 0.08 && agree('fav')) {
       return { cell: 'FAV 2-8pt', lane: 'mc2_fav_band', who: fav1 ? match.player_1 : match.player_2,
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
                live: rec('mc2_fav_band'), recon: !!m2.recon }
     }
-    if (mcfav < 0.5 && over <= -0.03) {
+    if (mcfav < 0.5 && over <= -0.03 && agree('dog')) {
       return { cell: 'DOG-FLIP', lane: 'mc2_dog_flip', who: fav1 ? match.player_2 : match.player_1,
                od: num(fav1 ? lo.player_2 : lo.player_1), amt: Math.round(1000 * (0.5 - mcfav)) / 10,
                live: rec('mc2_dog_flip'), recon: !!m2.recon }
@@ -3896,7 +3921,7 @@ A PLATEAU, not a tuned point: 2pt is +11.1%, 3pt +13.2%, 4pt +8.7% forward, and 
 
 MC2 is the independent third opinion — surface Elo blended 50/50 in log-odds with a point-level Markov engine off opponent-adjusted serve/return ratings, integrated over rating uncertainty. It is NOT a stat-diff model like G, which is why the two disagree on which cell fires 45% of the time. Its own reckoning measured residual-vs-close as market-minus-vig, so it never bets alone.
 
-WATCH ONLY: five days of forward data, standard errors of 12-15 points. Lane ${mc2Mark.lane} on the 🐕/⭐ Splits tab.`}
+ALL THREE MC HEADS AGREE on this side (MC2, MC3 and MC5 are all on the same side of the de-vigged market), which is required before a brown mark is drawn. A missing head blocks it too.\n\nWATCH ONLY: five days of forward data, standard errors of 12-15 points. Lane ${mc2Mark.lane} on the 🐕/⭐ Splits tab.`}
           style={{
             fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.05em',
             padding: '3px 6px', borderRadius: 4, color: '#e3b98f',
