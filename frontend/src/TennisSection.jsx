@@ -19,6 +19,42 @@ const MC_ONLY = true
 // that catches that. Flip this to true to bring the whole display back.
 const SHOW_MODEL_P = false
 
+// ITF ON THE MAIN BOARD (2026-10-14, user "mix the itf board into the main board but just on
+// picks that mc2 likes on the dog tab"). ITF is its own endpoint, so the board never had the
+// data; only matches carrying an MC2 DOG mark are folded in, on the same gender x band rules the
+// Dog picks tab and the brown board marks use.
+//
+// ITF men are excluded, matching the tab, which drops them as the only league with a negative dog
+// ROI there (-26.15% on 27). Flip ITF_MEN_ON_BOARD to include them.
+const ITF_MEN_ON_BOARD = false
+const ITF_DOG_CELLS = [
+  { g: 'm', lo: 100, hi: 150, pt: 0.04 },
+  { g: 'w', lo: 100, hi: 150, pt: 0.04 },
+  { g: 'w', lo: 150, hi: 200, pt: 0.04 },
+  { g: 'm', lo: 200, hi: 250, pt: 0.06 },
+  { g: 'w', lo: 250, hi: 300, pt: 0.04 },
+]
+// true when MC2 marks the DOG on this match under the board's own rules
+function mc2DogMarked(m) {
+  const mc2 = m && m.mc2
+  const lo = m && m.live_odds
+  if (!mc2 || mc2.p1_prob == null || !lo) return false
+  if (!ITF_MEN_ON_BOARD && String(m.league || '').toLowerCase() === 'itf_men') return false
+  const am = (v) => { const n = Number(v); return isNaN(n) ? null : n }
+  const o1 = am(lo.player_1), o2 = am(lo.player_2)
+  if (o1 == null || o2 == null) return false
+  const dec = (o) => (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o))
+  const d1 = dec(o1), d2 = dec(o2)
+  const mk1 = (1 / d1) / ((1 / d1) + (1 / d2))
+  const dog1 = mk1 < 0.5
+  const dogAm = dog1 ? o1 : o2
+  const mkFav = Math.max(mk1, 1 - mk1)
+  const mcFav = dog1 ? 1 - mc2.p1_prob : mc2.p1_prob
+  const over = mcFav - mkFav                      // negative = MC2 is over on the DOG
+  const g = (m.league === 'wta' || m.league === 'itf_women') ? 'w' : 'm'
+  return ITF_DOG_CELLS.some(c => c.g === g && dogAm >= c.lo && dogAm <= c.hi && over <= -c.pt)
+}
+
 const LEAGUE_COLOR = { atp: '#4A9EFF', wta: '#FF6FA5', atp_challenger: '#7FB3FF', itf_men: '#5AC8C8', itf_women: '#E08CC0' }
 
 const SURFACE_COLOR = {
@@ -573,7 +609,21 @@ export default function TennisSection() {
     setLoading(false)
   }
 
-  const all = data?.matches ?? []
+  // ITF, fetched in the BACKGROUND so the board never waits on it -- /api/tennis/itf can take
+  // ~30s cold, and a slow or failing ITF feed must not hold up /today. Only MC2-marked dogs merge.
+  const [itfBoardExtra, setItfBoardExtra] = useState([])
+  useEffect(() => {
+    let dead = false
+    const go = () => fetch('/api/tennis/itf').then(r => r.json()).then(d => {
+      if (dead) return
+      const keep = (d.matches || []).filter(m => m.status !== 'completed' && mc2DogMarked(m))
+      setItfBoardExtra(keep)
+    }).catch(() => {})
+    go()
+    const id = setInterval(go, 300000)   // 5 min; these cards change slowly and the call is heavy
+    return () => { dead = true; clearInterval(id) }
+  }, [])
+  const all = [...(data?.matches ?? []), ...itfBoardExtra]
   // finished/cancelled matches drop off the board (2026-09-28, user ask); their record
   // lives in the trackers and the A/B $25 panel instead.
   const q = query.trim().toLowerCase()
