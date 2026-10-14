@@ -20,7 +20,34 @@ tennis_context.get_context.
 import os
 import pickle
 from functools import lru_cache
-from math import comb
+from math import comb, log10 as _log10
+
+# ======================================================================================
+# SAMPLE-ASYMMETRY TILT (2026-10-13). One definition, imported by MC3 and MC5.
+#
+# Both halves of the blend start a player at the population mean (Elo 1500, serve/return
+# deviation 0) and converge toward truth as matches accumulate, so a player with few
+# tracked matches is structurally pinned too close to average. Measured consequence: the
+# thin side was overrated by +10.00pt (MC2) / +8.74pt (MC3) at 10x sample asymmetry while
+# the market was flat to +/-0.75pt everywhere.
+#
+# The correction is in log-odds, monotone in the asymmetry, and exactly zero when the two
+# samples are equal -- so a symmetric matchup is untouched. Shrinking the ratings instead
+# was tested twice and made the bias WORSE, because it pushes the way the defect already
+# goes. Full evidence in _thin_tilt.py.
+MC_TILT = 0.35
+
+
+def asym_tilt(n1, n2):
+    """Log-odds nudge AWAY from the thinner-sampled player. Positive favours player 1."""
+    if not MC_TILT:
+        return 0.0
+    a = max(float(n1 or 0.0), 1.0)
+    b = max(float(n2 or 0.0), 1.0)
+    if a == b:
+        return 0.0
+    return MC_TILT * _log10(max(a, b) / min(a, b)) * (1.0 if a > b else -1.0)
+
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _STATE_PATH = os.path.join(_DIR, "data_cache", "_mc2_state.pkl")
@@ -182,10 +209,12 @@ def predict(p1_name, p2_name, surface, market_p1=None, best_of_5=False):
     p_elo = 1 / (1 + 10 ** ((elo_b - elo_a) / 400))
     import math
     lg = lambda p: math.log(max(min(p, 1 - 1e-6), 1e-6) / (1 - max(min(p, 1 - 1e-6), 1e-6)))
-    p_blend = 1 / (1 + math.exp(-(0.5 * lg(p_elo) + 0.5 * lg(pm))))
+    _asym = asym_tilt(a["nS"], b["nS"])
+    p_blend = 1 / (1 + math.exp(-(0.5 * lg(p_elo) + 0.5 * lg(pm) + _asym)))
     return {"p1_prob": round(p_blend, 4), "elo_p1": round(p_elo, 4),
             "mkv_p1": round(pm, 4), "pa_pt": pa, "pb_pt": pb,
             "n1": int(a["nS"]), "n2": int(b["nS"]), "bo5": bool(best_of_5),
+            "asym": round(_asym, 4),
             "sigma": round(sg_a + sg_b, 4)}
 
 

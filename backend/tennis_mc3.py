@@ -49,7 +49,7 @@ import threading
 
 # The chain has ONE definition, in tennis_mc2. _p_set is the shared set probability; _rnd is the
 # same quantiser so the lru_caches behind it are shared rather than duplicated.
-from tennis_mc2 import (_NODES, DAY_SD, _p_set, _rnd, _surf, _slug,
+from tennis_mc2 import (_NODES, DAY_SD, _p_set, _rnd, _surf, _slug, asym_tilt,
                         p_match as _p_match_any)
 
 MC3_KS = 20.0          # surface-vs-career shrink; _mc3_build.py imports THIS, never its own copy
@@ -155,10 +155,12 @@ def predict(p1_name, p2_name, surface, best_of_5=False, market_p1=None):
     def lg(p):
         p = min(max(p, 1e-6), 1 - 1e-6)
         return math.log(p / (1 - p))
-    p_blend = 1 / (1 + math.exp(-(0.5 * lg(p_elo) + 0.5 * lg(pm))))
+    _asym = asym_tilt(a["nS"], b["nS"])
+    p_blend = 1 / (1 + math.exp(-(0.5 * lg(p_elo) + 0.5 * lg(pm) + _asym)))
     return {"p1_prob": round(p_blend, 4), "elo_p1": round(p_elo, 4),
             "mkv_p1": round(pm, 4), "pa_pt": pa, "pb_pt": pb,
             "n1": int(a["nS"]), "n2": int(b["nS"]),
             "ns1": int(a["nS_s"][surf]), "ns2": int(b["nS_s"][surf]),
             "bo5": bool(best_of_5), "ks": MC3_KS, "tilt": MC3_DAY_TILT,
+            "asym": round(_asym, 4),
             "sigma": round(sg_a + sg_b, 4)}

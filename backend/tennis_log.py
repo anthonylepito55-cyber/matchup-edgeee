@@ -766,6 +766,12 @@ MC2_LIVE_FROM = "2026-10-13T02:00:00Z"
 #   both_take_fav  men  -4.64% /  3    women -17.11% /  2
 #   both_take_dog  men +29.25% /  8    women +72.14% /  7
 TAKE_LIVE_FROM = "2026-10-13T16:00:00Z"
+# SAMPLE-ASYMMETRY TILT CUTOVER (2026-10-13). MC2/MC3/MC5 gained a log-odds correction that
+# pushes probability away from the thinner-sampled player (tennis_mc2.MC_TILT = 0.35), after
+# the user spotted that the heads overprice whoever has fewer matches. Rows logged BEFORE this
+# stamp were priced without it, so any mc2_*/mc3_*/mc5_* lane record that straddles this date is
+# two different models averaged together. Split on it before reading a lane as evidence.
+ASYM_LIVE_FROM = "2026-10-13T22:00:00Z"
 MC2_FAV_BAND = (0.02, 0.08)
 # DEEP favourite cell (2026-10-13, user "Those can be brown highlighted too", about the 9pt+
 # favourites). Set at 8pt rather than 9 so the two brown favourite cells are CONTINUOUS -- a card

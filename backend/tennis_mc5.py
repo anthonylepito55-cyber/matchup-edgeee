@@ -31,7 +31,7 @@ import os
 import pickle
 import threading
 
-from tennis_mc2 import _NODES, _rnd, _surf, _slug, p_match
+from tennis_mc2 import _NODES, _rnd, _surf, _slug, p_match, asym_tilt
 from tennis_mc3 import MC3_KS, MC3_MOV_W
 
 # --- the MC3 recipe MC5 inherits, imported so they cannot drift -------------------------
@@ -205,10 +205,11 @@ def predict(p1_name, p2_name, surface, best_of_5=False, market_p1=None):
     if sn_a > 0 and sn_b > 0:
         z_elo += MC5_SEAS * (sw_a - sw_b)
 
-    p_blend = 1 / (1 + math.exp(-(0.5 * z_elo + 0.5 * z_mkv)))
+    _asym = asym_tilt(a["nS"], b["nS"])
+    p_blend = 1 / (1 + math.exp(-(0.5 * z_elo + 0.5 * z_mkv + _asym)))
     return {"p1_prob": round(p_blend, 4), "elo_p1": round(p_elo, 4),
             "mkv_p1": round(pm, 4), "pa_pt": pa, "pb_pt": pb,
-            "n1": int(a["nS"]), "n2": int(b["nS"]),
+            "n1": int(a["nS"]), "n2": int(b["nS"]), "asym": round(_asym, 4),
             "ns1": int(a["nS_s"][surf]), "ns2": int(b["nS_s"][surf]),
             "l5n1": int(n5a), "l5n2": int(n5b), "l5_live": bool(live5),
             "l5win1": round(w5a, 3), "l5win2": round(w5b, 3),
