@@ -20,7 +20,7 @@ LOG_PATH = os.path.join(CACHE_DIR, "tennis_prediction_log.parquet")
 
 COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "player_2",
            "start_time_utc", "surface", "best_of_5", "p1_win_prob", "p1_odds", "p2_odds",
-           "bookmaker", "logged_at", "settled", "p1_won", "sr_dog", "sos",
+           "bookmaker", "logged_at", "settled", "p1_won", "void", "sr_dog", "sos",
            "model_a_p1", "model_b_p1", "model_c_p1", "model_cma_p1",
            "model_ama_p1", "model_bma_p1", "model_d_p1", "model_dma_p1", "mc_p1", "mc_c_p1",
            "mc_c75_p1", "mc_cutr_p1", "mc_c_recon", "model_x_p1", "model_x_recon", "model_x_v",
@@ -170,6 +170,7 @@ def log_predictions(matches: list, date: str):
             "p1_win_prob": float(pred["player_1_win_prob"]) if pred.get("player_1_win_prob") is not None else None,
             "p1_odds": odds.get("player_1"), "p2_odds": odds.get("player_2"),
             "bookmaker": odds.get("bookmaker"), "logged_at": now, "settled": False, "p1_won": None,
+            "void": False,
             "sr_dog": m.get("sr_dog"), "sos": m.get("sos"),
             # FROZEN SEASONAL HOLD/BREAK (2026-10-11, user "Mark the band + favorite and band
             # + dog positive roi ones"): each player's 52-week-on-this-surface service-games-won
@@ -448,7 +449,7 @@ def _drop_cross_feed_twins(keep, new, window_days=3):
     return k2, n2
 
 
-def settle(max_dates: int = 10):
+def settle(max_dates: int = 40):
     """Fill winners for unsettled rows whose match has started, from OpticOdds completed
     fixtures (result.scores.*.total = sets won; player_1 is the home competitor). Falls back
     to Polymarket's resolved markets + per-set score for pm_-prefixed rows when OpticOdds is
@@ -460,7 +461,11 @@ def settle(max_dates: int = 10):
     if todo.empty:
         return
     changed = False
-    for date in sorted(todo["date"].unique())[-max_dates:]:
+    # OLDEST FIRST (2026-10-14). This took the NEWEST max_dates, so with 20 dates holding
+    # unsettled rows the oldest ten were never retried on any run -- 2026-09-07 through
+    # 2026-09-29 were permanently stranded. The newest dates settle on the next run regardless;
+    # it is the backlog that needs the retries.
+    for date in sorted(todo["date"].unique())[:max_dates]:
         try:
             # settle had the SAME un-paginated 100-fixture cap the slate fetch had (fixed
             # 2026-09-28) -- reuse the cursor-paginated fetch so nothing stays unsettled.
@@ -469,6 +474,16 @@ def settle(max_dates: int = 10):
         except Exception:  # noqa: BLE001
             continue
         for f in fixtures:
+            if f.get("status") in ("cancelled", "canceled", "postponed", "abandoned"):
+                # no winner exists and none ever will, so mark it void rather than leaving it
+                # to sit in every lane as a pending bet forever. p1_won stays null and each
+                # lane reads `settled and p1_won.notna()`, so it scores as neither win nor loss.
+                _vm = log["fixture_id"] == f.get("id")
+                if _vm.any() and not bool(log.loc[_vm, "settled"].iloc[0]):
+                    log.loc[_vm, "settled"] = True
+                    log.loc[_vm, "void"] = True
+                    changed = True
+                continue
             if f.get("status") != "completed":
                 continue
             scores = ((f.get("result") or {}).get("scores") or {})

@@ -69,6 +69,47 @@ function tstat(c) {
 
 const usd = v => `${v < 0 ? '-' : '+'}$${Math.abs(v || 0).toFixed(2)}`
 
+// PRICE CAP (2026-10-14, user "And remove anything over +300"). Applies to every pick list and
+// to every aggregate on this tab. It is also where the measured evidence stops: above +300 the
+// archive runs -17% to -18% at any model margin, and the board's own +250..+300 cell was capped
+// at 300 for the same reason.
+const MAX_AM = 300
+const priceOK = p => p.odds != null && p.odds <= MAX_AM
+
+// PRICE BANDS (2026-10-14, user ask). The four bands the user bets in, in order.
+const BANDS = [
+  ['+100..+150', 100, 150],
+  ['+150..+200', 150, 200],
+  ['+200..+250', 200, 250],
+  ['+250..+300', 250, 300],
+]
+const bandOf = od => (od == null ? null : (BANDS.find(([, lo, hi]) => od >= lo && od <= hi) || [null])[0])
+
+// A DOG PICK COUNTED ONCE. The cells overlap heavily -- the same dog can carry nine badges --
+// so summing cell records would multiply one bet into nine. These aggregates key on the match
+// itself, take the pick once, and use its own P/L, which is what betting the tab would return.
+function dedupe(cells, filterFn) {
+  const out = new Map()
+  for (const cel of cells) {
+    for (const p of cel.picks) {
+      if (!priceOK(p)) continue
+      if (!genderOK(cel.c, genderOf(p))) continue
+      if (filterFn && !filterFn(p)) continue
+      const k = `${p.date}|||${p.pick}|||${p.opp}`
+      if (!out.has(k)) out.set(k, p)
+    }
+  }
+  return [...out.values()]
+}
+function agg(ps) {
+  const done = ps.filter(p => p.won != null)
+  const w = done.filter(p => p.won).length
+  const profit = done.reduce((a, p) => a + (p.pnl || 0), 0)
+  const staked = 25 * done.length
+  return { n: done.length, w, l: done.length - w, profit,
+           roi: staked ? (100 * profit / staked) : null, pending: ps.length - done.length }
+}
+
 // GENDER-SPECIFIC (2026-10-14, user: "Make sure they're gender specific picks if one gender is
 // negative dog roi I don't want it"). Every cell on this board has split by gender, often
 // hard -- mc2_dog_band is men +20.3% / women -1.0%, cgray_dog_late men +22.1% / women -8.4% --
@@ -144,6 +185,7 @@ export default function DogPicksPanel({ query }) {
     for (const p of cel.picks) {
       if (p.won != null || p.settled) continue
       if (whenMs(p) < CUTOFF) continue
+      if (!priceOK(p)) continue          // nothing above +300
       const g = genderOf(p)
       if (!genderOK(cel.c, g)) continue       // this gender's half of the cell loses money
       const k = `${p.pick}|||${p.opp}`
@@ -182,8 +224,61 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin.
       </div>
+      {(() => {
+        // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
+        // DEDUPED picks -- one row per dog, not one per cell -- so they say what betting this
+        // tab actually returned rather than counting a nine-badge dog nine times.
+        const all = dedupe(cells)
+        const days = [...new Set(all.filter(p => p.won != null).map(p => dayLabel(whenMs(p))))]
+        const byDay = new Map()
+        for (const p of all) {
+          if (p.won == null) continue
+          const d = dayLabel(whenMs(p))
+          if (!byDay.has(d)) byDay.set(d, [])
+          byDay.get(d).push(p)
+        }
+        const dayKeys = [...byDay.keys()].sort((a, b) => {
+          const pa = byDay.get(a)[0], pb = byDay.get(b)[0]
+          return whenMs(pa) - whenMs(pb)
+        })
+        const recent = dayKeys.slice(-4)
+        const box = (label, a, hint) => (
+          <div key={label} title={hint} style={{
+            padding: '7px 12px', borderRadius: 8, background: 'var(--panel)', minWidth: 118,
+            border: `1px solid ${a.n && a.roi > 0 ? 'rgba(63,185,80,0.45)' : 'var(--line)'}`,
+          }}>
+            <div style={{ fontSize: 9, color: 'var(--text-tertiary)', fontWeight: 700, letterSpacing: '0.04em' }}>{label}</div>
+            {a.n ? (
+              <>
+                <div style={{ fontSize: 14, fontWeight: 800, color: a.profit >= 0 ? '#3fb950' : '#f85149' }}>{usd(a.profit)}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                  {a.w}-{a.l} · {a.roi > 0 ? '+' : ''}{a.roi.toFixed(1)}%
+                </div>
+              </>
+            ) : <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3 }}>{a.pending ? `${a.pending} pending` : 'none'}</div>}
+          </div>
+        )
+        return (
+          <>
+            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 5 }}>
+              DAILY — one row per dog, deduped across cells, $25 flat, nothing above +{MAX_AM}
+            </div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
+              {recent.map(d => box(d, agg(byDay.get(d)), `Every deduped dog pick that settled on ${d}.`))}
+              {box('ALL TIME', agg(all), 'Every deduped dog pick on this tab, all days.')}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 5 }}>
+              BY PRICE BAND — all days, deduped
+            </div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
+              {BANDS.map(([lab, lo, hi]) => box(lab, agg(all.filter(p => p.odds >= lo && p.odds <= hi)),
+                `Every deduped dog pick priced ${lab}.`))}
+            </div>
+          </>
+        )
+      })()}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {pill(mode === 'today', `today (${stacked.length})`, () => setMode('today'))}
         {pill(mode === 'cells', `by cell (${cells.length})`, () => setMode('cells'))}
@@ -292,7 +387,7 @@ export default function DogPicksPanel({ query }) {
                 </div>
                 {isOpen && cel.picks.length ? (
                   <div style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 6, maxHeight: 320, overflowY: 'auto' }}>
-                    {cel.picks.slice().sort((a, b) => whenMs(a) - whenMs(b)).map((p, i) => (
+                    {cel.picks.filter(priceOK).slice().sort((a, b) => whenMs(a) - whenMs(b)).map((p, i) => (
                       <div key={i} title={genderOK(cel.c, genderOf(p)) ? undefined : 'this gender’s half of the cell is negative, so picks like this are not listed on the today tab'}
                         style={{ fontSize: 10, display: 'flex', gap: 7, padding: '2px 0', color: 'var(--text-secondary)', opacity: genderOK(cel.c, genderOf(p)) ? 1 : 0.4 }}>
                         <span style={{ color: 'var(--text-tertiary)', minWidth: 58 }}>{p.date}</span>
