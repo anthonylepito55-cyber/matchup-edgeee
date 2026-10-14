@@ -3529,49 +3529,37 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // evidenced -- 485 all-rows bets against 119.
     const dogAm = fav1 ? Number(lo.player_2) : Number(lo.player_1)
     const dogInBand = !isNaN(dogAm) && dogAm >= 100 && dogAm <= 250
-    // THE LONG-DOG CELL: a +200..+250 dog MC2 rates 10pt+ over its price. Checked before
-    // mc2_dog3, which would otherwise swallow it -- it is the more specific claim and the only
-    // place a long price has held up (+28.3% on 55 all-rows, +21.2% on 19 forward, against
-    // -1.9%/+1.8% for every dog in that band). The window is bounded on BOTH sides, which is
-    // what separates it from a scan: at this margin +100..+200 is flat to negative and +300 and
-    // up is -24%, so the edge lives between +200 and +300 and the mark stops at +250 because
-    // that is the band you set.
-    if (dogAm >= 200 && dogAm <= 250 && over <= -0.10 && agreeAt('dog', 0.10)
-        && mc2Alive('mc2_dog_long', gHL, false)) {
-      return { cell: 'DOG LONG', lane: 'mc2_dog_long', who: fav1 ? match.player_2 : match.player_1,
-               od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog_long'),
-               recon: !!m2.recon }
-    }
-    // THE +250..+300 LONG-DOG CELL (2026-10-13, user: "if its over +250 but models move the
-    // underdog over 8 points then thats still a good dog bet aka iva jovic vs dayan yastremska",
-    // then "lets cap it at 300"). All three heads 8pt+ over the market on a dog priced
-    // +250..+300.
+    // ---- MC2 BAND RULES (board), 2026-10-14 ----
+    // User: "can u use the same mc2 rules on odds for the board brown highlights", and the
+    // three-head agreement gate was dropped on the same call so the board matches the Dog picks
+    // tab exactly. Those rules are gender x PRICE BAND, forward-measured, because the men's dog
+    // edge lives at +100..+150 and dies above it while the women's survives or peaks deeper --
+    // three unrelated signal families agree on that, so one ungendered band was hiding both.
     //
-    // THIS MARK IS USER-CALLED AND RUNS AGAINST ITS OWN BACKTEST. Stated plainly because the
-    // numbers should not have to be rediscovered:
-    //   archive, both heads 8pt+ on a +250..+300 dog: -10.66% on 4,124, negative every year
-    //   (2024 -20.3 / 2025 -8.6 / 2026 -12.3), and WORSE than backing every dog in that band
-    //   (-8.93%). At TOUR level -5.33% on 1,133 against -1.78% for the band. Tour+WTA -7.63%
-    //   on 1,564 against -4.69%. The margin ladder is FLAT -- 8pt -15.5%, 12pt -14.5%,
-    //   15pt -14.8%, 20pt -14.1% above +250 -- so a bigger gap buys nothing.
-    //   frozen live log, all THREE heads 8pt+ on a +250..+300 dog: +100.09% on 22 (54.5% hit)
-    //   against -7.28% for the band. n=22 carries a standard error near 30 points, so it is
-    //   ~1.6se from zero and does not overrule the archive.
-    // The cap at +300 is the user's, and it is the right side of the one real boundary in the
-    // data: +300 and up is -17.0% to -18.0% on the archive at this margin.
-    // Like the Ⓖ G marks this is a VISIBILITY mark the user asked for, not a validated cell, and
-    // it is exempted from the "backtest-positive AND live-positive" gate deliberately. Lane
-    // mc2_dog_250_300 is the judge; auto-unmark still applies through mc2Alive.
-    if (dogAm > 250 && dogAm <= 300 && over <= -0.08 && agreeAt('dog', 0.08)
-        && mc2Alive('mc2_dog_250_300', gHL, false)) {
-      return { cell: 'DOG +250..+300 8pt', lane: 'mc2_dog_250_300',
-               who: fav1 ? match.player_2 : match.player_1, od: dogAm,
-               amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog_250_300'),
-               recon: !!m2.recon }
-    }
-    if (dogInBand && over <= -0.03 && agreeAt('dog', 0.03) && mc2Alive('mc2_dog3', gHL, false)) {
-      return { cell: 'DOG 3pt+', lane: 'mc2_dog3', who: fav1 ? match.player_2 : match.player_1,
-               od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog3'),
+    //   men   +100..+150  4pt+   +27.48% / 48        women +100..+150  4pt+  +21.95% / 38
+    //   women +150..+200  4pt+   +37.73% / 30        men   +200..+250  6pt+  +30.61% / 18
+    //   women +250..+300  4pt+   +47.80% / 20
+    //
+    // Bands that are NOT marked are forward-negative for that gender and were previously swept
+    // in by the old +100..+250 cell: men +150..+200 (-25.39%/36), women +200..+250 (-23.00%/21).
+    //
+    // `over` is MC2 on the FAVOURITE minus the de-vigged market, so a dog N points over is
+    // over <= -N/100. Bands are first-match, so +150 belongs to +100..+150 only.
+    const _dogBand = (lo2, hi2) => !isNaN(dogAm) && dogAm >= lo2 && dogAm <= hi2
+    const DOG_CELLS = [
+      { g: 'm', lo: 100, hi: 150, pt: 0.04, cell: 'DOG 4pt+ M +100/150', lane: 'mc2_dog_band' },
+      { g: 'w', lo: 100, hi: 150, pt: 0.04, cell: 'DOG 4pt+ W +100/150', lane: 'mc2_dog_band' },
+      { g: 'w', lo: 150, hi: 200, pt: 0.04, cell: 'DOG 4pt+ W +150/200', lane: 'mc2_dog_band' },
+      { g: 'm', lo: 200, hi: 250, pt: 0.06, cell: 'DOG 6pt+ M +200/250', lane: 'mc2_dog_long' },
+      { g: 'w', lo: 250, hi: 300, pt: 0.04, cell: 'DOG 4pt+ W +250/300', lane: 'mc2_dog_band' },
+    ]
+    for (const d of DOG_CELLS) {
+      if (d.g !== gHL) continue
+      if (!_dogBand(d.lo, d.hi)) continue
+      if (!(over <= -d.pt)) continue
+      if (!mc2Alive(d.lane, gHL, false)) continue
+      return { cell: d.cell, lane: d.lane, who: fav1 ? match.player_2 : match.player_1,
+               od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec(d.lane),
                recon: !!m2.recon }
     }
     // the AVOID cell is deliberately NOT gated on agreement: it says do not back this dog, and
@@ -3602,30 +3590,24 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     })()
     // null price -> cannot verify, so do not mark (fail closed)
     const favClearsPrice = _favDec != null && (mcfav * _favDec - 1) >= 0
-    if (over > 0.08 && !mc2Alive('mc2_fav_deep', gHL, true)) return null
-    if (over >= 0.02 && over <= 0.08 && !mc2Alive('mc2_fav_band', gHL, true)) return null
-    if (mcfav < 0.5 && !mc2Alive('mc2_dog_flip', gHL, false)) return null
-    if (favInBand && over >= 0 && over < 0.02 && agreeAt('fav', 0) && favClearsPrice && mc2Alive('mc2_fav_on', gHL, true)) {
-      // 0-2pt: "exactly on the market or over by anything". Fills the gap below the 2pt band so
-      // a card whose true margin is 1.9pt is not left unmarked by rounding alone.
-      return { cell: 'FAV 0-2pt', lane: 'mc2_fav_on_ev', who: fav1 ? match.player_1 : match.player_2,
-               od: favAm, amt: Math.round(1000 * over) / 10, live: rec('mc2_fav_on_ev'),
+    // ---- MC2 FAVOURITE BAND RULES (board), 2026-10-14 ----
+    // The same two cells the Dog picks tab marks gold, and nothing else:
+    //   women -100..-200  4pt+   +22.85% / 51 pooled, t 2.16, positive in both windows
+    //   men   -100..-150  4pt+   +18.51% / 12 forward  (the mens DEEP half is not marked --
+    //                            -13.95% / 13, removed from the tab earlier today)
+    // The old 0-2pt and 2-8pt slices are gone: one 4pt+ test per gender replaces them.
+    //
+    // favClearsPrice is KEPT. The margin is measured against the DE-VIGGED market, so "4pt over"
+    // can still sit below break-even at the offered price; a mark must not recommend backing a
+    // favourite the head itself prices as a losing bet.
+    const _favLo = gHL === 'w' ? -200 : -150
+    const _favOK = !isNaN(favAm) && favAm <= -100 && favAm >= _favLo
+    const _favLane = gHL === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m'
+    if (_favOK && over >= 0.04 && favClearsPrice && mc2Alive('mc2_fav_band', gHL, true)) {
+      return { cell: gHL === 'w' ? 'FAV 4pt+ W -100/200' : 'FAV 4pt+ M -100/150',
+               lane: _favLane, who: fav1 ? match.player_1 : match.player_2,
+               od: favAm, amt: Math.round(1000 * over) / 10, live: rec(_favLane),
                recon: !!m2.recon }
-    }
-    if (favInBand && over > 0.08 && agreeAt('fav', 0.08) && favClearsPrice) {
-      return { cell: 'FAV 8pt+', lane: 'mc2_fav_deep_ev', who: fav1 ? match.player_1 : match.player_2,
-               od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
-               live: rec('mc2_fav_deep_ev'), recon: !!m2.recon }
-    }
-    if (favInBand && over >= 0.02 && over <= 0.08 && agreeAt('fav', 0.02) && favClearsPrice) {
-      return { cell: 'FAV 2-8pt', lane: 'mc2_fav_band_ev', who: fav1 ? match.player_1 : match.player_2,
-               od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
-               live: rec('mc2_fav_band_ev'), recon: !!m2.recon }
-    }
-    if (mcfav < 0.5 && over <= -0.03 && agreeAt('dog', 0.03)) {
-      return { cell: 'DOG-FLIP', lane: 'mc2_dog_flip', who: fav1 ? match.player_2 : match.player_1,
-               od: num(fav1 ? lo.player_2 : lo.player_1), amt: Math.round(1000 * (0.5 - mcfav)) / 10,
-               live: rec('mc2_dog_flip'), recon: !!m2.recon }
     }
     return null
   })()
