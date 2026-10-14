@@ -8,6 +8,16 @@ import DogPicksPanel from './DogPicksPanel.jsx'
 // gate: every predicate, lane and bet() underneath still runs, so the live records keep
 // accumulating and flipping this back to false restores the old board untouched.
 const MC_ONLY = true
+// MODEL P REMOVED (2026-10-14, user "Remove model P and it's highlights"). One flag, the same
+// shape as MC_ONLY: it nulls `pModel`, which every Model P surface reads from -- the card chip,
+// the 👑 DOG FLIP crown drawn inside it, the Ⓟ CLOSE chip and the hlP highlight gate -- plus the
+// tab, the panel and the TODAY strip, which are guarded separately below.
+//
+// The BACKEND is untouched: tennis_model_p.py and the p_dog / p_dog_flip / p_close* lanes keep
+// scoring silently, so the forward record survives. Worth keeping given the 👑 crown's backtest
+// claimed women +32.6% while the frozen log reads -37.65% on 17 -- the lanes are the only thing
+// that catches that. Flip this to true to bring the whole display back.
+const SHOW_MODEL_P = false
 
 const LEAGUE_COLOR = { atp: '#4A9EFF', wta: '#FF6FA5', atp_challenger: '#7FB3FF', itf_men: '#5AC8C8', itf_women: '#E08CC0' }
 
@@ -629,7 +639,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['dogpicks', '🐕 Dog picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P'], ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['dogpicks', '🐕 Dog picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ...(SHOW_MODEL_P ? [['modelp', 'Ⓟ Model P']] : []), ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -664,7 +674,7 @@ export default function TennisSection() {
           }}>{showModels ? '● all models' : '○ other models'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'dogpicks' ? <DogPicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'dogpicks' ? <DogPicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' && SHOW_MODEL_P ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
       {/* CROSS-BOOK SCANNER HIDDEN (2026-10-13, user: "hide the cross book scanner at the
           top of the page"). It sat above the board on every view. The component and its
           data (data.price_scan) are untouched, so restoring it is this one line -- and the
@@ -1525,6 +1535,7 @@ function SplitsPanel() {
 // every P pick on today's slate in one place at the top of the board -- dog bets (EV >= 5%,
 // teal) and favourite bets (EV >= 3%, gold, flagged) -- sorted by start time.
 function ModelPStrip({ matches }) {
+  if (!SHOW_MODEL_P) return null
   // ITF games too (2026-10-09, user "add the itf games to the model p today list"): the ITF
   // slate lives on its own feed (/api/tennis/itf, SWR-cached server side), so load it here
   // and merge; refreshed every 5 minutes.
@@ -3379,6 +3390,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // (n=2,442) vs every dog -7.4% / -6.0%; positive every year. Lane p_dog. Colors teal
   // only through the highlight gate (needs its own positive live record).
   const pModel = (() => {
+    if (!SHOW_MODEL_P) return null        // removes the chip, the crown, Ⓟ CLOSE and hlP at once
     const mp = match.model_p
     if (!mp || mp.ev == null) return null
     const dog1 = mp.dog === 1
@@ -5415,6 +5427,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
       })() : null}
 
       {(() => {
+        if (!SHOW_MODEL_P) return null
         const mp = match.model_p
         const lo = match.live_odds || {}
         const mk = match.model_c && match.model_c.market_p1 != null ? match.model_c.market_p1 : null
