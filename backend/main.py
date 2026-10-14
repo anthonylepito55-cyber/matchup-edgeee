@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import numpy as np
@@ -109,6 +110,15 @@ MODEL_X_FEATURE_COLUMNS = [
 ]
 
 app = FastAPI(title="MLB Pitcher Matchup Predictor")
+
+# COMPRESSION (2026-10-14, user "site takes forever to load"). Nothing was compressed, so a first
+# load moved ~2.7 MB (bundle 705 KB + /today 691 KB + /track-record 1.32 MB) and the history tab
+# added 9.06 MB on top. Server time was never the issue -- track-record answers in 0.81s -- the
+# bytes were. These payloads are JSON and compress five to ten times.
+#
+# minimum_size=1000 so tiny responses are not wrapped for nothing. Declared before CORSMiddleware
+# so it sits OUTSIDE it in the stack and compresses those responses too.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
