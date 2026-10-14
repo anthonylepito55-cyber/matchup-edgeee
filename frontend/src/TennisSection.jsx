@@ -5029,7 +5029,11 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8b949e', fontWeight: 700 }}
             title={`THE MARKET, de-vigged. Raw prices ${fmt(am1)} / ${fmt(am2)} imply ${(100 / d1).toFixed(1)}% and ${(100 / d2).toFixed(1)}%, which sum to ${(100 + vig).toFixed(1)}% -- the ${vig.toFixed(1)} points over 100 are the book's margin. Dividing it out gives ${(100 * mk1).toFixed(1)}% / ${(100 * (1 - mk1)).toFixed(1)}%, and THAT is the number every model line below is compared against: a head is "over the market" when it rates a player above this, not above the raw implied price. You are filled at the raw price, so the margin is what any edge has to clear first.`}>
             {'\u{1F4C8} MARKET: '}{match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(1000 * mk1) / 10}%</b> — <b>{Math.round(1000 * (1 - mk1)) / 10}%</b> {match.player_2.split(' ').slice(-1)[0]}
-            <span style={{ fontWeight: 400, opacity: 0.8 }}>{` \u00b7 ${fmt(am1)} / ${fmt(am2)} \u00b7 ${vig.toFixed(1)}pt vig`}</span>
+            {/* PERCENTAGES ONLY (2026-10-13, user: "i want the market to show %s not
+                -365"). The raw American prices moved into the tooltip. They are what
+                you get filled at, but they are not comparable at a glance to the model
+                lines below, which are all probabilities -- the de-vigged pair above is. */}
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>{` \u00b7 ${vig.toFixed(1)}pt vig`}</span>
           </div>
         )
       })()}
