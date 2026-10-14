@@ -876,7 +876,22 @@ MC2_DOG_LONG_AM = (200.0, 250.0)
 MC2_DOG_LONG_T = 0.10
 
 _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner_dog_w",
-               "p_dog_flip"}
+               "p_dog_flip",
+               # 🐕 DOG PICKS tab (2026-10-14, user "make a new tab called dog picks and add
+               # all of the picks with these cells into that tab as well as 6-4 split dogs,
+               # mc2 dog flips, c75 dog flips and fade form dogs"). bet() records a pick list
+               # only for the lanes named here, so these are added instead of re-implementing
+               # the predicates in the frontend -- the definitions in this file stay the one
+               # source of truth and the tab cannot drift out of lockstep with the lanes.
+               # The four the user named explicitly:
+               "split64_fade_dog",      # 6-4 split, dog side
+               "mc_c75_dog",            # c75 picks the market dog == a c75 dog flip
+               "pf_c75_dis_dog",        # fade-form dogs
+               # (mc2 dog flips already come through the _m2picks pass as mc2_dog_flip)
+               # and the rest of the dog leaderboard the tab groups under it:
+               "c75_dog_100plus", "cc75_nod_dog", "cc75_dog", "cr1_stardog",
+               "s52_fav_band_dog", "pink_fadeb_dog_m", "pink_mc2_dog", "tier_avoid_dog",
+               "dma_dog", "mc2_dog_band", "cgray_dog_late", "ovl_dog", "fight_mc4_dog"}
 
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",

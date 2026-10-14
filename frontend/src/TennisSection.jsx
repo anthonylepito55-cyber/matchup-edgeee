@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { americanOddsToImpliedProb } from './odds.js'
 import TestedPanel from './TestedPanel.jsx'
+import DogPicksPanel from './DogPicksPanel.jsx'
 
 // MC2/MC3/MC5 ONLY (2026-10-13, user "any signals under the picks u can remove them
 // unless its mc2 mc3 and mc5 also any highlights that arent mc2 mc3 and mc5"). Display-only
@@ -628,7 +629,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P'], ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['dogpicks', '🐕 Dog picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ['modelp', 'Ⓟ Model P'], ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -663,7 +664,7 @@ export default function TennisSection() {
           }}>{showModels ? '● all models' : '○ other models'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'dogpicks' ? <DogPicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
       {/* CROSS-BOOK SCANNER HIDDEN (2026-10-13, user: "hide the cross book scanner at the
           top of the page"). It sat above the board on every view. The component and its
           data (data.price_scan) are untouched, so restoring it is this one line -- and the
