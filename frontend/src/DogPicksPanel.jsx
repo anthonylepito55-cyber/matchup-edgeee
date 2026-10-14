@@ -22,8 +22,24 @@ import React, { useEffect, useState } from 'react'
 // prices, and folding a -150 favourite into them would corrupt the numbers used to decide dog
 // bets. They get their own box and their own colour.
 const YELLOW = '#e3b341'
+const GOLD = '#ffd700'
 const FAV_CELLS = new Set(['mc2_fav4_w', 'mc2_fav4_m'])
 const isFavPick = p => p.odds != null && p.odds < 0
+
+// TWO BANDS, TWO COLOURS (2026-10-14, user "mark -150 to -200 favorites gold as well"). Same
+// cell and same lane -- a women's favourite MC2 rates 4pt+ over the market -- but the bands are
+// separately measured and the deeper one is the stronger half, so gold is the brighter colour:
+//     -100..-150  n=28  19-9   67.9% hit vs 55.5% needed  +22.31%  t 1.40  -> yellow
+//     -150..-200  n=23  18-5   78.3% hit vs 63.2% needed  +23.50%  t 1.73  -> gold
+// The badge carries the band and the n so the two are never read as one number.
+const FAV_BANDS = [
+  { lo: -150, hi: -100, tag: 'FAV \u2212100/150', col: YELLOW, rgba: '227,179,65',
+    note: '-100..-150: +22.31% on 28 (19-9), 67.9% hit against 55.5% needed, t 1.40.' },
+  { lo: -200, hi: -150, tag: 'FAV \u2212150/200', col: GOLD, rgba: '255,215,0',
+    note: '-150..-200: +23.50% on 23 (18-5), 78.3% hit against 63.2% needed, t 1.73 -- the stronger half.' },
+]
+const favBandOf = p => (p.odds == null || p.odds >= 0) ? null
+  : (FAV_BANDS.find(b => p.odds >= b.lo && p.odds <= b.hi) || null)
 
 const CELLS = [
   ['🟡 MC2 4pt+ FAV · WOMEN −100..−200', 'mc2_fav4_w', 'MC2 rates this WOMENS favourite 4+ points above the de-vigged market, priced -100..-200. Forward +26.72% on 24 (18-6). On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against 59.0% needed, t 2.16) -- positive in BOTH windows (fwd +26.72%/24, recon +19.40%/27) and BOTH bands (-100..-150 +22.31%/28, -150..-200 +23.50%/23). The MENS half of the same cut is -9.21% on 74, and every womens favourite in that range is -3.64%, so this is not a generic favourite effect. The only favourite cell in this project to clear t=2. STILL THIN: 51 bets, and the gender split and 4pt threshold were both found by scanning this data.'],
@@ -307,7 +323,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2</b> at <b>+100..+150</b> (every bucket clearing t=2 is here and is MC2: pink +29.97%/119 t 3.11, band +29.61%/62 t 2.26, take +26.34%/79 t 2.19), or <b>MC2 6pt/take or fade form</b> at <b>+150..+200</b> (+21.30%/54 t 1.15 and +22.70% on 11 — a lean; the other cells invert there), or the <b>c75 family</b> at <b>+200..+250</b> (c75 and MC2 swap places there, but this is <b>13 bets, 6-7, t 1.12</b> — the four c75 cells are the same 13 bets counted four times). <b style={{ color: YELLOW }}>\u2b50 Yellow = a FAVOURITE</b>, kept visually and numerically separate from the dogs: MC2 4pt+ over the market on a <b>women\u2019s</b> favourite at \u2212100..\u2212200 \u2014 +22.85% on 51 (t 2.16), positive in both windows and both bands, against \u22129.21% for the men\u2019s half. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2</b> at <b>+100..+150</b> (every bucket clearing t=2 is here and is MC2: pink +29.97%/119 t 3.11, band +29.61%/62 t 2.26, take +26.34%/79 t 2.19), or <b>MC2 6pt/take or fade form</b> at <b>+150..+200</b> (+21.30%/54 t 1.15 and +22.70% on 11 — a lean; the other cells invert there), or the <b>c75 family</b> at <b>+200..+250</b> (c75 and MC2 swap places there, but this is <b>13 bets, 6-7, t 1.12</b> — the four c75 cells are the same 13 bets counted four times). <b style={{ color: YELLOW }}>\u2b50 Yellow (\u2212100..\u2212150) and \ud83e\udd47 gold (\u2212150..\u2212200) = a FAVOURITE</b>, kept visually and numerically separate from the dogs: MC2 4pt+ over the market on a <b>women\u2019s</b> favourite at \u2212100..\u2212200 \u2014 +22.85% on 51 (t 2.16), positive in both windows and both bands, against \u22129.21% for the men\u2019s half. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
@@ -391,8 +407,14 @@ export default function DogPicksPanel({ query }) {
               }
               return (
                 <>
-                  <div style={{ fontSize: 10, color: YELLOW, fontWeight: 700, marginBottom: 5 }}>
-                    🟡 FAVOURITES — separate from every dog number above. MC2 4pt+ over the market at −100..−200.
+                  <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 5 }}>
+                    <span style={{ color: YELLOW }}>🟡 −100..−150</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}>{' / '}</span>
+                    <span style={{ color: GOLD }}>🥇 −150..−200 (the stronger half)</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}>
+                      {' — FAVOURITES, separate from every dog number above. MC2 4pt+ over the market. '}
+                      {'Yellow +22.31%/28 t 1.40 · gold +23.50%/23 t 1.73 · combined +22.85%/51 t 2.16.'}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
                     {bx(wCell, 'women (the take)')}
@@ -425,14 +447,16 @@ export default function DogPicksPanel({ query }) {
               const col = n >= 3 ? '#3fb950' : n === 2 ? '#e3b341' : 'var(--text-secondary)'
               const pr = pinkRule(s.p, s.cells.map(c => c.key))
               // a FAVOURITE pick -- yellow, and never pink, so the two can never be confused
-              const yel = isFavPick(s.p) && s.cells.some(c => FAV_CELLS.has(c.key))
+              const fb = (isFavPick(s.p) && s.cells.some(c => FAV_CELLS.has(c.key)))
+                ? favBandOf(s.p) : null
+              const yel = !!fb
               return (
                 <div key={i} className="mono" style={{
                   padding: '9px 13px', borderRadius: 8,
-                  background: yel ? 'rgba(227,179,65,0.10)' : pr ? 'rgba(247,120,186,0.10)' : 'var(--panel)',
-                  border: `1px solid ${yel ? 'rgba(227,179,65,0.85)' : pr ? 'rgba(247,120,186,0.85)'
+                  background: fb ? `rgba(${fb.rgba},0.10)` : pr ? 'rgba(247,120,186,0.10)' : 'var(--panel)',
+                  border: `1px solid ${fb ? `rgba(${fb.rgba},0.85)` : pr ? 'rgba(247,120,186,0.85)'
                     : n >= 3 ? 'rgba(63,185,80,0.55)' : 'var(--line)'}`,
-                  boxShadow: yel ? '0 0 14px rgba(227,179,65,0.22)'
+                  boxShadow: fb ? `0 0 16px rgba(${fb.rgba},0.30)`
                     : pr ? '0 0 14px rgba(247,120,186,0.22)' : undefined,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
@@ -448,11 +472,11 @@ export default function DogPicksPanel({ query }) {
                     <span style={{ color: col, fontWeight: 800, fontSize: 10, minWidth: 54 }}>
                       {n} cell{n === 1 ? '' : 's'}
                     </span>
-                    {yel ? (
-                      <span title={(cells.find(c => c.key === 'mc2_fav4_w') || {}).note}
-                        style={{ fontSize: 10, fontWeight: 800, color: YELLOW,
-                          border: '1px solid ' + YELLOW + '88', borderRadius: 6, padding: '0 5px' }}>
-                        {'\u2b50 FAV'}
+                    {fb ? (
+                      <span title={fb.note + '  ' + ((cells.find(c => c.key === 'mc2_fav4_w') || {}).note || '')}
+                        style={{ fontSize: 10, fontWeight: 800, color: fb.col,
+                          border: '1px solid ' + fb.col + '99', borderRadius: 6, padding: '0 5px' }}>
+                        {'\u2b50 ' + fb.tag}
                       </span>
                     ) : null}
                     {pr && !yel ? (
@@ -461,7 +485,7 @@ export default function DogPicksPanel({ query }) {
                         {PINK_TAG}{pr.tag}
                       </span>
                     ) : null}
-                    <span style={{ fontSize: 13, fontWeight: 700, color: yel ? YELLOW : pr ? PINK : 'var(--text-primary)' }}>{s.p.pick}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: fb ? fb.col : pr ? PINK : 'var(--text-primary)' }}>{s.p.pick}</span>
                     <span style={{ fontSize: 11, color: '#3fb950', fontWeight: 700 }}>
                       {s.p.odds != null ? (s.p.odds > 0 ? `+${s.p.odds}` : s.p.odds) : ''}
                     </span>
@@ -513,8 +537,10 @@ export default function DogPicksPanel({ query }) {
                       <div key={i} className="mono" style={{
                         display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap',
                         padding: '5px 11px', borderRadius: 7,
-                        background: pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.09)' : 'var(--panel)',
-                        border: `1px solid ${pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.6)'
+                        background: favBandOf(p) ? `rgba(${favBandOf(p).rgba},0.09)`
+                          : pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.09)' : 'var(--panel)',
+                        border: `1px solid ${favBandOf(p) ? `rgba(${favBandOf(p).rgba},0.65)`
+                          : pinkRule(p, histCells(p).map(c => c.key)) ? 'rgba(247,120,186,0.6)'
                           : p.won ? 'rgba(63,185,80,0.3)' : 'var(--line)'}`,
                       }}>
                         <span style={{ fontSize: 10, color: 'var(--text-tertiary)', minWidth: 52 }}>{fmtPT(p.start)}</span>
