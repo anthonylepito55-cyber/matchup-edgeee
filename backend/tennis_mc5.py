@@ -44,7 +44,22 @@ MC5_L5_RES = 0.10               # surface last-5 RESULTS -> Elo log-odds
 # residual was the worst of the three terms, degrading AUC by 0.3pt at 0.25 and 4pt at 1.0. So
 # it is kept at a third of the results weight: present, barely audible.
 MC5_L5_SRV = 0.03               # surface last-5 serve residual -> point probability
-MC5_SEAS = 0.10                 # season-to-date win rate ON THIS SURFACE -> Elo log-odds
+# SEASON-TO-DATE ON THIS SURFACE -- the one term in MC5 that MEASURES BETTER than MC3, and the
+# one that shipped untested. Swept afterwards (_mc5_seasonal_sweep.py) on 120,877 rows:
+#   W     2024            2025            2026
+#   0     .6723 / .2274   .6806 / .2254   .6882 / .2231   (MC3)
+#   0.50  .6733 / .2271   .6807 / .2252   .6889 / .2228   <- raised to this
+#   1.00  .6737 / .2269   .6804 / .2252   .6892 / .2227   2025 AUC now BELOW control
+#   3.00  .6712 / .2271   .6766 / .2260   .6872 / .2231
+# 0.50 is the largest weight that improves AUC and Brier in all three years; 2024 and 2026 keep
+# gaining to 1.00 but 2025 turns over first, and the curve is clearly bracketed by 3.00.
+#
+# The user's refinement -- scale this by how many games the player had that season -- was tested
+# and is WORSE at every weight and every constant (W=0.50: fixed .6733 vs scaled .6726-.6728,
+# monotone in the scaling strength). It double-discounts: the EB shrinkage below already handles
+# an unreliable RATE, so scaling the WEIGHT on top discards the thin-season rows twice, and the
+# thinner side has 4 or fewer matches on 37.8% of rows. Flat weight stays.
+MC5_SEAS = 0.50                 # season-to-date win rate ON THIS SURFACE -> Elo log-odds
 MC5_SEAS_K = 5.0                # EB pseudo-matches at 50%, so a 2-match season cannot shout
 MC5_CLUTCH = 1.0                # pressure-point residual -> Markov log-odds
 MC5_L5_MIN = 3                  # both sides need this many prior matches on the surface
