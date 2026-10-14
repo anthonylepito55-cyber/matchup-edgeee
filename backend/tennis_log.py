@@ -3113,9 +3113,13 @@ def get_ab25_record() -> dict:
     # of the model heads, so scoring it inside the model-gated loop would let those heads select
     # its sample. Forward picks only -- mc2_recon backfills are dropped, and matches must start at
     # or after MC2_LIVE_FROM so the log opens clean rather than on games already decided.
+    # the *_ev keys (2026-10-13) score only the FAVOURITE marks that clear break-even at the
+    # offered price. The ungated keys stay as the control: 7 of 9 brown favourite marks on the
+    # board that prompted this were negative EV, so the two records should diverge.
     _m2 = {k: {"v": [], "m": [], "w": [], "p": 0}
            for k in ("mc2_fav_on", "mc2_fav_band", "mc2_fav_deep", "mc2_dog_flip",
-                     "mc2_dog3", "mc2_dog_dead", "mc2_dog_long")}
+                     "mc2_dog3", "mc2_dog_dead", "mc2_dog_long",
+                     "mc2_fav_on_ev", "mc2_fav_band_ev", "mc2_fav_deep_ev")}
     _m2picks = {k: [] for k in _m2}
     _m2_meta = {"take": MC2_DOG_TAKE, "dead": list(MC2_DOG_DEAD),
                 "dog_am": list(MC2_DOG_AM), "fav_am": list(MC2_FAV_AM),
@@ -3180,6 +3184,14 @@ def get_ab25_record() -> dict:
             else:
                 continue
             decm = d1m if takes1 else d2m
+            # EV at the offered price, for the favourite cells only. mcfav is MC2's own
+            # probability on the favourite and _favodd its decimal price, so mcfav*_favodd - 1
+            # is MC2's own EV on the bet the mark recommends. Negative means the mark cannot
+            # make money by its own numbers.
+            _favev_key = None
+            if key in ("mc2_fav_on", "mc2_fav_band", "mc2_fav_deep"):
+                if (mcfav * _favodd - 1.0) >= 0.0:
+                    _favev_key = key + "_ev"
             _st3 = bool(rr["settled"]) and not pd.isna(rr["p1_won"])
             hit3 = (bool(rr["p1_won"]) == takes1) if _st3 else None
             pnl3 = None if hit3 is None else round(25.0 * (decm - 1.0) if hit3 else -25.0, 2)
@@ -3195,12 +3207,18 @@ def get_ab25_record() -> dict:
                 "mk": round(100 * (mk1m if takes1 else 1 - mk1m), 1),
                 "pnl": pnl3, "rc": False,
                 "_sort": str(rr.get("start_time_utc") or rr.get("date") or "")})
+            if _favev_key:
+                _m2picks[_favev_key].append(dict(_m2picks[key][-1]))
             if not _st3:
                 _m2[key]["p"] += 1
+                if _favev_key:
+                    _m2[_favev_key]["p"] += 1
                 continue
             _lg3 = str(rr.get("league") or "")
-            _m2[key]["v"].append(pnl3)
-            _m2[key]["w" if ("wta" in _lg3 or "itf_women" in _lg3) else "m"].append(pnl3)
+            _wm3 = "w" if ("wta" in _lg3 or "itf_women" in _lg3) else "m"
+            for _k3 in (key, _favev_key) if _favev_key else (key,):
+                _m2[_k3]["v"].append(pnl3)
+                _m2[_k3]["w" if _wm3 == "w" else "m"].append(pnl3)
         for k in _m2picks:
             _m2picks[k].sort(key=lambda x: x.get("_sort") or "", reverse=True)
             for _x in _m2picks[k]:

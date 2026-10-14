@@ -3467,6 +3467,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const mkfav = fav1 ? mk : 1 - mk
     const mcfav = fav1 ? m2.p1_prob : 1 - m2.p1_prob
     const over = mcfav - mkfav
+    // EV AT THE OFFERED PRICE (2026-10-13). The band is measured against the DE-VIGGED market,
+    // so "2.1pt over" can still be short of what the price demands -- de-vigging splits the
+    // book's margin across both sides. Bouzkova -196 was the case that exposed it: MC2 65.5%
+    // against a 66.2% break-even showed as +2.1pt over and earned a brown mark, while being a
+    // -1.0% bet by MC2's own number. 7 of the 9 brown favourite marks on that board were
+    // negative EV at the price.
+    //
+    // This is a COHERENCE requirement, not a backtest claim: a mark cannot recommend backing a
+    // favourite that the head itself prices below break-even. Dog cells are untouched -- they
+    // are defined by the head sitting UNDER the market, not by a margin over it.
+    const _favDec = (() => {
+      const o = num(fav1 ? lo.player_1 : lo.player_2)
+      if (o == null || isNaN(o)) return null
+      return o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o)
+    })()
+    // null price -> cannot verify, so do not mark (fail closed)
+    const favClearsPrice = _favDec != null && (mcfav * _favDec - 1) >= 0
     // ALL THREE MC HEADS MUST AGREE ON THE SIDE (2026-10-13, user: "make sure all 3 mc2, mc3,
     // and mc5 all agree on dogs or favorites before labeling them brown").
     //
@@ -3537,22 +3554,22 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     if (over > 0.08 && !mc2Alive('mc2_fav_deep', gHL, true)) return null
     if (over >= 0.02 && over <= 0.08 && !mc2Alive('mc2_fav_band', gHL, true)) return null
     if (mcfav < 0.5 && !mc2Alive('mc2_dog_flip', gHL, false)) return null
-    if (favInBand && over >= 0 && over < 0.02 && agree('fav') && mc2Alive('mc2_fav_on', gHL, true)) {
+    if (favInBand && over >= 0 && over < 0.02 && agree('fav') && favClearsPrice && mc2Alive('mc2_fav_on', gHL, true)) {
       // 0-2pt: "exactly on the market or over by anything". Fills the gap below the 2pt band so
       // a card whose true margin is 1.9pt is not left unmarked by rounding alone.
-      return { cell: 'FAV 0-2pt', lane: 'mc2_fav_on', who: fav1 ? match.player_1 : match.player_2,
-               od: favAm, amt: Math.round(1000 * over) / 10, live: rec('mc2_fav_on'),
+      return { cell: 'FAV 0-2pt', lane: 'mc2_fav_on_ev', who: fav1 ? match.player_1 : match.player_2,
+               od: favAm, amt: Math.round(1000 * over) / 10, live: rec('mc2_fav_on_ev'),
                recon: !!m2.recon }
     }
-    if (favInBand && over > 0.08 && agree('fav')) {
-      return { cell: 'FAV 8pt+', lane: 'mc2_fav_deep', who: fav1 ? match.player_1 : match.player_2,
+    if (favInBand && over > 0.08 && agree('fav') && favClearsPrice) {
+      return { cell: 'FAV 8pt+', lane: 'mc2_fav_deep_ev', who: fav1 ? match.player_1 : match.player_2,
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
-               live: rec('mc2_fav_deep'), recon: !!m2.recon }
+               live: rec('mc2_fav_deep_ev'), recon: !!m2.recon }
     }
-    if (favInBand && over >= 0.02 && over <= 0.08 && agree('fav')) {
-      return { cell: 'FAV 2-8pt', lane: 'mc2_fav_band', who: fav1 ? match.player_1 : match.player_2,
+    if (favInBand && over >= 0.02 && over <= 0.08 && agree('fav') && favClearsPrice) {
+      return { cell: 'FAV 2-8pt', lane: 'mc2_fav_band_ev', who: fav1 ? match.player_1 : match.player_2,
                od: num(fav1 ? lo.player_1 : lo.player_2), amt: Math.round(1000 * over) / 10,
-               live: rec('mc2_fav_band'), recon: !!m2.recon }
+               live: rec('mc2_fav_band_ev'), recon: !!m2.recon }
     }
     if (mcfav < 0.5 && over <= -0.03 && agree('dog')) {
       return { cell: 'DOG-FLIP', lane: 'mc2_dog_flip', who: fav1 ? match.player_2 : match.player_1,
