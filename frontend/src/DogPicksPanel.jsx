@@ -26,17 +26,39 @@ const GOLD = '#ffd700'
 const FAV_CELLS = new Set(['mc2_fav4_w', 'mc2_fav4_m'])
 const isFavPick = p => p.odds != null && p.odds < 0
 
-// TWO BANDS, TWO COLOURS (2026-10-14, user "mark -150 to -200 favorites gold as well"). Same
-// cell and same lane -- a women's favourite MC2 rates 4pt+ over the market -- but the bands are
-// separately measured and the deeper one is the stronger half, so gold is the brighter colour:
-//     -100..-150  n=28  19-9   67.9% hit vs 55.5% needed  +22.31%  t 1.40  -> yellow
-//     -150..-200  n=23  18-5   78.3% hit vs 63.2% needed  +23.50%  t 1.73  -> gold
-// The badge carries the band and the n so the two are never read as one number.
+// TWO BANDS, ONE COLOUR (2026-10-14). Originally shipped as yellow + gold on the reasoning that
+// the deeper band was the stronger half; that was measured again and retracted the same day --
+// see ONE_GOLD below. Both bands are gold. Each still carries its own tag and its own n on the
+// badge, so the price band is readable and the two are never read as one number.
+//     -100..-150  n=28  19-9   67.9% hit vs 55.5% needed  +22.31%  t 1.40
+//     -150..-200  n=23  18-5   78.3% hit vs 63.2% needed  +23.50%  t 1.73
+// ONE_GOLD (2026-10-14, user "oaky keep both gold"). Both bands are gold now, because they are
+// one cell and the two-colour split implied a ranking the numbers do not support:
+//
+//                    -100..-150        -150..-200
+//     pooled         +22.31% / 28      +23.50% / 23      <- 1.2 points apart
+//     forward        +21.92% / 12      +31.53% / 12
+//     recon          +22.60% / 16      +14.74% / 11      <- the SHALLOW band wins this window
+//     blind band      -2.83% / 110      -4.34% / 129
+//
+// The headline gap is entirely the forward week. On the corrected recon the shallower band is
+// better by 8 points. _patch_gold_fav.py called the deeper band "the stronger half" and gave it
+// the brighter colour on that basis; that reasoning is retracted. Each half is 12 forward bets
+// inside the same seven-day frozen window, which cannot separate them from each other.
+//
+// The BAND TAGS stay on the badge so the price is still readable, and each band keeps its own
+// record in the tooltip -- what goes is the claim, carried by the colour, that one beats the other.
 const FAV_BANDS = [
-  { lo: -150, hi: -100, tag: 'FAV −100/150', col: YELLOW, rgba: '227,179,65',
-    note: '-100..-150: +22.31% on 28 (19-9), 67.9% hit against 55.5% needed, t 1.40.' },
+  { lo: -150, hi: -100, tag: 'FAV −100/150', col: GOLD, rgba: '255,215,0',
+    note: '-100..-150: +22.31% on 28 (19-9), 67.9% hit against 55.5% needed, t 1.40. '
+      + 'Forward +21.92% on 12, corrected recon +22.60% on 16 -- the two windows agree almost exactly, '
+      + 'which is the most consistent thing on this board. Same colour as the deeper band because the '
+      + 'two are one cell: 1.2 points apart pooled, and this half is the BETTER one on the recon window.' },
   { lo: -200, hi: -150, tag: 'FAV −150/200', col: GOLD, rgba: '255,215,0',
-    note: '-150..-200: +23.50% on 23 (18-5), 78.3% hit against 63.2% needed, t 1.73 -- the stronger half.' },
+    note: '-150..-200: +23.50% on 23 (18-5), 78.3% hit against 63.2% needed, t 1.73. '
+      + 'Forward +31.53% on 12, corrected recon +14.74% on 11 -- the higher headline is the forward '
+      + 'week, and this half is the WEAKER one on recon. Same colour as the shallower band because '
+      + 'they are one cell; the earlier claim that this was "the stronger half" is retracted.' },
 ]
 const favBandOf = p => (p.odds == null || p.odds >= 0) ? null
   : (FAV_BANDS.find(b => p.odds >= b.lo && p.odds <= b.hi) || null)
@@ -429,7 +451,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men +6.86%/22 (thinnest, t 0.21); <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: YELLOW }}>⭐ Yellow (−100..−150) and 🥇 gold (−150..−200) = a FAVOURITE</b>, kept visually and numerically separate from the dogs: MC2 4pt+ over the market on a <b>women’s</b> favourite at −100..−200 — +22.85% on 51 (t 2.16), positive in both windows and both bands, against −9.21% for the men’s half. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men +6.86%/22 (thinnest, t 0.21); <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: GOLD }}>🥇 Gold = a WOMEN’S FAVOURITE</b>, kept visually and numerically separate from the dogs: MC2 4pt+ over the market at −100..−200 — +22.85% on 51 (t 2.16), positive in both windows and both bands, against −9.21% pooled for the men’s half (men are not marked). <b>One colour across both bands</b>: they are +22.31%/28 and +23.50%/23, 1.2 points apart, and the deeper band leads only on the forward week while the shallower one leads on the recon — so the card still carries its band tag, but the colour no longer claims one is stronger. <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
@@ -514,12 +536,13 @@ export default function DogPicksPanel({ query }) {
               return (
                 <>
                   <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 5 }}>
-                    <span style={{ color: YELLOW }}>🟡 −100..−150</span>
-                    <span style={{ color: 'var(--text-tertiary)' }}>{' / '}</span>
-                    <span style={{ color: GOLD }}>🥇 −150..−200 (the stronger half)</span>
+                    <span style={{ color: GOLD }}>{'🥇 −100..−200 — WOMEN'}</span>
                     <span style={{ color: 'var(--text-tertiary)' }}>
                       {' — FAVOURITES, separate from every dog number above. MC2 4pt+ over the market. '}
-                      {'Yellow +22.31%/28 t 1.40 · gold +23.50%/23 t 1.73 · combined +22.85%/51 t 2.16.'}
+                      {'Combined +22.85%/51 t 2.16, positive in both windows. One colour: the two halves are '}
+                      {'+22.31%/28 and +23.50%/23, 1.2 points apart, and the deeper one is only ahead on the '}
+                      {'forward week (the shallower wins the recon window by 8). The band tag on each card still '}
+                      {'says which price it is. Men are NOT marked: +1.63% on 25 forward, −9.21% pooled.'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
