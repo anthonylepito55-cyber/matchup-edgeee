@@ -3467,23 +3467,6 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const mkfav = fav1 ? mk : 1 - mk
     const mcfav = fav1 ? m2.p1_prob : 1 - m2.p1_prob
     const over = mcfav - mkfav
-    // EV AT THE OFFERED PRICE (2026-10-13). The band is measured against the DE-VIGGED market,
-    // so "2.1pt over" can still be short of what the price demands -- de-vigging splits the
-    // book's margin across both sides. Bouzkova -196 was the case that exposed it: MC2 65.5%
-    // against a 66.2% break-even showed as +2.1pt over and earned a brown mark, while being a
-    // -1.0% bet by MC2's own number. 7 of the 9 brown favourite marks on that board were
-    // negative EV at the price.
-    //
-    // This is a COHERENCE requirement, not a backtest claim: a mark cannot recommend backing a
-    // favourite that the head itself prices below break-even. Dog cells are untouched -- they
-    // are defined by the head sitting UNDER the market, not by a margin over it.
-    const _favDec = (() => {
-      const o = num(fav1 ? lo.player_1 : lo.player_2)
-      if (o == null || isNaN(o)) return null
-      return o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o)
-    })()
-    // null price -> cannot verify, so do not mark (fail closed)
-    const favClearsPrice = _favDec != null && (mcfav * _favDec - 1) >= 0
     // ALL THREE MC HEADS MUST AGREE ON THE SIDE (2026-10-13, user: "make sure all 3 mc2, mc3,
     // and mc5 all agree on dogs or favorites before labeling them brown").
     //
@@ -3551,6 +3534,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // the favourite price band, -100..-250, now applied to all three brown favourite slices
     const favAm = fav1 ? Number(lo.player_1) : Number(lo.player_2)
     const favInBand = !isNaN(favAm) && favAm <= -100 && favAm >= -250
+    // EV AT THE OFFERED PRICE (2026-10-13). The band is measured against the DE-VIGGED market,
+    // so "2.1pt over" can still be short of what the price demands -- de-vigging splits the
+    // book's margin across both sides. Bouzkova -196 was the case that exposed it: MC2 65.5%
+    // against a 66.2% break-even showed as +2.1pt over and earned a brown mark, while being a
+    // -1.0% bet by MC2's own number. 7 of the 9 brown favourite marks on that board were
+    // negative EV at the price.
+    //
+    // This is a COHERENCE requirement, not a backtest claim: a mark cannot recommend backing a
+    // favourite that the head itself prices below break-even. Dog cells are untouched -- they
+    // are defined by the head sitting UNDER the market, not by a margin over it.
+    const _favDec = (() => {
+      const o = num(fav1 ? lo.player_1 : lo.player_2)
+      if (o == null || isNaN(o)) return null
+      return o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o)
+    })()
+    // null price -> cannot verify, so do not mark (fail closed)
+    const favClearsPrice = _favDec != null && (mcfav * _favDec - 1) >= 0
     if (over > 0.08 && !mc2Alive('mc2_fav_deep', gHL, true)) return null
     if (over >= 0.02 && over <= 0.08 && !mc2Alive('mc2_fav_band', gHL, true)) return null
     if (mcfav < 0.5 && !mc2Alive('mc2_dog_flip', gHL, false)) return null
