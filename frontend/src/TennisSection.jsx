@@ -5002,14 +5002,14 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         </div>
       )}
 
-      {match.sr_dog ? (
+      {cardStats && match.sr_dog ? (
         <div className="mono" style={{ marginTop: 8, fontSize: 10, color: '#e879f9', fontWeight: 700, border: '1px dashed #e879f9', borderRadius: 5, padding: '4px 8px', display: 'inline-block' }}
           title="SR-DOG pre-registered tracker (2026-09-26): the UNDERDOG (>=2.00 odds) whose last-10-on-surface serve+return composite beats the favorite's — the ONE rule that survived the flat-ROI battery at real odds in BOTH seasons (2025 +21.2% on 90, 2026 +1.2% on 89). Sole survivor of 24 tested slices, so expect the winner's-curse haircut: true edge likely single digits. Flat-1u paper tracker, judged at 50 settled — never staked by the model.">
           ★ SR-DOG: take {match.sr_dog === 'p1' ? match.player_1 : match.player_2} <span style={{ fontWeight: 400, opacity: 0.85 }}>· surface serve+return beats the favorite · pre-registered flat-1u tracker</span>
         </div>
       ) : null}
 
-      {match.sos ? (
+      {cardStats && match.sos ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#22d3ee', fontWeight: 700 }}
           title="SOS tracker (2026-09-26): this player's surface serve+return is not worse (within 2 pts) but their recent schedule is clearly tougher (median opponent rank ≤0.8× the other's). Backtest: they WIN 63-65% of these matches — but avg odds ~1.60 mean the market prices it almost exactly (flat ROI −3/−12%). A WIN-RATE tracker to watch, not a bet signal.">
           ◆ SOS: {match.sos === 'p1' ? match.player_1 : match.player_2} <span style={{ fontWeight: 400, opacity: 0.85 }}>· tougher slate, stats hold up — win-rate tracker</span>
@@ -5127,7 +5127,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         </div>
       ) : null}
 
-      {match.utr ? (
+      {cardStats && match.utr ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#93c5fd' }}
           title="REAL UTR (2026-10-07): each player's current singles UTR from utrsports.net's public ratings (fetched fresh daily), with how their 3-MONTH form rating sits vs that established level in parentheses (+ = running hot, − = cold). FORWARD tracker only — current ratings can't be honestly backtested (today's rating already contains past results), so the utr_* lanes judge it on settles from today forward (🐕/⭐ Splits tab): utr_all (higher-rated side), utr_dog (market dog is the higher-rated player), utr_mom hot vs fade (the form-fade thesis says fade the hot side).">
           📏 UTR: {match.player_1.split(' ').slice(-1)[0]} <b>{match.utr.p1}</b>{match.utr.p1_mom != null ? ` (${match.utr.p1_mom > 0 ? '+' : ''}${match.utr.p1_mom})` : ''}
@@ -5347,10 +5347,11 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
           so a fixture with no context does not get a button that opens nothing. */}
       {(match.ue && (match.ue.p1 || match.ue.p2))
         || (match.gs && (match.gs.p1 || match.gs.p2))
-        || (match.tr_context && (match.tr_context.p1 || match.tr_context.p2)) ? (
+        || (match.tr_context && (match.tr_context.p1 || match.tr_context.p2))
+        || match.sr_dog || match.sos || match.utr ? (
         <div className="mono" style={{ marginTop: 6 }}>
           <button onClick={() => setCardStats(v => !v)}
-            title={cardStats ? 'Hide the stat blocks: unforced errors, the Goalserve extras, and the TennisRatio context with its 52-week line, point denominators, L10/L5/L3 surface windows and pressure dials.' : 'Show the stat blocks for this match: unforced errors, the Goalserve extras (winners, net points, match points saved), and the TennisRatio context -- the 52-week surface line with its service and return POINT counts, the L10/L5/L3 windows with how far back each reaches, and the pressure dials. Context for reading the numbers above, not an edge in itself.'}
+            title={cardStats ? 'Hide this match\u2019s stats and flags: SR-DOG, SOS, UTR, unforced errors, the Goalserve extras and the TennisRatio context block.' : 'Show this match\u2019s stats and single-stat flags: the SR-DOG and SOS signs, the UTR ratings pair, unforced errors, the Goalserve extras (winners, net points, match points saved), and the TennisRatio context -- the 52-week surface line with its service and return POINT counts, the L10/L5/L3 windows with how far back each reaches, and the pressure dials. All context for reading the numbers above rather than edges in themselves.'}
             style={{
               padding: '2px 8px', borderRadius: 6, cursor: 'pointer',
               fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 700,
