@@ -915,7 +915,9 @@ _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner
                "s52_fav_band_dog", "pink_fadeb_dog_m", "pink_mc2_dog", "tier_avoid_dog",
                "dma_dog", "mc2_dog_band", "cgray_dog_late", "ovl_dog", "fight_mc4_dog",
                # 2026-10-14: MC2 6pt+ on the dog, any price, and the unstamped take-dog lanes
-               "mc2_dog6_all", "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all"}
+               "mc2_dog6_all", "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all",
+               # the women's favourite cell and its men's control (2026-10-14)
+               "mc2_fav4_w", "mc2_fav4_m"}
 
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
@@ -1952,6 +1954,15 @@ def get_ab25_record() -> dict:
               # MC2 6pt+ over on the dog at ANY price -- the Dog picks tab cell
               # (2026-10-14, user "add All mc2 6 pt to dog tab")
               "mc2_dog6_all",
+              # 🟡 THE WOMEN'S FAVOURITE CELL (2026-10-14, user "add the women lane on the dog
+              # tab"). A women's favourite at -100..-200 that MC2 rates 4pt+ above the de-vigged
+              # market. On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against
+              # 59.0% needed, t 2.16), positive in BOTH windows (fwd +26.72%/24, recon
+              # +19.40%/27) and BOTH bands (+22.31%/28 and +23.50%/23), while the men's half of
+              # the same cut is -9.21% on 74 and every women's favourite in the range is -3.64%.
+              # The only favourite cell in this project to clear t=2. Watch-only: 51 bets, and
+              # both the gender split and the 4pt threshold were found by scanning.
+              "mc2_fav4_w", "mc2_fav4_m",
               "mc3_vs_mc2", "mc2_vs_mc3",
               "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
               # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
@@ -2260,6 +2271,17 @@ def get_ab25_record() -> dict:
                 # plain "MC2 is 6 points better than the price on this dog" statement.
                 if _tag9 == "mc2" and _ov9 <= -0.06:
                     bet("mc2_dog6_all", dog1)
+                # 🟡 MC2 4pt+ OVER THE MARKET ON A FAVOURITE at -100..-200, split by gender
+                # because that is where the whole effect lives: women +22.85% on 51 (t 2.16),
+                # men -9.21% on 74. Both lanes run so the split keeps being tested rather than
+                # assumed. _ov9 is MC2's margin ON THE FAVOURITE, so >= +0.04 is 4pt over.
+                if _tag9 == "mc2" and _ov9 >= 0.04:
+                    _fdec = (d1 if not dog1 else d2)
+                    if _fdec:
+                        _fa9 = ((_fdec - 1) * 100 if _fdec >= 2
+                                else -100.0 / max(_fdec - 1, 1e-9))
+                        if -200.0 <= _fa9 <= -100.0:
+                            bet("mc2_fav4_w" if _isw else "mc2_fav4_m", not dog1)
             if _tk.get("mc2") and _tk.get("mc2") == _tk.get("mc3"):
                 # both heads say the same thing, which is the stricter reading of "mc2 and mc3"
                 bet("both_take_%s" % _tk["mc2"], (not dog1) if _tk["mc2"] == "fav" else dog1)
