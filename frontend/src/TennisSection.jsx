@@ -656,7 +656,10 @@ export default function TennisSection() {
       </div>
 
       {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
-      <PriceEdgeScanner scan={data?.price_scan} />
+      {/* CROSS-BOOK SCANNER HIDDEN (2026-10-13, user: "hide the cross book scanner at the
+          top of the page"). It sat above the board on every view. The component and its
+          data (data.price_scan) are untouched, so restoring it is this one line -- and the
+          natural home if it comes back is the Prices tab rather than the top of the board. */}
 
       {error && (
         <div style={{
@@ -2538,6 +2541,13 @@ function TrContextRow({ name, ctx }) {
 }
 
 function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = false, showModels = false }) {
+  // PER-CARD MODEL DROPDOWN (2026-10-13, user: "i wanted the dropdown to be on the board still
+  // on the picks"). The first version was a single header button, which was all-or-nothing
+  // across the whole board. Now each pick carries its own expander, so the other eight model
+  // lines can be opened for ONE match without flooding every card. The header button stays as
+  // a show-everything override, so `showModels || cardModels` is the real switch.
+  const [cardModels, setCardModels] = useState(false)
+  const showMods = showModels || cardModels
   const [showFeatures, setShowFeatures] = useState(false)
   const predSrc = match.prediction ? 'main' : (match.model_a ? 'A' : match.model_b ? 'B' : match.model_c ? 'C' : match.model_i ? 'I' : 'D')
   // fall through every available model so a card with only Model I/C/D (ITF gap players,
@@ -4995,6 +5005,35 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         </div>
       ) : null}
 
+      {/* MARKET, ALWAYS SHOWN (2026-10-13, user: "i still want the market to show on board too
+          for each pick"). My own regression: the market percentage was only ever rendered
+          INSIDE the model lines -- A, B, C, I and D each carried their own "market x%-y%" --
+          so collapsing those lines behind the dropdown took the market with them, and the MC
+          heads were left with nothing to be read against.
+          Derived from the live odds here rather than from a model object, so it survives any
+          model being absent, and it de-vigs (p1/(p1+p2)) so it is directly comparable to the
+          probabilities on the lines below. The raw prices are shown alongside, because the
+          de-vigged number is what the models are measured against but the raw price is what
+          you actually get filled at. */}
+      {(() => {
+        const lo = match.live_odds || {}
+        const am1 = Number(lo.player_1 != null ? lo.player_1 : match.p1_odds)
+        const am2 = Number(lo.player_2 != null ? lo.player_2 : match.p2_odds)
+        if (!isFinite(am1) || !isFinite(am2) || !am1 || !am2) return null
+        const dec = a => (a > 0 ? 1 + a / 100 : 1 + 100 / Math.abs(a))
+        const d1 = dec(am1), d2 = dec(am2)
+        const mk1 = (1 / d1) / ((1 / d1) + (1 / d2))
+        const vig = (1 / d1 + 1 / d2 - 1) * 100
+        const fmt = a => `${a > 0 ? '+' : ''}${Math.round(a)}`
+        return (
+          <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8b949e', fontWeight: 700 }}
+            title={`THE MARKET, de-vigged. Raw prices ${fmt(am1)} / ${fmt(am2)} imply ${(100 / d1).toFixed(1)}% and ${(100 / d2).toFixed(1)}%, which sum to ${(100 + vig).toFixed(1)}% -- the ${vig.toFixed(1)} points over 100 are the book's margin. Dividing it out gives ${(100 * mk1).toFixed(1)}% / ${(100 * (1 - mk1)).toFixed(1)}%, and THAT is the number every model line below is compared against: a head is "over the market" when it rates a player above this, not above the raw implied price. You are filled at the raw price, so the margin is what any edge has to clear first.`}>
+            {'\u{1F4C8} MARKET: '}{match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(1000 * mk1) / 10}%</b> — <b>{Math.round(1000 * (1 - mk1)) / 10}%</b> {match.player_2.split(' ').slice(-1)[0]}
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>{` \u00b7 ${fmt(am1)} / ${fmt(am2)} \u00b7 ${vig.toFixed(1)}pt vig`}</span>
+          </div>
+        )
+      })()}
+
       {match.mc2 ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#c9a7fa', opacity: match.mc2.recon ? 0.75 : 1 }}
           title={`MC v2 (2026-10-08): the rebuilt Monte Carlo — surface Elo + opponent-adjusted serve/return ratings -> learned point probabilities -> exact Markov engine, with parameter uncertainty. Walk-forward 2024-26: AUC .692 vs market .722, calibration within ~1pt per decile. DISPLAY-ONLY: measured residual-vs-close == market minus vig, so it never bets alone; its mc2_* watch lanes earn (or don't) on the Splits tab, and its real product is the 🎲 Sets tab's anchored derivative prices.${match.mc2.recon ? ' THIS GAME: ~ walk-forward BACKFILL — computed from the ratings as they stood the morning of the match (result and everything after excluded); honest but not a forward pick.' : match.mc2.elo_p1 != null ? ` Components: Elo ${Math.round(100 * match.mc2.elo_p1)}% / Markov ${Math.round(100 * match.mc2.mkv_p1)}%; serve-rating samples n=${match.mc2.n1}/${match.mc2.n2}.` : ''}`}>
@@ -5027,7 +5066,23 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         </div>
       ) : null}
 
-      {showModels && match.model_g ? (
+      {/* the expander. Hidden when the header override is on, since everything is already
+          showing and a button that cannot change anything is just noise. */}
+      {!showModels ? (
+        <div className="mono" style={{ marginTop: 4 }}>
+          <button onClick={() => setCardModels(v => !v)}
+            title={cardModels ? 'Hide this card\u2019s other model lines (A, B, C, D, G, G2, I, X).' : 'Show this card\u2019s other eight model lines: A, B, C with the C-MC block, D, G, G2, I and X. MC2, MC3 and MC5 are always shown.'}
+            style={{
+              padding: '2px 8px', borderRadius: 6, cursor: 'pointer',
+              fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 700,
+              border: `1px solid ${cardModels ? '#2dd4bf' : 'var(--line)'}`,
+              background: cardModels ? 'rgba(45,212,191,0.12)' : 'transparent',
+              color: cardModels ? '#2dd4bf' : 'var(--text-tertiary)',
+            }}>{cardModels ? '\u25be other models' : '\u25b8 other models'}</button>
+        </div>
+      ) : null}
+
+      {showMods && match.model_g ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8fd3a8', opacity: match.model_g.recon ? 0.72 : 1 }}
           title={`Ⓖ MODEL G (2026-10-12, user ask): the nine 52-week figures on this card and NOTHING else — win%, 1st/2nd serve points, service games won, return 1st/2nd, return games won, serve- and return-pressure. No last-10, no season, no H2H, no market. What it adds over the stat line as printed is two corrections: (1) every rate is shrunk toward the tour mean by its OWN sample size — service games for hold%, return games for break%, pressure POINTS for the dials, matches for the per-match percentages — so a 70% hold off 4 matches is not read like one off 40; (2) every past match is discounted by what that OPPONENT RANK normally concedes, because 70% hold against the top 50 is not 70% hold against #600.
 
@@ -5043,7 +5098,7 @@ FORWARD RECORD (narrowed on your call 2026-10-12): only two reads are logged, th
         </div>
       ) : null}
 
-      {showModels && match.model_g2 ? (
+      {showMods && match.model_g2 ? (
         <div className="mono" style={{ marginTop: 3, fontSize: 10, color: '#7fc8a9' }}
           title={`Ⓖ² MODEL G2 (2026-10-12) = every Model G feature plus a LAST-10-ON-THIS-COURT block. The new half: the record over those 10, WHO THEY BEAT (average rank, and their best win), WHO THEY LOST TO (average rank, and their worst loss), who they played overall, and how they performed — games-won share, hold%, break%, and how competitive the losses were (a straight-sets loss reads ~0.30, a three-tiebreak loss ~0.48). Court-specific: the window is the last 10 on THIS surface, not the last 10 overall.
 
@@ -5066,7 +5121,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         </div>
       ) : null}
 
-      {showModels && match.model_a ? (() => {
+      {showMods && match.model_a ? (() => {
         const ma = match.model_a
         const pct = v => `${Math.round(100 * v)}%`
         const h = ma.h2h
@@ -5097,7 +5152,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {showModels && match.model_b ? (() => {
+      {showMods && match.model_b ? (() => {
         const mb = match.model_b
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mb.edge_p1
@@ -5122,7 +5177,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {showModels && match.model_c ? (() => {
+      {showMods && match.model_c ? (() => {
         const mc = match.model_c
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mc.edge_p1
@@ -5167,7 +5222,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {showModels && match.model_i ? (() => {
+      {showMods && match.model_i ? (() => {
         const mi = match.model_i
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mi.edge_p1
@@ -5186,7 +5241,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {showModels && match.model_d ? (() => {
+      {showMods && match.model_d ? (() => {
         const md = match.model_d
         const pct = v => `${Math.round(100 * v)}%`
         const edge = md.edge_p1
@@ -5298,7 +5353,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
           </div>
         )
       })() : null}
-      {showModels && match.model_x ? (() => {
+      {showMods && match.model_x ? (() => {
         const mx = match.model_x
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mx.edge_p1
