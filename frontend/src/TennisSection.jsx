@@ -369,6 +369,11 @@ function Ab25Panel() {
         {card(['st:g_fav_over', '⬛ G FAV-OVER', 'BLACK board mark: G rates the market FAVOURITE above the price the market itself set on it, by any margin, and you back the favourite at the frozen price. A 4-point minimum was tried on 2026-10-12 and reverted: it cut the cell from 24% of favourites to 14% and moved ROI from −7.25% to −7.23%, flat out to 12pt, so it bought selectivity rather than accuracy. LIVE LOG registered 2026-10-12 22:00Z. Backtest for the cell: −7.2% on 17,804 bets (se 0.6), and WORSE than simply backing every favourite on the same rows (−5.6% men / −6.0% women). No gradient: demanding G sit 10pt+ over the market does not help. Watch only.'], 'rgba(139,148,158,0.85)', '#c9d1d9')}
         {card(['st:g2_dog_flip', '🟨² G2 DOG-FLIP', 'G2 (= G plus the last-10-on-this-court block: who they beat, who they lost to, how they performed, walkovers excluded) puts the market UNDERDOG past 50% and picks it outright. Separate live log from 2026-10-13 01:00Z. G2 beats G in all three walk-forward years (AUC .6648/.6643/.6723 vs .6546/.6599/.6597) but is still market-beaten with no betting edge, so this is a watch lane.'], 'rgba(210,153,34,0.75)', '#e0b341')}
         {card(['st:g2_fav_over', '⬛² G2 FAV-OVER 4pt+', 'G2 rates the market FAVOURITE at least 4 POINTS above the price the market set on it. The 4-point gate is deliberate and is the one difference from G’s favourite cell, which takes any margin — so the two lanes together will show whether the gate earns anything on live money. In the archive it did not: it cut G’s cell from 24% of favourites to 14% and moved ROI from −7.25% to −7.23%, flat out to 12pt. Watch only.'], 'rgba(139,148,158,0.7)', '#aab1b8')}
+        {card(['st:mc5_take_fav', '🧮⁵ MC5 TAKE FAV (at/over mkt)', 'Your favourite rule read off MC5: it rates the market favourite at or above the market’s own de-vigged number and you back the favourite. MC5 is MC3 plus a recency-weighted last five on this surface, season-to-date on that surface, and a clutch term. Only the seasonal term measured better than MC3; the last-five and clutch terms were neutral-to-worse and are set at weights where the cost is zero, so MC5 tracks MC3 closely by design. Counts only matches starting after 2026-10-13 16:00Z.'], 'rgba(45,212,191,0.9)', '#2dd4bf')}
+        {card(['st:mc5_take_dog', '🧮⁵ MC5 TAKE DOG (-4pt or flip)', 'Your dog rule read off MC5: it rates the market favourite 4 or more points below the market, or flips the dog to 50% outright, and you back the dog. Counts only matches starting after 2026-10-13 16:00Z.'], 'rgba(45,212,191,0.9)', '#2dd4bf')}
+        {card(['st:mc5_vs_mc3', '⚔ MC5 vs MC3 (MC5’s side)', 'Fires ONLY where MC5 and MC3 take different sides, and backs MC5. Because MC5’s new terms are deliberately set at near-zero weights, the two heads agree on nearly every card -- so these disagreements are the only rows that can tell them apart, and they accumulate slowly. Pair it with the MC3-vs-MC5 half: same matches, same prices, opposite sides, so the two ROIs are a zero-sum read on each other.'], 'rgba(45,212,191,0.9)', '#2dd4bf')}
+        {card(['st:mc3_vs_mc2', '⚔ MC3 vs MC2 (MC3’s side)', 'Fires ONLY where MC3 and MC2 take different sides, and backs MC3. This is the comparison MC3 was built separately to make: MC2 holds still as the control while MC3 carries the per-surface serve/return ratings, best-of-five and margin-aware Elo. The heads agree on about 88% of cards and those rows feed identical results to both records, so a pooled comparison is mostly noise cancelling -- only the disagreements separate them. Roughly a dozen a day; readable at about 150 settles.'], 'rgba(45,212,191,0.9)', '#2dd4bf')}
+        {card(['st:mc2_vs_mc3', '⚔ MC2 vs MC3 (MC2’s side)', 'The other half of the MC3-versus-MC2 pair, backing MC2 on the same disagreement rows. Paired by construction, so if MC3’s per-surface work is real this should run below the MC3 half by roughly twice the true edge.'], 'rgba(45,212,191,0.9)', '#2dd4bf')}
         {card(['st:mc2_take_fav', '🟤 MC2 TAKE FAV (at/over mkt)', 'YOUR RULE, favourite side: MC2 rates the market favourite AT or ABOVE the market’s own de-vigged number, by any margin including dead level, and you back the favourite. Replay at registration, which is NOT a forward test -- the probabilities were frozen pre-match, but the rule itself was written on 2026-10-13 after a day of looking at those same outcomes, so the replay is in-sample for the rule: men -10.76% on 60, women +12.15% on 53. The lane below counts only matches starting after 2026-10-13 16:00Z, which is the clean forward test. Archive context on 120,877 rows: the favourite side of this rule returned -4.90% for MC2 and -5.17% for MC3, against -5.59% for backing every favourite blindly, and the 4pt dog side returned -10.47% and -10.21%. The live lanes have disagreed with the archive on dogs before, which is what this measures.'], 'rgba(176,110,60,0.9)', '#c98a5c')}
         {card(['st:mc2_take_dog', '🟤 MC2 TAKE DOG (-4pt or flip)', 'YOUR RULE, dog side: MC2 rates the market favourite 4 or more points BELOW the market, or flips the dog to 50% outright, and you back the dog. The flip clause is not redundant -- a flip on a -300 favourite is already -26pt, but a flip on a -105 favourite is only about -2pt and would fall in the gap. Replay at registration, which is NOT a forward test -- the probabilities were frozen pre-match, but the rule itself was written on 2026-10-13 after a day of looking at those same outcomes, so the replay is in-sample for the rule: men +4.17% on 155, women +25.62% on 112. The lane below counts only matches starting after 2026-10-13 16:00Z, which is the clean forward test. Archive context on 120,877 rows: the favourite side of this rule returned -4.90% for MC2 and -5.17% for MC3, against -5.59% for backing every favourite blindly, and the 4pt dog side returned -10.47% and -10.21%. The live lanes have disagreed with the archive on dogs before, which is what this measures.'], 'rgba(176,110,60,0.9)', '#c98a5c')}
         {card(['st:mc3_take_fav', '🧮³ MC3 TAKE FAV (at/over mkt)', 'The same favourite rule read off MC3 -- per-surface serve/return ratings, best-of-five modelled, margin-aware Elo. Replay at registration, which is NOT a forward test -- the probabilities were frozen pre-match, but the rule itself was written on 2026-10-13 after a day of looking at those same outcomes, so the replay is in-sample for the rule: men -4.64% on 3, women +9.43% on 3, far too few to read. The lane below counts only matches starting after 2026-10-13 16:00Z, which is the clean forward test. Archive context on 120,877 rows: the favourite side of this rule returned -4.90% for MC2 and -5.17% for MC3, against -5.59% for backing every favourite blindly, and the 4pt dog side returned -10.47% and -10.21%. The live lanes have disagreed with the archive on dogs before, which is what this measures.'], 'rgba(176,110,60,0.9)', '#c98a5c')}
@@ -493,6 +498,20 @@ export default function TennisSection() {
   // C-MC variants reveal (2026-10-03, user "button that shows the invisible monte carlos
   // for C"): off by default; when on, each card's Model C block also shows the two hidden
   // anchor variants (c75, cUTR) beside the visible c50 line.
+  // OTHER MODELS, OFF BY DEFAULT (2026-10-13, user: "show only mc2, mc3, mc5 on the board and
+  // have the rest of the models as a drop down if i want to see them"). The card had grown to
+  // eleven model lines; MC2/MC3/MC5 stay and the other eight -- A, B, C with its C-MC block,
+  // D, G, G2, I and X -- render only when this is on. Persisted like the C-MC toggle, and
+  // threaded to EVERY MatchCard call site rather than just the board, so the preference means
+  // the same thing wherever a card appears.
+  const [showModels, setShowModels] = useState(() => {
+    try { return localStorage.getItem('te_show_models') === '1' } catch { return false }
+  })
+  const toggleModels = () => setShowModels(v => {
+    const nv = !v
+    try { localStorage.setItem('te_show_models', nv ? '1' : '0') } catch { /* ignore */ }
+    return nv
+  })
   const [showCMC, setShowCMC] = useState(() => {
     try { return localStorage.getItem('te_show_cmc') === '1' } catch { return false }
   })
@@ -625,9 +644,18 @@ export default function TennisSection() {
             background: showCMC ? 'rgba(88,166,255,0.14)' : 'transparent',
             color: showCMC ? '#58a6ff' : 'var(--text-secondary)', fontWeight: 700,
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
+        <button onClick={toggleModels}
+          title={showModels ? 'Showing every model line on each card: A, B, C (with the C-MC block), D, G, G2, I and X, below MC2/MC3/MC5. Click to collapse them.' : 'Cards show only MC2, MC3 and MC5. Click to reveal the other eight model lines: A, B, C (with the C-MC block), D, G, G2, I and X.'}
+          style={{
+            marginLeft: 8, padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
+            fontSize: 10.5, fontFamily: 'var(--font-mono)',
+            border: `1px solid ${showModels ? '#2dd4bf' : 'var(--line)'}`,
+            background: showModels ? 'rgba(45,212,191,0.14)' : 'transparent',
+            color: showModels ? '#2dd4bf' : 'var(--text-secondary)', fontWeight: 700,
+          }}>{showModels ? '● all models' : '○ other models'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
       <PriceEdgeScanner scan={data?.price_scan} />
 
       {error && (
@@ -655,7 +683,7 @@ export default function TennisSection() {
       {!error && matches.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
           {sorted.map((m, i) => (
-            <MatchCard key={m.fixture_id} match={m} animDelay={Math.min(i * 0.04, 0.3)} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} />
+            <MatchCard key={m.fixture_id} match={m} animDelay={Math.min(i * 0.04, 0.3)} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} />
           ))}
           {withoutPrediction.length > 0 && (
             <div style={{ marginTop: 8 }}>
@@ -674,7 +702,7 @@ export default function TennisSection() {
   )
 }
 
-function ItfPanel({ query, laneRec, greenOnly, showCMC }) {
+function ItfPanel({ query, laneRec, greenOnly, showCMC, showModels }) {
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
   useEffect(() => {
@@ -715,7 +743,7 @@ function ItfPanel({ query, laneRec, greenOnly, showCMC }) {
       </div>
       {arr.length ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-          {arr.map((m, i) => <MatchCard key={m.fixture_id} match={m} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} />)}
+          {arr.map((m, i) => <MatchCard key={m.fixture_id} match={m} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} />)}
         </div>
       ) : <div className="mono" style={{ color: 'var(--text-tertiary)', padding: 14, fontSize: 11 }}>none{q ? ' match that search' : ''}.</div>}
     </div>
@@ -2509,7 +2537,7 @@ function TrContextRow({ name, ctx }) {
   )
 }
 
-function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = false }) {
+function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = false, showModels = false }) {
   const [showFeatures, setShowFeatures] = useState(false)
   const predSrc = match.prediction ? 'main' : (match.model_a ? 'A' : match.model_b ? 'B' : match.model_c ? 'C' : match.model_i ? 'I' : 'D')
   // fall through every available model so a card with only Model I/C/D (ITF gap players,
@@ -4999,7 +5027,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         </div>
       ) : null}
 
-      {match.model_g ? (
+      {showModels && match.model_g ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8fd3a8', opacity: match.model_g.recon ? 0.72 : 1 }}
           title={`Ⓖ MODEL G (2026-10-12, user ask): the nine 52-week figures on this card and NOTHING else — win%, 1st/2nd serve points, service games won, return 1st/2nd, return games won, serve- and return-pressure. No last-10, no season, no H2H, no market. What it adds over the stat line as printed is two corrections: (1) every rate is shrunk toward the tour mean by its OWN sample size — service games for hold%, return games for break%, pressure POINTS for the dials, matches for the per-match percentages — so a 70% hold off 4 matches is not read like one off 40; (2) every past match is discounted by what that OPPONENT RANK normally concedes, because 70% hold against the top 50 is not 70% hold against #600.
 
@@ -5015,7 +5043,7 @@ FORWARD RECORD (narrowed on your call 2026-10-12): only two reads are logged, th
         </div>
       ) : null}
 
-      {match.model_g2 ? (
+      {showModels && match.model_g2 ? (
         <div className="mono" style={{ marginTop: 3, fontSize: 10, color: '#7fc8a9' }}
           title={`Ⓖ² MODEL G2 (2026-10-12) = every Model G feature plus a LAST-10-ON-THIS-COURT block. The new half: the record over those 10, WHO THEY BEAT (average rank, and their best win), WHO THEY LOST TO (average rank, and their worst loss), who they played overall, and how they performed — games-won share, hold%, break%, and how competitive the losses were (a straight-sets loss reads ~0.30, a three-tiebreak loss ~0.48). Court-specific: the window is the last 10 on THIS surface, not the last 10 overall.
 
@@ -5038,7 +5066,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         </div>
       ) : null}
 
-      {match.model_a ? (() => {
+      {showModels && match.model_a ? (() => {
         const ma = match.model_a
         const pct = v => `${Math.round(100 * v)}%`
         const h = ma.h2h
@@ -5069,7 +5097,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {match.model_b ? (() => {
+      {showModels && match.model_b ? (() => {
         const mb = match.model_b
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mb.edge_p1
@@ -5094,7 +5122,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {match.model_c ? (() => {
+      {showModels && match.model_c ? (() => {
         const mc = match.model_c
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mc.edge_p1
@@ -5139,7 +5167,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {match.model_i ? (() => {
+      {showModels && match.model_i ? (() => {
         const mi = match.model_i
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mi.edge_p1
@@ -5158,7 +5186,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         )
       })() : null}
 
-      {match.model_d ? (() => {
+      {showModels && match.model_d ? (() => {
         const md = match.model_d
         const pct = v => `${Math.round(100 * v)}%`
         const edge = md.edge_p1
@@ -5270,7 +5298,7 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
           </div>
         )
       })() : null}
-      {match.model_x ? (() => {
+      {showModels && match.model_x ? (() => {
         const mx = match.model_x
         const pct = v => `${Math.round(100 * v)}%`
         const edge = mx.edge_p1
