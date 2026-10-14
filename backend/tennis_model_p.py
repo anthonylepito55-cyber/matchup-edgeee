@@ -90,7 +90,10 @@ def _dec(a):
     return 1 + a / 100.0 if a > 0 else 1 + 100.0 / abs(a)
 
 
-def train(rows_path=os.path.join(_here, "data_cache", "_model_p250_rows.parquet"), lam=2.0):
+# the default rows file is the WIDE universe (2026-10-13). It used to be _model_p250_rows,
+# which is the +100..+250 build -- calling train() with the old default would silently
+# revert the band widening and leave BAND claiming +500 while the weights knew only +250.
+def train(rows_path=os.path.join(_here, "data_cache", "_model_pwide_rows.parquet"), lam=2.0):
     """Fit the serving weights on ALL archive P rows (2022-2026), per gender, each gender on
     its own dog band (BAND)."""
     import pandas as pd
