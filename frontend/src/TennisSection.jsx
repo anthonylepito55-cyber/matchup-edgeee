@@ -3338,9 +3338,12 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // already means exactly the same thing -- a cell whose backtest is positive for this gender
   // AND whose live lane ROI is above zero. So the seven colours carried no information the
   // badges did not already carry. hlAny is the single switch; HL is the one treatment.
-  // MC_ONLY: the green and dark-blue families are c75 / bait / CGF / tier-1 / Model P /
-  // pink / gray-dog / s52 -- none of them MC2, MC3 or MC5 -- so they stop painting cards.
-  // The underlying predicates are left intact above so their lanes keep scoring.
+  // MC_ONLY: the green and dark-blue families are c75 / bait / CGF / tier-1 / pink /
+  // gray-dog / s52 -- none of them MC2, MC3 or MC5 -- so they stop painting cards. The
+  // underlying predicates are left intact above so their lanes keep scoring.
+  // Ⓟ MODEL P IS EXCLUDED FROM THIS SWEEP (user: "I did not want model P REMOVED") -- its
+  // banners, its card line and its highlight all stay. It is also the signal that called
+  // Chwalinska over Bouzkova, and its women's dog lane is +9.7% on 48 forward.
   const hlBlack = !MC_ONLY && !!blackC75W && hlOK('c75_dog_100plus', 'w')
   const hlGreen = !MC_ONLY && (!!baitGreen && baitGreen.c75Flip !== false && hlOK('bait_mcflip', gHL))
   const hlPurple = !MC_ONLY && (!!purpleCGF && hlOK(purpleCGF.premium ? 'cgf_premium' : 'cgf_shallow_fav', gHL))
@@ -3381,7 +3384,7 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   })()
   // Ⓟ FAV was removed from this chain on 2026-10-10 (user "Demote P fav"): a favourite-side
   // P edge no longer colours a card at all. Only the dog side and Ⓟ CLOSE can.
-  const hlP = !MC_ONLY && ((!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.close) && hlOK(`p_close_t${pModel.close_tier || 1}`, gHL)))
+  const hlP = (!!(pModel && pModel.bet) && hlOK('p_dog', gHL)) || (!!(pModel && pModel.close) && hlOK(`p_close_t${pModel.close_tier || 1}`, gHL))
   // the single switch -- any live-positive cell lights the card, all of them the same way
   // the dark-blue marks get their OWN treatment, by request. Green still outranks them when
   // a card qualifies for both, since the green family is the older and deeper evidence.
@@ -4095,7 +4098,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           })()}
         </div>
       ) : null}
-      {!MC_ONLY && pModel ? (() => {
+      {pModel ? (() => {
         const st = (((laneRec && laneRec.study) || {}).p_dog) || {}
         const c = st[gHL] || {}
         const live = c.n ? `LIVE ${c.roi_pct > 0 ? '+' : ''}${Math.round(c.roi_pct * 10) / 10}% (${c.wins}-${c.n - c.wins})` : 'LIVE tracking from today'
@@ -4121,7 +4124,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           </div>
         )
       })() : null}
-      {!MC_ONLY && pModel && pModel.close ? (() => {
+      {pModel && pModel.close ? (() => {
         const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
         const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
         const tier = pModel.close_tier || 1
@@ -4144,7 +4147,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           </div>
         )
       })() : null}
-      {!MC_ONLY && pModel && pModel.fav_bet && !pModel.close && livePos('p_fav', gHL) ? (() => {
+      {pModel && pModel.fav_bet && !pModel.close && livePos('p_fav', gHL) ? (() => {
         const fodd = match.live_odds ? Number(pModel.fav === 1 ? match.live_odds.player_1 : match.live_odds.player_2) : null
         const fname = ((pModel.fav === 1 ? match.player_1 : match.player_2) || '').split(' ').slice(-1)[0].toUpperCase()
         const st = (((laneRec && laneRec.study) || {}).p_fav) || {}
@@ -5427,7 +5430,6 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
       })() : null}
 
       {(() => {
-        if (MC_ONLY) return null        // Model P is its own head, not MC2/MC3/MC5
         const mp = match.model_p
         const lo = match.live_odds || {}
         const mk = match.model_c && match.model_c.market_p1 != null ? match.model_c.market_p1 : null
