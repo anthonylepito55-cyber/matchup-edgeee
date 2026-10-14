@@ -2965,7 +2965,7 @@ def get_ab25_record() -> dict:
                       & (_gq["start_time_utc"].astype(str) >= G_LIVE_FROM)]
         for _, rr in _gq.iterrows():
             _rc9 = False
-            for _bad in ("surface_bad", "inplay_suspect"):
+            for _bad in ("surface_bad", "inplay_suspect", "resolve_bad"):
                 _bv = rr.get(_bad) if _bad in _gq.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     break
@@ -3049,7 +3049,7 @@ def get_ab25_record() -> dict:
                       & (_q2["start_time_utc"].astype(str) >= G2_LIVE_FROM)]
         for _, rr in _q2.iterrows():
             _skip = False
-            for _bad in ("surface_bad", "inplay_suspect"):
+            for _bad in ("surface_bad", "inplay_suspect", "resolve_bad"):
                 _bv = rr.get(_bad) if _bad in _q2.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     _skip = True
@@ -3118,7 +3118,7 @@ def get_ab25_record() -> dict:
     # board that prompted this were negative EV, so the two records should diverge.
     _m2 = {k: {"v": [], "m": [], "w": [], "p": 0}
            for k in ("mc2_fav_on", "mc2_fav_band", "mc2_fav_deep", "mc2_dog_flip",
-                     "mc2_dog3", "mc2_dog_dead", "mc2_dog_long",
+                     "mc2_dog3", "mc2_dog_dead", "mc2_dog_long", "mc2_dog_250_300",
                      "mc2_fav_on_ev", "mc2_fav_band_ev", "mc2_fav_deep_ev")}
     _m2picks = {k: [] for k in _m2}
     _m2_meta = {"take": MC2_DOG_TAKE, "dead": list(MC2_DOG_DEAD),
@@ -3135,7 +3135,7 @@ def get_ab25_record() -> dict:
                       & (_q3["start_time_utc"].astype(str) >= MC2_LIVE_FROM)]
         for _, rr in _q3.iterrows():
             _sk = False
-            for _bad in ("surface_bad", "inplay_suspect"):
+            for _bad in ("surface_bad", "inplay_suspect", "resolve_bad"):
                 _bv = rr.get(_bad) if _bad in _q3.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     _sk = True
@@ -3157,7 +3157,25 @@ def get_ab25_record() -> dict:
             _favam = ((_favodd - 1) * 100 if _favodd >= 2
                       else -100.0 / max(_favodd - 1, 1e-9))
             _favband = MC2_FAV_AM[0] <= _favam <= MC2_FAV_AM[1]
-            if (MC2_DOG_LONG_AM[0] <= _dogam <= MC2_DOG_LONG_AM[1]
+            # +250..+300 with ALL THREE heads 8pt+ over on the dog (2026-10-13, user
+            # "lets cap it at 300"). Three-head agreement is part of the rule, so the lane
+            # reads mc3_p1 and mc5_p1 too -- a mark the board shows on three heads must not be
+            # scored here on one. A row missing either head cannot satisfy the rule.
+            _ag8 = None
+            if 250 < _dogam <= 300 and overm <= -0.08:
+                _ag8 = True
+                for _c8 in ("mc3_p1", "mc5_p1"):
+                    _v8 = rr.get(_c8) if _c8 in _q3.columns else None
+                    if _v8 is None or pd.isna(_v8):
+                        _ag8 = False
+                        break
+                    _pf8 = float(_v8) if fav1m else 1.0 - float(_v8)
+                    if (_pf8 - mkfavm) > -0.08:      # that head is not 8pt+ on the dog
+                        _ag8 = False
+                        break
+            if _ag8:
+                key, takes1 = "mc2_dog_250_300", (not fav1m)
+            elif (MC2_DOG_LONG_AM[0] <= _dogam <= MC2_DOG_LONG_AM[1]
                     and overm <= -MC2_DOG_LONG_T):
                 # checked FIRST: it is the more specific claim and overlaps mc2_dog3
                 key, takes1 = "mc2_dog_long", (not fav1m)
@@ -3224,7 +3242,8 @@ def get_ab25_record() -> dict:
             for _x in _m2picks[k]:
                 _x.pop("_sort", None)
         for k, v in _m2.items():
-            _isdog3 = k.endswith("_dog_flip")
+            _isdog3 = k.endswith("_dog_flip") or k in ("mc2_dog3", "mc2_dog_long",
+                                                          "mc2_dog_250_300", "mc2_dog_dead")
             study_out[k] = {**agg(v["v"]), "pending": int(v["p"]), "from": MC2_LIVE_FROM,
                             "m": agg(v["m"]), "w": agg(v["w"]),
                             "dog": agg(v["v"] if _isdog3 else []),
