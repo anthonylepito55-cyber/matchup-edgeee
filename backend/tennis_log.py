@@ -1862,6 +1862,11 @@ def get_ab25_record() -> dict:
               # 🔀 FADE 6-4 SPLIT (2026-10-05, user): heads split 6-4 -> bet the 4-minority
               # side. Forward-tracked from registration (bt +80.7% men but n=17, unvalidated).
               "split64_fade",
+              # 6-4 SPLIT split by the pick's side (2026-10-13, user "make 6-4 fade dog only
+              # now too"). Forward: dogs +27.61% (+$262 on 38), favourites -19.68% (-$138 on
+              # 28), so the blended +7.54% was the dogs' profit minus the favourites' losses.
+              # The $25 tab card reads the _dog lane; _fav stays as the control.
+              "split64_fade_dog", "split64_fade_fav",
               # 🧊 PURE-FORM × mc_c75 (2026-10-06, user "wire that tracker"): on an mc_c75
               # pick, split by whether the pure-results recent-form overlay AGREES or
               # DISAGREES with the c75 side. Live edge is in the DISAGREE cell (men +18.2%,
@@ -2220,7 +2225,9 @@ def get_ab25_record() -> dict:
                 if all(pd.notna(x) for x in _c6):
                     _nt6 = sum(1 for x in _c6 if float(x) >= 0.5)   # heads on p1
                     if _nt6 in (4, 6):                              # exactly 6-4
-                        bet("split64_fade", _nt6 == 4)             # take the 4-side (p1 iff 4 on p1)
+                        _s64 = (_nt6 == 4)                         # the side taken: p1 iff 4 on p1
+                        bet("split64_fade", _s64)                  # blended, kept as the control
+                        bet("split64_fade_dog" if (_s64 == dog1) else "split64_fade_fav", _s64)
             # 🧊 PURE-FORM × mc_c75 (2026-10-06, user "wire that tracker"): on every mc_c75
             # pick, bet the c75 side and bucket by whether the pure-results recent-form
             # overlay agrees or disagrees with it. The live edge is in the DISAGREE bucket
