@@ -772,6 +772,9 @@ TAKE_LIVE_FROM = "2026-10-13T16:00:00Z"
 # stamp were priced without it, so any mc2_*/mc3_*/mc5_* lane record that straddles this date is
 # two different models averaged together. Split on it before reading a lane as evidence.
 ASYM_LIVE_FROM = "2026-10-13T22:00:00Z"
+# Model P band extension went live with the same deploy. The four p_*_250up/400up lanes
+# did not exist before it, so they carry no pre-stamp history to replay.
+P_WIDE_LIVE_FROM = "2026-10-13T22:00:00Z"
 MC2_FAV_BAND = (0.02, 0.08)
 # DEEP favourite cell (2026-10-13, user "Those can be brown highlighted too", about the 9pt+
 # favourites). Set at 8pt rather than 9 so the two brown favourite cells are CONTINUOUS -- a card
@@ -1836,7 +1839,8 @@ def get_ab25_record() -> dict:
               # control c_ship_dog is what makes the other two readable
               "c_ship_dog", "c_nohb_dog", "c_api_dog",
               "pink_fadeb_dog_m", "pink_wcons_dog", "pink_wall9_fav", "pink_cc75_dog",
-              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_dog_flip", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w", "allround_dog_w", "allround_dog_w_big", "lowerr_dog_w",
+              "pink_cclose_c75fav_m", "pink_mc2_dog", "x_dog", "p_dog", "p_dog_any", "p_pass", "p_fav", "p_dog_w250", "p_dog_flip", "p_dog_250up", "p_dog_400up",
+              "p_fav_200_250", "p_fav_250up", "p_fav_400up", "p_close", "p_close_t1", "p_close_t2", "p_close_t3", "returner_dog_w", "allround_dog_w", "allround_dog_w_big", "lowerr_dog_w",
               "mc_c_all", "mc_c_and_d", "mc_c75_all", "mc_cutr_all",
               # c75 split by side (2026-10-06, user "split it that way"): the c75 edge is ALL
               # in the dogs; favorites flat/neg. c75fav_formfade = the ONE +ROI favorite cell
@@ -2754,6 +2758,33 @@ def get_ab25_record() -> dict:
                 _fd9 = d2 if _ps9 else d1
                 if _pf9 is not None and pd.notna(_pf9) and float(_pf9) >= 0.03 and 1.5 <= _fd9 <= 2.0:
                     bet("p_fav", not _ps9)
+                # P BAND EXTENSION (2026-10-13, user "model p can go over -250 and over
+                # +250 now"). P was retrained on dogs out to +500 / favourites in to -500
+                # (_model_p_wide_build.py). The two new regions are scored as SEPARATE
+                # lanes because they are different bets and the evidence for them is not
+                # the same strength:
+                #   favourites below -250, P fav EV >= 3%  -- walk-forward men +10.0%
+                #     (n=1,481) and women +13.7% (n=1,512), every year positive both
+                #     genders, and the region is independently measured UNDERpriced by
+                #     +2.1pt. The better-motivated half.
+                #   dogs above +250, P EV >= 5%  -- walk-forward men +13.3% and women
+                #     +32.3%, BUT men's 2026 is only +2.9% (+250..+400 alone -6.9%), the
+                #     women's figure leans on a +78% 2024, and the region is measured
+                #     OVERpriced by 1.7-2.2pt, so a good number here is suspect.
+                # Watch-only. No board mark until the live lanes say something, per the
+                # colour-promotion rule and the six archive favourite cells that have
+                # already failed forward.
+                if _pf9 is not None and pd.notna(_pf9) and float(_pf9) >= 0.03 and _fd9 < 1.5:
+                    if _fd9 >= 1.4:
+                        bet("p_fav_200_250", not _ps9)      # newly open, NOT separately measured
+                    else:
+                        bet("p_fav_250up", not _ps9)        # the measured cell: M +10.0% W +13.7%
+                        if _fd9 < 1.25:
+                            bet("p_fav_400up", not _ps9)    # M +10.9% W +13.6%
+                if float(_pe9) >= 0.05 and (d1 if _ps9 else d2) > 3.5:
+                    bet("p_dog_250up", _ps9)
+                    if (d1 if _ps9 else d2) > 5.0:
+                        bet("p_dog_400up", _ps9)
             # 🎾 RETURNER DOG (W) (2026-10-09, user "yes"): women, dog +100..+250, the dog
             # wins >= 4.56pt more return-PRESSURE points (52w surface; top third of the gap).
             # Backtest 2025-26: +6.3% (n=751); 2025 +2.8%, 2026 +12.1%; every dog -7.5%.
