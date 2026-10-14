@@ -18,6 +18,14 @@ import React, { useEffect, useState } from 'react'
 
 // label, lane key, and a one-line note. Ordered by how much evidence each has, not by ROI.
 const CELLS = [
+  ['🟤 MC2 6pt+ DOG · all prices', 'mc2_dog6_all',
+   'MC2 six or more points over the market on the dog, ANY price (2026-10-14, your ask). The forward ladder is why the bar is 6 and not 4: 3-4pt -1.9% on 27, 4-6pt -4.2% on 45, then 6-8pt +14.1% on 48 and 8pt+ +6.9% on 207. Both genders positive.'],
+  ['🟤 MC2 TAKE DOG · unstamped', 'mc2_take_dog_all',
+   'Your take rule at the new -6 threshold, counting every frozen row rather than only those after the rule was written. The date-stamped lane (mc2_take_dog) is the in-sample-free version and is much smaller.'],
+  ['🧮³ MC3 TAKE DOG · unstamped', 'mc3_take_dog_all',
+   'The same rule on MC3, counting every frozen row. MC3 is starved on the stamped lane because 1,326 of its 1,400 rows are recon backfills.'],
+  ['🧮⁵ MC5 TAKE DOG · unstamped', 'mc5_take_dog_all',
+   'The same rule on MC5. Only 13 of its 565 rows are forward, so this is near-empty and will stay that way for weeks -- shown so it accrues against a recorded rule rather than starting from scratch later.'],
   ['🧊 FADE FORM · dogs', 'pf_c75_dis_dog',
    'c75 pick where the pure-results form overlay points at the OPPONENT, and the pick is the dog. Best t on the board (2.40).'],
   ['🔀 6-4 SPLIT · dogs', 'split64_fade_dog',

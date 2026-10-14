@@ -766,6 +766,13 @@ MC2_LIVE_FROM = "2026-10-13T02:00:00Z"
 #   both_take_fav  men  -4.64% /  3    women -17.11% /  2
 #   both_take_dog  men +29.25% /  8    women +72.14% /  7
 TAKE_LIVE_FROM = "2026-10-13T16:00:00Z"
+# THE DOG THRESHOLD (2026-10-14, user "move the MC2 dog rule to -6"). The forward ladder put
+# the turn at 6pt, not 4: 3-4pt -1.89% on 27, 4-6pt -4.20% on 45, 6-8pt +14.13% on 48, 8pt+
+# +6.93% on 207. The -4 rule returned +7.68% on 304; cutting the 4-6pt slice gives +8.28% on
+# 255. MC_TAKE_DOG4 keeps the old threshold alive as *_take_dog4 so the change is measured
+# instead of assumed.
+MC_TAKE_DOG = -0.06
+MC_TAKE_DOG4 = -0.04
 # SAMPLE-ASYMMETRY TILT CUTOVER (2026-10-13). MC2/MC3/MC5 gained a log-odds correction that
 # pushes probability away from the thinner-sampled player (tennis_mc2.MC_TILT = 0.35), after
 # the user spotted that the heads overprice whoever has fewer matches. Rows logged BEFORE this
@@ -891,7 +898,9 @@ _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner
                # and the rest of the dog leaderboard the tab groups under it:
                "c75_dog_100plus", "cc75_nod_dog", "cc75_dog", "cr1_stardog",
                "s52_fav_band_dog", "pink_fadeb_dog_m", "pink_mc2_dog", "tier_avoid_dog",
-               "dma_dog", "mc2_dog_band", "cgray_dog_late", "ovl_dog", "fight_mc4_dog"}
+               "dma_dog", "mc2_dog_band", "cgray_dog_late", "ovl_dog", "fight_mc4_dog",
+               # 2026-10-14: MC2 6pt+ on the dog, any price, and the unstamped take-dog lanes
+               "mc2_dog6_all", "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all"}
 
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
@@ -1917,6 +1926,17 @@ def get_ab25_record() -> dict:
               # either way and measuring both settles it rather than guessing.
               "mc2_take_fav", "mc2_take_dog", "mc3_take_fav", "mc3_take_dog",
               "both_take_fav", "both_take_dog",
+              # the OLD -4 threshold, kept so moving to -6 is measurable (2026-10-14)
+              "mc2_take_dog4", "mc3_take_dog4", "mc5_take_dog4",
+              # the same rules with NO date stamp, forward rows only. TAKE_LIVE_FROM exists
+              # because the rule was written on 10-13, which keeps the stamped lanes free of
+              # in-sample replay -- but it also left MC3 at n=46 and MC5 at n=4, so these
+              # count every genuinely frozen row instead.
+              "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all",
+              "mc2_take_fav_all", "mc3_take_fav_all", "mc5_take_fav_all",
+              # MC2 6pt+ over on the dog at ANY price -- the Dog picks tab cell
+              # (2026-10-14, user "add All mc2 6 pt to dog tab")
+              "mc2_dog6_all",
               "mc3_vs_mc2", "mc2_vs_mc3",
               "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
               # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
@@ -2196,11 +2216,34 @@ def get_ab25_record() -> dict:
                 if _ov >= 0:
                     bet("%s_take_fav" % _tag, not dog1)
                     _tk[_tag] = "fav"
-                elif _ov <= -0.04 or _flip:
+                elif _ov <= MC_TAKE_DOG or _flip:
                     bet("%s_take_dog" % _tag, dog1)
                     _tk[_tag] = "dog"
                 else:
                     _tk[_tag] = None                       # the dead zone between the rules
+                # the old -4 threshold, scored alongside so the move to -6 is measurable
+                if _ov <= MC_TAKE_DOG4 or _flip:
+                    bet("%s_take_dog4" % _tag, dog1)
+            # THE SAME RULES WITH NO DATE STAMP (2026-10-14). Forward rows only -- a recon
+            # backfill still cannot enter a money lane -- but every frozen row counts, which is
+            # the only way MC3 and MC5 have a readable sample before next month.
+            for _tag9, _pv9, _rc0 in (("mc2", r.get("mc2_p1"), r.get("mc2_recon")),
+                                      ("mc3", r.get("mc3_p1"), r.get("mc3_recon")),
+                                      ("mc5", r.get("mc5_p1"), r.get("mc5_recon"))):
+                if pd.isna(_pv9) or (pd.notna(_rc0) and bool(_rc0)):
+                    continue
+                _pv9 = float(_pv9)
+                _fp9 = _pv9 if not dog1 else 1 - _pv9
+                _ov9 = _fp9 - max(mk1, 1 - mk1)
+                if _ov9 >= 0:
+                    bet("%s_take_fav_all" % _tag9, not dog1)
+                elif _ov9 <= MC_TAKE_DOG or _fp9 < 0.5:
+                    bet("%s_take_dog_all" % _tag9, dog1)
+                # MC2 6pt+ over on the DOG at any price -> the Dog picks tab cell. Same
+                # threshold as the new take rule but without the flip clause, so it is the
+                # plain "MC2 is 6 points better than the price on this dog" statement.
+                if _tag9 == "mc2" and _ov9 <= -0.06:
+                    bet("mc2_dog6_all", dog1)
             if _tk.get("mc2") and _tk.get("mc2") == _tk.get("mc3"):
                 # both heads say the same thing, which is the stricter reading of "mc2 and mc3"
                 bet("both_take_%s" % _tk["mc2"], (not dog1) if _tk["mc2"] == "fav" else dog1)
