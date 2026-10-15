@@ -587,8 +587,9 @@ export default function TennisSection() {
   // anchor variants (c75, cUTR) beside the visible c50 line.
   // OTHER MODELS, OFF BY DEFAULT (2026-10-13, user: "show only mc2, mc3, mc5 on the board and
   // have the rest of the models as a drop down if i want to see them"). The card had grown to
-  // eleven model lines; MC2/MC3/MC5 stay and the other eight -- A, B, C with its C-MC block,
-  // D, G, G2, I and X -- render only when this is on. Persisted like the C-MC toggle, and
+  // eleven model lines. MC2/MC3/MC5 stay, and G/G2 joined them on 2026-10-15 at the user's ask
+  // ("unhide model g and g2"), so the other six -- A, B, C with its C-MC block, D, I and X --
+  // render only when this is on. Persisted like the C-MC toggle, and
   // threaded to EVERY MatchCard call site rather than just the board, so the preference means
   // the same thing wherever a card appears.
   const [showModels, setShowModels] = useState(() => {
@@ -769,7 +770,7 @@ export default function TennisSection() {
             color: showCMC ? '#58a6ff' : 'var(--text-secondary)', fontWeight: 700,
           }}>{showCMC ? '● C-MC variants' : '○ C-MC variants'}</button>
         <button onClick={toggleModels}
-          title={showModels ? 'Showing every model line on each card: A, B, C (with the C-MC block), D, G, G2, I and X, below MC2/MC3/MC5. Click to collapse them.' : 'Cards show only MC2, MC3 and MC5. Click to reveal the other eight model lines: A, B, C (with the C-MC block), D, G, G2, I and X.'}
+          title={showModels ? 'Showing every model line on each card: A, B, C (with the C-MC block), D, I and X, below the always-on MC2/MC3/MC5/G/G2. Click to collapse them.' : 'Cards show MC2, MC3, MC5, G and G2. Click to reveal the other six model lines: A, B, C (with the C-MC block), D, I and X.'}
           style={{
             marginLeft: 8, padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
             fontSize: 10.5, fontFamily: 'var(--font-mono)',
@@ -5307,7 +5308,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
       {!showModels ? (
         <div className="mono" style={{ marginTop: 4 }}>
           <button onClick={() => setCardModels(v => !v)}
-            title={cardModels ? 'Hide this card\u2019s other model lines (A, B, C, D, G, G2, I, X).' : 'Show this card\u2019s other eight model lines: A, B, C with the C-MC block, D, G, G2, I and X. MC2, MC3 and MC5 are always shown.'}
+            title={cardModels ? 'Hide this card\u2019s other model lines (A, B, C, D, I, X).' : 'Show this card\u2019s other six model lines: A, B, C with the C-MC block, D, I and X. MC2, MC3, MC5, G and G2 are always shown.'}
             style={{
               padding: '2px 8px', borderRadius: 6, cursor: 'pointer',
               fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 700,
@@ -5318,7 +5319,12 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         </div>
       ) : null}
 
-      {showMods && match.model_g ? (
+      {/* G AND G2 ARE ALWAYS SHOWN (2026-10-15, user "unhide model g and g2 so i can see
+          only them mc2 mc3 and mc 5 on every board pick"). The always-on set on a card is now
+          exactly MC2 / MC3 / MC5 / G / G2; A, B, C, D, I and X stay behind the expander.
+          This unhides the model LINES only -- G's black/yellow board MARKS stay off, because
+          board colours move on a live lane record plus sign-off, not as a side effect. */}
+      {match.model_g ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#8fd3a8', opacity: match.model_g.recon ? 0.72 : 1 }}
           title={`Ⓖ MODEL G (2026-10-12, user ask): the nine 52-week figures on this card and NOTHING else — win%, 1st/2nd serve points, service games won, return 1st/2nd, return games won, serve- and return-pressure. No last-10, no season, no H2H, no market. What it adds over the stat line as printed is two corrections: (1) every rate is shrunk toward the tour mean by its OWN sample size — service games for hold%, return games for break%, pressure POINTS for the dials, matches for the per-match percentages — so a 70% hold off 4 matches is not read like one off 40; (2) every past match is discounted by what that OPPONENT RANK normally concedes, because 70% hold against the top 50 is not 70% hold against #600.
 
@@ -5334,7 +5340,7 @@ FORWARD RECORD (narrowed on your call 2026-10-12): only two reads are logged, th
         </div>
       ) : null}
 
-      {showMods && match.model_g2 ? (
+      {match.model_g2 ? (
         <div className="mono" style={{ marginTop: 3, fontSize: 10, color: '#7fc8a9' }}
           title={`Ⓖ² MODEL G2 (2026-10-12) = every Model G feature plus a LAST-10-ON-THIS-COURT block. The new half: the record over those 10, WHO THEY BEAT (average rank, and their best win), WHO THEY LOST TO (average rank, and their worst loss), who they played overall, and how they performed — games-won share, hold%, break%, and how competitive the losses were (a straight-sets loss reads ~0.30, a three-tiebreak loss ~0.48). Court-specific: the window is the last 10 on THIS surface, not the last 10 overall.
 
