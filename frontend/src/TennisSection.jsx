@@ -2036,7 +2036,7 @@ function HistoryPanel({ query, greenOnly = false }) {
         for (const m of d.matches) {
           for (const [k, p] of Object.entries(m.models)) bump(k, p)
           bump('MC-D', m.mc); bump('C50', m.mc_c && m.mc_c.c50); bump('C75', m.mc_c && m.mc_c.c75); bump('CU', m.mc_c && m.mc_c.cutr)
-          bump('OUR', m.our); bump('C-MC+c75', m.cmc_c75); bump('X', m.model_x); bump('MC2', m.mc2); bump('MC3', m.mc3); bump('MC5', m.mc5)
+          bump('OUR', m.our); bump('C-MC+c75', m.cmc_c75); bump('X', m.model_x); bump('MC2', m.mc2); bump('MC3', m.mc3); bump('MC5', m.mc5); bump('MC6', m.mc6)
           for (const s of [...(m.signals || []), ...(m.conflicts || [])]) {
             const o = s.side === 1 ? m.p1_odds : m.p2_odds
             const dec = (o == null || o === 0) ? null : (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o))
@@ -2155,6 +2155,14 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                   {m.mc5 ? <span className="mono" title={`🧮⁵ MC v5${m.mc5.recon ? ' — ~ walk-forward BACKFILL, display-only' : ' (genuine frozen pre-match read)'}: ${m.mc5.p1_pct}% p1 — ${m.mc5.hit ? 'correct' : 'wrong'}. MC3 plus a surface last-5 and clutch, both shipped at weights where they measured neutral against MC3.`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.mc5.hit ? '#b3a0f055' : '#f8514955'}`, color: m.mc5.hit ? '#c9b3fa' : '#f85149', background: m.mc5.hit ? 'rgba(179,160,240,0.06)' : '#f851490d', opacity: m.mc5.recon ? 0.6 : 1 }}>
                     {m.mc5.recon ? '~' : ''}🧮⁵{m.mc5.side === 1 ? '◀' : '▶'}{m.mc5.hit ? '✓' : '✗'}</span> : null}
+                  {/* MC6 (2026-10-15). Orange against MC5's lilac. MC6 = MC5 + a
+                      recency-weighted H2H and a surface-form residual, so it sits next to
+                      MC5 and the pair reads as base-then-terms. Only present from
+                      2026-10-15 on -- earlier games show no chip because MC6 did not
+                      exist, not because anything failed. */}
+                  {m.mc6 ? <span className="mono" title={`🧮⁶ MC v6${m.mc6.recon ? ' — ~ walk-forward BACKFILL, display-only' : ' (genuine frozen pre-match read)'}: ${m.mc6.p1_pct}% p1 — ${m.mc6.hit ? 'correct' : 'wrong'}. MC5 plus a recency-weighted head-to-head (365-day half-life) and a surface-form residual. Measured held-out: +0.0043/+0.0045 AUC over MC2, and the gain is the surface-form half — H2H alone is worth +0.0007 to +0.0011 and is NEGATIVE if turned up. Watch only.`}
+                    style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.mc6.hit ? '#fab7a755' : '#f8514955'}`, color: m.mc6.hit ? '#fab7a7' : '#f85149', background: m.mc6.hit ? 'rgba(250,183,167,0.06)' : '#f851490d', opacity: m.mc6.recon ? 0.6 : 1 }}>
+                    {m.mc6.recon ? '~' : ''}🧮⁶{m.mc6.side === 1 ? '◀' : '▶'}{m.mc6.hit ? '✓' : '✗'}</span> : null}
                   {m.mc ? <span className="mono" title={`Model-D serve Monte Carlo favored player ${m.mc.side} (${m.mc.p1_pct}% p1) — ${m.mc.hit ? 'correct' : 'wrong'}`}
                     style={{ fontSize: 9, padding: '0 5px', borderRadius: 7, marginLeft: 3, border: `1px solid ${m.mc.hit ? '#3fb95055' : '#f8514955'}`, color: m.mc.hit ? '#3fb950' : '#f85149', background: m.mc.hit ? '#3fb9500d' : '#f851490d' }}>⚄D{m.mc.side === 1 ? '◀' : '▶'}{m.mc.hit ? '✓' : '✗'}</span> : null}
                 </span>

@@ -1395,6 +1395,12 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
                                  if pd.notna(r.get("mc3_recon")) else False} if p else None))(pickpct(r, "mc3_p1")),
             "mc5": (lambda p: ({**p, "recon": bool(r.get("mc5_recon"))
                                  if pd.notna(r.get("mc5_recon")) else False} if p else None))(pickpct(r, "mc5_p1")),
+            # MC v6 (2026-10-15, user "can u make mc6 show up on previous day tabs").
+            # Same shape and same recon contract as the others. Note it only starts on
+            # 2026-10-15 -- earlier days have no mc6_p1 and correctly show no chip, since
+            # MC6 did not exist then. Backfilling needs an as-of state rebuild per day.
+            "mc6": (lambda p: ({**p, "recon": bool(r.get("mc6_recon"))
+                                 if pd.notna(r.get("mc6_recon")) else False} if p else None))(pickpct(r, "mc6_p1")),
             # our headline pick (the favored side shown on the board) + the user's
             # c-MC+c75 take, for the daily hit % in results-history (2026-10-03). The board
             # headlines off prediction -> A -> B -> C (the old tour model is retired, so
