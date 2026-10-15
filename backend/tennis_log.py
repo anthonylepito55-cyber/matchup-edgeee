@@ -1978,10 +1978,10 @@ def get_ab25_record() -> dict:
               # both the gender split and the 4pt threshold were found by scanning.
               "mc2_fav4_w", "mc2_fav4_m",
               "mc3_vs_mc2", "mc2_vs_mc3",
-              # MC6 watch lanes, mirroring MC3's and MC5's. mc6_vs_mc2 / mc2_vs_mc6 are the
-              # pair that can actually separate them -- MC6 is MC2 plus two terms, so they
+              # MC6 watch lanes, mirroring MC3's and MC5's. mc6_vs_mc5 / mc5_vs_mc6 are the
+              # pair that can actually separate them -- MC6 is MC5 plus two terms, so they
               # agree on most cards and only the disagreements carry information.
-              "mc6_all", "mc6_edge2", "mc6_dog_band", "mc6_vs_mc2", "mc2_vs_mc6",
+              "mc6_all", "mc6_edge2", "mc6_dog_band", "mc6_vs_mc5", "mc5_vs_mc6",
               "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
               # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
               # favorites lose (−5%). The board/Best 🧊 tag reads these so it only greens on dogs.
@@ -2260,12 +2260,16 @@ def get_ab25_record() -> dict:
                     _od6 = r.get("p1_odds") if _m6b else r.get("p2_odds")
                     if pd.notna(_od6) and 100 <= float(_od6) <= 250:
                         bet("mc6_dog_band", _m6b)
-                # the head-to-head, only where MC6 and MC2 actually differ
-                if pd.notna(_m29) and not _m2rec:
-                    _m2s6 = float(_m29) >= 0.5
-                    if _m2s6 != _m6b:
-                        bet("mc6_vs_mc2", _m6b)
-                        bet("mc2_vs_mc6", _m2s6)
+                # the head-to-head against ITS OWN BASE, only where they differ. MC6 sits on
+                # MC5 (2026-10-15, user "switch it to mc5 and get rid of the mc2 version"), so
+                # pairing it against MC2 would mostly re-measure MC5-vs-MC2, which mc3_vs_mc2
+                # already covers. What deserves a lane is what the two terms add on top of the
+                # base MC6 actually uses.
+                if pd.notna(_m59) and not _m5rec:
+                    _m5s6 = float(_m59) >= 0.5
+                    if _m5s6 != _m6b:
+                        bet("mc6_vs_mc5", _m6b)
+                        bet("mc5_vs_mc6", _m5s6)
             # THE USER'S TAKE RULE, per head and as an agreement pair. See the lane-name
             # block above for the verbatim statement. Forward rows only -- a recon backfill is
             # not a pick that was ever shown, so it cannot belong in a money lane.

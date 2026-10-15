@@ -1,16 +1,20 @@
-"""MC v6 (2026-10-15, user: "we should make an mc6 thats exactly like mc2 but has recent h2h
-surface form as well").
+"""MC v6 (2026-10-15). Asked for as "exactly like mc2 but has recent h2h surface form as
+well", then moved onto MC5's base the same day on the user's call ("switch it to mc5 and get
+rid of the mc2 version") after the base comparison measured MC5 as the better place for the
+terms -- see _mc6_base_choice.py and the table below.
 
-EXACTLY MC2, PLUS TWO TERMS. MC6 does not re-implement anything: it calls tennis_mc2.predict and
-re-blends its own published legs, so the Elo leg, the Markov leg, the quadrature over day-form
-nodes and the thin-sample tilt are literally MC2's and cannot drift from it.
+EXACTLY MC5, PLUS TWO TERMS. MC6 does not re-implement anything: it calls tennis_mc5.predict and
+shifts its published probability, so every layer below -- MC2's Elo and Markov legs, MC3's
+per-surface serve/return ratings, best-of-five, margin-aware Elo, MC5's surface L5, season and
+clutch terms, and the thin-sample tilt -- is literally MC5's and cannot drift from it.
 
-    MC2 :  p = sigmoid( 0.5*logit(p_elo) + 0.5*logit(p_markov) + asym_tilt )
-    MC6 :  p = sigmoid( 0.5*logit(p_elo) + 0.5*logit(p_markov) + asym_tilt
-                        + MC6_WH * h2h  +  MC6_WS * sform )
+    MC6 :  p = sigmoid( logit(p_mc5) + MC6_WH * h2h  +  MC6_WS * sform )
 
-At MC6_WH = MC6_WS = 0 it IS MC2, to the last decimal. That is deliberate: it makes the two
-heads' difference exactly the two new terms and nothing else.
+At MC6_WH = MC6_WS = 0 it IS MC5, to the last decimal, which makes the two heads' difference
+exactly the two new terms and nothing else. Taking logit of the base's OWN probability rather
+than rebuilding its blend by hand is deliberate: the arithmetic is identical for a 50/50 blend,
+and it does not assume one, so MC5's predict-time terms are picked up automatically instead of
+being silently dropped by a hand-rebuilt blend.
 
   h2h    RECENCY-WEIGHTED head-to-head, 365-day half-life, damped by how much weighted evidence
          exists (w/(w+1)), so a single old meeting barely moves anything and four recent ones
@@ -22,9 +26,29 @@ heads' difference exactly the two new terms and nothing else.
          between the two players. A plain surface win rate would mostly re-state Elo; the
          residual is the part Elo has NOT absorbed.
 
+WHY MC5'S BASE AND NOT MC2'S (_mc6_base_choice.py, identical rows / terms / weights):
+
+    held-out                 2025              2026
+    MC2 + h2h + sform    .6864 / .2236     .6898 / .2224
+    MC5 + h2h + sform    .6893 / .2226     .6910 / .2220     <- better on both, both metrics
+
+The two terms add LESS on MC5 (+.0032/+.0031) than on MC2 (+.0044/+.0045) -- the surface-form
+term loses about a third of its value, because MC5 already holds per-surface serve/return,
+surface Elo, surface L5 and season-on-surface. H2H is unchanged on every base (+.0010/+.0007),
+since no base contains H2H. But MC5's base starts +.0041/+.0026 ahead, which more than covers the
+third given back. The same redundancy shows in the weight grid: wS = 1.00 was fine on MC2 and is
+WORSE than 0.50 on MC5, so the optimum shifts down. wH .25 / wS .50 stays the best tested pair.
+
+A caveat that belongs here rather than in a commit message: the sweep could NOT separate MC3 from
+MC5 -- their feature-table legs are byte-identical, because MC5's extra terms live at predict time
+rather than in the features, so "MC5" in that table is MC3's legs. By MC5's own design those terms
+sit where the cost against MC3 is zero to four decimals, so MC3 is approximately MC5; the live
+head now sits on MC5's ACTUAL output, which includes terms the sweep never saw.
+
 WEIGHTS WERE MEASURED FIRST, NOT AFTER (_mc6_sweep.py, 170,714 archive rows, walk-forward,
 held-out years). This is the one process lesson from MC5, whose weights had to be set
-retrospectively at the smallest values tested:
+retrospectively at the smallest values tested. The table below is on MC2's base, where the sweep
+was originally run:
 
     held-out            2025            2026
     MC2 baseline        .6820 / .2249   .6853 / .2237
@@ -64,7 +88,7 @@ import pickle
 import threading
 import time
 
-import tennis_mc2
+import tennis_mc5
 from tennis_mc2 import _slug, _surf
 
 # --- the two measured weights (see the table above) -------------------------------------
@@ -143,12 +167,11 @@ def _sform_term(S, s1, s2, surf):
 def predict(p1_name, p2_name, surface, market_p1=None, best_of_5=False):
     """MC6 = MC2's blend plus the recency-weighted H2H and surface-form terms.
 
-    Returns None when MC2 returns None (either player unrated) or when MC6's own state is
-    missing -- never a silent fallback to MC2, so a dead state reads as a blank column rather
-    than as MC2's number under MC6's name.
+    Returns None when MC5 returns None (either player unrated) or when MC6's own state is
+    missing -- never a silent fallback to MC5, so a dead state reads as a blank column rather
+    than as MC5's number under MC6's name.
     """
-    base = tennis_mc2.predict(p1_name, p2_name, surface,
-                              market_p1=market_p1, best_of_5=best_of_5)
+    base = tennis_mc5.predict(p1_name, p2_name, surface, best_of_5=best_of_5)
     if base is None:
         return None
     S = _state()
@@ -161,15 +184,16 @@ def predict(p1_name, p2_name, surface, market_p1=None, best_of_5=False):
     today = time.time() / 86400.0
     h2h, h_n, h_w = _h2h_term(S, s1, s2, surf, today)
     sform, sf1, sf2 = _sform_term(S, s1, s2, surf)
-    # MC2's own legs, re-blended. At MC6_WH = MC6_WS = 0 this reproduces base["p1_prob"] exactly.
-    z = (0.5 * _lg(base["elo_p1"]) + 0.5 * _lg(base["mkv_p1"]) + float(base.get("asym") or 0.0)
-         + MC6_WH * h2h + MC6_WS * sform)
+    # MC5's own probability, shifted. At MC6_WH = MC6_WS = 0 this reproduces base["p1_prob"]
+    # exactly. Using the base's published number rather than rebuilding its blend means MC5's
+    # predict-time terms (surface L5, season, clutch) are carried rather than silently dropped.
+    z = _lg(base["p1_prob"]) + MC6_WH * h2h + MC6_WS * sform
     p = 1.0 / (1.0 + math.exp(-z))
     out = dict(base)
     out.update({
         "p1_prob": round(p, 4),
-        "mc2_p1": base["p1_prob"],                 # what MC2 said, so the delta is visible
-        "d_mc2": round(p - base["p1_prob"], 4),
+        "mc5_p1": base["p1_prob"],                 # what MC5 said, so the delta is visible
+        "d_mc5": round(p - base["p1_prob"], 4),
         "h2h": round(h2h, 4), "h2h_n": int(h_n), "h2h_w": round(h_w, 3),
         "sform": round(sform, 4),
         "sf1": None if sf1 is None else round(sf1, 4),
