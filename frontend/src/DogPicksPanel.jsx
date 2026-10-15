@@ -128,7 +128,12 @@ const CELLS = [
 function splitByBand(cel) {
   const out = []
   for (const [lab, lo, hi] of BANDS) {
-    const ps = (cel.picks || []).filter(p => p.odds != null && p.odds >= lo && p.odds <= hi)
+    // SAME BASIS AS THE REST OF THE TAB (fix, 2026-10-14): no ITF men, nothing above +300.
+    // Without this the band cells were scored on a different population and flipped signs --
+    // mc2_dog6_all +200..+250 men read -5.96% with four ITF-men picks in it and +11.95% without,
+    // while being a PINK source, so the board contradicted its own mark.
+    const ps = (cel.picks || []).filter(p => p.odds != null && p.odds >= lo && p.odds <= hi
+      && priceOK(p) && leagueOK(p))
     if (!ps.length) continue
     const mk = (sub) => {
       const done = sub.filter(p => p.won != null)
@@ -408,6 +413,15 @@ const MARK_CELLS = new Set([
 ])
 // these two lanes are shown one row PER PRICE BAND rather than as one blended number
 const SPLIT_BY_BAND = new Set(['mc2_dog4_all', 'mc2_dog6_all'])
+
+// A CELL THAT LOSES FOR EVERY GENDER LEAVES THE TAB (2026-10-14, user: "remove these from the
+// dog board completely since they're negative"). Until now such a cell still held a row with its
+// losing total while both halves wore the gender gate's cross -- visible, unusable, misleading.
+// A gender with NO settles is unknown, not negative, so it does not block the cell.
+const allGendersNegative = (c) => {
+  const seen = ['m', 'w'].map(g => genderRec(c, g)).filter(d => d && d.n)
+  return seen.length > 0 && seen.every(d => (d.roi_pct || 0) <= 0)
+}
 const MIN_CELL_N = 25
 const cellThick = (c, g) => {
   const d = genderRec(c, g)
@@ -501,6 +515,7 @@ export default function DogPicksPanel({ query }) {
              picks: c.picks || [], t: tstat(cShown) }
   }).filter(x => x.c && (x.c.n || x.picks.length))
     .flatMap(x => (SPLIT_BY_BAND.has(x.key) ? splitByBand(x) : [x]))
+    .filter(x => !allGendersNegative(x.c))
 
   // TODAY: every unsettled pick, grouped by match, so a dog several cells agree on is visible
   // an unsettled pick whose match started long ago never got a result -- it is a gap in the
