@@ -461,6 +461,27 @@ def _load():
         for surf, sg2 in g.groupby("surface"):
             e["surf"][surf] = {"n": int(len(sg2)), a: int(sg2["won"].sum()),
                                b: int(len(sg2) - sg2["won"].sum())}
+        # THE MOST RECENT MEETING (2026-10-15, user ask). Free here -- every meeting for the
+        # pair is already in `g`. A bare "H2H 2-0" is the one record whose meaning depends
+        # entirely on its date: Stricker vs Virtanen reads 0-2 and both meetings are from 2022
+        # and 2023, which is why MC6 discounts them to 7% of weight. The card should be able to
+        # say so instead of showing a number that looks current.
+        try:
+            _lastrow = g.sort_values("date").iloc[-1]
+            e["last"] = {
+                "date": str(_lastrow["date"])[:10],
+                # `g` is this pair seen from `a`'s side, so won==1 means a won
+                "winner": a if bool(_lastrow["won"]) else b,
+                "score": (str(_lastrow["score"]) if "score" in g.columns
+                          and _lastrow["score"] is not None else None),
+                "surface": (str(_lastrow["surface"]) if "surface" in g.columns else None),
+                "tournament": (str(_lastrow["tournament"]) if "tournament" in g.columns else None),
+                # the score is written from THIS player's side, which is neither necessarily the
+                # winner nor the card's p1 -- recorded so it can be oriented, not guessed at
+                "score_for": a,
+            }
+        except Exception:  # noqa: BLE001
+            e["last"] = None
     name_map = {_norm_name(_slug_name(s)): s for s in profiles}
     _cache.update({"mtime": mtime, "profiles": profiles, "h2h": h2h, "name_map": name_map})
     if _cache["model"] is None and os.path.exists(ARTIFACT):
@@ -641,8 +662,40 @@ def predict(name1, name2, surface, market_p1=None):
         hs = (h.get("surf", {}).get(surface) or {})
         out["h2h"] = {"n": h["n"], "p1_wins": h["wins"].get(s1, 0), "p2_wins": h["wins"].get(s2, 0),
                       "surface_n": hs.get("n", 0), "surface_p1_wins": hs.get(s1, 0),
-                      "surface": surface}
+                      "surface": surface, "last": _h2h_last(h, s1, s2)}
     return out
+
+
+def _flip_score(sc):
+    """"4-6 6-7(5) 4-6" -> "6-4 7-6(5) 6-4". The tiebreak parenthetical is left in place: by
+    convention it holds the LOSER's points in that tiebreak, so it stays attached to the set."""
+    if not sc:
+        return sc
+    out = []
+    for tok in str(sc).split():
+        m = re.match(r"^(\d+)-(\d+)(\(.*\))?$", tok)
+        out.append("%s-%s%s" % (m.group(2), m.group(1), m.group(3) or "") if m else tok)
+    return " ".join(out)
+
+
+def _h2h_last(h, s1, s2):
+    """The pair's most recent meeting, oriented to p1/p2 so the UI never sees a slug.
+
+    `winner` is "p1" or "p2". `score` is rewritten WINNER-FIRST: the index stores it from the
+    lexicographically-first player's side, which is neither necessarily the winner nor the card's
+    p1, and printing it unoriented next to a winner's name states the opposite of what happened.
+    """
+    lw = (h or {}).get("last")
+    if not lw or not lw.get("date"):
+        return None
+    w = lw.get("winner")
+    sc = lw.get("score")
+    if sc and lw.get("score_for") and lw["score_for"] != w:
+        sc = _flip_score(sc)
+    return {"date": lw["date"],
+            "winner": "p1" if w == s1 else ("p2" if w == s2 else None),
+            "score": sc, "surface": lw.get("surface"),
+            "tournament": lw.get("tournament")}
 
 
 def h2h_for(name1, name2, surface=None):
@@ -663,7 +716,8 @@ def h2h_for(name1, name2, surface=None):
     surface = str(surface or "Hard").title()
     hs = (h.get("surf", {}).get(surface) or {})
     return {"n": h["n"], "p1_wins": h["wins"].get(s1, 0), "p2_wins": h["wins"].get(s2, 0),
-            "surface_n": hs.get("n", 0), "surface_p1_wins": hs.get(s1, 0), "surface": surface}
+            "surface_n": hs.get("n", 0), "surface_p1_wins": hs.get(s1, 0), "surface": surface,
+            "last": _h2h_last(h, s1, s2)}
 
 
 def _feats_b(p1, p2, surface):

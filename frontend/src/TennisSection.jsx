@@ -5291,6 +5291,63 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         )
       })()}
 
+      {/* H2H_LINE (2026-10-15, user "mark when the most recent h2h game was and who won it" /
+          "On every game with h2h"). Under MARKET and above the models on purpose: it is a fact
+          about the match, and the models below -- MC6 especially -- are weighting this exact
+          record, so the reader should see what is being weighted before seeing the weighting. */}
+      {(() => {
+        const h = match.model_a && match.model_a.h2h
+        if (!h || !(h.p1_wins || h.p2_wins)) return null
+        const n1 = match.player_1.split(' ').slice(-1)[0]
+        const n2 = match.player_2.split(' ').slice(-1)[0]
+        const lead = h.p1_wins === h.p2_wins ? null : (h.p1_wins > h.p2_wins ? n1 : n2)
+        const hi = Math.max(h.p1_wins, h.p2_wins), lo2 = Math.min(h.p1_wins, h.p2_wins)
+        const L = h.last
+        // how long ago, which is the entire point of the request
+        let ago = null, yrs = null
+        if (L && L.date) {
+          const d = Date.parse(L.date + 'T00:00:00Z')
+          if (isFinite(d)) {
+            yrs = (Date.now() - d) / (365.25 * 24 * 3600 * 1000)
+            ago = yrs < 1 / 12 ? `${Math.max(1, Math.round(yrs * 365))}d ago`
+              : yrs < 1 ? `${Math.round(yrs * 12)}mo ago` : `${yrs.toFixed(1)}y ago`
+          }
+        }
+        const stale = yrs != null && yrs >= 2
+        const winner = L && L.winner ? (L.winner === 'p1' ? n1 : n2) : null
+        const diffSurf = L && L.surface && match.surface
+          && String(L.surface).toLowerCase() !== String(match.surface).toLowerCase()
+        return (
+          <div className="mono" style={{ marginTop: 3, fontSize: 10, color: '#e3b341', opacity: 0.95 }}
+            title={`HEAD-TO-HEAD, from the full match database.\n\n${lead ? `${lead} leads ${hi}-${lo2}` : `level ${hi}-${lo2}`}`
+              + `${h.surface_n ? `, and on ${String(h.surface || '').toLowerCase()} it is ${h.surface_p1_wins}-${h.surface_n - h.surface_p1_wins} to ${n1} over ${h.surface_n} meeting${h.surface_n === 1 ? '' : 's'}` : ''}.`
+              + `${L && L.date ? `\n\nMOST RECENT MEETING: ${L.date}${ago ? ` (${ago})` : ''} -- ${winner} won${L.score ? ` ${L.score}` : ''}${L.surface ? `, on ${String(L.surface).toLowerCase()}` : ''}${L.tournament ? `, ${L.tournament}` : ''}. The score is written winner-first.` : ''}`
+              + `${stale ? `\n\nREAD THE DATE. This record is over two years old, and an H2H that old is close to inert: MC6 weights head-to-head on a 365-day half-life, so a meeting this far back survives at roughly ${Math.max(1, Math.round(100 * Math.pow(0.5, yrs)))}% of full weight and is then damped again by how little evidence that leaves. A bare "${hi}-${lo2}" looks like a live edge; this one mostly is not.` : ''}`
+              + `${diffSurf ? `\n\nDIFFERENT SURFACE: that meeting was on ${String(L.surface).toLowerCase()} and this match is on ${String(match.surface).toLowerCase()}, which is where an old head-to-head transfers least.` : ''}`
+              + `\n\nMeasured, for context: head-to-head is almost entirely priced in. The H2H leader beats the de-vigged close by only +0.75pt, and on the dog side -- the only side this board bets -- by exactly nothing.`}>
+            {'\u{1F91D} H2H: '}
+            <b>{lead ? `${lead} ${hi}-${lo2}` : `level ${hi}-${lo2}`}</b>
+            {/* SAME ORIENTATION AS THE HEADLINE (2026-10-15 fix). The overall record prints
+                leader-first while surface_p1_wins is p1-first, so an unoriented split read as
+                a contradiction: "Virtanen 2-0 \u00b7 hard 0-2". It now follows the leader;
+                a level record has no leader, so that case stays p1-first. */}
+            {h.surface_n ? (() => {
+              const sp1 = h.surface_p1_wins, sp2 = h.surface_n - h.surface_p1_wins
+              const o = (lead != null && lead !== n1) ? [sp2, sp1] : [sp1, sp2]
+              return <span style={{ opacity: 0.75 }}>{` \u00b7 ${String(h.surface || '').toLowerCase()} ${o[0]}-${o[1]}`}</span>
+            })() : null}
+            {L && L.date ? (
+              <span style={{ opacity: 0.85 }}>
+                {` \u00b7 last ${L.date}`}
+                {ago ? <span style={{ color: stale ? '#f0883e' : 'inherit', fontWeight: stale ? 700 : 400 }}>{` (${ago})`}</span> : null}
+                {winner ? ` \u2014 ${winner} won${L.score ? ` ${L.score}` : ''}` : ''}
+                {L.surface ? <span style={{ opacity: 0.8 }}>{` \u00b7 ${String(L.surface).toLowerCase()}`}{diffSurf ? ' \u26a0' : ''}</span> : null}
+              </span>
+            ) : <span style={{ opacity: 0.7 }}>{' \u00b7 no date on record'}</span>}
+          </div>
+        )
+      })()}
+
       {match.mc2 ? (
         <div className="mono" style={{ marginTop: 6, fontSize: 10, color: '#c9a7fa', opacity: match.mc2.recon ? 0.75 : 1 }}
           title={`MC v2 (2026-10-08): the rebuilt Monte Carlo — surface Elo + opponent-adjusted serve/return ratings -> learned point probabilities -> exact Markov engine, with parameter uncertainty. Walk-forward 2024-26: AUC .692 vs market .722, calibration within ~1pt per decile. DISPLAY-ONLY: measured residual-vs-close == market minus vig, so it never bets alone; its mc2_* watch lanes earn (or don't) on the Splits tab, and its real product is the 🎲 Sets tab's anchored derivative prices.${match.mc2.recon ? ' THIS GAME: ~ walk-forward BACKFILL — computed from the ratings as they stood the morning of the match (result and everything after excluded); honest but not a forward pick.' : match.mc2.elo_p1 != null ? ` Components: Elo ${Math.round(100 * match.mc2.elo_p1)}% / Markov ${Math.round(100 * match.mc2.mkv_p1)}%; serve-rating samples n=${match.mc2.n1}/${match.mc2.n2}.` : ''}`}>
