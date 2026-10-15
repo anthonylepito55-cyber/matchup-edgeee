@@ -60,6 +60,10 @@ COLUMNS = ["date", "fixture_id", "league", "tournament", "round", "player_1", "p
            # 120,877 rows; shipped on the user's explicit call with the weights set where
            # that cost is zero.
            "mc5_p1", "mc5_recon",
+           # MC6 (2026-10-15): MC2 + recency-weighted H2H + surface-form residual.
+           # Logged from day one so it builds a forward record instead of being
+           # untestable the way MC3 and MC5 were for their first days.
+           "mc6_p1", "mc6_recon",
            # MC2 input quality, frozen at log time (2026-10-13). mc2_svp_min = the thinner
            # side's 52w service-point count on this surface; mc2_stretch_d = how far back
            # the L10 window reached. NULL on every row logged before this shipped, and a
@@ -251,6 +255,8 @@ def log_predictions(matches: list, date: str):
             "mc3_recon": False,
             "mc5_p1": (m.get("mc5") or {}).get("p1_prob"),
             "mc5_recon": False,
+            "mc6_p1": (m.get("mc6") or {}).get("p1_prob"),
+            "mc6_recon": False,
             "mc2_svp_min": (m.get("mc2") or {}).get("svp_min"),
             "mc2_stretch_d": (m.get("mc2") or {}).get("stretch_d"),
             "p1_m7": load7.get(str(m.get("player_1")), [0, 0])[0],
@@ -794,6 +800,12 @@ MC_TAKE_DOG4 = -0.04
 # stamp were priced without it, so any mc2_*/mc3_*/mc5_* lane record that straddles this date is
 # two different models averaged together. Split on it before reading a lane as evidence.
 ASYM_LIVE_FROM = "2026-10-13T22:00:00Z"
+
+# MC6 (2026-10-15) = MC2 + recency-weighted H2H + surface-form residual. The RULE was written
+# today, so a replay over the frozen rows would be in-sample for the rule even though each
+# probability was frozen pre-match -- see the 2026-10-13 lesson that a new lane's replay is not a
+# forward test. Stamped, so these lanes open at n=0 and every pick in them is genuinely forward.
+MC6_LIVE_FROM = "2026-10-15T22:00:00Z"
 # Model P band extension went live with the same deploy. The four p_*_250up/400up lanes
 # did not exist before it, so they carry no pre-stamp history to replay.
 P_WIDE_LIVE_FROM = "2026-10-13T22:00:00Z"
@@ -1966,6 +1978,10 @@ def get_ab25_record() -> dict:
               # both the gender split and the 4pt threshold were found by scanning.
               "mc2_fav4_w", "mc2_fav4_m",
               "mc3_vs_mc2", "mc2_vs_mc3",
+              # MC6 watch lanes, mirroring MC3's and MC5's. mc6_vs_mc2 / mc2_vs_mc6 are the
+              # pair that can actually separate them -- MC6 is MC2 plus two terms, so they
+              # agree on most cards and only the disagreements carry information.
+              "mc6_all", "mc6_edge2", "mc6_dog_band", "mc6_vs_mc2", "mc2_vs_mc6",
               "mc4_dog", "mc4_dog_band", "mc4ovr_fav", "mc4ovr_fav_band", "fight_mc4_dog",
               # FORM-FADE split by the pick's side (2026-10-06): forward dogs carry it (+72%),
               # favorites lose (−5%). The board/Best 🧊 tag reads these so it only greens on dogs.
@@ -2224,6 +2240,32 @@ def get_ab25_record() -> dict:
                         bet("mc5_dog_band", _m5b)
                 if pd.notna(_m39) and not _m3rec and (float(_m39) >= 0.5) != _m5b:
                     bet("mc5_vs_mc3", _m5b)
+            # 🧮⁶ MC v6 watch lanes (2026-10-15): MC2's blend plus a recency-weighted H2H term
+            # and a surface-form residual. Same three reads as MC2/MC3/MC5 so the four are
+            # comparable on identical rules, plus the paired head-to-head against MC2.
+            #
+            # GATED ON MC6_LIVE_FROM: the rule was written today, so the frozen rows before the
+            # stamp are in-sample for it. These lanes open at n=0 on purpose.
+            _m69 = r.get("mc6_p1")
+            _m6rec = bool(r.get("mc6_recon")) if pd.notna(r.get("mc6_recon")) else False
+            if (pd.notna(_m69) and not _m6rec
+                    and str(r.get("start_time_utc") or "") >= MC6_LIVE_FROM):
+                _m6b = float(_m69) >= 0.5
+                bet("mc6_all", _m6b)
+                _ms6 = float(_m69) if _m6b else 1 - float(_m69)
+                _mk6 = mk1 if _m6b else 1 - mk1
+                if _ms6 - _mk6 >= 0.02:
+                    bet("mc6_edge2", _m6b)
+                if _m6b == dog1:
+                    _od6 = r.get("p1_odds") if _m6b else r.get("p2_odds")
+                    if pd.notna(_od6) and 100 <= float(_od6) <= 250:
+                        bet("mc6_dog_band", _m6b)
+                # the head-to-head, only where MC6 and MC2 actually differ
+                if pd.notna(_m29) and not _m2rec:
+                    _m2s6 = float(_m29) >= 0.5
+                    if _m2s6 != _m6b:
+                        bet("mc6_vs_mc2", _m6b)
+                        bet("mc2_vs_mc6", _m2s6)
             # THE USER'S TAKE RULE, per head and as an agreement pair. See the lane-name
             # block above for the verbatim statement. Forward rows only -- a recon backfill is
             # not a pick that was ever shown, so it cannot belong in a money lane.

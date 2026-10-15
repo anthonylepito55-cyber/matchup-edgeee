@@ -2379,6 +2379,18 @@ def _compute_tennis_today_inner(date: str = None):
                                         best_of_5=bool(r.get("best_of_5")))
             except Exception:  # noqa: BLE001
                 r["mc5"] = None
+            # MC v6 (2026-10-15, user "we should make an mc6 thats exactly like mc2 but has
+            # recent h2h surface form as well"). MC2's blend plus a recency-weighted H2H term
+            # and a surface-form RESIDUAL, weights measured walk-forward before the module was
+            # written (_mc6_sweep.py): held-out AUC +0.0043 / +0.0045 over MC2 on 2025 / 2026,
+            # and the gain is the SURFACE-FORM half -- H2H alone is worth +0.0007 to +0.0011 and
+            # is negative if turned up. WATCH ONLY: no board mark, display + ledger only.
+            try:
+                import tennis_mc6 as _tm6
+                r["mc6"] = _tm6.predict(r["player_1"], r["player_2"], r.get("surface"),
+                                        best_of_5=bool(r.get("best_of_5")))
+            except Exception:  # noqa: BLE001
+                r["mc6"] = None
             # MC2 INPUT QUALITY (2026-10-13). MC2's engine is a point-level Markov chain
             # driven by serve/return RATES, so the number of points behind those rates is
             # the real measure of how much to trust it -- not the match count, which
@@ -2974,13 +2986,20 @@ def _compute_tennis_itf_inner(date: str):
             mc5 = _tm5i.predict(p1, p2, surf, best_of_5=False)
         except Exception:  # noqa: BLE001
             mc5 = None
+        # MC6 on ITF too, from the start -- MC3 and MC5 were on 0 of 211 ITF cards for two days
+        # because this endpoint was not extended when they shipped (fixed 2026-10-15).
+        try:
+            import tennis_mc6 as _tm6i
+            mc6 = _tm6i.predict(p1, p2, surf, best_of_5=False)
+        except Exception:  # noqa: BLE001
+            mc6 = None
         cards.append({**m, "surface": surf, "surface_estimated": not _surf_ok3, "surface_src": _surf_src3, "best_of_5": False,
                       "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
                                      "bookmaker": od.get("bookmaker")} if od else None),
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
                       "model_g": mg, "model_g2": mg2,
                       "model_i": model_i, "model_x": model_x, "model_p": model_p, "market_corrupt": _corrupt,
-                      "mc2": mc2, "mc3": mc3, "mc5": mc5,
+                      "mc2": mc2, "mc3": mc3, "mc5": mc5, "mc6": mc6,
                       "tr_context": {"p1": ctx1, "p2": ctx2},
                       "gs": _gs_pair(p1, p2)})
     # ONE CARD PER MATCH (2026-10-15, user "fix that"). The ITF slate carries the same match
