@@ -5189,6 +5189,13 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         )}
       </div>
 
+      {!odds && match.odds_withheld === 'inplay' && (
+        <div className="mono" style={{ fontSize: 10, color: '#e3b341', marginTop: 8 }}
+          title="This match started before any pre-match line was ever logged for it, so there is no line to show. What the feed offers now is an IN-PLAY price that moves point by point -- it is deliberately withheld rather than displayed, because a moving number would also move every price-based mark on this card. Nothing here is a bet.">
+          {'⚠'} started with no pre-match line logged{' — '}price withheld (in-play prices are not lines)
+        </div>
+      )}
+
       {odds && (
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 8 }}>
           market: {match.player_1} {fmtPrice(odds.player_1)} / {match.player_2} {fmtPrice(odds.player_2)} ({odds.bookmaker}{odds.frozen ? ' · frozen pre-match' : ''}){odds.inplay ? <span style={{ color: '#e3b341', fontWeight: 700 }} title="This match started before we ever logged a pre-match line, so this is the LIVE in-play price, not a pre-match line. Model P and the price-based marks don't apply."> ⚠ IN-PLAY price — no pre-match line logged</span> : null}

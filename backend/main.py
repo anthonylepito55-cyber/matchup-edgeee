@@ -272,15 +272,38 @@ async def _background_refresh_loop():
             await loop.run_in_executor(None, today)
         except Exception as e:
             print(f"[background refresh] today() failed: {e}")
+        # tennis_today() is NOT called here any more -- it has its own loop below, because this
+        # one's cadence comes from MLB first pitch and tennis does not keep MLB hours.
+
+
+# TENNIS IS PACED BY TENNIS (2026-10-15, user "markets move after game starts").
+#
+# The loop above sleeps on _seconds_to_next_first_pitch -- MLB. With no MLB game imminent that is
+# BACKGROUND_REFRESH_SECONDS = 3600, so the tennis slate was refreshed once an hour while tennis
+# plays around the clock. log_predictions only logs a match that has BOTH a prediction and live
+# odds, and it refuses started matches, so a thin challenger that prices late could go from "no
+# odds yet" to "already started" with no pass in between -- after which no pre-match row can ever
+# exist for it and the board had nothing to freeze. That is exactly how Shevchenko vs Hara Friend
+# (04:00:00Z, 14 minutes after a deploy restart at 03:46:06Z) ended up showing a live in-play
+# price. A fixed 10-minute cadence means a fixture gets its pre-match snapshot while it is still
+# pre-match, whatever MLB is doing.
+TENNIS_REFRESH_SECONDS = 600
+
+
+async def _tennis_refresh_loop():
+    loop = asyncio.get_event_loop()
+    while True:
+        await asyncio.sleep(TENNIS_REFRESH_SECONDS)
         try:
             await loop.run_in_executor(None, tennis_today)
         except Exception as e:
-            print(f"[background refresh] tennis_today() failed: {e}")
+            print(f"[tennis refresh] tennis_today() failed: {e}")
 
 
 @app.on_event("startup")
 async def _start_background_refresh():
     asyncio.create_task(_background_refresh_loop())
+    asyncio.create_task(_tennis_refresh_loop())
 
 
 # {resolved_date: snapshot_dict (see odds_fetcher.get_model_c_snapshot)} -- kept fresh by
@@ -2458,8 +2481,24 @@ def _compute_tennis_today_inner(date: str = None):
                 _lr = _froM.get(str(r.get("fixture_id")))
                 if _lr is None:
                     r["model_p"] = None   # started, never logged pre-match: in-play price
+                    # WITHHOLD THE PRICE, DO NOT SUBSTITUTE THE IN-PLAY ONE (2026-10-15,
+                    # user "markets move after game starts" / "Shevchenko one market moved").
+                    # This branch means the match started with no frozen pre-match row, so
+                    # there IS no line -- what the feed offers now is an in-play price that
+                    # moves point by point. Previously it was tagged inplay:true and served
+                    # anyway, so the card and every price-based mark on it kept moving.
+                    # Nulling here rather than at the ~30 call sites that read
+                    # live_odds.player_1/2: they all already guard for null, so this removes
+                    # the number and every mark derived from it in one place.
                     if isinstance(r.get("live_odds"), dict):
-                        r["live_odds"]["inplay"] = True
+                        # live_odds goes away ENTIRELY, and the reason moves to its own field.
+                        # Keeping the dict with null numbers was not enough: the UI's guards are
+                        # `m.live_odds ? Number(...) : null`, which with null members yields 0 --
+                        # and 1 + 100/abs(0) is Infinity in the decimal conversion.
+                        r["odds_bookmaker_last"] = r["live_odds"].get("bookmaker")
+                        r["live_odds"] = None
+                    r["odds_withheld"] = "inplay"
+
                 elif _tennis_freeze_models(r, _lr):
                     _nfrm += 1
         if _nfrm:
@@ -2861,9 +2900,12 @@ def _compute_tennis_itf_inner(date: str):
             _lr = _froI.get(str(c.get("fixture_id")))
             if _lr is None:
                 # started but never logged pre-match: its price is IN-PLAY, not a line.
+                # Withheld, not substituted -- see the board branch above (2026-10-15).
                 c["model_p"] = None
                 if isinstance(c.get("live_odds"), dict):
-                    c["live_odds"]["inplay"] = True
+                    c["odds_bookmaker_last"] = c["live_odds"].get("bookmaker")
+                    c["live_odds"] = None
+                c["odds_withheld"] = "inplay"
                 continue
             c["live_odds"] = {"player_1": _lr["p1_odds"], "player_2": _lr["p2_odds"],
                               "bookmaker": _lr.get("bookmaker"), "frozen": True}
