@@ -44,26 +44,46 @@ const ITF_DOG_CELLS = [
   { g: 'm', lo: 200, hi: 250, pt: 0.06 },
   { g: 'w', lo: 250, hi: 300, pt: 0.04 },
 ]
-// true when MC2 marks the DOG on this match under the board's own rules
-function mc2DogMarked(m) {
-  const mc2 = m && m.mc2
+// WHICH OF MC2 / MC3 / MC5 MARK THE DOG HERE (2026-10-15, user "i want mc3 and mc5 added to the
+// itf brown picks"). Was mc2DogMarked(), hard-coded to m.mc2. Returns the list of heads that mark,
+// so a card reaches the board if ANY of the three does and can still say which.
+//
+// ANY, not ALL, on purpose: MC5 is MC3 plus extras and MC3 is MC2 plus fixes, so they agree by
+// construction -- an ALL gate would mostly re-mark MC2's own cards while dropping exactly the ones
+// where a newer head sees something MC2 misses, which is the only reason to add them.
+//
+// Honest about what this is: the gender x band cells were measured on MC2's FORWARD record. MC3 and
+// MC5 have almost none of their own (~92 and ~31 rows, and none on ITF until the backend patch that
+// accompanies this), so an MC3/MC5-only mark is the user's call rather than a measured edge. The
+// badge names the head so the board does not blend them into one undifferentiated brown mark.
+const MC_HEADS = [['MC2', 'mc2'], ['MC3', 'mc3'], ['MC5', 'mc5']]
+function mcDogMarks(m) {
   const lo = m && m.live_odds
-  if (!mc2 || mc2.p1_prob == null || !lo) return false
-  if (!ITF_MEN_ON_BOARD && String(m.league || '').toLowerCase() === 'itf_men') return false
+  if (!m || !lo) return []
+  if (!ITF_MEN_ON_BOARD && String(m.league || '').toLowerCase() === 'itf_men') return []
   const am = (v) => { const n = Number(v); return isNaN(n) ? null : n }
   const o1 = am(lo.player_1), o2 = am(lo.player_2)
-  if (o1 == null || o2 == null) return false
+  if (o1 == null || o2 == null) return []
   const dec = (o) => (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o))
   const d1 = dec(o1), d2 = dec(o2)
   const mk1 = (1 / d1) / ((1 / d1) + (1 / d2))
   const dog1 = mk1 < 0.5
   const dogAm = dog1 ? o1 : o2
   const mkFav = Math.max(mk1, 1 - mk1)
-  const mcFav = dog1 ? 1 - mc2.p1_prob : mc2.p1_prob
-  const over = mcFav - mkFav                      // negative = MC2 is over on the DOG
   const g = (m.league === 'wta' || m.league === 'itf_women') ? 'w' : 'm'
-  return ITF_DOG_CELLS.some(c => c.g === g && dogAm >= c.lo && dogAm <= c.hi && over <= -c.pt)
+  const out = []
+  for (const [tag, key] of MC_HEADS) {
+    const h = m[key]
+    if (!h || h.p1_prob == null) continue
+    const over = (dog1 ? 1 - h.p1_prob : h.p1_prob) - mkFav   // negative = head is over on the DOG
+    if (ITF_DOG_CELLS.some(c => c.g === g && dogAm >= c.lo && dogAm <= c.hi && over <= -c.pt)) {
+      out.push(tag)
+    }
+  }
+  return out
 }
+// kept as a thin wrapper so existing call sites read the same
+function mc2DogMarked(m) { return mcDogMarks(m).length > 0 }
 
 const LEAGUE_COLOR = { atp: '#4A9EFF', wta: '#FF6FA5', atp_challenger: '#7FB3FF', itf_men: '#5AC8C8', itf_women: '#E08CC0' }
 
@@ -646,8 +666,9 @@ export default function TennisSection() {
         if (had) {
           // keep the frozen price (and therefore the mark); refresh only what should move
           store.set(id, { ...had, status: m.status, score: m.score })
-        } else if (mc2DogMarked(m)) {
-          store.set(id, m)
+        } else {
+          const marks = mcDogMarks(m)
+          if (marks.length) store.set(id, { ...m, mc_marks: marks })
         }
       }
       for (const id of [...store.keys()]) if (!live.has(id)) store.delete(id)

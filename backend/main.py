@@ -2860,13 +2860,32 @@ def _compute_tennis_itf_inner(date: str):
             mc2 = _tm2.predict(p1, p2, surf, market_p1=_mk1)
         except Exception:  # noqa: BLE001
             mc2 = None
+        # MC v3 AND MC v5 ON ITF TOO (2026-10-15, user "i want mc3 and mc5 added to the itf brown
+        # picks"). They shipped on 2026-10-13 and this endpoint was never extended, so MC3 and MC5
+        # were present on 0 of 211 ITF cards while MC2 was on 54 -- a frontend gate reading them
+        # would have marked nothing. best_of_5 is False: ITF is best-of-three, and MC3/MC5 price
+        # best-of-five differently (see the slam BO5 fix, 2026-10-13).
+        #
+        # Attached HERE, above log_predictions, so ITF rows carry mc3_p1 / mc5_p1 into the ledger.
+        # That is the point: these heads have almost no forward record (MC3 ~92 rows, MC5 ~31), and
+        # they cannot build one on a slate they are never scored on.
+        try:
+            import tennis_mc3 as _tm3i
+            mc3 = _tm3i.predict(p1, p2, surf, best_of_5=False)
+        except Exception:  # noqa: BLE001
+            mc3 = None
+        try:
+            import tennis_mc5 as _tm5i
+            mc5 = _tm5i.predict(p1, p2, surf, best_of_5=False)
+        except Exception:  # noqa: BLE001
+            mc5 = None
         cards.append({**m, "surface": surf, "surface_estimated": not _surf_ok3, "surface_src": _surf_src3, "best_of_5": False,
                       "live_odds": ({"player_1": od["player_1"], "player_2": od["player_2"],
                                      "bookmaker": od.get("bookmaker")} if od else None),
                       "model_a": ma, "model_b": mb, "model_c": mc, "model_d": md,
                       "model_g": mg, "model_g2": mg2,
                       "model_i": model_i, "model_x": model_x, "model_p": model_p, "market_corrupt": _corrupt,
-                      "mc2": mc2,
+                      "mc2": mc2, "mc3": mc3, "mc5": mc5,
                       "tr_context": {"p1": ctx1, "p2": ctx2},
                       "gs": _gs_pair(p1, p2)})
     # LOG ITF TO THE LEDGER (2026-10-08): ITF cards were never logged (only mislabeled
