@@ -77,9 +77,9 @@ const CELLS = [
   ['🟡 MC2 4pt+ FAV · WOMEN −100..−200', 'mc2_fav4_w', 'MC2 rates this WOMENS favourite 4+ points above the de-vigged market, priced -100..-200. Forward +26.72% on 24 (18-6). On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against 59.0% needed, t 2.16) -- positive in BOTH windows (fwd +26.72%/24, recon +19.40%/27) and BOTH bands (-100..-150 +22.31%/28, -150..-200 +23.50%/23). The MENS half of the same cut is -9.21% on 74, and every womens favourite in that range is -3.64%, so this is not a generic favourite effect. The only favourite cell in this project to clear t=2. STILL THIN: 51 bets, and the gender split and 4pt threshold were both found by scanning this data.'],
   ['🟡 MC2 4pt+ FAV · men (control)', 'mc2_fav4_m', 'The MENS half of the same cut, kept visible as the control that justifies the womens cell: +1.63% on 25 forward, -9.21% on 74 pooled. NOT a take -- it is here so the split keeps being tested on screen instead of assumed.'],
   ['🟦 s52 SEASONAL-BAND DOG · +100..+200', 's52_fav_band_dog', 'Back the market DOG at +100..+200 when the FAVOURITE owns BOTH 52-week seasonal stats, hold% and break% -- a FADE of the seasonal stat leader, not a follow. The sibling cell where the DOG owns both is only +3.40% on 129, which is what makes the direction the finding. THE ONLY CELL ON THIS BOARD CLEARING t=2: +19.80% on 183 (92-91, 50.3% hit, $+905.75, t 2.25), men +13.49% on 94 and women +26.46% on 89 (t 2.04). By band: +100..+150 is +18.11%/119 (men +17.39/66, women +19.00/53) and +150..+200 is +22.94%/64 (men +4.29/28, women +37.44/36). The lane is hard-gated to +100..+200 and that ceiling is earned -- re-run without it, +200..+250 is -14.94% on 65 and +250..+300 is -11.21% on 38. CAVEAT: the frozen window is 39 days and the rule replays inside it, so part of this record is in-sample for the rule itself.'],
-  ['🟤 MC2 6pt+ DOG · all prices', 'mc2_dog6_all',
+  ['🟤 MC2 6pt+ DOG', 'mc2_dog6_all',
    'MC2 six or more points over the market on the dog, ANY price (2026-10-14, your ask). The forward ladder is why the bar is 6 and not 4: 3-4pt -1.9% on 27, 4-6pt -4.2% on 45, then 6-8pt +14.1% on 48 and 8pt+ +6.9% on 207. Both genders positive.'],
-  ['🟤 MC2 4pt+ DOG · all prices', 'mc2_dog4_all',
+  ['🟤 MC2 4pt+ DOG', 'mc2_dog4_all',
    'MC2 four or more points over the market on the dog, ANY price. The 4pt sibling of the 6pt cell, added 2026-10-14 because the WOMENS ladder at +100..+150 peaks at 4pt (+13.15% on 91) and dies at 6pt (+3.07% on 68), the reverse of the mens, which climbs to 10pt. This lane feeds the womens pink mark. Its displayed record is a REPLAY of the frozen log, not a forward test -- the rule was written today.'],
   ['🟤 MC2 TAKE DOG · unstamped', 'mc2_take_dog_all',
    'Your take rule at the new -6 threshold, counting every frozen row rather than only those after the rule was written. The date-stamped lane (mc2_take_dog) is the in-sample-free version and is much smaller.'],
@@ -116,6 +116,38 @@ const CELLS = [
   ['🔁 OVERLAY DOG', 'ovl_dog', 'The overlay dog cell.'],
   ['⚔ FIGHT MC4 DOG', 'fight_mc4_dog', 'MC4 disagrees with the market on the dog.'],
 ]
+
+// SPLIT A LANE'S CELL INTO ONE CELL PER PRICE BAND (2026-10-14, user "split up the prices on
+// the dog tab the cells mc2 6pt+ dog and mc2 4pt+"). A blended all-price number hides exactly the
+// structure this board runs on -- the men's 4pt lane reads -3% across all prices while being +27%
+// at +100..+150.
+//
+// Records are summed from the lane's OWN picks, so they cannot drift from the lane that scores
+// them. Each band cell KEEPS THE LANE KEY (the pink rules and MARK_CELLS match on it) and carries
+// a separate uid for React and display; dedupe() keys on the match, so a shared key is harmless.
+function splitByBand(cel) {
+  const out = []
+  for (const [lab, lo, hi] of BANDS) {
+    const ps = (cel.picks || []).filter(p => p.odds != null && p.odds >= lo && p.odds <= hi)
+    if (!ps.length) continue
+    const mk = (sub) => {
+      const done = sub.filter(p => p.won != null)
+      const wins = done.filter(p => p.won).length
+      const profit = done.reduce((a, p) => a + (p.pnl || 0), 0)
+      return { n: done.length, wins, profit_usd: Math.round(profit * 100) / 100,
+               staked_usd: 25 * done.length,
+               roi_pct: done.length ? Math.round(1000 * profit / (25 * done.length)) / 10 : 0,
+               pending: sub.length - done.length }
+    }
+    const men = ps.filter(p => genderOf(p) === 'm')
+    const women = ps.filter(p => genderOf(p) === 'w')
+    const c = { ...mk(ps), m: mk(men), w: mk(women), m_dog: mk(men), w_dog: mk(women),
+                dog: mk(ps), fav: mk([]), m_fav: mk([]), w_fav: mk([]) }
+    out.push({ ...cel, uid: `${cel.key}@${lab}`, label: `${cel.baseLabel} · ${lab}`,
+               c, cShown: c, hidden: [], picks: ps, t: tstat(c) })
+  }
+  return out
+}
 
 function tstat(c) {
   const n = c && c.n, w = c && c.wins, roi = c && c.roi_pct
@@ -374,6 +406,8 @@ const MARK_CELLS = new Set([
   ...PINK_RULES.flatMap(r => [...r.cells]),
   'mc2_fav4_w', 'mc2_fav4_m',
 ])
+// these two lanes are shown one row PER PRICE BAND rather than as one blended number
+const SPLIT_BY_BAND = new Set(['mc2_dog4_all', 'mc2_dog6_all'])
 const MIN_CELL_N = 25
 const cellThick = (c, g) => {
   const d = genderRec(c, g)
@@ -463,8 +497,10 @@ export default function DogPicksPanel({ query }) {
                    roi_pct: Math.round(1000 * profit_usd / (25 * n)) / 10 }
       }
     }
-    return { label, key, note, c, cShown, hidden, picks: c.picks || [], t: tstat(cShown) }
+    return { label, baseLabel: label, key, note, c, cShown, hidden,
+             picks: c.picks || [], t: tstat(cShown) }
   }).filter(x => x.c && (x.c.n || x.picks.length))
+    .flatMap(x => (SPLIT_BY_BAND.has(x.key) ? splitByBand(x) : [x]))
 
   // TODAY: every unsettled pick, grouped by match, so a dog several cells agree on is visible
   // an unsettled pick whose match started long ago never got a result -- it is a gap in the
@@ -855,7 +891,7 @@ export default function DogPicksPanel({ query }) {
             const isOpen = open === cel.key
             const pos = (c.roi_pct || 0) > 0
             return (
-              <div key={cel.key} className="mono" title={cel.note}
+              <div key={cel.uid || cel.key} className="mono" title={cel.note}
                 onClick={() => setOpen(isOpen ? null : cel.key)}
                 style={{
                   padding: '10px 14px', borderRadius: 8, background: 'var(--panel)',
