@@ -3723,6 +3723,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const _favLane = gHL === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m'
     if (_favOK && over >= 0.04 && favClearsPrice && mc2Alive('mc2_fav_band', gHL, true)) {
       return { cell: gHL === 'w' ? 'FAV 4pt+ W -100/200' : 'FAV 4pt+ M -100/150',
+               // isFav drives the GOLD treatment below: these are the cells the Dog picks tab
+               // marks gold (2026-10-15), and the board must not disagree with it on colour.
+               isFav: true,
                lane: _favLane, who: fav1 ? match.player_1 : match.player_2,
                od: favAm, amt: Math.round(1000 * over) / 10, live: rec(_favLane),
                recon: !!m2.recon }
@@ -3818,6 +3821,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     rail: '#8c562d',
     glow: '0 0 16px rgba(140,86,45,0.34)',
   }
+  // GOLD FOR THE VALIDATED FAVOURITE CELLS (2026-10-15, user "make sure these are all marked
+  // gold on the board"). #ffd700 is the Dog picks tab's own GOLD, so the two surfaces now agree
+  // on colour as well as on rule -- the board was already applying these exact gender x band
+  // cells, it just painted them brown. Dog marks stay brown.
+  const HL_GOLDFAV = {
+    bg: 'rgba(255,215,0,0.14)',
+    border: '1px solid rgba(255,215,0,0.95)',
+    rail: '#ffd700',
+    glow: '0 0 16px rgba(255,215,0,0.30)',
+  }
   const HL_BLACK = {
     bg: 'rgba(1,4,9,0.72)',
     border: '1px solid rgba(139,148,158,0.85)',
@@ -3837,7 +3850,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   const HLs = hlAny ? HL
     : (hlGrayDog || hlS52) ? HL_DARKBLUE
       : (gMarkShow && !gMark.recon) ? ((gMark.cell === 'FAV-OVER') ? HL_BLACK : HL_YELLOW)
-        : (mc2Mark && !mc2Mark.recon && !mc2Mark.avoid) ? HL_BROWN : HL_ORANGE
+        : (mc2Mark && !mc2Mark.recon && !mc2Mark.avoid)
+          ? (mc2Mark.isFav ? HL_GOLDFAV : HL_BROWN) : HL_ORANGE
   // an AVOID cell must never paint the card like a pick -- it is the opposite instruction
   const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMarkShow && !gMark.recon)
     || !!(mc2Mark && !mc2Mark.recon && !mc2Mark.avoid) || !!orangeMark
@@ -4077,7 +4091,7 @@ The lane behind this badge still bets the dog, because that is the only way to k
       ) : null}
       {mc2Mark && !mc2Mark.avoid ? (
         <div className="mono"
-          title={`🟤 MC2 ${mc2Mark.cell} — where MC v2 is saying something, NOT a recommendation.
+          title={`${mc2Mark.isFav ? '🥇' : '🟤'} MC2 ${mc2Mark.cell} — where MC v2 is saying something, NOT a recommendation.
 
 ${mc2Mark.cell === 'FAV 0-2pt'
             ? `MC2 is ${mc2Mark.amt}pt over the market on this favourite — essentially on the price, or a touch above — with the favourite inside −100..−250. This slice exists so a card whose true margin is 1.9pt is not left unmarked by rounding alone: a −140 favourite de-vigs to 55.6%, and a displayed "58%" could be anything from 57.5 to 58.5, so the real gap can sit either side of a hard 2pt edge.
@@ -4108,12 +4122,18 @@ MC2 is the independent third opinion — surface Elo blended 50/50 in log-odds w
 ALL THREE MC HEADS AGREE on this side (MC2, MC3 and MC5 are all on the same side of the de-vigged market), which is required before a brown mark is drawn. A missing head blocks it too.\n\nWATCH ONLY: five days of forward data, standard errors of 12-15 points. Lane ${mc2Mark.lane} on the 🐕/⭐ Splits tab.`}
           style={{
             fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.05em',
-            padding: '3px 6px', borderRadius: 4, color: '#e3b98f',
-            background: 'linear-gradient(90deg, rgba(140,86,45,0.30), transparent)',
-            border: '1px solid rgba(176,110,60,0.70)',
+            // GOLD chip for the favourite cells (2026-10-15): the card frame goes gold for
+            // mc2Mark.isFav, so the chip on it must not stay brown. Dog marks keep brown.
+            padding: '3px 6px', borderRadius: 4,
+            color: mc2Mark.isFav ? '#ffe9a3' : '#e3b98f',
+            background: mc2Mark.isFav
+              ? 'linear-gradient(90deg, rgba(255,215,0,0.26), transparent)'
+              : 'linear-gradient(90deg, rgba(140,86,45,0.30), transparent)',
+            border: `1px solid ${mc2Mark.isFav ? 'rgba(255,215,0,0.75)' : 'rgba(176,110,60,0.70)'}`,
           }}>
           {(mc2Mark.recon ? '~' : '') + '🟤 🧮 MC2 ' + mc2Mark.cell + ' → '}
-          <span style={{ fontSize: 11, fontWeight: 900, color: '#f0cba4' }}>
+          <span style={{ fontSize: 11, fontWeight: 900,
+            color: mc2Mark.isFav ? '#ffd700' : '#f0cba4' }}>
             {mc2Mark.who.split(' ').slice(-1)[0].toUpperCase()}{mc2Mark.od != null ? `${mc2Mark.od > 0 ? ' +' : ' '}${mc2Mark.od}` : ''}
           </span>
           {mc2Mark.cell === 'FAV 2-8pt' ? ` · ${mc2Mark.amt}pt over (2-8 band)` : mc2Mark.cell === 'FAV 8pt+' ? ` · ${mc2Mark.amt}pt over (deep)` : mc2Mark.cell === 'FAV 0-2pt' ? ` · ${mc2Mark.amt}pt over (on/just over)` : mc2Mark.cell === 'DOG LONG' ? ` · ${mc2Mark.amt}pt over, long dog` : mc2Mark.cell === 'DOG 3pt+' ? ` · ${mc2Mark.amt}pt over on the dog` : ` · flips ${mc2Mark.amt}pt past 50%`}
