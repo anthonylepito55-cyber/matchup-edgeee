@@ -15,6 +15,8 @@ mtime change, same construction as training (tail windows over strictly-prior ma
 import os
 import re
 
+import tennis_score as _tscore
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -479,6 +481,10 @@ def _load():
                 # the score is written from THIS player's side, which is neither necessarily the
                 # winner nor the card's p1 -- recorded so it can be oriented, not guessed at
                 "score_for": a,
+                # DID IT FINISH? (2026-10-16). TennisRatio strips retirement markers and keeps
+                # the row, so this is read off the score SHAPE -- see tennis_score. Display only:
+                # excluding these from MC6's terms was measured and moved AUC by zero.
+                "status": _tscore.classify(_lastrow.get("score")),
             }
         except Exception:  # noqa: BLE001
             e["last"] = None
@@ -692,10 +698,16 @@ def _h2h_last(h, s1, s2):
     sc = lw.get("score")
     if sc and lw.get("score_for") and lw["score_for"] != w:
         sc = _flip_score(sc)
+    st = lw.get("status")
     return {"date": lw["date"],
             "winner": "p1" if w == s1 else ("p2" if w == s2 else None),
             "score": sc, "surface": lw.get("surface"),
-            "tournament": lw.get("tournament")}
+            "tournament": lw.get("tournament"),
+            "status": st,
+            # a short tag the card can print as-is, so the UI does not re-implement the rule
+            "tag": ("w/o" if st == _tscore.WALKOVER
+                    else ("ret." if st in (_tscore.RETIRED_MIDSET, _tscore.RETIRED_AFTER_SET)
+                          else None))}
 
 
 def h2h_for(name1, name2, surface=None):

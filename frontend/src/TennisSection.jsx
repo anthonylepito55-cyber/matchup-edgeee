@@ -5329,7 +5329,7 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           <div className="mono" style={{ marginTop: 3, fontSize: 10, color: '#e3b341', opacity: 0.95 }}
             title={`HEAD-TO-HEAD, from the full match database.\n\n${lead ? `${lead} leads ${hi}-${lo2}` : `level ${hi}-${lo2}`}`
               + `${h.surface_n ? `, and on ${String(h.surface || '').toLowerCase()} it is ${h.surface_p1_wins}-${h.surface_n - h.surface_p1_wins} to ${n1} over ${h.surface_n} meeting${h.surface_n === 1 ? '' : 's'}` : ''}.`
-              + `${L && L.date ? `\n\nMOST RECENT MEETING: ${L.date}${ago ? ` (${ago})` : ''} -- ${winner} won${L.score ? ` ${L.score}` : ''}${L.surface ? `, on ${String(L.surface).toLowerCase()}` : ''}${L.tournament ? `, ${L.tournament}` : ''}. The score is written winner-first.` : ''}`
+              + `${L && L.date ? `\n\nMOST RECENT MEETING: ${L.date}${ago ? ` (${ago})` : ''} -- ${winner} won${L.score ? ` ${L.score}` : ''}${L.surface ? `, on ${String(L.surface).toLowerCase()}` : ''}${L.tournament ? `, ${L.tournament}` : ''}. The score is written winner-first.${L.tag === 'ret.' ? ' THAT MATCH DID NOT FINISH -- somebody retired, so the score is where it stopped rather than how it ended. The source strips retirement markers and keeps the row, so this is detected from the score shape: a final set that cannot be a completed set, or a lone set in a best-of-three.' : L.tag === 'w/o' ? ' THAT WAS A WALKOVER -- no tennis was played at all.' : ''}` : ''}`
               + `${stale ? `\n\nREAD THE DATE. This record is over two years old, and an H2H that old is close to inert: MC6 weights head-to-head on a 365-day half-life, so a meeting this far back survives at roughly ${Math.max(1, Math.round(100 * Math.pow(0.5, yrs)))}% of full weight and is then damped again by how little evidence that leaves. A bare "${hi}-${lo2}" looks like a live edge; this one mostly is not.` : ''}`
               + `${diffSurf ? `\n\nDIFFERENT SURFACE: that meeting was on ${String(L.surface).toLowerCase()} and this match is on ${String(match.surface).toLowerCase()}, which is where an old head-to-head transfers least.` : ''}`
               + `\n\nMeasured, for context: head-to-head is almost entirely priced in. The H2H leader beats the de-vigged close by only +0.75pt, and on the dog side -- the only side this board bets -- by exactly nothing.`}>
@@ -5349,6 +5349,11 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
                 {` \u00b7 last ${L.date}`}
                 {ago ? <span style={{ color: stale ? '#f0883e' : 'inherit', fontWeight: stale ? 700 : 400 }}>{` (${ago})`}</span> : null}
                 {winner ? ` \u2014 ${winner} won${L.score ? ` ${L.score}` : ''}` : ''}
+                {/* DID IT FINISH (2026-10-16). About 4% of these scores belong to a
+                    match someone retired from; "won 6-4 3-0" otherwise reads as a
+                    straight-sets beating. Display only -- excluding these rows from
+                    MC6's terms was measured and moved held-out AUC by zero. */}
+                {L.tag ? <span style={{ color: '#f0883e', fontWeight: 700 }}>{` (${L.tag})`}</span> : null}
                 {L.surface ? <span style={{ opacity: 0.8 }}>{` \u00b7 ${String(L.surface).toLowerCase()}`}{diffSurf ? ' \u26a0' : ''}</span> : null}
               </span>
             ) : <span style={{ opacity: 0.7 }}>{' \u00b7 no date on record'}</span>}
