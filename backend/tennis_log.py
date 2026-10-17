@@ -933,7 +933,11 @@ _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner
                "mc2_fav4_w", "mc2_fav4_m",
                # the MC6 twins (2026-10-16, user "all dogs tab using mc6 instead"): identical
                # rules, different head, so the swap is measurable rather than assumed
-               "mc6_dog6_all", "mc6_dog4_all", "mc6_take_dog_all", "mc6_fav4_w", "mc6_fav4_m"}
+               "mc6_dog6_all", "mc6_dog4_all", "mc6_take_dog_all", "mc6_fav4_w", "mc6_fav4_m",
+               # 3pt then 2pt (2026-10-16, user calls): women mark on 3pt, men on 2pt --
+               # MC6's threshold ladder runs opposite by gender, so one shared gate costs one of
+               # them. Both lanes score so the split keeps being measured rather than assumed.
+               "mc6_dog3_all", "mc6_dog2_all"}
 
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
@@ -1978,7 +1982,8 @@ def get_ab25_record() -> dict:
               # the women-s pink mark reads (see the bet() site for the two ladders)
               "mc2_dog6_all", "mc2_dog4_all",
               # MC6 twins of the dog-tab and gold-fav cells (2026-10-16)
-              "mc6_dog6_all", "mc6_dog4_all", "mc6_fav4_w", "mc6_fav4_m",
+              "mc6_dog6_all", "mc6_dog4_all", "mc6_dog3_all", "mc6_dog2_all",
+              "mc6_fav4_w", "mc6_fav4_m",
               "mc6_take_dog_all", "mc6_take_fav_all",
               # 🟡 THE WOMEN'S FAVOURITE CELL (2026-10-14, user "add the women lane on the dog
               # tab"). A women's favourite at -100..-200 that MC2 rates 4pt+ above the de-vigged
@@ -2349,6 +2354,19 @@ def get_ab25_record() -> dict:
                 # so the women's pink mark reads this lane and the men's reads the 6pt one.
                 if _tag9 in ("mc2", "mc6") and _ov9 <= -0.04:
                     bet("%s_dog4_all" % _tag9, dog1)
+                # 3pt, MC6 only (2026-10-16, user call). The ladder on +100..+150 is flat for men
+                # from 0pt to 2.5pt (+38.6% at 2pt, t 3.11) and decays above it, while women climb
+                # to 4pt (+15.1%). 3pt is where both genders sit near their own best, which is what
+                # makes ONE shared gate defensible instead of a compromise suiting neither.
+                # Kudermetova at +108 is the card that prompted it: MC6 +3.74pt, clears 3 not 4.
+                if _tag9 == "mc6" and _ov9 <= -0.03:
+                    bet("mc6_dog3_all", dog1)
+                # 2pt -- the MEN's gate (2026-10-16). Their ladder is flat from 0pt to 2.5pt
+                # (+38.6% at 2pt, t 3.11 on +100..+150) and decays above, so the margin size
+                # carries nothing for them and 4pt was only trimming the sample. 2pt rather than
+                # 0pt keeps a real disagreement requirement at no measured cost.
+                if _tag9 == "mc6" and _ov9 <= -0.02:
+                    bet("mc6_dog2_all", dog1)
                 # 🟡 MC2 4pt+ OVER THE MARKET ON A FAVOURITE at -100..-200, split by gender
                 # because that is where the whole effect lives: women +22.85% on 51 (t 2.16),
                 # men -9.21% on 74. Both lanes run so the split keeps being tested rather than
