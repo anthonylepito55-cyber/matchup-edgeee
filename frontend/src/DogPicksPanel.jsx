@@ -1,3 +1,26 @@
+// ===========================================================================================
+// THIS TAB READS MC6, NOT MC2 (2026-10-16, user call).
+//
+// The rule is unchanged -- same 4pt/6pt thresholds, same gender x band splits, same +300 cap and
+// ITF-men exclusion. Only the HEAD changed, after both were scored with identical input quality
+// on 633 identical rows (_mc6_vs_mc2_fair.py):
+//
+//                   MC2 as-of (fair)    MC6 as-of
+//     dogs 6pt      +11.99% / 211       +26.57% / 203   t 2.80
+//     TAB RULE      +8.61%  / 277       +23.37% / 281   t 3.35
+//
+// That comparison exists because MC6's raw advantage was confounded: on its backfilled rows it
+// replayed with correct as-of ratings while MC2's value came from states up to four days stale.
+// Re-pricing MC2 as-of removed the confound and the lead GREW -- correct ratings made MC2 worse,
+// so staleness had been flattering MC2, not MC6.
+//
+// READ THE SAMPLES. MC6's lanes refuse recon rows, as every money lane here does, so they START
+// NEAR EMPTY: n=71/57/9/5 against MC2's 459/396/36/34. The picks are MC6-driven from today; the
+// ROI beside them needs about two weeks. MIN_CELL_N stays at 25, so thin cells read as thin
+// rather than being promoted early.
+//
+// MC2's lanes keep scoring underneath. Reverting is these four substitutions inverted.
+// ===========================================================================================
 import React, { useEffect, useState } from 'react'
 
 // 🐕 DOG PICKS (2026-10-14, user: "make a new tab called dog picks and add all of the picks
@@ -23,7 +46,7 @@ import React, { useEffect, useState } from 'react'
 // bets. They get their own box and their own colour.
 const YELLOW = '#e3b341'
 const GOLD = '#ffd700'
-const FAV_CELLS = new Set(['mc2_fav4_w', 'mc2_fav4_m'])
+const FAV_CELLS = new Set(['mc6_fav4_w', 'mc6_fav4_m'])
 const isFavPick = p => p.odds != null && p.odds < 0
 
 // TWO BANDS, ONE COLOUR (2026-10-14). Originally shipped as yellow + gold on the reasoning that
@@ -74,12 +97,12 @@ const favBandOf = (p) => {
 }
 
 const CELLS = [
-  ['🟡 MC2 4pt+ FAV · WOMEN −100..−200', 'mc2_fav4_w', 'MC2 rates this WOMENS favourite 4+ points above the de-vigged market, priced -100..-200. Forward +26.72% on 24 (18-6). On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against 59.0% needed, t 2.16) -- positive in BOTH windows (fwd +26.72%/24, recon +19.40%/27) and BOTH bands (-100..-150 +22.31%/28, -150..-200 +23.50%/23). The MENS half of the same cut is -9.21% on 74, and every womens favourite in that range is -3.64%, so this is not a generic favourite effect. The only favourite cell in this project to clear t=2. STILL THIN: 51 bets, and the gender split and 4pt threshold were both found by scanning this data.'],
-  ['🟡 MC2 4pt+ FAV · men (control)', 'mc2_fav4_m', 'The MENS half of the same cut, kept visible as the control that justifies the womens cell: +1.63% on 25 forward, -9.21% on 74 pooled. NOT a take -- it is here so the split keeps being tested on screen instead of assumed.'],
+  ['🟡 MC6 4pt+ FAV · WOMEN −100..−200', 'mc6_fav4_w', 'MC2 rates this WOMENS favourite 4+ points above the de-vigged market, priced -100..-200. Forward +26.72% on 24 (18-6). On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against 59.0% needed, t 2.16) -- positive in BOTH windows (fwd +26.72%/24, recon +19.40%/27) and BOTH bands (-100..-150 +22.31%/28, -150..-200 +23.50%/23). The MENS half of the same cut is -9.21% on 74, and every womens favourite in that range is -3.64%, so this is not a generic favourite effect. The only favourite cell in this project to clear t=2. STILL THIN: 51 bets, and the gender split and 4pt threshold were both found by scanning this data.'],
+  ['🟡 MC6 4pt+ FAV · men (control)', 'mc6_fav4_m', 'The MENS half of the same cut, kept visible as the control that justifies the womens cell: +1.63% on 25 forward, -9.21% on 74 pooled. NOT a take -- it is here so the split keeps being tested on screen instead of assumed.'],
   ['🟦 s52 SEASONAL-BAND DOG · +100..+200', 's52_fav_band_dog', 'Back the market DOG at +100..+200 when the FAVOURITE owns BOTH 52-week seasonal stats, hold% and break% -- a FADE of the seasonal stat leader, not a follow. The sibling cell where the DOG owns both is only +3.40% on 129, which is what makes the direction the finding. THE ONLY CELL ON THIS BOARD CLEARING t=2: +19.80% on 183 (92-91, 50.3% hit, $+905.75, t 2.25), men +13.49% on 94 and women +26.46% on 89 (t 2.04). By band: +100..+150 is +18.11%/119 (men +17.39/66, women +19.00/53) and +150..+200 is +22.94%/64 (men +4.29/28, women +37.44/36). The lane is hard-gated to +100..+200 and that ceiling is earned -- re-run without it, +200..+250 is -14.94% on 65 and +250..+300 is -11.21% on 38. CAVEAT: the frozen window is 39 days and the rule replays inside it, so part of this record is in-sample for the rule itself.'],
-  ['🟤 MC2 6pt+ DOG', 'mc2_dog6_all',
+  ['🟤 MC6 6pt+ DOG', 'mc6_dog6_all',
    'MC2 six or more points over the market on the dog, ANY price (2026-10-14, your ask). The forward ladder is why the bar is 6 and not 4: 3-4pt -1.9% on 27, 4-6pt -4.2% on 45, then 6-8pt +14.1% on 48 and 8pt+ +6.9% on 207. Both genders positive.'],
-  ['🟤 MC2 4pt+ DOG', 'mc2_dog4_all',
+  ['🟤 MC6 4pt+ DOG', 'mc6_dog4_all',
    'MC2 four or more points over the market on the dog, ANY price. The 4pt sibling of the 6pt cell, added 2026-10-14 because the WOMENS ladder at +100..+150 peaks at 4pt (+13.15% on 91) and dies at 6pt (+3.07% on 68), the reverse of the mens, which climbs to 10pt. This lane feeds the womens pink mark. Its displayed record is a REPLAY of the frozen log, not a forward test -- the rule was written today.'],
   ['🟤 MC2 TAKE DOG · unstamped', 'mc2_take_dog_all',
    'Your take rule at the new -6 threshold, counting every frozen row rather than only those after the rule was written. The date-stamped lane (mc2_take_dog) is the in-sample-free version and is much smaller.'],
@@ -227,11 +250,11 @@ const priceOK = p => p.odds != null && p.odds <= MAX_AM
 const PINK = '#f778ba'
 const PINK_TAG = '\u{1F9E1} '
 const PINK_RULES = [
-  { lo: 100, hi: 150, g: 'm', tag: 'MC2 4pt+ M', cells: new Set(['mc2_dog4_all']), tip: 'MEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +27.48% on 48 (28-20, 58.3% hit against 45.7% needed, t 1.77). The corrected recon agrees at +7.20% on 85, and blind mens dogs in this band are +7.39% on 291, so MC2 adds about 20 points forward. THE STRONGEST of the five pink cells: the only one where the forward ROI, the recon and the blind baseline all point the same way. On the board as a whole this is the best gender x band cell there is, +22.36% on 161 at t 2.61.' },
-  { lo: 100, hi: 150, g: 'w', tag: 'MC2 4pt+ W', cells: new Set(['mc2_dog4_all']), tip: 'WOMEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +21.95% on 38 (21-17, 55.3% hit against 45.3% needed, t 1.23). Corrected recon +6.85% on 53, also positive. Blind womens dogs in this band are -8.81% on 200, so the entire edge is MC2 selecting inside a LOSING band -- real, but it dies the moment MC2 drifts. Note the womens ladder peaks at 4pt and falls to +3.07% at 6pt, the reverse of the mens, which climbs all the way to +23.27% at 10pt.' },
-  { lo: 150, hi: 200, g: 'w', tag: 'MC2 4pt+ W', cells: new Set(['mc2_dog4_all']), tip: 'WOMEN, +150..+200. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +37.73% on 30 (15-15, 50.0% hit against 36.6% needed, t 1.50), and every rung from 2pt to 6pt is about the same forward. READ THE OTHER WINDOW: the corrected recon is -10.33% on 46 and negative at every rung. Blind womens dogs in the band are +8.38% on 111, so part of this is the price rather than MC2. In on the forward rule alone. The MENS half of this band is the worst cell on the board at -25.39% forward on 36, and it is excluded from the tab entirely.' },
-  { lo: 200, hi: 250, g: 'm', tag: 'MC2 6pt+ M', cells: new Set(['mc2_dog6_all']), tip: 'MEN, +200..+250, MC2 six or more points over the de-vigged market on the dog. MOVED FROM THE 4pt GATE 2026-10-14 on your call: at 4pt this cell was +6.86% on 22 (t 0.21), the weakest pink cell on the tab; at 6pt it is +30.61% on 18 (7-11, 38.9% hit against 30.7% needed, t 0.79), against a blind band of +3.99% on 88. THE TRADE: the two windows stop agreeing. At 4pt both were positive (forward +6.86%, recon +5.51% on 39); at 6pt the forward is four times better but the corrected recon is EXACTLY FLAT, -0.00% on 35. Shipped on the forward rule. 6pt is NOT better anywhere else on the board -- the womens +100..+150 cell collapses from +21.95% to +7.77% at 6pt, the known ladder decay where women peak at 4pt and men climb.' },
-  { lo: 250, hi: 300, g: 'w', tag: 'MC2 4pt+ W', cells: new Set(['mc2_dog4_all']), tip: 'WOMEN, +250..+300. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +47.80% on 20 (8-12, 40.0% hit against 27.0% needed, t 1.18), the best forward ROI of the five. CAVEAT: blind womens dogs in this band are ALREADY +24.24% on 51, so a large part of this is the price and not MC2, and the corrected recon half is only +4.00% on 25. Long womens dogs are the one place this log says the market is persistently wrong; MC2 sharpens that rather than creating it. The MENS half of this band is excluded from the tab: -16.11% forward on 18, against a blind baseline of -40.36% on 58 (t -2.21), the most clearly dead cell on the board.' },
+  { lo: 100, hi: 150, g: 'm', tag: 'MC6 4pt+ M', cells: new Set(['mc6_dog4_all']), tip: 'MEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +27.48% on 48 (28-20, 58.3% hit against 45.7% needed, t 1.77). The corrected recon agrees at +7.20% on 85, and blind mens dogs in this band are +7.39% on 291, so MC2 adds about 20 points forward. THE STRONGEST of the five pink cells: the only one where the forward ROI, the recon and the blind baseline all point the same way. On the board as a whole this is the best gender x band cell there is, +22.36% on 161 at t 2.61.' },
+  { lo: 100, hi: 150, g: 'w', tag: 'MC6 4pt+ W', cells: new Set(['mc6_dog4_all']), tip: 'WOMEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +21.95% on 38 (21-17, 55.3% hit against 45.3% needed, t 1.23). Corrected recon +6.85% on 53, also positive. Blind womens dogs in this band are -8.81% on 200, so the entire edge is MC2 selecting inside a LOSING band -- real, but it dies the moment MC2 drifts. Note the womens ladder peaks at 4pt and falls to +3.07% at 6pt, the reverse of the mens, which climbs all the way to +23.27% at 10pt.' },
+  { lo: 150, hi: 200, g: 'w', tag: 'MC6 4pt+ W', cells: new Set(['mc6_dog4_all']), tip: 'WOMEN, +150..+200. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +37.73% on 30 (15-15, 50.0% hit against 36.6% needed, t 1.50), and every rung from 2pt to 6pt is about the same forward. READ THE OTHER WINDOW: the corrected recon is -10.33% on 46 and negative at every rung. Blind womens dogs in the band are +8.38% on 111, so part of this is the price rather than MC2. In on the forward rule alone. The MENS half of this band is the worst cell on the board at -25.39% forward on 36, and it is excluded from the tab entirely.' },
+  { lo: 200, hi: 250, g: 'm', tag: 'MC6 6pt+ M', cells: new Set(['mc6_dog6_all']), tip: 'MEN, +200..+250, MC2 six or more points over the de-vigged market on the dog. MOVED FROM THE 4pt GATE 2026-10-14 on your call: at 4pt this cell was +6.86% on 22 (t 0.21), the weakest pink cell on the tab; at 6pt it is +30.61% on 18 (7-11, 38.9% hit against 30.7% needed, t 0.79), against a blind band of +3.99% on 88. THE TRADE: the two windows stop agreeing. At 4pt both were positive (forward +6.86%, recon +5.51% on 39); at 6pt the forward is four times better but the corrected recon is EXACTLY FLAT, -0.00% on 35. Shipped on the forward rule. 6pt is NOT better anywhere else on the board -- the womens +100..+150 cell collapses from +21.95% to +7.77% at 6pt, the known ladder decay where women peak at 4pt and men climb.' },
+  { lo: 250, hi: 300, g: 'w', tag: 'MC6 4pt+ W', cells: new Set(['mc6_dog4_all']), tip: 'WOMEN, +250..+300. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +47.80% on 20 (8-12, 40.0% hit against 27.0% needed, t 1.18), the best forward ROI of the five. CAVEAT: blind womens dogs in this band are ALREADY +24.24% on 51, so a large part of this is the price and not MC2, and the corrected recon half is only +4.00% on 25. Long womens dogs are the one place this log says the market is persistently wrong; MC2 sharpens that rather than creating it. The MENS half of this band is excluded from the tab: -16.11% forward on 18, against a blind baseline of -40.36% on 58 (t -2.21), the most clearly dead cell on the board.' },
 
   // s52 SEASONAL-BAND DOG (2026-10-14, user "mark both men and women dogs +100 to +200 with ...
   // s52_fav_band_dog ... pink"). The only cell on the board clearing t=2: +19.80% on 183, t 2.25,
@@ -445,10 +468,10 @@ const genderOf = p => (/wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'
 // badge, not a mark.
 const MARK_CELLS = new Set([
   ...PINK_RULES.flatMap(r => [...r.cells]),
-  'mc2_fav4_w', 'mc2_fav4_m',
+  'mc6_fav4_w', 'mc6_fav4_m',
 ])
 // these two lanes are shown one row PER PRICE BAND rather than as one blended number
-const SPLIT_BY_BAND = new Set(['mc2_dog4_all', 'mc2_dog6_all'])
+const SPLIT_BY_BAND = new Set(['mc6_dog4_all', 'mc6_dog6_all'])
 
 // A CELL THAT LOSES FOR EVERY GENDER LEAVES THE TAB (2026-10-14, user: "remove these from the
 // dog board completely since they're negative"). Until now such a cell still held a row with its
@@ -620,7 +643,7 @@ export default function DogPicksPanel({ query }) {
   // The history and the aggregates are deliberately untouched: they record what the cells did, and
   // dropping one side of a settled pair would misstate that.
   const markOf = (x) => (isFavPick(x.p)
-    ? ((x.cells.some(c => c.key === (x.g === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m')))
+    ? ((x.cells.some(c => c.key === (x.g === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m')))
         ? favBandOf(x.p) : null)
     : pinkRule(x.p, x.cells.map(c => c.key)))
   const sameMatchKey = (x) => [String(x.p.date || ''),
@@ -645,7 +668,7 @@ export default function DogPicksPanel({ query }) {
   const finished = dedupe(cells, isFinished).sort((a, b) => whenMs(b) - whenMs(a))
   // the same women-only rule for the history rows
   const favHist = (p) => histCells(p).some(
-    c => c.key === (genderOf(p) === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m')) ? favBandOf(p) : null
+    c => c.key === (genderOf(p) === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m')) ? favBandOf(p) : null
   const histCells = (p) => cells.filter(cel => (MARK_CELLS.has(cel.key)
       || (genderOK(cel.c, genderOf(p)) && cellThick(cel.c, genderOf(p))))
     && cel.picks.some(x => x.date === p.date && x.pick === p.pick && x.opp === p.opp))
@@ -737,8 +760,8 @@ export default function DogPicksPanel({ query }) {
                   fp.push([cel, p])
                 }
               }
-              const wCell = cells.find(c => c.key === 'mc2_fav4_w')
-              const mCell = cells.find(c => c.key === 'mc2_fav4_m')
+              const wCell = cells.find(c => c.key === 'mc6_fav4_w')
+              const mCell = cells.find(c => c.key === 'mc6_fav4_m')
               if (!wCell && !mCell) return null
               const bx = (cel, lab) => {
                 if (!cel) return null
@@ -846,7 +869,7 @@ export default function DogPicksPanel({ query }) {
               // the gender's own favourite lane must be the one that fired, and favBandOf then
               // decides whether THAT gender has a marked band at this price (men: shallow only)
               const fb = (isFavPick(s.p)
-                && s.cells.some(c => c.key === (s.g === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m')))
+                && s.cells.some(c => c.key === (s.g === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m')))
                 ? favBandOf(s.p) : null
               const yel = !!fb
               const br = bestRec(s)      // the card's own gender x band headline
@@ -873,7 +896,7 @@ export default function DogPicksPanel({ query }) {
                       {n} cell{n === 1 ? '' : 's'}
                     </span>
                     {fb ? (
-                      <span title={fb.note + '  ' + ((cells.find(c => c.key === 'mc2_fav4_w') || {}).note || '')}
+                      <span title={fb.note + '  ' + ((cells.find(c => c.key === 'mc6_fav4_w') || {}).note || '')}
                         style={{ fontSize: 10, fontWeight: 800, color: fb.col,
                           border: '1px solid ' + fb.col + '99', borderRadius: 6, padding: '0 5px' }}>
                         {'⭐ ' + fb.tag}

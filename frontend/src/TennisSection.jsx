@@ -3728,7 +3728,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // favourite the head itself prices as a losing bet.
     const _favLo = gHL === 'w' ? -200 : -150
     const _favOK = !isNaN(favAm) && favAm <= -100 && favAm >= _favLo
-    const _favLane = gHL === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m'
+    // reads MC6 from 2026-10-16, matching the Dog tab -- same rule, different head
+    const _favLane = gHL === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m'
     if (_favOK && over >= 0.04 && favClearsPrice && mc2Alive('mc2_fav_band', gHL, true)) {
       // MC6'S VERDICT ON THE SAME BET (2026-10-16, user ask). Carried, not enforced: the
       // gold rule still reads MC2 alone. MC6 is the only head here with a form term, and on
