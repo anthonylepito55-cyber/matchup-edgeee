@@ -930,7 +930,10 @@ _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner
                "mc2_dog6_all", "mc2_dog4_all",
                "mc2_take_dog_all", "mc3_take_dog_all", "mc5_take_dog_all",
                # the women's favourite cell and its men's control (2026-10-14)
-               "mc2_fav4_w", "mc2_fav4_m"}
+               "mc2_fav4_w", "mc2_fav4_m",
+               # the MC6 twins (2026-10-16, user "all dogs tab using mc6 instead"): identical
+               # rules, different head, so the swap is measurable rather than assumed
+               "mc6_dog6_all", "mc6_dog4_all", "mc6_take_dog_all", "mc6_fav4_w", "mc6_fav4_m"}
 
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
@@ -1974,6 +1977,9 @@ def get_ab25_record() -> dict:
               # (2026-10-14, user "add All mc2 6 pt to dog tab"), plus its 4pt sibling
               # the women-s pink mark reads (see the bet() site for the two ladders)
               "mc2_dog6_all", "mc2_dog4_all",
+              # MC6 twins of the dog-tab and gold-fav cells (2026-10-16)
+              "mc6_dog6_all", "mc6_dog4_all", "mc6_fav4_w", "mc6_fav4_m",
+              "mc6_take_dog_all", "mc6_take_fav_all",
               # 🟡 THE WOMEN'S FAVOURITE CELL (2026-10-14, user "add the women lane on the dog
               # tab"). A women's favourite at -100..-200 that MC2 rates 4pt+ above the de-vigged
               # market. On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against
@@ -2310,7 +2316,10 @@ def get_ab25_record() -> dict:
             # the only way MC3 and MC5 have a readable sample before next month.
             for _tag9, _pv9, _rc0 in (("mc2", r.get("mc2_p1"), r.get("mc2_recon")),
                                       ("mc3", r.get("mc3_p1"), r.get("mc3_recon")),
-                                      ("mc5", r.get("mc5_p1"), r.get("mc5_recon"))):
+                                      ("mc5", r.get("mc5_p1"), r.get("mc5_recon")),
+                                      # MC6 (2026-10-16): same loop so it is scored on identical
+                                      # rows under identical rules as the heads it may replace
+                                      ("mc6", r.get("mc6_p1"), r.get("mc6_recon"))):
                 if pd.isna(_pv9) or (pd.notna(_rc0) and bool(_rc0)):
                     continue
                 _pv9 = float(_pv9)
@@ -2323,26 +2332,26 @@ def get_ab25_record() -> dict:
                 # MC2 6pt+ over on the DOG at any price -> the Dog picks tab cell. Same
                 # threshold as the new take rule but without the flip clause, so it is the
                 # plain "MC2 is 6 points better than the price on this dog" statement.
-                if _tag9 == "mc2" and _ov9 <= -0.06:
-                    bet("mc2_dog6_all", dog1)
+                if _tag9 in ("mc2", "mc6") and _ov9 <= -0.06:
+                    bet("%s_dog6_all" % _tag9, dog1)
                 # ...and the 4pt version. Two thresholds, not one, because the ladder runs in
                 # OPPOSITE directions by gender on +100..+150 dogs (forward + corrected recon):
                 #   men   2pt +12.48  3pt +15.68  4pt +15.39  6pt +18.70  10pt +23.27  (climbs)
                 #   women 2pt  +6.64  3pt  +9.77  4pt +13.15  6pt  +3.07  10pt  +3.55  (peaks at 4)
                 # so the women's pink mark reads this lane and the men's reads the 6pt one.
-                if _tag9 == "mc2" and _ov9 <= -0.04:
-                    bet("mc2_dog4_all", dog1)
+                if _tag9 in ("mc2", "mc6") and _ov9 <= -0.04:
+                    bet("%s_dog4_all" % _tag9, dog1)
                 # 🟡 MC2 4pt+ OVER THE MARKET ON A FAVOURITE at -100..-200, split by gender
                 # because that is where the whole effect lives: women +22.85% on 51 (t 2.16),
                 # men -9.21% on 74. Both lanes run so the split keeps being tested rather than
                 # assumed. _ov9 is MC2's margin ON THE FAVOURITE, so >= +0.04 is 4pt over.
-                if _tag9 == "mc2" and _ov9 >= 0.04:
+                if _tag9 in ("mc2", "mc6") and _ov9 >= 0.04:
                     _fdec = (d1 if not dog1 else d2)
                     if _fdec:
                         _fa9 = ((_fdec - 1) * 100 if _fdec >= 2
                                 else -100.0 / max(_fdec - 1, 1e-9))
                         if -200.0 <= _fa9 <= -100.0:
-                            bet("mc2_fav4_w" if _isw else "mc2_fav4_m", not dog1)
+                            bet("%s_fav4_%s" % (_tag9, "w" if _isw else "m"), not dog1)
             if _tk.get("mc2") and _tk.get("mc2") == _tk.get("mc3"):
                 # both heads say the same thing, which is the stricter reading of "mc2 and mc3"
                 bet("both_take_%s" % _tk["mc2"], (not dog1) if _tk["mc2"] == "fav" else dog1)
