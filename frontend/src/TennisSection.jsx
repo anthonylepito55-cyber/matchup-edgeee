@@ -3730,10 +3730,21 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     const _favOK = !isNaN(favAm) && favAm <= -100 && favAm >= _favLo
     const _favLane = gHL === 'w' ? 'mc2_fav4_w' : 'mc2_fav4_m'
     if (_favOK && over >= 0.04 && favClearsPrice && mc2Alive('mc2_fav_band', gHL, true)) {
+      // MC6'S VERDICT ON THE SAME BET (2026-10-16, user ask). Carried, not enforced: the
+      // gold rule still reads MC2 alone. MC6 is the only head here with a form term, and on
+      // Grant vs Ito it was the one that noticed a favourite on four straight losses.
+      // EV is taken at the OFFERED price -- the de-vigged margin is exactly what made MC2
+      // look right on that card -- so this is what the bet would actually return at MC6's
+      // number. Null when MC6 has no read, which must not be mistaken for agreement.
+      const _m6h = match.mc6
+      const _m6fav = (_m6h && _m6h.p1_prob != null)
+        ? (fav1 ? _m6h.p1_prob : 1 - _m6h.p1_prob) : null
       return { cell: gHL === 'w' ? 'FAV 4pt+ W -100/200' : 'FAV 4pt+ M -100/150',
                // isFav drives the GOLD treatment below: these are the cells the Dog picks tab
                // marks gold (2026-10-15), and the board must not disagree with it on colour.
                isFav: true,
+               mc6ev: (_m6fav != null && _favDec) ? (_m6fav * _favDec - 1) : null,
+               mc6over: _m6fav != null ? (_m6fav - mkfav) : null,
                lane: _favLane, who: fav1 ? match.player_1 : match.player_2,
                od: favAm, amt: Math.round(1000 * over) / 10, live: rec(_favLane),
                recon: !!m2.recon }
@@ -4146,6 +4157,27 @@ ALL THREE MC HEADS AGREE on this side (MC2, MC3 and MC5 are all on the same side
           </span>
           {mc2Mark.cell === 'FAV 2-8pt' ? ` · ${mc2Mark.amt}pt over (2-8 band)` : mc2Mark.cell === 'FAV 8pt+' ? ` · ${mc2Mark.amt}pt over (deep)` : mc2Mark.cell === 'FAV 0-2pt' ? ` · ${mc2Mark.amt}pt over (on/just over)` : mc2Mark.cell === 'DOG LONG' ? ` · ${mc2Mark.amt}pt over, long dog` : mc2Mark.cell === 'DOG 3pt+' ? ` · ${mc2Mark.amt}pt over on the dog` : ` · flips ${mc2Mark.amt}pt past 50%`}
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · watch only`}</span>
+          {/* MC6'S VERDICT ON THE SAME BET (2026-10-16). Shown, never enforced -- the mark is
+              still MC2's. MC6 is the only head with a form term, so where it disagrees the
+              reader gets to see it instead of the board presenting MC2's confidence alone. */}
+          {mc2Mark.isFav && mc2Mark.mc6ev != null ? (
+            <span style={{
+              marginLeft: 6, padding: '0 5px', borderRadius: 5, fontSize: 9.5, fontWeight: 800,
+              color: mc2Mark.mc6ev >= 0 ? '#3fb950' : '#f0883e',
+              border: `1px solid ${mc2Mark.mc6ev >= 0 ? 'rgba(63,185,80,0.55)' : 'rgba(240,136,62,0.65)'}`,
+              background: mc2Mark.mc6ev >= 0 ? 'rgba(63,185,80,0.10)' : 'rgba(240,136,62,0.12)',
+            }}
+              title={`MC6 ON THIS SAME BET: ${mc2Mark.mc6ev >= 0 ? '+' : ''}${Math.round(1000 * mc2Mark.mc6ev) / 10}% EV at the OFFERED price, `
+                + `${mc2Mark.mc6over >= 0 ? '+' : ''}${Math.round(1000 * mc2Mark.mc6over) / 10}pt over the de-vigged market `
+                + `(MC2 has it ${mc2Mark.amt}pt over).\n\n`
+                + `${mc2Mark.mc6ev >= 0
+                    ? 'MC6 AGREES this is a positive-EV bet. Both the oldest head and the newest are on the same side.'
+                    : 'MC6 DISAGREES: at its number this bet LOSES money at the price offered. The gold mark reads MC2 alone, and MC2 is the only head here with no form term -- it sees a favourite on a losing run only through slow-moving Elo.'}\n\n`
+                + `THIS IS NOT A GATE. Nothing is suppressed and the mark has not changed. A veto would fire on 12% of gold marks, and the vetoed half measures -18.84% on SIX bets against +13.08% on 46 for the rest -- the right direction, far too few to act on. It is shown so you can see the disagreement and decide.\n\n`
+                + `Measured context: MC6 is the most accurate head in the project (AUC .7071 against MC2's .6889 on 786 matched rows, market .7096) and on favourites the cards MC6 flags and MC2 rejects are the only positive favourite cell in that table (+0.26% on 12), while the cards both agree on are -16.73% on 13.`}>
+              {`MC6 ${mc2Mark.mc6ev >= 0 ? '\u2713' : '\u2717'} ${mc2Mark.mc6ev >= 0 ? '+' : ''}${Math.round(1000 * mc2Mark.mc6ev) / 10}% EV`}
+            </span>
+          ) : null}
         </div>
       ) : null}
       {gMarkShow ? (
