@@ -879,6 +879,28 @@ export default function DogPicksPanel({ query }) {
                         {'⭐ ' + fb.tag}
                       </span>
                     ) : null}
+                    {/* MC6'S VERDICT ON THE SAME BET (2026-10-16, user "make sure to show it on
+                        the dogs tab"). Same chip as the board's. The gold mark reads MC2 alone and
+                        MC2 is the only head without a form term, so where the newest head
+                        disagrees the reader sees it. Favourites only, matching the board: every
+                        pick carries mc6_ev, but badging every dog row too would bury the signal.
+                        NOT A GATE -- nothing is hidden and no cell or record changes. */}
+                    {fb && s.p.mc6_ev != null ? (
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 800, padding: '0 5px', borderRadius: 5,
+                        color: s.p.mc6_ev >= 0 ? '#3fb950' : '#f0883e',
+                        border: `1px solid ${s.p.mc6_ev >= 0 ? 'rgba(63,185,80,0.55)' : 'rgba(240,136,62,0.65)'}`,
+                        background: s.p.mc6_ev >= 0 ? 'rgba(63,185,80,0.10)' : 'rgba(240,136,62,0.12)',
+                      }}
+                        title={`MC6 ON THIS SAME BET: ${s.p.mc6_ev >= 0 ? '+' : ''}${Math.round(1000 * s.p.mc6_ev) / 10}% EV at the OFFERED price.\n\n`
+                          + `${s.p.mc6_ev >= 0
+                              ? 'MC6 AGREES this is a positive-EV bet at the price offered.'
+                              : 'MC6 DISAGREES: at its number this bet LOSES money at the price offered. The gold mark reads MC2 alone, and MC2 is the only head here with no form term -- it sees a favourite on a losing run only through slow-moving Elo.'}\n\n`
+                          + `THIS IS NOT A GATE. Nothing is hidden and the mark has not changed. A veto would fire on 12% of gold marks and the vetoed half measures -18.84% on SIX bets against +13.08% on 46 for the rest -- the right direction, far too few to act on.\n\n`
+                          + `Context: MC6 is the most accurate head in the project (AUC .7071 vs MC2's .6889 on 786 matched rows, market .7096), and on favourites the cards MC6 flags while MC2 rejects are the only positive favourite cell in that comparison (+0.26% on 12) against -16.73% on 13 where both agree.`}>
+                        {`MC6 ${s.p.mc6_ev >= 0 ? '\u2713' : '\u2717'} ${s.p.mc6_ev >= 0 ? '+' : ''}${Math.round(1000 * s.p.mc6_ev) / 10}%`}
+                      </span>
+                    ) : null}
                     {pr && !yel ? (
                       <span title={pr.tip} style={{ fontSize: 10, fontWeight: 800, color: PINK,
                         border: '1px solid ' + PINK + '88', borderRadius: 6, padding: '0 5px' }}>

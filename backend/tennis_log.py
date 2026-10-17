@@ -2076,6 +2076,14 @@ def get_ab25_record() -> dict:
                         "ue_gap": (None if (_ug9 is None or pd.isna(_ug9))
                                    else round(float(_ug9) * (1 if side1 else -1), 2)),
                         "score": r.get("score"), "settled": bool(settled),
+                        # MC6's EV AT THE OFFERED PRICE on the side this lane bet (2026-10-16).
+                        # The tab renders from these records and has no access to the heads, so
+                        # the second opinion has to travel with the pick. Offered price, not
+                        # de-vigged: a de-vigged margin is what made MC2 look right on the card
+                        # that prompted this. None means MC6 had no read -- never agreement.
+                        "mc6_ev": (lambda _p: (None if _p is None or pd.isna(_p) else round(
+                            float((_p if side1 else 1.0 - _p)) * float(d1 if side1 else d2) - 1.0,
+                            4)))(r.get("mc6_p1")),
                         "won": (None if not settled else bool(won1 == side1)),
                         "pnl": (None if not settled else round(
                             25.0 * ((d1 if side1 else d2) - 1.0) if (won1 == side1) else -25.0, 2)),
