@@ -1,0 +1,16 @@
+[Unit]
+Description=Nightly TennisRatio player-log refresh, ahead of the rating rebuild
+
+[Timer]
+# 06:00 UTC. The ordering is the point: the rating rebuild runs at 08:10 and reads these logs,
+# so the refresh has to land BEFORE it. A full cold pull is 60-90 minutes, leaving over an hour
+# of slack; subsequent nights skip anyone fetched within 120h and finish far sooner.
+OnCalendar=*-*-* 06:00:00
+# If the box was down at 06:00, run on the next boot rather than silently skipping a night --
+# a missed night is what produced the 275-day tail in the first place.
+Persistent=true
+# Avoid landing on the exact minute every night alongside anything else.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

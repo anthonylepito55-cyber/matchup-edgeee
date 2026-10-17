@@ -1,0 +1,38 @@
+[Unit]
+# Refresh every TennisRatio player's match log (2026-10-16).
+#
+# WHY THIS EXISTS. _full_site_ingest.py has sat unscheduled since 2026-09-28, so player match
+# logs only refreshed when someone ran it by hand. Measured on the 462 players appearing on
+# cards since 2026-10-14: 61% current, but p90 is 30 days stale and the tail reaches 275 days.
+#
+# That is not cosmetic. Kristina Liutova's ratings stopped at 2026-08-31 -- six weeks of form
+# missing, including a 6-3 6-0 win that is in our OWN match log -- which left her thin (nS=36 vs
+# her opponent's 61). The thin-sample tilt then shaded +0.0802 of log-odds AWAY from her for that
+# thinness, and MC2 priced her opponent 8.4 points over the market, earning a pink mark on a dog
+# that lost 3-6 4-6. The missing data was treated as uncertainty about the player rather than as
+# a gap in our own ingest.
+#
+# The script is resume-safe by design: a player whose matches_{slug}.parquet is under 120h old is
+# skipped, so a nightly run only fetches whoever has gone stale. That is exactly the behaviour
+# wanted here -- it self-limits instead of re-pulling 1,760 profiles every night.
+After=network-online.target
+
+[Service]
+Type=oneshot
+# ec2-user, never root: root-owned files under data_cache have broken the site before.
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/home/ec2-user/mlb-predictor/backend
+ExecStart=/home/ec2-user/mlb-predictor/backend/venv/bin/python _full_site_ingest.py
+# Yield hard to the web server. The ingest is network-bound (its own 1.5s throttle, ~2-2.5s per
+# player) so starving it of CPU costs nothing, and the box has OOM'd under load before.
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=1500M
+# A full cold pull is 60-90 minutes; allow headroom without hanging forever.
+TimeoutStartSec=9000
+StandardOutput=append:/home/ec2-user/mlb-predictor/backend/_site_ingest.log
+StandardError=append:/home/ec2-user/mlb-predictor/backend/_site_ingest.log
+
+[Install]
+WantedBy=multi-user.target
