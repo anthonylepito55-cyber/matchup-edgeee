@@ -102,6 +102,67 @@ def _write_log(df: pd.DataFrame):
     os.replace(tmp, LOG_PATH)
 
 
+# PHASE 2 (2026-10-18): every flag that makes a row ineligible for BETTING lanes. One list so a
+# new lane cannot forget one -- the history of this file is three gates each missing a different
+# flag. Rows stay in the log and in market-free analyses; they just cannot be "bet".
+BAD_ROW_FLAGS = ("surface_bad", "inplay_suspect", "resolve_bad",
+                 "price_synthetic", "price_poststart")
+
+
+def _row_flagged(r, flags=BAD_ROW_FLAGS):
+    """True when any ineligibility flag is set on a row/dict-like."""
+    for _f in flags:
+        _v = r.get(_f)
+        if _v is not None and not pd.isna(_v) and bool(_v):
+            return True
+    return False
+
+
+def _apply_price_flags(df):
+    """price_synthetic / price_poststart / price_reject_reason, from immutable row fields.
+
+    SYNTHETIC: the price pair is a probability in costume, not an executable quote --
+      mirrored American pair (p1 == -p2), or overround <= 1.0001 (no book offers a free arb),
+      or both sides positive, or bookmaker exactly 'Polymarket' (the de-vigged fallback feed;
+      'Polymarket (USA)' is the real order-book source and is NOT matched).
+    POSTSTART: logged_at >= start_time_utc, or either timestamp missing -- if pre-match
+      eligibility cannot be established the row is ineligible (Phase 2 spec).
+    Deterministic in the row's frozen fields, so recomputing is always safe; persisted so the
+    verdict survives every pipeline stage. Reasons concatenate when both fire.
+    """
+    if df.empty:
+        return df
+    o1 = pd.to_numeric(df.get("p1_odds"), errors="coerce")
+    o2 = pd.to_numeric(df.get("p2_odds"), errors="coerce")
+    dec1 = np.where(o1 > 0, 1.0 + o1 / 100.0, 1.0 + 100.0 / np.abs(o1))
+    dec2 = np.where(o2 > 0, 1.0 + o2 / 100.0, 1.0 + 100.0 / np.abs(o2))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ovr = 1.0 / dec1 + 1.0 / dec2
+    have = o1.notna() & o2.notna() & (o1 != 0) & (o2 != 0)
+    mirrored = have & (o1 == -o2)
+    both_pos = have & (o1 > 0) & (o2 > 0)
+    low_ovr = have & pd.Series(ovr, index=df.index).le(1.0001)
+    bm = df.get("bookmaker")
+    pm_fallback = (bm.astype(str) == "Polymarket") if bm is not None else pd.Series(False, index=df.index)
+    synth = mirrored | both_pos | low_ovr | pm_fallback
+
+    st = pd.to_datetime(df.get("start_time_utc"), errors="coerce", utc=True)
+    lg = pd.to_datetime(df.get("logged_at"), errors="coerce", utc=True)
+    post = st.isna() | lg.isna() | (lg >= st)
+
+    reason = pd.Series("", index=df.index, dtype=object)
+    reason[mirrored] = reason[mirrored] + "mirrored_pair;"
+    reason[low_ovr & ~mirrored] = reason[low_ovr & ~mirrored] + "overround_le_1;"
+    reason[both_pos] = reason[both_pos] + "both_positive;"
+    reason[pm_fallback & ~mirrored & ~low_ovr] = reason[pm_fallback & ~mirrored & ~low_ovr] + "pm_fallback_devig;"
+    reason[post & (st.isna() | lg.isna())] = reason[post & (st.isna() | lg.isna())] + "timestamp_missing;"
+    reason[post & st.notna() & lg.notna()] = reason[post & st.notna() & lg.notna()] + "logged_at_ge_start;"
+    df["price_synthetic"] = synth.fillna(False).astype(bool)
+    df["price_poststart"] = post.fillna(False).astype(bool)
+    df["price_reject_reason"] = reason.replace("", None)
+    return df
+
+
 def _started(start_time_utc) -> bool:
     try:
         st = pd.Timestamp(start_time_utc)
@@ -327,6 +388,11 @@ def log_predictions(matches: list, date: str):
     except Exception as _e:
         print(f"[tennis log] in-play guard skipped: {_e}")
         new["inplay_suspect"] = False
+    # PHASE 2 price-validity flags on every incoming row (synthetic quote / post-start capture)
+    try:
+        new = _apply_price_flags(new)
+    except Exception as _e:
+        print(f"[tennis log] price flags skipped: {_e}")
     if log.empty:
         _write_log(new)
         return
@@ -806,6 +872,9 @@ ASYM_LIVE_FROM = "2026-10-13T22:00:00Z"
 # probability was frozen pre-match -- see the 2026-10-13 lesson that a new lane's replay is not a
 # forward test. Stamped, so these lanes open at n=0 and every pick in them is genuinely forward.
 MC6_LIVE_FROM = "2026-10-15T22:00:00Z"
+# -150..-200 favourite rules (2026-10-17): written after scanning six band shapes on the
+# frozen rows, so everything before this stamp is in-sample for them. Lanes open at n=0.
+FAV150_LIVE_FROM = "2026-10-17T06:41:00Z"
 # Model P band extension went live with the same deploy. The four p_*_250up/400up lanes
 # did not exist before it, so they carry no pre-stamp history to replay.
 P_WIDE_LIVE_FROM = "2026-10-13T22:00:00Z"
@@ -937,7 +1006,17 @@ _PICK_LANES = {"lowerr_dog_w", "allround_dog_w", "allround_dog_w_big", "returner
                # 3pt then 2pt (2026-10-16, user calls): women mark on 3pt, men on 2pt --
                # MC6's threshold ladder runs opposite by gender, so one shared gate costs one of
                # them. Both lanes score so the split keeps being measured rather than assumed.
-               "mc6_dog3_all", "mc6_dog2_all"}
+               "mc6_dog3_all", "mc6_dog2_all",
+               # the MEN's favourite BAND (2026-10-16): 3-6pt, capped because the tail above
+               # 6pt is nearly worthless (+3.0% /53) while the band is +21.2% /35
+               "mc6_fav_band_m",
+               # the WOMEN's favourite FLOOR (2026-10-16): >=6pt. A floor not a band -- their
+               # favourite side CLIMBS with the margin (>=4pt +9.3%, >=6pt +14.8%, >=8pt +19.0%)
+               # where the men's decays, so a cap would remove their good half.
+               "mc6_fav6_w",
+               # -150..-200 favourite rules (2026-10-17, user call): men 2-8pt + EV, women >=6pt.
+               # Stamped FAV150_LIVE_FROM -- chosen today by scanning band shapes on this data.
+               "mc6_fav150_m", "mc6_fav150_w"}
 
 _WATCH_LABELS = {
     "⭐✓FADE-GOLD5+": "👁FADE-GOLD (demoted)", "⭐✓FADE-GOLD": "👁FADE-GOLD (demoted)",
@@ -1982,7 +2061,8 @@ def get_ab25_record() -> dict:
               # the women-s pink mark reads (see the bet() site for the two ladders)
               "mc2_dog6_all", "mc2_dog4_all",
               # MC6 twins of the dog-tab and gold-fav cells (2026-10-16)
-              "mc6_dog6_all", "mc6_dog4_all", "mc6_dog3_all", "mc6_dog2_all",
+              "mc6_dog6_all", "mc6_dog4_all", "mc6_dog3_all", "mc6_dog2_all", "mc6_fav_band_m", "mc6_fav6_w",
+              "mc6_fav150_m", "mc6_fav150_w",
               "mc6_fav4_w", "mc6_fav4_m",
               "mc6_take_dog_all", "mc6_take_fav_all",
               # 🟡 THE WOMEN'S FAVOURITE CELL (2026-10-14, user "add the women lane on the dog
@@ -2051,6 +2131,10 @@ def get_ab25_record() -> dict:
             # row kept, excluded from every lane.
             _rb9 = r.get("resolve_bad")
             if _rb9 is not None and not pd.isna(_rb9) and bool(_rb9):
+                continue
+            # NON-EXECUTABLE PRICE (Phase 2, 2026-10-18): synthetic de-vigged quote, or a price
+            # captured at/after the start. Row stays in the log; no lane may bet it.
+            if _row_flagged(r, ("price_synthetic", "price_poststart")):
                 continue
             # BLUE GATES (2026-10-09, lockstep with TennisSection tier1Blue): from 10-09
             # forward, a coin-flip C (C < 52% on the dog) no longer counts for
@@ -2367,6 +2451,40 @@ def get_ab25_record() -> dict:
                 # 0pt keeps a real disagreement requirement at no measured cost.
                 if _tag9 == "mc6" and _ov9 <= -0.02:
                     bet("mc6_dog2_all", dog1)
+                # MEN'S FAVOURITE BAND, 3-6pt (2026-10-16, user call). A BAND not a floor: the
+                # men's favourite side is an inverted U -- baseline -8.5% /444 (t -2.61), band
+                # +21.2% /35 (t 2.07), floor >=3pt only +10.2% /88, and the >6pt tail it cuts is
+                # +3.0% /53. EV>=0 at the OFFERED price is kept because a margin over the
+                # DE-VIGGED market is not a bet that pays: only 21 of the 35 band picks clear it.
+                if (_tag9 == "mc6" and not _isw and 0.03 <= _ov9 < 0.06):
+                    _fd6 = (d1 if not dog1 else d2)
+                    if _fd6 and (_fp9 * _fd6 - 1.0) >= 0:
+                        bet("mc6_fav_band_m", not dog1)
+                # WOMEN'S FAVOURITE FLOOR, >=6pt (2026-10-16, user call). A FLOOR, not a band:
+                # their favourite side climbs with the margin (>=4pt +9.3% /68, >=6pt +14.8% /57,
+                # >=8pt +19.0% /41) against a baseline of -7.9% /405, so capping it -- as the
+                # 4-8pt band would -- removes the good half and measures -5.2% /27. Same EV>=0
+                # condition as every favourite mark since 2026-10-13.
+                if _tag9 == "mc6" and _isw and _ov9 >= 0.06:
+                    _fd6w = (d1 if not dog1 else d2)
+                    if _fd6w and (_fp9 * _fd6w - 1.0) >= 0:
+                        bet("mc6_fav6_w", not dog1)
+                # -150..-200 FAVOURITE RULES (2026-10-17, user call). Price taken from the RAW
+                # American odds so the band edge is exact: [-200, -150), -150 belongs to the
+                # -100..-150 band as on the tab. MEN 2-8pt + EV (+44.80% /12 t3.38 replay; the
+                # >=8pt tail it cuts is -19.34% /12). WOMEN >=6pt + EV (+16.36% /19; EV is
+                # automatic at that margin). Stamped -- the band shapes were scanned today.
+                if (_tag9 == "mc6"
+                        and str(r.get("start_time_utc") or "") >= FAV150_LIVE_FROM):
+                    _o150 = r.get("p1_odds") if not dog1 else r.get("p2_odds")
+                    _fd150 = (d1 if not dog1 else d2)
+                    if (_o150 is not None and not pd.isna(_o150) and _fd150
+                            and -200.0 <= float(_o150) < -150.0
+                            and (_fp9 * _fd150 - 1.0) >= 0):
+                        if not _isw and 0.02 <= _ov9 < 0.08:
+                            bet("mc6_fav150_m", not dog1)
+                        if _isw and _ov9 >= 0.06:
+                            bet("mc6_fav150_w", not dog1)
                 # 🟡 MC2 4pt+ OVER THE MARKET ON A FAVOURITE at -100..-200, split by gender
                 # because that is where the whole effect lives: women +22.85% on 51 (t 2.16),
                 # men -9.21% on 74. Both lanes run so the split keeps being tested rather than
@@ -3085,10 +3203,8 @@ def get_ab25_record() -> dict:
         _sq = log[log["p1_odds"].notna() & log["p2_odds"].notna()
                   & log[list(_s52cols)].notna().all(axis=1)]
         for _, rr in _sq.iterrows():
-            if "surface_bad" in _sq.columns:
-                _sb = rr.get("surface_bad")
-                if _sb is not None and not pd.isna(_sb) and bool(_sb):
-                    continue
+            if _row_flagged(rr):     # Phase 2: all ineligibility flags, not surface alone
+                continue
             d1b, d2b = _decimal(rr["p1_odds"]), _decimal(rr["p2_odds"])
             if not d1b or not d2b:
                 continue
@@ -3142,10 +3258,8 @@ def get_ab25_record() -> dict:
         # it. Both lanes then record the SAME rows on OPPOSITE sides, so the comparison is paired.
         _c75col = "mc_c75_p1" in log.columns
         for _, rr in _sq.iterrows():
-            if "surface_bad" in _sq.columns:
-                _sbx = rr.get("surface_bad")
-                if _sbx is not None and not pd.isna(_sbx) and bool(_sbx):
-                    continue
+            if _row_flagged(rr):     # Phase 2: all ineligibility flags, not surface alone
+                continue
             _m2 = rr.get("mc2_p1")
             _rc = rr.get("mc2_recon")
             if pd.isna(_m2) or (pd.notna(_rc) and bool(_rc)):
@@ -3272,7 +3386,7 @@ def get_ab25_record() -> dict:
                       & (_gq["start_time_utc"].astype(str) >= G_LIVE_FROM)]
         for _, rr in _gq.iterrows():
             _rc9 = False
-            for _bad in ("surface_bad", "inplay_suspect", "resolve_bad"):
+            for _bad in BAD_ROW_FLAGS:
                 _bv = rr.get(_bad) if _bad in _gq.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     break
@@ -3356,7 +3470,7 @@ def get_ab25_record() -> dict:
                       & (_q2["start_time_utc"].astype(str) >= G2_LIVE_FROM)]
         for _, rr in _q2.iterrows():
             _skip = False
-            for _bad in ("surface_bad", "inplay_suspect", "resolve_bad"):
+            for _bad in BAD_ROW_FLAGS:
                 _bv = rr.get(_bad) if _bad in _q2.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     _skip = True
@@ -3442,7 +3556,7 @@ def get_ab25_record() -> dict:
                       & (_q3["start_time_utc"].astype(str) >= MC2_LIVE_FROM)]
         for _, rr in _q3.iterrows():
             _sk = False
-            for _bad in ("surface_bad", "inplay_suspect", "resolve_bad"):
+            for _bad in BAD_ROW_FLAGS:
                 _bv = rr.get(_bad) if _bad in _q3.columns else None
                 if _bv is not None and not pd.isna(_bv) and bool(_bv):
                     _sk = True
@@ -3874,7 +3988,7 @@ def get_ab25_record() -> dict:
     try:
         _ob = log[(log["settled"] == True) & log["p1_won"].notna()            # noqa: E712
                   & log["p1_odds"].notna() & log["p2_odds"].notna()].copy()
-        for _c in ("surface_bad", "inplay_suspect"):
+        for _c in BAD_ROW_FLAGS:
             if _c in _ob.columns:
                 _ob = _ob[~_ob[_c].fillna(False).astype(bool)]
         if len(_ob) >= 50:
@@ -3979,6 +4093,12 @@ def get_tennis_track_record() -> dict:
     carry an edge. Empty until matches settle; grows one slate at a time."""
     log = _read_log()
     settled_all = log[(log["settled"] == True) & log["p1_won"].notna()]  # noqa: E712 -- tracker rows may lack a model prob
+    # Phase 2 (2026-10-18): this function claims flat-1u ROI at the logged odds but applied NO
+    # ineligibility flags at all -- wrong surface, in-play, wrong player, synthetic and
+    # post-start rows were all counted. Now gated like every other lane.
+    for _bad in BAD_ROW_FLAGS:
+        if _bad in settled_all.columns:
+            settled_all = settled_all[~settled_all[_bad].fillna(False).astype(bool)]
     settled = settled_all[settled_all["p1_win_prob"].notna()]
     out = {"total_logged": int(len(log)), "settled": int(len(settled)), "since": str(log["date"].min()) if len(log) else None}
     if settled_all.empty:

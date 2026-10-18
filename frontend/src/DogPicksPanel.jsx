@@ -46,7 +46,8 @@ import React, { useEffect, useState } from 'react'
 // bets. They get their own box and their own colour.
 const YELLOW = '#e3b341'
 const GOLD = '#ffd700'
-const FAV_CELLS = new Set(['mc6_fav4_w', 'mc6_fav4_m'])
+const FAV_CELLS = new Set(['mc6_fav4_w', 'mc6_fav4_m', 'mc6_fav_band_m', 'mc6_fav6_w',
+  'mc6_fav150_m', 'mc6_fav150_w'])
 const isFavPick = p => p.odds != null && p.odds < 0
 
 // TWO BANDS, ONE COLOUR (2026-10-14). Originally shipped as yellow + gold on the reasoning that
@@ -89,7 +90,71 @@ const FAV_GENDER_BANDS = [
   { lo: -200, hi: -150, g: 'w', tag: 'FAV −150/200', col: GOLD, rgba: '255,215,0', note: 'WOMEN -150..-200. Forward +31.53% on 12, corrected recon +14.74% on 11. Pooled +23.50% on 23 (18-5, 78.3% hit against 63.2% needed, t 1.73). The higher headline is the forward week; this half is the weaker one on recon, so it is not "the stronger half" and is not coloured as one.' },
   { lo: -150, hi: -100, g: 'm', tag: 'FAV −100/150 ⚠', col: GOLD, rgba: '255,215,0', note: 'MEN -100..-150. ADDED 2026-10-14 under the rule that a positive FORWARD record earns the highlight -- READ THE SAMPLE. Forward +18.51% on TWELVE bets across five days (8-4, 66.7% hit against 56.8% needed, t 0.77). Everything else about it is negative: corrected recon -30.54% on 23, nearly twice the sample; pooled -13.72% on 35 against a blind band of -14.14% on 152, so MC2 adds nothing pooled. There is also NO threshold gradient -- 4pt+ and 6pt+ are the IDENTICAL twelve bets, so not one forward pick sits between 4 and 6 points and the threshold was never really tested here. Three of the twelve are ITF men, the league excluded from the dog side. The womens half of this band is +21.92% forward AND +22.60% on recon, which is what a real cell looks like. Treat this as a watch mark.' },
 ]
-// gender inlined; genderOf is declared further down this module
+// THE LANE EACH GENDER'S GOLD MARK READS (2026-10-16). One helper because the same pair was
+// hardcoded in three places -- markOf, favHist and the live row -- and when the gates moved from
+// the 4pt lanes to these, all three kept reading the old ones and no favourite could ever mark.
+// Men use a capped 3-6pt BAND (their favourite side is an inverted U), women a >=6pt FLOOR
+// (theirs climbs). Different shapes on purpose; see the cell tooltips.
+const FAV_LANE = (g) => (g === 'w' ? 'mc6_fav6_w' : 'mc6_fav_band_m')
+
+// A READABLE PRICE TAG, not a gate (2026-10-16). favBandOf used to RESTRICT the mark to
+// -100..-200 (women) / -100..-150 (men); with EV>=0 applied that cap was costing money --
+// outside it women are +11.40% on 18 and men +18.11% on 27, and the men's cap excluded
+// -150..-200, the best band either gender has at +44.60% on 10 (t 2.76). So the gate is now the
+// point rule alone and the band only labels the price.
+const FAV_PRICE_TAGS = [
+  { lo: -150, hi: -100, tag: 'FAV \u2212100/150' },
+  { lo: -200, hi: -150, tag: 'FAV \u2212150/200' },
+  { lo: -300, hi: -200, tag: 'FAV \u2212200/300' },
+  { lo: -500, hi: -300, tag: 'FAV \u2212300/500' },
+]
+// WHAT EACH MC6 FAVOURITE LANE IS, and what its record actually says. The tooltip is built from
+// these, because every MC6 favourite is gold now (2026-10-16, user "i want all favorites mc6 on
+// the dog board highlighted gold") and the colour therefore no longer tells you which rule fired
+// or whether that rule wins.
+const FAV_RULE_NOTES = {
+  mc6_fav6_w: 'WOMEN >=6pt FLOOR, EV>=0 at the offered price: +14.79% on 57 (t 1.50) -- -100/150 +17.81%/23, -150/200 +16.36%/19, -200/300 +11.58%/10, -300/500 +1.37%/5, nothing deeper. A floor because the womens favourite side climbs with the margin.',
+  mc6_fav_band_m: 'MEN capped 3-6pt BAND, EV>=0 at the offered price: +32.42% on 20 (t 2.41). The EV check matters here -- it removes 14 of the 34 band picks, and without it the band is +24.72% on 34. Capped because the mens favourite side is an inverted U.',
+  mc6_fav4_w: 'WOMEN 4pt+ at -100..-200, no EV check: MC6 +11.57% on 50 (t 1.00) -- replay +19.87% on 41, forward -26.26% on 9.',
+  mc6_fav4_m: 'MEN 4pt+ at -100..-200, no EV check and no cap: MC6 +12.13% on 48 (t 1.04) -- replay +17.41% on 43, forward -33.25% on 5. (The -9.21% on 74 once quoted for this lane was MC2s record, not MC6s.)',
+  mc6_fav150_m: 'MEN -150..-200 RULE: MC6 2-8pt over the market and positive EV at the offered price. Replay +44.80% on 12 (t 3.38); the >=8pt tail it leaves out is -19.34% on 12. Six band shapes were tried before this one, so the t overstates it. The lane records only from 2026-10-17.',
+  mc6_fav150_w: 'WOMEN -150..-200 RULE: MC6 6+ points over the market (EV is automatic there). +16.36% on 19 -- replay +23.61% on 14, forward -3.94% on 5. The lane records only from 2026-10-17.',
+}
+// No MC6 favourite lane has a losing record across both windows, so nothing is flagged.
+// The set stays so a lane that turns negative can be listed here in one edit.
+const FAV_NEGATIVE = new Set([])
+
+const favMarkOf = (p, keys) => {
+  if (p.odds == null || p.odds >= 0) return null
+  const fired = (keys || []).filter(k => FAV_CELLS.has(k))
+  if (!fired.length) return null
+  // -150..-200 HAS ITS OWN RULES (2026-10-17, user "mark those two rules gold"): men 2-8pt + EV,
+  // women 6pt+. Inside that band ONLY the pick's own gender's band lane paints gold; every other
+  // MC6 favourite there still lists, unmarked. -150 itself is the -100..-150 band, as in the tags.
+  if (p.odds >= -200 && p.odds < -150) {
+    const g150 = /wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'
+    if (!fired.includes(g150 === 'w' ? 'mc6_fav150_w' : 'mc6_fav150_m')) return null
+  }
+  const b = FAV_PRICE_TAGS.find(x => p.odds >= x.lo && p.odds <= x.hi)
+  // when EVERY rule that fired has a losing record, say so first -- the colour cannot
+  const allBad = fired.every(k => FAV_NEGATIVE.has(k))
+  const lead = (allBad
+    ? 'CAUTION -- the only MC6 favourite rule that fired on this pick has a LOSING record. Gold here means "MC6 likes this favourite", which you asked to see on every one of them; it does not mean the cell wins. '
+    : 'Gold = an MC6 favourite. Every MC6 favourite is marked (your call, 2026-10-16), so the colour says MC6 rates this favourite over the market, NOT that the rule behind it is proven. ')
+  const rules = fired.map(k => FAV_RULE_NOTES[k] || k).join('  ')
+  const deep = (!b
+    ? ' THIS PRICE IS DEEPER THAN -500, WHERE THERE IS NO SAMPLE AT ALL (n=1 men, n=0 women). Clearing EV there needs MC6 above about 93%, the region where a large claimed margin usually means the head misread the match rather than found value. Unmeasured, not endorsed.'
+    : '')
+  const caveat = ' READ THE SAMPLE: these records are mostly MC6 as-of REPLAY. The forward window opened 2026-10-15 and holds 12 settled womens bets on the 6pt floor and 1 mens bet on the 3-6pt band, and the dog gates on this same head are negative forward (men 2pt -11.37% on 43, women 3pt -10.36% on 44).'
+  return {
+    tag: (b ? b.tag : 'FAV \u2212500+ \u26a0') + (allBad ? ' \u26a0' : ''),
+    col: GOLD, rgba: '255,215,0',
+    note: lead + rules + deep + caveat,
+  }
+}
+
+// gender inlined; genderOf is declared further down this module. KEPT for reference: this was the
+// old price GATE, replaced by favMarkOf above. Nothing calls it now.
 const favBandOf = (p) => {
   if (p.odds == null || p.odds >= 0) return null
   const g = /wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'
@@ -97,17 +162,25 @@ const favBandOf = (p) => {
 }
 
 const CELLS = [
-  ['🟡 MC6 4pt+ FAV · WOMEN −100..−200', 'mc6_fav4_w', 'MC2 rates this WOMENS favourite 4+ points above the de-vigged market, priced -100..-200. Forward +26.72% on 24 (18-6). On forward + corrected recon: +22.85% on 51 (37-14, 72.5% hit against 59.0% needed, t 2.16) -- positive in BOTH windows (fwd +26.72%/24, recon +19.40%/27) and BOTH bands (-100..-150 +22.31%/28, -150..-200 +23.50%/23). The MENS half of the same cut is -9.21% on 74, and every womens favourite in that range is -3.64%, so this is not a generic favourite effect. The only favourite cell in this project to clear t=2. STILL THIN: 51 bets, and the gender split and 4pt threshold were both found by scanning this data.'],
-  ['🟡 MC6 4pt+ FAV · men (control)', 'mc6_fav4_m', 'The MENS half of the same cut, kept visible as the control that justifies the womens cell: +1.63% on 25 forward, -9.21% on 74 pooled. NOT a take -- it is here so the split keeps being tested on screen instead of assumed.'],
+  ['🟡 MC6 4pt+ FAV · WOMEN -100..-200', 'mc6_fav4_w', 'MC6 rates this WOMENS favourite 4+ points above the de-vigged market, priced -100..-200, with no EV check. MC6 record: +11.57% on 50 (t 1.00) -- replay +19.87% on 41, forward -26.26% on 9. (The +22.85% on 51 that used to be quoted here was MC2s record.)'],
+  ['🟡 MC6 FAV −150..−200 · MEN 2–8pt', 'mc6_fav150_m',
+   'MENS favourites priced -150..-200 where MC6 is 2 to 8 points over the de-vigged market AND the bet is positive EV at the offered price. Replay +44.80% on 12 (t 3.38). Every mens favourite in this band is -13.04% on 115, and the >=8pt tail this rule leaves out is -19.34% on 12 -- the mens favourite side is an inverted U, sharper in this band than anywhere. Without the EV check it is +43.51% on 21 (same ROI, more volume); kept because 14 of 16 negative-EV favourite marks lost live on 2026-10-13. READ THE SAMPLE: six band shapes were scanned to choose 2-8pt, so the t overstates it, and there is ONE forward bet. The lane records only from 2026-10-17, so it opens at n=0.'],
+  ['🟡 MC6 FAV −150..−200 · WOMEN 6pt+', 'mc6_fav150_w',
+   'WOMENS favourites priced -150..-200 where MC6 is 6+ points over the de-vigged market (every such pick also clears EV). +16.36% on 19 -- replay +23.61% on 14, forward -3.94% on 5. Every womens favourite in this band is -1.46% on 96, about fair. Same floor as the all-price womens gate; the 4-6pt slice the 4pt lane would paint here is flat. >=7pt reads +32.40% on 12 but the whole difference is 7 bets. The lane records only from 2026-10-17, so it opens at n=0.'],
+  ['🟡 MC6 FAV 6pt+ · WOMEN', 'mc6_fav6_w',
+   'MC6 six or more points over the de-vigged market on a WOMENS favourite, still positive EV at the price offered. A FLOOR, not a band, because the womens favourite side CLIMBS with the margin where the mens decays -- >=4pt +9.3% on 68, >=6pt +14.8% on 57, >=8pt +19.0% on 41, against a baseline of -7.9% on 405. The 4-8pt band first proposed measures -5.2% on 27: for women a cap removes the good half. 6pt rather than 8pt keeps 57 picks instead of 41 for about 4 points of ROI, which on replay-only evidence is the better trade. READ THE SAMPLE: 57 picks, almost all MC6 replay, and it does not clear t=2.'],
+  ['🟡 MC6 FAV BAND 3-6pt · MEN', 'mc6_fav_band_m',
+   'MC6 between 3 and 6 points over the de-vigged market on a MENS favourite, and still positive EV at the price offered. A BAND rather than a floor because the mens favourite side is an inverted U: backing every mens favourite is -8.5% on 444 (t -2.61), the 3-6pt band is +21.2% on 35 (t 2.07), a plain floor of 3pt is only +10.2% on 88, and the tail above 6pt that the cap removes is +3.0% on 53. A huge claimed margin on a short price usually means the head misread the match rather than found value. Best cells: -150..-200 +44.6% on 10 (t 2.93) and -100..-150 +31.5% on 8. The EV condition is load-bearing -- only 21 of the 35 band picks clear it, so without it a third of the marks would be bets MC6 itself prices as losers. READ THE SAMPLE: 35 picks, 4 forward. Replay evidence, your call.'],
+  ['🟡 MC6 4pt+ FAV · MEN -100..-200', 'mc6_fav4_m', 'MC6 rates this MENS favourite 4+ points above the de-vigged market, priced -100..-200, with no EV check and no cap. MC6 record: +12.13% on 48 (t 1.04) -- replay +17.41% on 43, forward -33.25% on 5. It is NOT the losing control it was labelled as: the -9.21% on 74 was MC2s record. In -150..-200 its uncapped tail is the weak part (6pt+ -3.46% on 18).'],
   ['🟦 s52 SEASONAL-BAND DOG · +100..+200', 's52_fav_band_dog', 'Back the market DOG at +100..+200 when the FAVOURITE owns BOTH 52-week seasonal stats, hold% and break% -- a FADE of the seasonal stat leader, not a follow. The sibling cell where the DOG owns both is only +3.40% on 129, which is what makes the direction the finding. THE ONLY CELL ON THIS BOARD CLEARING t=2: +19.80% on 183 (92-91, 50.3% hit, $+905.75, t 2.25), men +13.49% on 94 and women +26.46% on 89 (t 2.04). By band: +100..+150 is +18.11%/119 (men +17.39/66, women +19.00/53) and +150..+200 is +22.94%/64 (men +4.29/28, women +37.44/36). The lane is hard-gated to +100..+200 and that ceiling is earned -- re-run without it, +200..+250 is -14.94% on 65 and +250..+300 is -11.21% on 38. CAVEAT: the frozen window is 39 days and the rule replays inside it, so part of this record is in-sample for the rule itself.'],
   ['🟤 MC6 2pt+ DOG · MEN', 'mc6_dog2_all',
-   'MC6 two or more points over the de-vigged market on the dog -- THE MENS GATE (2026-10-16, your call). MC6s ladder runs OPPOSITE by gender, which is why men and women no longer share one: on +100..+150 men are FLAT from 0pt to 2.5pt (+38.8% at 0pt t3.42, +38.6% at 2pt t3.11) and decay above it, while women climb to 4pt. For men the whole effect is simply that MC6 rates the dog over the market AT ALL -- the size of the disagreement carries nothing, so 4pt was only trimming the sample. 2pt rather than 0pt keeps a real disagreement requirement at no measured cost. Across all bands men are +8.2% /182 at 2pt against +3.6% /160 at 4pt. READ THE SAMPLE: mostly MC6s as-of REPLAY, with 14 mens forward bets behind it.'],
+   'MC6 two or more points over the de-vigged market on the dog -- THE MENS GATE (2026-10-16). Mens record on the tab population: +8.22% on 182 (t 0.85), forward +7.22% on 27. By band: +100..+150 +38.64% on 73 (t 3.06; forward +21.64% on 14), +150..+200 -24.22% on 50, +200..+250 +12.53% on 38, +250..+300 -28.10% on 21. The mens edge lives at +100..+150 and alternates above it, which is why only two mens bands are pink. Mostly MC6 as-of REPLAY; the forward window opened 2026-10-15.'],
   ['🟤 MC6 3pt+ DOG', 'mc6_dog3_all',
-   'MC6 three or more points over the de-vigged market on the dog -- THE GATE THIS TAB NOW MARKS ON, both genders (2026-10-16, your call). Why 3pt rather than 4: MC6s ladder on +100..+150 is FLAT for men from 0pt to 2.5pt (+38.6% at 2pt, t 3.11) and decays above it, while women climb to 4pt (+15.1%). 3pt is where both genders sit near their own best, which is what makes one shared gate defensible instead of a compromise suiting neither. The card that prompted it: Kudermetova at +108, MC6 +3.74pt -- clears 3, misses 4 by a quarter point, while MC2 (+4.12), MC3 (+4.62) and MC5 (+4.01) all had her. READ THE SAMPLE: the ladder behind this is mostly MC6s as-of REPLAY, and the womens FORWARD column is negative at every rung of it. This is a call on replay evidence, not a forward-validated cell.'],
+   'MC6 three or more points over the de-vigged market on the dog -- THE WOMENS GATE (2026-10-16; men moved to 2pt the same day). Womens record on the tab population: +23.62% on 173 (t 2.21), but forward -0.82% on 34. By band: +100..+150 +12.93% on 68 (forward -19.86% on 14), +150..+200 +41.38% on 47, +200..+250 -15.70% on 27, +250..+300 +54.42% on 31. Mostly MC6 as-of REPLAY; the forward half is flat so far.'],
   ['🟤 MC6 6pt+ DOG', 'mc6_dog6_all',
-   'MC2 six or more points over the market on the dog, ANY price (2026-10-14, your ask). The forward ladder is why the bar is 6 and not 4: 3-4pt -1.9% on 27, 4-6pt -4.2% on 45, then 6-8pt +14.1% on 48 and 8pt+ +6.9% on 207. Both genders positive.'],
+   'MC6 six or more points over the de-vigged market on the dog, any price. Tab population: men +9.77% on 128 (forward +12.95% on 20), women +26.86% on 138 (t 2.19; forward -8.15% on 26). By band, men: +100..+150 +21.69%/52, +150..+200 -4.97%/34, +200..+250 +14.65%/26, +250..+300 -5.62%/16; women: +3.14%/51, +45.74%/38, -1.04%/23, +70.46%/26. (The ladder once quoted here was MC2s, not MC6s.)'],
   ['🟤 MC6 4pt+ DOG', 'mc6_dog4_all',
-   'MC2 four or more points over the market on the dog, ANY price. The 4pt sibling of the 6pt cell, added 2026-10-14 because the WOMENS ladder at +100..+150 peaks at 4pt (+13.15% on 91) and dies at 6pt (+3.07% on 68), the reverse of the mens, which climbs to 10pt. This lane feeds the womens pink mark. Its displayed record is a REPLAY of the frozen log, not a forward test -- the rule was written today.'],
+   'MC6 four or more points over the de-vigged market on the dog, any price. Tab population: men +3.63% on 160 (forward -1.64% on 25), women +27.74% on 160 (t 2.47; forward -9.34% on 29). By band, men: +100..+150 +25.59%/61, +150..+200 -15.80%/45, +200..+250 +6.50%/34, +250..+300 -24.50%/20; women: +15.07%/61, +41.27%/45, -8.96%/25, +65.07%/29. Replay-heavy. (The +13.15% on 91 once quoted here was MC2s.)'],
   ['🟤 MC2 TAKE DOG · unstamped', 'mc2_take_dog_all',
    'Your take rule at the new -6 threshold, counting every frozen row rather than only those after the rule was written. The date-stamped lane (mc2_take_dog) is the in-sample-free version and is much smaller.'],
   ['🧮³ MC3 TAKE DOG · unstamped', 'mc3_take_dog_all',
@@ -254,11 +327,11 @@ const priceOK = p => p.odds != null && p.odds <= MAX_AM
 const PINK = '#f778ba'
 const PINK_TAG = '\u{1F9E1} '
 const PINK_RULES = [
-  { lo: 100, hi: 150, g: 'm', tag: 'MC6 2pt+ M', cells: new Set(['mc6_dog2_all']), tip: 'MEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +27.48% on 48 (28-20, 58.3% hit against 45.7% needed, t 1.77). The corrected recon agrees at +7.20% on 85, and blind mens dogs in this band are +7.39% on 291, so MC2 adds about 20 points forward. THE STRONGEST of the five pink cells: the only one where the forward ROI, the recon and the blind baseline all point the same way. On the board as a whole this is the best gender x band cell there is, +22.36% on 161 at t 2.61.' },
-  { lo: 100, hi: 150, g: 'w', tag: 'MC6 3pt+ W', cells: new Set(['mc6_dog3_all']), tip: 'WOMEN, +100..+150. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +21.95% on 38 (21-17, 55.3% hit against 45.3% needed, t 1.23). Corrected recon +6.85% on 53, also positive. Blind womens dogs in this band are -8.81% on 200, so the entire edge is MC2 selecting inside a LOSING band -- real, but it dies the moment MC2 drifts. Note the womens ladder peaks at 4pt and falls to +3.07% at 6pt, the reverse of the mens, which climbs all the way to +23.27% at 10pt.' },
-  { lo: 150, hi: 200, g: 'w', tag: 'MC6 3pt+ W', cells: new Set(['mc6_dog3_all']), tip: 'WOMEN, +150..+200. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +37.73% on 30 (15-15, 50.0% hit against 36.6% needed, t 1.50), and every rung from 2pt to 6pt is about the same forward. READ THE OTHER WINDOW: the corrected recon is -10.33% on 46 and negative at every rung. Blind womens dogs in the band are +8.38% on 111, so part of this is the price rather than MC2. In on the forward rule alone. The MENS half of this band is the worst cell on the board at -25.39% forward on 36, and it is excluded from the tab entirely.' },
-  { lo: 200, hi: 250, g: 'm', tag: 'MC6 2pt+ M', cells: new Set(['mc6_dog2_all']), tip: 'MEN, +200..+250, MC2 six or more points over the de-vigged market on the dog. MOVED FROM THE 4pt GATE 2026-10-14 on your call: at 4pt this cell was +6.86% on 22 (t 0.21), the weakest pink cell on the tab; at 6pt it is +30.61% on 18 (7-11, 38.9% hit against 30.7% needed, t 0.79), against a blind band of +3.99% on 88. THE TRADE: the two windows stop agreeing. At 4pt both were positive (forward +6.86%, recon +5.51% on 39); at 6pt the forward is four times better but the corrected recon is EXACTLY FLAT, -0.00% on 35. Shipped on the forward rule. 6pt is NOT better anywhere else on the board -- the womens +100..+150 cell collapses from +21.95% to +7.77% at 6pt, the known ladder decay where women peak at 4pt and men climb.' },
-  { lo: 250, hi: 300, g: 'w', tag: 'MC6 3pt+ W', cells: new Set(['mc6_dog3_all']), tip: 'WOMEN, +250..+300. MC2 four or more points over the de-vigged market on the dog. PINK IS GATED ON THE FORWARD RECORD ONLY (your call): the frozen pre-match log decides, the corrected recon is shown for contrast and does not. Forward +47.80% on 20 (8-12, 40.0% hit against 27.0% needed, t 1.18), the best forward ROI of the five. CAVEAT: blind womens dogs in this band are ALREADY +24.24% on 51, so a large part of this is the price and not MC2, and the corrected recon half is only +4.00% on 25. Long womens dogs are the one place this log says the market is persistently wrong; MC2 sharpens that rather than creating it. The MENS half of this band is excluded from the tab: -16.11% forward on 18, against a blind baseline of -40.36% on 58 (t -2.21), the most clearly dead cell on the board.' },
+  { lo: 100, hi: 150, g: 'm', tag: 'MC6 2pt+ M', cells: new Set(['mc6_dog2_all']), tip: 'MEN, +100..+150. MC6 two or more points over the de-vigged market on the dog. MC6 record: +38.64% on 73 (46-27, t 3.06) -- replay +42.68% on 59, forward +21.64% on 14 (8-6). Blind mens dogs in this band are +14.75% on 141, and +28.55% on 20 forward -- so forward, MC6 is not yet beating simply backing every dog here. The strongest MC6 dog cell on replay; the forward half is far too small to confirm it.' },
+  { lo: 100, hi: 150, g: 'w', tag: 'MC6 3pt+ W', cells: new Set(['mc6_dog3_all']), tip: 'WOMEN, +100..+150. MC6 three or more points over the de-vigged market on the dog. MC6 record: +12.93% on 68 (35-33, t 0.96) -- replay +21.43% on 54, but FORWARD -19.86% on 14 (5-9). Blind womens dogs here are -1.96% on 162 overall and +7.40% on 35 forward. THE WEAKEST PINK CELL: its forward half is negative and below the blind band. If it is still non-positive at 25 forward settles the tab drops it automatically.' },
+  { lo: 150, hi: 200, g: 'w', tag: 'MC6 3pt+ W', cells: new Set(['mc6_dog3_all']), tip: 'WOMEN, +150..+200. MC6 three or more points over the de-vigged market on the dog. MC6 record: +41.38% on 47 (24-23, t 2.02) -- replay +49.21% on 39, forward +3.25% on 8 (3-5). Blind womens dogs here are +24.68% on 75 but -34.94% on 17 forward, so forward MC6 is well ahead of the blind band, on a tiny sample. The MENS half of this band loses for MC6 at every gate (2pt -24.22% on 50) and is off the tab.' },
+  { lo: 200, hi: 250, g: 'm', tag: 'MC6 2pt+ M', cells: new Set(['mc6_dog2_all']), tip: 'MEN, +200..+250. MC6 two or more points over the de-vigged market on the dog. MC6 record: +12.53% on 38 (13-25, t 0.49) -- replay +10.18% on 33, forward +28.00% on 5. Blind mens dogs here are +3.35% on 51. The signal is MC6 agreeing with the dog at all -- when it does NOT, the dog is -45.42% on 12 -- and margin size adds little until about 10pt. Positive but unproven: a watch mark.' },
+  { lo: 250, hi: 300, g: 'w', tag: 'MC6 3pt+ W', cells: new Set(['mc6_dog3_all']), tip: 'WOMEN, +250..+300. MC6 three or more points over the de-vigged market on the dog. MC6 record: +54.42% on 31 (13-18, t 1.64) -- replay +60.61% on 23, forward +36.62% on 8 (3-5). Blind womens dogs here are already +17.66% on 44 and +48.30% on 10 forward, so much of this is the price rather than MC6, and forward MC6 is BEHIND the blind band. The mens half is -28.10% on 21 at 2pt and is off the tab.' },
 
   // s52 SEASONAL-BAND DOG (2026-10-14, user "mark both men and women dogs +100 to +200 with ...
   // s52_fav_band_dog ... pink"). The only cell on the board clearing t=2: +19.80% on 183, t 2.25,
@@ -473,6 +546,12 @@ const genderOf = p => (/wta|itf_women/i.test(String(p.league || '')) ? 'w' : 'm'
 const MARK_CELLS = new Set([
   ...PINK_RULES.flatMap(r => [...r.cells]),
   'mc6_fav4_w', 'mc6_fav4_m',
+  // the men's 3-6pt favourite BAND (2026-10-16, user call) -- marks gold like the others
+  'mc6_fav_band_m',
+  // the women's >=6pt favourite FLOOR (2026-10-16, user call)
+  'mc6_fav6_w',
+  // the -150..-200 favourite rules (2026-10-17, user call)
+  'mc6_fav150_m', 'mc6_fav150_w',
 ])
 // these two lanes are shown one row PER PRICE BAND rather than as one blended number
 const SPLIT_BY_BAND = new Set(['mc6_dog2_all', 'mc6_dog3_all', 'mc6_dog4_all', 'mc6_dog6_all'])
@@ -542,21 +621,16 @@ const genderOK = (c, g) => {
   return (d.roi_pct || 0) > 0
 }
 
-export default function DogPicksPanel({ query }) {
-  const [rec, setRec] = useState(null)
-  const [open, setOpen] = useState(null)
-  const [mode, setMode] = useState('today')
-  const [order, setOrder] = useState('edge')   // 'edge' = best gender x band $/bet first
-  useEffect(() => {
-    const go = () => fetch('/api/tennis/track-record').then(r => r.json())
-      .then(d => setRec(d.ab25 || null)).catch(() => {})
-    go()
-    const id = setInterval(go, 120000)
-    return () => clearInterval(id)
-  }, [])
-  const st = (rec && rec.study) || {}
-  const q = (query || '').trim().toLowerCase()
+// ===================================================================== THE PICK ENGINE
+// (2026-10-17) Lifted VERBATIM out of the component so the Dog tab and the server-side
+// auto-bet bot run one code path: the component calls these, and frontend/src/
+// dogEngineEntry.js bundles this same file for Node (dist/dog_engine.cjs). Change the
+// rules here and both move together.
+export const markOf = (x) => (isFavPick(x.p)
+  ? favMarkOf(x.p, x.cells.map(c => c.key))
+  : pinkRule(x.p, x.cells.map(c => c.key)))
 
+export function buildCells(st) {
   // THE HEADLINE IS THE SHOWN GENDERS, NOT THE BLEND. A cell whose men's half is hidden must not
   // still report the men's dollars in its green number -- that is a figure for bets the tab is
   // not listing. cShown sums only the genders that pass genderOK; hidden names which one is out.
@@ -580,12 +654,15 @@ export default function DogPicksPanel({ query }) {
   }).filter(x => x.c && (x.c.n || x.picks.length))
     .flatMap(x => (SPLIT_BY_BAND.has(x.key) ? splitByBand(x) : [x]))
     .filter(x => !allGendersNegative(x.c))
+  return cells
+}
 
+export function buildStacked(cells, nowMs) {
   // TODAY: every unsettled pick, grouped by match, so a dog several cells agree on is visible
   // an unsettled pick whose match started long ago never got a result -- it is a gap in the
   // log, not an upcoming bet, so it does not belong on a picks list. Everything from six hours
   // ago onward is kept, which covers in-play matches without dragging in last week's orphans.
-  const CUTOFF = Date.now() - 6 * 3600 * 1000
+  const CUTOFF = nowMs - 6 * 3600 * 1000
   const badBG = badBandGenders(cells)          // gender x band combinations that lose forward
   const byMatch = {}
   for (const cel of cells) {
@@ -616,6 +693,123 @@ export default function DogPicksPanel({ query }) {
   }
   // live + upcoming only -- finished picks are skipped by the `p.won != null` test above
   let stacked = Object.values(byMatch)
+
+  // BOTH SIDES OF ONE MATCH (2026-10-14, user "this has the opponent of the highlighted / remove
+  // the non highlighted in these cases"). The dog cells and the favourite cells are independent,
+  // so a match can appear twice -- one head likes the dog, another likes the favourite. Printing
+  // both is worse than useless: they are opposite bets on one match, so backing the list as shown
+  // guarantees a loser.
+  //
+  // If a match has more than one entry and at least one is MARKED (pink for a dog, gold for a
+  // favourite), the unmarked entries go. If NONE is marked, or several are, both stay -- the tab
+  // has no basis for choosing between them and should not pretend otherwise.
+  //
+  // The history and the aggregates are deliberately untouched: they record what the cells did, and
+  // dropping one side of a settled pair would misstate that.
+  const sameMatchKey = (x) => [String(x.p.date || ''),
+    ...[String(x.p.pick || ''), String(x.p.opp || '')].sort()].join('|||')
+  const sides = new Map()
+  for (const x of stacked) {
+    const k = sameMatchKey(x)
+    if (!sides.has(k)) sides.set(k, [])
+    sides.get(k).push(x)
+  }
+  stacked = stacked.filter((x) => {
+    const grp = sides.get(sameMatchKey(x)) || []
+    if (grp.length < 2) return true
+    return grp.some(y => markOf(y)) ? !!markOf(x) : true
+  })
+  return stacked
+}
+
+// \u{1F916} AUTO-BET, PAPER (2026-10-17, user "automatically bet on the dog tab highlights pick on
+// Polymarket"). tennis_autobet.py runs this tab's own pick engine every 10 minutes and paper-fills
+// each pink/gold pick against Polymarket's live order book shortly before the match. This view is
+// read-only; there is no live order path anywhere in the app.
+export function AutoBetView({ auto }) {
+  if (!auto) {
+    return <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>loading the paper auto-bet record...</div>
+  }
+  const bets = auto.bets || []
+  const am = o => (o == null ? '' : (o > 0 ? '+' + o : String(o)))
+  const col = b => (b.result === 'won' ? '#3fb950' : b.result === 'lost' ? '#f85149'
+    : b.status === 'filled' ? 'var(--text)' : 'var(--text-tertiary)')
+  const label = (b) => {
+    if (b.result) return b.result.toUpperCase() + (b.pnl != null ? ' ' + usd(b.pnl) : '')
+    if (b.status === 'filled') return 'FILLED · open'
+    if (b.status === 'waiting') return 'waiting · ' + (b.last_reason || '')
+    if (b.status === 'conflict') return 'skipped · both sides marked'
+    if (b.status === 'missed') return 'missed · never at our price'
+    return b.status
+  }
+  return (
+    <div className="mono" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', padding: '8px 12px', borderRadius: 8,
+        border: '1px solid var(--line)', background: 'var(--panel)', lineHeight: 1.5 }}>
+        <b style={{ color: YELLOW }}>PAPER MODE {'—'} no real orders are placed.</b>{' '}
+        Every 10 minutes the bot takes this tab{"'"}s pink and gold picks and, in the {auto.window_min} minutes
+        before each match, buys ${auto.stake} against Polymarket{"'"}s live order book {'—'} never above the
+        price this tab judged the pick at {'—'} paying Polymarket{"'"}s sports taker fee
+        ({auto.fee_rate} {'×'} p {'×'} (1{'−'}p) per share). When both sides of one match are
+        marked, neither is bet. Settles from the same log as the lanes. Last run {auto.last_run ? fmtPT(auto.last_run) : 'never'}.
+        <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: (auto.pnl || 0) >= 0 ? '#3fb950' : '#f85149' }}>
+          {auto.settled
+            ? `${auto.wins}-${auto.settled - auto.wins} · ${usd(auto.pnl)} on $${auto.staked} staked (fees included) · ${auto.roi_pct}% ROI`
+            : 'no settled paper bets yet'}
+          <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', marginLeft: 8 }}>{auto.open} open</span>
+        </div>
+      </div>
+      {bets.map((b, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline', fontSize: 11,
+          padding: '6px 12px', borderRadius: 7, border: '1px solid var(--line)' }}>
+          <span style={{ color: 'var(--text-tertiary)', minWidth: 92 }}>{fmtPT(b.start) || b.date}</span>
+          <span style={{ color: b.kind === 'gold' ? GOLD : PINK, fontWeight: 800 }}>{b.kind === 'gold' ? '\u{1F947}' : PINK_TAG}</span>
+          <b>{b.pick}</b>
+          <span style={{ color: 'var(--text-tertiary)' }}>vs {b.opp}</span>
+          <span>tab {am(b.board_odds)}</span>
+          {b.avg_american != null ? (
+            <span>filled {am(b.avg_american)} {'·'} ${(b.cost || 0).toFixed(2)} + ${(b.fee || 0).toFixed(2)} fee</span>
+          ) : (b.last_book && b.last_book.best_ask != null ? (
+            <span style={{ color: 'var(--text-tertiary)' }}>best ask {b.last_book.best_ask} vs our limit {b.last_book.limit}</span>
+          ) : null)}
+          <span style={{ marginLeft: 'auto', fontWeight: 800, color: col(b) }}>{label(b)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function DogPicksPanel({ query }) {
+  const [rec, setRec] = useState(null)
+  const [open, setOpen] = useState(null)
+  const [mode, setMode] = useState('today')
+  const [order, setOrder] = useState('edge')   // 'edge' = best gender x band $/bet first
+  // the paper auto-bet record (2026-10-17) -- its own view, polled like the picks
+  const [auto, setAuto] = useState(null)
+  useEffect(() => {
+    const go = () => fetch('/api/tennis/autobet').then(r => r.json()).then(setAuto).catch(() => {})
+    go()
+    const id = setInterval(go, 120000)
+    return () => clearInterval(id)
+  }, [])
+  useEffect(() => {
+    const go = () => fetch('/api/tennis/track-record').then(r => r.json())
+      .then(d => setRec(d.ab25 || null)).catch(() => {})
+    go()
+    const id = setInterval(go, 120000)
+    return () => clearInterval(id)
+  }, [])
+  const st = (rec && rec.study) || {}
+  const q = (query || '').trim().toLowerCase()
+
+  const cells = buildCells(st)
+
+  // gender x band combinations that lose forward -- also computed inside buildStacked;
+  // kept here because the render prints the excluded line from it
+  const badBG = badBandGenders(cells)
+  // the pick list itself, shared with the server-side auto-bet engine. The
+  // both-sides-of-a-match dedupe now happens in there, before the search and sort.
+  let stacked = buildStacked(cells, Date.now())
   if (q) {
     stacked = stacked.filter(s => (`${s.p.pick} ${s.p.opp} ${s.p.tournament || ''}`).toLowerCase().includes(q))
   }
@@ -634,35 +828,7 @@ export default function DogPicksPanel({ query }) {
     stacked.sort(byTime)
   }
 
-  // BOTH SIDES OF ONE MATCH (2026-10-14, user "this has the opponent of the highlighted / remove
-  // the non highlighted in these cases"). The dog cells and the favourite cells are independent,
-  // so a match can appear twice -- one head likes the dog, another likes the favourite. Printing
-  // both is worse than useless: they are opposite bets on one match, so backing the list as shown
-  // guarantees a loser.
-  //
-  // If a match has more than one entry and at least one is MARKED (pink for a dog, gold for a
-  // favourite), the unmarked entries go. If NONE is marked, or several are, both stay -- the tab
-  // has no basis for choosing between them and should not pretend otherwise.
-  //
-  // The history and the aggregates are deliberately untouched: they record what the cells did, and
-  // dropping one side of a settled pair would misstate that.
-  const markOf = (x) => (isFavPick(x.p)
-    ? ((x.cells.some(c => c.key === (x.g === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m')))
-        ? favBandOf(x.p) : null)
-    : pinkRule(x.p, x.cells.map(c => c.key)))
-  const sameMatchKey = (x) => [String(x.p.date || ''),
-    ...[String(x.p.pick || ''), String(x.p.opp || '')].sort()].join('|||')
-  const sides = new Map()
-  for (const x of stacked) {
-    const k = sameMatchKey(x)
-    if (!sides.has(k)) sides.set(k, [])
-    sides.get(k).push(x)
-  }
-  stacked = stacked.filter((x) => {
-    const grp = sides.get(sameMatchKey(x)) || []
-    if (grp.length < 2) return true
-    return grp.some(y => markOf(y)) ? !!markOf(x) : true
-  })
+  // (both-sides-of-a-match dedupe: see buildStacked)
 
   // when the list spans more than one local day, each row gets its date so the order reads
   const multiDay = new Set(stacked.map(x => dayLabel(whenMs(x.p)))).size > 1
@@ -671,8 +837,7 @@ export default function DogPicksPanel({ query }) {
   // grouped by day so each day carries its own record and P/L.
   const finished = dedupe(cells, isFinished).sort((a, b) => whenMs(b) - whenMs(a))
   // the same women-only rule for the history rows
-  const favHist = (p) => histCells(p).some(
-    c => c.key === (genderOf(p) === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m')) ? favBandOf(p) : null
+  const favHist = (p) => favMarkOf(p, histCells(p).map(c => c.key))
   const histCells = (p) => cells.filter(cel => (MARK_CELLS.has(cel.key)
       || (genderOK(cel.c, genderOf(p)) && cellThick(cel.c, genderOf(p))))
     && cel.picks.some(x => x.date === p.date && x.pick === p.pick && x.opp === p.opp))
@@ -705,7 +870,7 @@ export default function DogPicksPanel({ query }) {
         with the $25 tab. <b>Read the t column, not the ROI</b>: at dog prices a 20-bet cell needs about 40 points
         of ROI to reach t=2, so a big number on a small sample is variance. Of 104 dog cells measured, 4 clear
         t=2 — roughly what 104 lanes on ~1,000 shared games produce by chance — so treat these as candidates
-        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC2 4pt+ over the market on the dog</b>, gender-specific, in the bands whose <b>forward</b> record is positive — the frozen pre-match log decides, the corrected recon is shown but does not. Five cells: <b>+100..+150</b> men +27.48%/48 (the strongest — forward, recon and blind baseline all agree) and women +21.95%/38; <b>+150..+200</b> women +37.73%/30 (recon −10.33% — forward only); <b>+200..+250</b> men at the <b>6pt</b> gate — +30.61% on 18 (t 0.79), moved up from 4pt where it was +6.86% on 22; the trade is that its corrected recon goes flat (−0.00%) where at 4pt both windows were positive; <b>+250..+300</b> women +47.80%/20, though blind dogs there are already +24.24%. Also pink: the <b>s52 seasonal-band dog</b> — back the dog when the FAVOURITE owns both 52-week hold% and break%, i.e. fade the seasonal stat leader. <b>Women +100..+200</b>; <b>men +100..+150 only</b>, the deeper men’s half held back until it has more games (+4.29% on 28, inside a band that is −6.57% on 84 deduped and already gated off the tab). The only cell on this board clearing <b>t = 2</b> (+19.80% on 183; men +13.49%/94, women +26.46%/89). Its own +200 ceiling is earned: re-run without it, +200..+250 is −14.94%/65 and +250..+300 is −11.21%/38. Also pink: the <b>c75 dog flip</b> — C75 puts the market underdog past 50% and picks it outright — <b>men at +100..+150 only</b> (+22.88% on 65, t 1.73). The men’s record collapses outside that band (−26.27% at +150..+200) and the women’s half is −23.53% at +100..+150, so neither is marked. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: GOLD }}>🥇 Gold = a FAVOURITE</b>, kept visually and numerically separate from the dogs, and gender×band on the same forward rule as pink: <b>women −100..−200</b> (both bands — +22.85% on 51, t 2.16, positive in both windows) and <b>men −100..−150 only</b> (⚠ +18.51% forward on <b>twelve</b> bets, but −30.54% on recon and pooled −13.72% against a blind band of −13.60% — a watch mark). The men’s −150..−200 half is −13.95% forward and is <b>not</b> marked. Cells under ten settled forward bets are not marked at all, which is why −200..−250 and deeper stay off. A cell whose record for that gender has <b>fewer than 25 settles</b> no longer counts — at dog prices a 12-bet cell has a standard error near 40 points, so it cannot be read — and a card left with no qualifying cell drops off this list (it still appears under <i>by cell</i>). When <b>both sides of one match</b> qualify and only one carries a mark, the unmarked side is dropped from this list — they are opposite bets, so showing both guarantees a loser (the history keeps both). <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
+        rather than settled edges. Cells overlap heavily; the dollar figures are <i>not</i> additive. Everything is ordered <b>earliest start to latest</b>, and nothing above <b>+300</b> is shown — above that price the archive runs −17% to −18% at any model margin. <b style={{ color: PINK }}>{PINK_TAG}Pink</b> = <b>MC6 over the market on the dog</b> -- <b>men at 2pt+, women at 3pt+</b> -- gender-specific, in the bands where that gender is positive. Five cells (MC6 own record, mostly as-of replay; forward opened 2026-10-15): <b>+100..+150</b> men +38.64% on 73 (t 3.06; forward +21.64% on 14) and women +12.93% on 68 (forward <b>-19.86%</b> on 14, the weakest cell); <b>+150..+200</b> women +41.38% on 47 (t 2.02); <b>+200..+250</b> men +12.53% on 38 (t 0.49, a watch mark); <b>+250..+300</b> women +54.42% on 31, though blind womens dogs there are already +17.66%. Forward, none of the five yet beats simply backing every dog in its band. Also pink: the <b>s52 seasonal-band dog</b> — back the dog when the FAVOURITE owns both 52-week hold% and break%, i.e. fade the seasonal stat leader. <b>Women +100..+200</b>; <b>men +100..+150 only</b>, the deeper men’s half held back until it has more games (+4.29% on 28, inside a band that is −6.57% on 84 deduped and already gated off the tab). The only cell on this board clearing <b>t = 2</b> (+19.80% on 183; men +13.49%/94, women +26.46%/89). Its own +200 ceiling is earned: re-run without it, +200..+250 is −14.94%/65 and +250..+300 is −11.21%/38. Also pink: the <b>c75 dog flip</b> — C75 puts the market underdog past 50% and picks it outright — <b>men at +100..+150 only</b> (+22.88% on 65, t 1.73). The men’s record collapses outside that band (−26.27% at +150..+200) and the women’s half is −23.53% at +100..+150, so neither is marked. Anything whose forward record is negative is not merely unmarked, it is <b>off the tab entirely</b> — see the excluded line below. Thresholds and gender splits were all found by scanning this same data. <b style={{ color: GOLD }}>🥇 Gold = a FAVOURITE MC6 likes</b>, kept visually and numerically separate from the dogs. <b>Every</b> MC6 favourite lane paints gold at any price (your call, 2026-10-16): the gates -- <b>women a &gt;=6pt floor</b> (+14.79% on 57, t 1.50; their favourite side climbs with the margin) and <b>men a capped 3-6pt band</b> (+32.42% on 20, t 2.41; theirs is an inverted U) -- both with <b>positive EV at the offered price</b>, plus the 4pt lanes at -100..-200 (women +11.57% on 50, men +12.13% on 48, no EV check). Gold says MC6 rates the favourite over the market, not that the rule is proven: hover the badge for which rules fired. <b>At −150..−200 only the band rules paint gold</b> (2026-10-17): men 2–8pt with positive EV (+44.80% on 12, replay) and women 6pt+ (+16.36% on 19). <b>Read the sample:</b> READ THE SAMPLE: these records are mostly MC6 as-of REPLAY. The forward window opened 2026-10-15 and holds 12 settled womens bets on the 6pt floor and 1 mens bet on the 3-6pt band, and the dog gates on this same head are negative forward (men 2pt -11.37% on 43, women 3pt -10.36% on 44). A cell whose record for that gender has <b>fewer than 25 settles</b> no longer counts — at dog prices a 12-bet cell has a standard error near 40 points, so it cannot be read — and a card left with no qualifying cell drops off this list (it still appears under <i>by cell</i>). When <b>both sides of one match</b> qualify and only one carries a mark, the unmarked side is dropped from this list — they are opposite bets, so showing both guarantees a loser (the history keeps both). <b>ITF men is excluded</b>: it is the only league with a negative dog ROI here (−26.2% on 27, against WTA +21.0%, ATP challenger +11.6%, ATP tour +11.4%, ITF women +14.4%). Per-cell ROI and t below are still full-sample.
       </div>
       {(() => {
         // DAILY RECORD + ROI and the PRICE-BAND SPLIT (2026-10-14, user asks). Both are over
@@ -764,9 +929,14 @@ export default function DogPicksPanel({ query }) {
                   fp.push([cel, p])
                 }
               }
-              const wCell = cells.find(c => c.key === 'mc6_fav4_w')
-              const mCell = cells.find(c => c.key === 'mc6_fav4_m')
-              if (!wCell && !mCell) return null
+              // the two GATES the tab marks on, then the 4pt pair as controls (2026-10-16)
+              const wCell = cells.find(c => c.key === 'mc6_fav6_w')
+              const mCell = cells.find(c => c.key === 'mc6_fav_band_m')
+              const wOld = cells.find(c => c.key === 'mc6_fav4_w')
+              const mOld = cells.find(c => c.key === 'mc6_fav4_m')
+              const m150 = cells.find(c => c.key === 'mc6_fav150_m')
+              const w150 = cells.find(c => c.key === 'mc6_fav150_w')
+              if (!wCell && !mCell && !wOld && !mOld) return null
               const bx = (cel, lab) => {
                 if (!cel) return null
                 const c = cel.c
@@ -790,20 +960,27 @@ export default function DogPicksPanel({ query }) {
               return (
                 <>
                   <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 5 }}>
-                    <span style={{ color: GOLD }}>{'🥇 −100..−200 — WOMEN'}</span>
+                    <span style={{ color: GOLD }}>{'🥇 EVERY MC6 FAVOURITE IS GOLD, AT ANY PRICE'}</span>
                     <span style={{ color: 'var(--text-tertiary)' }}>
-                      {' — FAVOURITES, separate from every dog number above. MC2 4pt+ over the market. '}
-                      {'WOMEN, both bands: combined +22.85%/51 t 2.16, positive in both windows; the halves are '}
-                      {'+22.31%/28 and +23.50%/23, 1.2 points apart, so one colour. '}
-                      {'MEN are marked at −100..−150 ONLY (⚠), added on the forward rule at +18.51% — but that is '}
-                      {'TWELVE bets over five days, its recon is −30.54%/23 and pooled it is −13.72%/35 against a '}
-                      {'blind band of −14.14%, so MC2 adds nothing there outside the forward week. The mens '}
-                      {'−150..−200 half is −13.95% forward and stays unmarked.'}
+                      {' -- FAVOURITES, separate from every dog number above. Gold means MC6 rates this '}
+                      {'favourite over the market (your call, 2026-10-16); hover the badge for which rules fired. '}
+                      {'The two GATES: WOMEN a >=6pt floor + EV, +14.79% on 57 (t 1.50); MEN a capped 3-6pt '}
+                      {'band + EV, +32.42% on 20 (t 2.41). The 4pt lanes (no EV, -100..-200) are +11.57% on 50 '}
+                      {'women and +12.13% on 48 men. The old -100..-200 price gate is gone: outside it the gates '}
+                      {'are +8.18% on 15 women and +33.07% on 12 men. '}
+                      {'AT -150..-200 ONLY THE BAND RULES PAINT GOLD (2026-10-17): MEN 2-8pt + EV (+44.80% on 12, '}
+                      {'replay) and WOMEN 6pt+ (+16.36% on 19); other MC6 favourites in that band list unmarked. '}
+                      {'Both lanes record only from 2026-10-17, so they open at n=0. '}
+                      {'READ THE SAMPLE: these records are mostly MC6 as-of REPLAY. The forward window opened 2026-10-15 and holds 12 settled womens bets on the 6pt floor and 1 mens bet on the 3-6pt band, and the dog gates on this same head are negative forward (men 2pt -11.37% on 43, women 3pt -10.36% on 44). Below -500 there is no sample.'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
-                    {bx(wCell, 'women (the take)')}
-                    {bx(mCell, 'men (control)')}
+                    {bx(wCell, 'women \u2265 6pt (the take)')}
+                    {bx(mCell, 'men 3\u20136pt (the take)')}
+                    {bx(wOld, 'women 4pt')}
+                    {bx(mOld, 'men 4pt')}
+                    {bx(m150, 'men \u2212150..\u2212200 2\u20138pt')}
+                    {bx(w150, 'women \u2212150..\u2212200 6pt+')}
                   </div>
                 </>
               )
@@ -850,9 +1027,12 @@ export default function DogPicksPanel({ query }) {
         {pill(mode === 'today', `live + upcoming (${stacked.length})`, () => setMode('today'))}
         {pill(mode === 'hist', `history (${finished.length})`, () => setMode('hist'))}
         {pill(mode === 'cells', `by cell (${cells.length})`, () => setMode('cells'))}
+        {pill(mode === 'auto', `\u{1F916} auto-bet \u00b7 paper${auto ? ` (${(auto.bets || []).length})` : ''}`, () => setMode('auto'))}
       </div>
 
-      {mode === 'today' ? (
+      {mode === 'auto' ? (
+        <AutoBetView auto={auto} />
+      ) : mode === 'today' ? (
         stacked.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div className="mono" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10,
@@ -870,11 +1050,10 @@ export default function DogPicksPanel({ query }) {
               const col = n >= 3 ? '#3fb950' : n === 2 ? '#e3b341' : 'var(--text-secondary)'
               const pr = pinkRule(s.p, s.cells.map(c => c.key))
               // a FAVOURITE pick -- yellow, and never pink, so the two can never be confused
-              // the gender's own favourite lane must be the one that fired, and favBandOf then
-              // decides whether THAT gender has a marked band at this price (men: shallow only)
-              const fb = (isFavPick(s.p)
-                && s.cells.some(c => c.key === (s.g === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m')))
-                ? favBandOf(s.p) : null
+              // no gender gate and no price gate any more: any MC6 favourite lane paints gold,
+              // and the badge tooltip names which rules fired and whether they win
+              // EVERY MC6 favourite is gold now, at any price (2026-10-16, user call)
+              const fb = isFavPick(s.p) ? favMarkOf(s.p, s.cells.map(c => c.key)) : null
               const yel = !!fb
               const br = bestRec(s)      // the card's own gender x band headline
               return (
@@ -900,16 +1079,18 @@ export default function DogPicksPanel({ query }) {
                       {n} cell{n === 1 ? '' : 's'}
                     </span>
                     {fb ? (
-                      <span title={fb.note + '  ' + ((cells.find(c => c.key === 'mc6_fav4_w') || {}).note || '')}
+                      /* this comment must be a plain block comment, not a braced
+                         JSX one, because it sits inside the parenthesised fb expression. */
+                      <span title={fb.note}
                         style={{ fontSize: 10, fontWeight: 800, color: fb.col,
                           border: '1px solid ' + fb.col + '99', borderRadius: 6, padding: '0 5px' }}>
                         {'⭐ ' + fb.tag}
                       </span>
                     ) : null}
                     {/* MC6'S VERDICT ON THE SAME BET (2026-10-16, user "make sure to show it on
-                        the dogs tab"). Same chip as the board's. The gold mark reads MC2 alone and
-                        MC2 is the only head without a form term, so where the newest head
-                        disagrees the reader sees it. Favourites only, matching the board: every
+                        the dogs tab"). Same chip as the board's. Gold now comes from MC6's own lanes
+                        (2026-10-17) and every EV-checked gold rule requires this number >= 0, so a
+                        cross can only appear where a 4pt lane (no EV check) painted the card. Favourites only, matching the board: every
                         pick carries mc6_ev, but badging every dog row too would bury the signal.
                         NOT A GATE -- nothing is hidden and no cell or record changes. */}
                     {fb && s.p.mc6_ev != null ? (
@@ -922,9 +1103,9 @@ export default function DogPicksPanel({ query }) {
                         title={`MC6 ON THIS SAME BET: ${s.p.mc6_ev >= 0 ? '+' : ''}${Math.round(1000 * s.p.mc6_ev) / 10}% EV at the OFFERED price.\n\n`
                           + `${s.p.mc6_ev >= 0
                               ? 'MC6 AGREES this is a positive-EV bet at the price offered.'
-                              : 'MC6 DISAGREES: at its number this bet LOSES money at the price offered. The gold mark reads MC2 alone, and MC2 is the only head here with no form term -- it sees a favourite on a losing run only through slow-moving Elo.'}\n\n`
-                          + `THIS IS NOT A GATE. Nothing is hidden and the mark has not changed. A veto would fire on 12% of gold marks and the vetoed half measures -18.84% on SIX bets against +13.08% on 46 for the rest -- the right direction, far too few to act on.\n\n`
-                          + `Context: MC6 is the most accurate head in the project (AUC .7071 vs MC2's .6889 on 786 matched rows, market .7096), and on favourites the cards MC6 flags while MC2 rejects are the only positive favourite cell in that comparison (+0.26% on 12) against -16.73% on 13 where both agree.`}>
+                              : 'MC6 IS OVER THE MARKET BUT NOT BY ENOUGH TO PAY THE VIG: at its own number this bet loses money at the price offered. This card is gold through a 4pt lane, which has no EV check -- the EV-checked rules (women 6pt+, men 3-6pt, the -150..-200 rules) would not have fired on it.'}\n\n`
+                          + `THIS IS NOT A GATE. Nothing is hidden and the mark has not changed; it shows MC6's own EV at the offered price beside the mark.\n\n`
+                          + `Every EV-checked gold rule already requires this number to be positive, so a cross can only appear on a card that went gold through a 4pt lane.`}>
                         {`MC6 ${s.p.mc6_ev >= 0 ? '\u2713' : '\u2717'} ${s.p.mc6_ev >= 0 ? '+' : ''}${Math.round(1000 * s.p.mc6_ev) / 10}%`}
                       </span>
                     ) : null}

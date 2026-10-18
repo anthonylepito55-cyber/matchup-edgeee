@@ -2074,7 +2074,7 @@ function HistoryPanel({ query, greenOnly = false }) {
             ) : null}
             {full ? (dayOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null), mc3: m.card.mc3 || (m.mc3 ? { p1_prob: m.mc3.p1_pct / 100, recon: !!m.mc3.recon } : null), mc5: m.card.mc5 || (m.mc5 ? { p1_prob: m.mc5.p1_pct / 100, recon: !!m.mc5.recon } : null), model_p: m.card.model_p || m.model_p || null, model_x: m.card.model_x || (m.model_x && m.model_x.p1_pct != null ? { p1_prob: m.model_x.p1_pct / 100, p2_prob: 1 - m.model_x.p1_pct / 100, market_p1: m.market_p1 != null ? m.market_p1 : null, edge_p1: m.market_p1 != null ? m.model_x.p1_pct / 100 - m.market_p1 : null, recon: !!m.model_x.recon, hit: m.model_x.hit } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
+                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null), mc3: m.card.mc3 || (m.mc3 ? { p1_prob: m.mc3.p1_pct / 100, recon: !!m.mc3.recon } : null), mc5: m.card.mc5 || (m.mc5 ? { p1_prob: m.mc5.p1_pct / 100, recon: !!m.mc5.recon } : null), mc6: m.card.mc6 || (m.mc6 ? { p1_prob: m.mc6.p1_pct / 100, recon: !!m.mc6.recon, fromLog: true, d_mc5: (m.mc5 && m.mc5.p1_pct != null && m.mc6.p1_pct != null) ? (m.mc6.p1_pct - m.mc5.p1_pct) / 100 : null } : null), model_p: m.card.model_p || m.model_p || null, model_x: m.card.model_x || (m.model_x && m.model_x.p1_pct != null ? { p1_prob: m.model_x.p1_pct / 100, p2_prob: 1 - m.model_x.p1_pct / 100, market_p1: m.market_p1 != null ? m.market_p1 : null, edge_p1: m.market_p1 != null ? m.model_x.p1_pct / 100 - m.market_p1 : null, recon: !!m.model_x.recon, hit: m.model_x.hit } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
               </div>
             ) : null) : d.matches.map((m, i) => (
               <div key={i} className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 11, flexWrap: 'wrap' }}>
@@ -2322,6 +2322,7 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                     {m.mc2 ? <> · 🧮 <span style={{ color: m.mc2.hit ? '#d2a8ff' : '#f85149', opacity: m.mc2.recon ? 0.65 : 1 }} title={m.mc2.recon ? 'walk-forward backfill (pre-match ratings only; result never used) — display-only' : "MC v2's genuine frozen pre-match read"}>{m.mc2.recon ? '~' : ''}{m.mc2.p1_pct}%{m.mc2.side === 1 ? '◀' : '▶'}{m.mc2.hit ? '✓' : '✗'}</span></> : null}
                     {m.mc3 ? <> · 🧮³ <span style={{ color: m.mc3.hit ? '#a7d8fa' : '#f85149', opacity: m.mc3.recon ? 0.65 : 1 }} title={m.mc3.recon ? 'walk-forward backfill (pre-match feature row only; result never used) — display-only' : "MC v3's genuine frozen pre-match read"}>{m.mc3.recon ? '~' : ''}{m.mc3.p1_pct}%{m.mc3.side === 1 ? '◀' : '▶'}{m.mc3.hit ? '✓' : '✗'}</span></> : null}
                     {m.mc5 ? <> · 🧮⁵ <span style={{ color: m.mc5.hit ? '#c9b3fa' : '#f85149', opacity: m.mc5.recon ? 0.65 : 1 }} title={m.mc5.recon ? 'walk-forward backfill — display-only' : "MC v5's genuine frozen pre-match read"}>{m.mc5.recon ? '~' : ''}{m.mc5.p1_pct}%{m.mc5.side === 1 ? '◀' : '▶'}{m.mc5.hit ? '✓' : '✗'}</span></> : null}
+                    {m.mc6 ? <> · 🧮⁶ <span style={{ color: m.mc6.hit ? '#fab7a7' : '#f85149', opacity: m.mc6.recon ? 0.65 : 1 }} title={m.mc6.recon ? 'walk-forward backfill — display-only' : "MC v6's genuine frozen pre-match read"}>{m.mc6.recon ? '~' : ''}{m.mc6.p1_pct}%{m.mc6.side === 1 ? '◀' : '▶'}{m.mc6.hit ? '✓' : '✗'}</span></> : null}
                     {m.model_g2 ? <> · Ⓖ² <span style={{ color: m.model_g2.cell ? (m.model_g2.cell_hit ? (m.model_g2.cell === 'DOG-FLIP' ? '#e0b341' : '#aab1b8') : '#f85149') : 'var(--text-tertiary)', opacity: m.model_g2.recon ? 0.65 : 1 }} title={m.model_g2.recon ? 'walk-forward backfill (trained only on earlier seasons; result never used) — display-only, not in the g2_* lanes' : "Model G2's genuine frozen pre-match read"}>{m.model_g2.recon ? '~' : ''}{m.model_g2.p1_pct}%{m.model_g2.side === 1 ? '◀' : '▶'}{(m.model_g2.cell ? m.model_g2.cell_hit : m.model_g2.hit) ? '✓' : '✗'}{m.model_g2.cell ? (m.model_g2.cell === 'FAV-OVER' ? ' ⬛' : ' 🟨') : ''}</span></> : null}
                     {m.model_g ? <> · Ⓖ <span style={{ color: m.model_g.cell ? (m.model_g.cell_hit ? (m.model_g.cell === 'DOG-FLIP' ? '#d29922' : '#c9d1d9') : '#f85149') : 'var(--text-tertiary)', opacity: m.model_g.recon ? 0.65 : 1 }} title={m.model_g.recon ? 'walk-forward backfill (trained only on earlier seasons; result never used) — display-only, not in the g_* lanes' : "Model G's genuine frozen pre-match read"}>{m.model_g.recon ? '~' : ''}{m.model_g.p1_pct}%{m.model_g.side === 1 ? '◀' : '▶'}{(m.model_g.cell ? m.model_g.cell_hit : m.model_g.hit) ? '✓' : '✗'}{m.model_g.cell ? (m.model_g.cell === 'FAV-OVER' ? ' ⬛' : ' 🟨') : ''}</span></> : null}
                     {m.postmortem.missed_info && m.postmortem.missed_info.length
@@ -5435,8 +5436,44 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
           {match.mc6.recon ? '~' : ''}{'\u{1F9EE}\u2076'} MC6: {match.player_1.split(' ').slice(-1)[0]} <b>{Math.round(100 * match.mc6.p1_prob)}%</b> — <b>{Math.round(100 * (1 - match.mc6.p1_prob))}%</b> {match.player_2.split(' ').slice(-1)[0]}
           <span style={{ opacity: 0.75 }}>
             {match.mc6.d_mc5 != null ? ` · ${(() => { const dd = Math.round(1000 * match.mc6.d_mc5) / 10; return (dd > 0 ? '+' : '') + dd + 'pt vs MC5' })()}` : ''}
-            {match.mc6.h2h_n ? ` · h2h ${match.mc6.h2h > 0 ? '+' : ''}${Math.round(1000 * match.mc6.h2h) / 1000} (${match.mc6.h2h_n}m, w${match.mc6.h2h_w})` : ' · no h2h'}
-            {match.mc6.sform ? ` · sform ${match.mc6.sform > 0 ? '+' : ''}${Math.round(1000 * match.mc6.sform) / 1000}` : ' · sform 0'}
+            {/* mc6 margin vs market (2026-10-16, user: "show how many points mc6 has them
+                at so i can see if i should still take them or not"). Gabriel Diallo was the case
+                -- on the board because MC2 had him +4.90pt on the dog, unmarked because MC6 had
+                only +1.62pt, under the men's 2pt gate. Without this there is no telling that
+                apart from a card MC6 has no view on. Shown on every card, marked or not. */}
+            {(() => {
+              const mkt = (mc3 && mc3.market_p1 != null) ? mc3.market_p1 : null
+              if (mkt == null || match.mc6.p1_prob == null) return null
+              const fav1 = mkt >= 0.5
+              const mkFav = fav1 ? mkt : 1 - mkt
+              const m6Fav = fav1 ? match.mc6.p1_prob : 1 - match.mc6.p1_prob
+              const over = m6Fav - mkFav
+              const onDog = over < 0
+              const pts = Math.abs(over) * 100
+              const isW = match.league === 'wta' || match.league === 'itf_women'
+              const need = onDog ? (isW ? 3 : 2) : 4
+              const ok = pts >= need
+              const who = (onDog ? (fav1 ? match.player_2 : match.player_1)
+                : (fav1 ? match.player_1 : match.player_2)).split(' ').slice(-1)[0]
+              const gate = onDog ? (isW ? "women's dogs at 3pt" : "men's dogs at 2pt")
+                : 'favourites at 4pt'
+              return (
+                <span style={{ color: ok ? '#3fb950' : '#8b949e', fontWeight: ok ? 700 : 400 }}
+                  title={'MC6 is ' + pts.toFixed(2) + ' points over the de-vigged market on '
+                    + who + ', the ' + (onDog ? 'DOG' : 'FAVOURITE') + '.\n\nThe tab marks '
+                    + gate + ', so this '
+                    + (ok ? 'CLEARS that gate.' : 'is ' + (need - pts).toFixed(2) + 'pt SHORT of it.')
+                    + '\n\n' + (ok ? 'MC6 agrees with the mark.'
+                      : 'A card can be on the board because MC2, MC3 or MC5 liked it while MC6 declines'
+                        + ' -- that is why it carries no mark. This number is here so you can see which'
+                        + ' it is rather than inferring it from the absence of colour.')}>
+                  {' \u00b7 MC6 ' + (ok ? '\u2713' : '\u2717') + ' ' + pts.toFixed(1)
+                    + 'pt ' + (onDog ? 'dog' : 'fav')}
+                </span>
+              )
+            })()}
+            {match.mc6.fromLog ? '' : (match.mc6.h2h_n ? ` · h2h ${match.mc6.h2h > 0 ? '+' : ''}${Math.round(1000 * match.mc6.h2h) / 1000} (${match.mc6.h2h_n}m, w${match.mc6.h2h_w})` : ' · no h2h')}
+            {match.mc6.fromLog ? '' : (match.mc6.sform ? ` · sform ${match.mc6.sform > 0 ? '+' : ''}${Math.round(1000 * match.mc6.sform) / 1000}` : ' · sform 0')}
             {' · watch only'}
           </span>
         </div>

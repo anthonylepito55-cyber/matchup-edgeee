@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && esbuild src/dogEngineEntry.js --bundle --platform=node --format=cjs --target=node18 --log-level=warning --outfile=dist/dog_engine.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

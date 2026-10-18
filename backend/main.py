@@ -2538,6 +2538,15 @@ def tennis_track_record():
     return d
 
 
+# AUTO-BET, PAPER MODE (2026-10-17): the Dog tab's highlights paper-filled against Polymarket's
+# live order book by tennis_autobet.py (systemd timer). Read-only view of its record; there is no
+# live order path anywhere in the app.
+@app.get("/api/tennis/autobet")
+def tennis_autobet_status():
+    import tennis_autobet
+    return tennis_autobet.summary()
+
+
 @app.get("/api/tennis/scanner-record")
 def tennis_scanner_record():
     return tennis_scanner.get_scanner_track_record()
@@ -2728,7 +2737,7 @@ def _itf_implied_sum(card: dict):
 
 # the fields worth rescuing from a twin: model heads and the stat context, which the
 # resolved-name side of a duplicate often has and the other does not
-_ITF_MERGE_FIELDS = ("mc2", "mc3", "mc5", "model_a", "model_b", "model_c", "model_d",
+_ITF_MERGE_FIELDS = ("mc2", "mc3", "mc5", "mc6", "model_a", "model_b", "model_c", "model_d",
                      "model_g", "model_g2", "model_i", "model_x", "model_p",
                      "tr_context", "gs")
 

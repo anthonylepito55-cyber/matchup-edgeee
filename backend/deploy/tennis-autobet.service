@@ -1,0 +1,16 @@
+[Unit]
+Description=Dog tab auto-bet, PAPER mode -- simulates Polymarket fills, never places an order
+After=mlb.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ec2-user
+WorkingDirectory=/home/ec2-user/mlb-predictor/backend
+# Paper is the only mode that exists; anything else makes tennis_autobet.py refuse to run.
+Environment=AUTOBET_MODE=paper
+# The dashboard password is read from mlb.service's own setting at run time, not copied here.
+ExecStart=/home/ec2-user/mlb-predictor/backend/venv/bin/python tennis_autobet.py
+Nice=10
+MemoryMax=700M
+TimeoutStartSec=300
