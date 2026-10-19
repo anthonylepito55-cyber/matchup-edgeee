@@ -81,26 +81,50 @@ def stage_state(ledger: RN.Ledger) -> dict:
 
 # ------------------------------------------------------------------ chronological stage frames
 def stage_frame(ledger: RN.Ledger, stage: str, as_of_ts: float) -> pd.DataFrame:
-    """The stage's candidate population: finalized rows (complete ISO weeks only, via the
-    committed runner rule), chronologically partitioned so NO row can belong to two evaluated
-    stages: DEV = weeks ending <= dev close as_of; TIER1 = weeks strictly after that, <= its
-    own as_of; TIER2 additionally requires start AFTER the recorded verdict timestamp."""
+    """The stage's candidate population.
+
+    A CLOSED STAGE IS FROZEN (2026-10-19 hardening): its population is the immutable
+    `membership` list recorded in that stage's `stage_closed` event and nothing else, so a
+    closed stage can never pick up a late settlement, a new source row, or anything a later
+    boundary check sees. Before the fix this re-derived from the live finalized frame and a
+    post-closure call returned 12,105 rows against the frozen 12,100 -- informational at the
+    time, because no decision path read it, but exactly the kind of drift that must not be
+    reachable at all. Closure events are never rewritten; this only changes which rows are
+    returned afterwards.
+
+    An OPEN STAGE keeps its registered boundary behaviour unchanged: finalized rows (complete
+    ISO weeks only, via the committed runner rule), chronologically partitioned so NO row can
+    belong to two evaluated stages -- DEV = weeks ending <= dev close as_of; TIER1 = weeks
+    strictly after that, <= its own as_of; TIER2 additionally requires start AFTER the recorded
+    verdict timestamp."""
     st = stage_state(ledger)
+    if stage in st["closed"]:
+        rec = st["closed"][stage]
+        frozen = [str(f) for f in (rec.get("membership") or [])]
+        # rows are read as of the CLOSURE's own as_of, then restricted to the frozen ids
+        src = RN.finalized_frame(ledger, float(rec["as_of_ts"]))
+        if not len(src):
+            if frozen:
+                raise StageError("%s closed with %d frozen members but no source rows are "
+                                 "reproducible -- integrity review required" % (stage, len(frozen)))
+            return src
+        out = src[src["fixture_id"].astype(str).isin(set(frozen))]
+        if len(out) != len(frozen):
+            raise StageError("%s frozen membership is not reproducible: %d of %d members "
+                             "found -- integrity review required, nothing was rewritten"
+                             % (stage, len(out), len(frozen)))
+        return out.reset_index(drop=True)
     fin = RN.finalized_frame(ledger, as_of_ts)
     if not len(fin):
         return fin
     wk_end = fin["start"].apply(_week_end_ts)
     if stage == "DEV":
-        if "DEV" in st["closed"]:
-            fin = fin[wk_end <= st["closed"]["DEV"]["as_of_ts"]]
         return fin.reset_index(drop=True)
     if "DEV" not in st["closed"]:
         raise StageError("TIER frames do not exist before DEV closes")
     fin = fin[wk_end > st["closed"]["DEV"]["as_of_ts"]]
     wk_end = fin["start"].apply(_week_end_ts)
     if stage == "TIER1":
-        if "TIER1" in st["closed"]:
-            fin = fin[wk_end <= st["closed"]["TIER1"]["as_of_ts"]]
         return fin.reset_index(drop=True)
     if stage == "TIER2":
         if "TIER1" not in st["closed"]:
@@ -111,8 +135,6 @@ def stage_frame(ledger: RN.Ledger, stage: str, as_of_ts: float) -> pd.DataFrame:
                              "document is recorded (registered rule)")
         starts = fin["start"].apply(lambda t: t.timestamp())
         fin = fin[starts > float(st["verdict"]["verdict_ts"])]
-        if "TIER2" in fin and "TIER2" in st["closed"]:
-            pass
         return fin.reset_index(drop=True)
     raise StageError("unknown stage %r" % stage)
 
@@ -222,9 +244,29 @@ def record_verdict(ledger: RN.Ledger, verdict_inputs: dict, authorization: str,
     return p
 
 
-def record_final(ledger: RN.Ledger, result: str, authorization: str, now_ts: float) -> dict:
-    """Record the authorized final experiment state: COMPLETE or TERMINATED. Requires TIER2
-    closed (or an explicit owner termination authorization at any point)."""
+def verdict_ref(ledger: RN.Ledger):
+    """The auditable reference to the recorded verdict: the content hash of its ledger event
+    (tamper-evident, since the loader recomputes every hash). None when no verdict exists."""
+    vs = ledger.events("verdict_recorded")
+    return vs[-1]["hash"] if vs else None
+
+
+def record_final(ledger: RN.Ledger, result: str, authorization: str, now_ts: float,
+                 ref: str | None = None) -> dict:
+    """Record the authorized final experiment state: COMPLETE or TERMINATED.
+
+    VERDICT PROVENANCE (2026-10-19 hardening): the final event now carries `verdict_ref`, the
+    content hash of the `verdict_recorded` event it belongs to, so the gate results behind a
+    final state are always reachable and tamper-evident through the append-only ledger. A
+    missing, unparseable or non-matching reference is REFUSED rather than recorded.
+
+    COMPLETE MEANS THE REGISTERED STAGES ALL RAN TO CLOSURE. It does NOT mean the predictive
+    gates passed, and the event says so explicitly (`means_gates_passed: False`): the gate
+    booleans live only in the referenced verdict event, recorded there from authorized inputs
+    and never computed by this module.
+
+    TERMINATED needs a reference only if a verdict exists; an early termination before any
+    verdict records `verdict_ref: None`."""
     st = stage_state(ledger)
     if result not in ("COMPLETE", "TERMINATED"):
         raise StageError("final result must be COMPLETE or TERMINATED")
@@ -232,6 +274,23 @@ def record_final(ledger: RN.Ledger, result: str, authorization: str, now_ts: flo
         raise StageError("COMPLETE requires TIER2 closed — pending")
     if not authorization:
         raise StageError("missing owner authorization — pending")
-    p = {"result": result, "authorization": str(authorization)}
+    have = verdict_ref(ledger)
+    if result == "COMPLETE" and have is None:
+        raise StageError("COMPLETE requires a recorded verdict to reference — pending")
+    if have is not None:
+        if not ref or not isinstance(ref, str):
+            raise StageError("missing verdict reference — pending (expected the "
+                             "verdict_recorded event's content hash)")
+        if ref != have:
+            raise StageError("inconsistent verdict reference: does not match the recorded "
+                             "verdict event — refused, nothing written")
+    elif ref:
+        raise StageError("verdict reference supplied but no verdict is recorded — refused")
+    p = {"result": result, "authorization": str(authorization), "verdict_ref": have,
+         "verdict_ts": (st["verdict"] or {}).get("verdict_ts"),
+         "means_gates_passed": False,
+         "note": ("COMPLETE/TERMINATED is a procedural state: every registered stage closed "
+                  "(or the owner stopped the experiment). The statistical gate results are in "
+                  "the referenced verdict_recorded event and are not restated here.")}
     ledger.append("experiment_final", p, now_ts)
     return p

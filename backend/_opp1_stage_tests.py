@@ -200,13 +200,54 @@ dt2 = SG.record_stage_decision(L, "TIER2", ART, AS3,
                                {"V_clust_H1": 1.0, "V_iid_H1": 1.0,
                                 "V_clust_H2": 1.0, "V_iid_H2": 1.0}, "auth-t2", 14.0)
 check("tier2: closes under the registered rules", rt2["eligible"] and dt2["closed"])
+VREF = SG.verdict_ref(L)
 try:
-    SG.record_final(L, "COMPLETE", "", 15.0)
+    SG.record_final(L, "COMPLETE", "", 15.0, VREF)
     check("final: missing authorization refused", False)
 except SG.StageError:
     check("final: missing authorization refused", True)
-SG.record_final(L, "COMPLETE", "auth-final", 15.0)
-check("final: authorized COMPLETE recorded", SG.stage_state(L)["stage"] == "COMPLETE")
+# ---- FINAL-VERDICT PROVENANCE (2026-10-19 hardening) ----
+for bad, label in ((None, "missing"), ("", "empty"), (12345, "non-string"),
+                   ("deadbeef" * 8, "non-matching")):
+    try:
+        SG.record_final(L, "COMPLETE", "auth-final", 15.0, bad)
+        check("final provenance: %s verdict reference refused" % label, False)
+    except SG.StageError:
+        check("final provenance: %s verdict reference refused" % label, True)
+check("final provenance: the reference IS the verdict event's content hash",
+      VREF == [e for e in L.events("verdict_recorded")][-1]["hash"] and len(VREF) == 64)
+fin_p = SG.record_final(L, "COMPLETE", "auth-final", 15.0, VREF)
+check("final: authorized COMPLETE recorded with provenance, and COMPLETE never implies the "
+      "gates passed",
+      SG.stage_state(L)["stage"] == "COMPLETE" and fin_p["verdict_ref"] == VREF
+      and fin_p["means_gates_passed"] is False
+      and "h1_dev_pass" not in str(fin_p))
+check("final provenance: gate booleans stay ONLY in the referenced verdict event",
+      [e for e in L.events("verdict_recorded")][-1]["payload"]["inputs"]["h1_dev_pass"] is True)
+
+# ---- FROZEN MEMBERSHIP REGRESSION: the 12,100 vs 12,105 case (2026-10-19) ----
+# Before the fix, stage_frame('DEV') re-derived from the live finalized frame after closure, so
+# five late-settling dev-window rows turned 12,100 into 12,105. It must now return exactly the
+# ids frozen in the stage_closed event, however many times it is called.
+DEV_CLOSED = SG.stage_state(L)["closed"]["DEV"]
+frozen_ids = list(DEV_CLOSED["membership"])
+ALL = pd.concat([ALL, frame(5, 10, 1, prefix="LATE2")], ignore_index=True)   # late dev-window
+ALL = pd.concat([ALL, frame(400, 44, 8, prefix="FUT2")], ignore_index=True)  # new later rows
+f1 = SG.stage_frame(L, "DEV", AS1)
+f2 = SG.stage_frame(L, "DEV", (BASE + pd.Timedelta(weeks=80)).timestamp())
+check("frozen membership: closed DEV returns exactly the 12,100 frozen ids, not 12,105",
+      len(f1) == 12100 == len(frozen_ids) and sorted(f1["fixture_id"].astype(str)) == sorted(frozen_ids))
+check("frozen membership: repeated calls at ANY later as_of return the identical population",
+      len(f2) == 12100 and sorted(f2["fixture_id"].astype(str)) == sorted(f1["fixture_id"].astype(str)))
+check("frozen membership: no LATE/FUT row can enter a closed stage",
+      not any(str(f).startswith(("LATE", "FUT")) for f in f1["fixture_id"])
+      and not any(str(f).startswith(("LATE", "FUT")) for f in f2["fixture_id"]))
+check("frozen membership: the closure event itself was not rewritten",
+      SG.stage_state(L)["closed"]["DEV"]["membership"] == frozen_ids)
+_t1f = SG.stage_frame(L, "TIER1", (BASE + pd.Timedelta(weeks=80)).timestamp())
+check("frozen membership: DEV / TIER1 / TIER2 stay chronologically disjoint after the fix",
+      not (set(_t1f["fixture_id"].astype(str)) & set(frozen_ids))
+      and not any(str(f).startswith("LATE") for f in _t1f["fixture_id"]))
 
 # restart determinism
 snap = SG.stage_state(L)
