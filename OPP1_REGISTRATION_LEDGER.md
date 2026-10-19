@@ -24,3 +24,15 @@ Prior versions (never registered, no alpha spent): v2 (OPP1_MARKET_PATH_SPEC.md,
 sha256 309f6c7e15f6c80a9cdbd75ca457a91547372af2be4ab0a63c9b8e0580328c86, frozen original,
 Phase-0 coverage gates failed pre-outcome); v3.0-v3.4 (superseded proposal texts; v3.4 preserved
 in OPP1_SPEC_V3_PROPOSAL.md, sha256 9badaac529cf27117df1f38970c11f00def04b94a83401daad8cc7c683bd5422).
+
+## Entry 1a — Implementation addendum to OPP1 v3.5 (registered 2026-10-19)
+
+- **File:** OPP1_IMPLEMENTATION_ADDENDUM.md (sha256 a13abe5009daae637b23817aa3322e3ccf610b284c389447cedb4cd035ae8db0)
+- **Scope:** three owner-ratified implementation rules — A-O1 dev/tier membership by scheduled
+  start_date >= 2026-10-20T00:00:00Z (disclosed deviation: no completion timestamp exists in any
+  source; conservative operational proxy; Oct 11-19 exposure exclusion remains separate and
+  independently enforced; timestamp validation with no silent coercion), A-O2 frozen-only MC2
+  (mc2_recon rows take the missing-value path), A-O3 ambiguous linkage = unlinked/excluded,
+  reported separately.
+- **Changes to the registered v3.5 bytes, hypotheses, gates, thresholds, floors, key, seed, or
+  clock: NONE.**
