@@ -779,6 +779,63 @@ export function AutoBetView({ auto }) {
   )
 }
 
+// \U0001F6F0 PHASE 5 LEAD-LAG PAPER EXPERIMENT (2026-10-18): read-only status of the
+// pre-registered Pinnacle lead-lag test. PAPER ONLY -- no order path exists anywhere.
+function LeadLagView({ ll }) {
+  if (!ll) return <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>loading lead-lag status...</div>
+  const oc = ll.by_outcome || {}
+  return (
+    <div className="mono" style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11 }}>
+      <div style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel)', lineHeight: 1.55 }}>
+        <b style={{ color: '#a7d8fa' }}>PAPER EXPERIMENT {'—'} PHASE5_LEADLAG_EXPERIMENT_PLAN.md.</b>{' '}
+        Takes the stale Kalshi/Polymarket top-of-book within seconds of a qualifying Pinnacle move; success is
+        pre-registered (200+ fills, CLV {'≥'} +1.5pp t{'≥'}3, net paper ROI {'>'} 0, then an equal Period B).
+        Config <b>{ll.config_sha}</b> {'·'} burst {ll.burst_enabled ? 'ON' : 'off'} {'·'} {' '}
+        {ll.period_A_start
+          ? <b style={{ color: '#3fb950' }}>Period A running since {String(ll.period_A_start_iso || ll.period_A_start).slice(0, 16)}</b>
+          : <b style={{ color: '#e3b341' }}>AWAITING READINESS {'—'} no signals are being recorded</b>}
+      </div>
+      <div style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
+        signals {ll.signals || 0}
+        {Object.keys(oc).length ? ' · ' + Object.entries(oc).map(([k, v]) => k + ' ' + v).join(' · ') : ''}
+        {ll.fills != null ? <> {'·'} fills <b>{ll.fills}</b> (size-unknown {ll.fills_size_unknown || 0}) {'·'} settled {ll.settled || 0} {'·'} pending {ll.pending || 0}</> : null}
+        {ll.roi_pct != null ? <> {'·'} P/L <b style={{ color: (ll.pnl_usd || 0) >= 0 ? '#3fb950' : '#f85149' }}>${ll.pnl_usd} ({ll.roi_pct}%)</b></> : null}
+        {ll.clv_mean_pp != null ? <> {'·'} CLV <b>{ll.clv_mean_pp}pp</b> (n{ll.clv_n}{ll.clv_t != null ? ', t ' + ll.clv_t : ''})</> : null}
+        {ll.adjust_latency_s ? <> {'·'} venue adjust latency median {ll.adjust_latency_s.median}s p90 {ll.adjust_latency_s.p90}s (n{ll.adjust_latency_s.n})</> : null}
+        {ll.fill_rate_pct != null ? <> {'·'} fill rate <b>{ll.fill_rate_pct}%</b> of all signals ({ll.fill_rate_of_evaluable_pct}% of evaluable)</> : null}
+        {ll.theoretical_edge_pp_mean != null ? <> {'·'} theoretical edge at fill {ll.theoretical_edge_pp_mean}pp</> : null}
+        {ll.ts_questionable ? <> {'·'} ts-questionable: no-stamp {ll.ts_questionable.no_venue_stamp}, neg-age {ll.ts_questionable.negative_quote_age}</> : null}
+      </div>
+      {(ll.recent || []).slice().reverse().map((r, i) => {
+        // full audit chain per signal (Phase 5 approval item 3): every timestamp separately,
+        // prices, fee+slippage-inclusive effective price, settlement and CLV where present
+        const ts = (x) => (x == null ? '—' : new Date(1000 * x).toISOString().slice(11, 19))
+        return (
+          <div key={i} style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--line)', color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <span>{r.matchup}</span><span style={{ color: 'var(--text-tertiary)' }}>{r.league} · {r.venue}</span>
+              <span>{'+' + Math.round(10 * r.move_pp) / 10}pp ({Math.round(100 * r.fair_pre)}→{Math.round(100 * r.fair_post)}%)</span>
+              <span style={{ marginLeft: 'auto', fontWeight: 700,
+                color: r.outcome === 'filled' || r.outcome === 'partial' ? '#3fb950' : r.won === false ? '#f85149' : 'var(--text-tertiary)' }}>
+                {r.outcome}{r.fill_price_am != null && (r.outcome === 'filled' || r.outcome === 'partial') ? ' @ ' + r.fill_price_am : ''}
+                {r.pnl_usd != null ? ' · $' + Math.round(100 * r.pnl_usd) / 100 : ''}
+              </span>
+            </div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-tertiary)', marginTop: 2 }}>
+              move {ts(r.src_move_ts)} → recv {ts(r.recv_ts)} → decide {ts(r.decision_ts)} → obs {ts(r.fill_obs_ts)}
+              {r.quote_age_s != null ? ' · quote age ' + Math.round(10 * r.quote_age_s) / 10 + 's' : ' · quote age —'}
+              {r.pre_prob != null ? ' · pre ' + Math.round(1000 * r.pre_prob) / 10 + '%' : ''}
+              {r.eff_prob != null ? ' · eff ' + Math.round(1000 * r.eff_prob) / 10 + '% (fee ' + Math.round(10 * (r.fee_pp || 0)) / 10 + 'pp + slip)' : ''}
+              {r.clv_pp != null ? ' · CLV ' + Math.round(100 * r.clv_pp) / 100 + 'pp' : ''}
+              {r.note ? ' · ' + r.note : ''}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function DogPicksPanel({ query }) {
   const [rec, setRec] = useState(null)
   const [open, setOpen] = useState(null)
@@ -788,6 +845,14 @@ export default function DogPicksPanel({ query }) {
   const [auto, setAuto] = useState(null)
   useEffect(() => {
     const go = () => fetch('/api/tennis/autobet').then(r => r.json()).then(setAuto).catch(() => {})
+    go()
+    const id = setInterval(go, 120000)
+    return () => clearInterval(id)
+  }, [])
+  // Phase 5 lead-lag paper experiment status (2026-10-18), read-only
+  const [ll, setLl] = useState(null)
+  useEffect(() => {
+    const go = () => fetch('/api/tennis/leadlag').then(r => r.json()).then(setLl).catch(() => {})
     go()
     const id = setInterval(go, 120000)
     return () => clearInterval(id)
@@ -1028,9 +1093,12 @@ export default function DogPicksPanel({ query }) {
         {pill(mode === 'hist', `history (${finished.length})`, () => setMode('hist'))}
         {pill(mode === 'cells', `by cell (${cells.length})`, () => setMode('cells'))}
         {pill(mode === 'auto', `\u{1F916} auto-bet \u00b7 paper${auto ? ` (${(auto.bets || []).length})` : ''}`, () => setMode('auto'))}
+        {pill(mode === 'leadlag', `\u{1F6F0}\uFE0F lead-lag${ll && ll.fills != null ? ` (${ll.fills})` : ''}`, () => setMode('leadlag'))}
       </div>
 
-      {mode === 'auto' ? (
+      {mode === 'leadlag' ? (
+        <LeadLagView ll={ll} />
+      ) : mode === 'auto' ? (
         <AutoBetView auto={auto} />
       ) : mode === 'today' ? (
         stacked.length ? (

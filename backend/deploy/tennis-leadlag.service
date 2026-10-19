@@ -1,0 +1,12 @@
+[Unit]
+Description=Phase 5 lead-lag PAPER experiment -- reads oo_feed snapshots, simulates fills, no orders
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ec2-user
+WorkingDirectory=/home/ec2-user/mlb-predictor/backend
+ExecStart=/home/ec2-user/mlb-predictor/backend/venv/bin/python tennis_leadlag.py
+Nice=10
+MemoryMax=900M
+TimeoutStartSec=240

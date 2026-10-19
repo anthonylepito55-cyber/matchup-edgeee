@@ -2547,6 +2547,14 @@ def tennis_autobet_status():
     return tennis_autobet.summary()
 
 
+# PHASE 5 lead-lag paper experiment (2026-10-18): read-only status of the pre-registered
+# Pinnacle lead-lag test (PHASE5_LEADLAG_EXPERIMENT_PLAN.md). No order path exists.
+@app.get("/api/tennis/leadlag")
+def tennis_leadlag_status():
+    import tennis_leadlag
+    return tennis_leadlag.summary()
+
+
 @app.get("/api/tennis/scanner-record")
 def tennis_scanner_record():
     return tennis_scanner.get_scanner_track_record()

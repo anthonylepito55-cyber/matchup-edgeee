@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the lead-lag paper engine every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=20s
+
+[Install]
+WantedBy=timers.target

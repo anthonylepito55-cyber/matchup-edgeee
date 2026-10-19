@@ -1,0 +1,17 @@
+[Unit]
+Description=Phase 5 burst observation plane -- 3s tennis poller, paper only, exits hourly
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/mlb-predictor/backend
+ExecStart=/home/ec2-user/mlb-predictor/backend/venv/bin/python tennis_leadlag.py --burst
+Restart=always
+RestartSec=20
+Nice=5
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target
