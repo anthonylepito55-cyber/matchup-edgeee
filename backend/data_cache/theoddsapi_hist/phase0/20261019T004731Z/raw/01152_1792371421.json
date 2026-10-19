@@ -1,0 +1,1 @@
+{"seq": 1152, "requested_at": 1792371421.3760011, "path": "/historical/sports/tennis_wta_singapore_open/events", "params": {"date": "2024-08-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12672821.0, "x_used": "2327179", "session_used": 684.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-09-20T15:00:36Z", "data": []}}

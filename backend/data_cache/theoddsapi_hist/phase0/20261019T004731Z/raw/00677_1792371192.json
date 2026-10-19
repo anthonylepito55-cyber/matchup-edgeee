@@ -1,0 +1,1 @@
+{"seq": 677, "requested_at": 1792371192.1778975, "path": "/historical/sports/tennis_wta_bad_homburg_open/events", "params": {"date": "2024-09-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673069.0, "x_used": "2326931", "session_used": 436.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-06-21T12:35:37Z", "data": []}}

@@ -1,0 +1,1 @@
+{"seq": 749, "requested_at": 1792371226.594789, "path": "/historical/sports/tennis_wta_charleston_open/events", "params": {"date": "2026-01-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673038.0, "x_used": "2326962", "session_used": 467.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-03-30T07:00:37Z", "data": []}}

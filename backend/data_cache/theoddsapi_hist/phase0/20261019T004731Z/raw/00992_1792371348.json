@@ -1,0 +1,1 @@
+{"seq": 992, "requested_at": 1792371348.848308, "path": "/historical/sports/tennis_wta_madrid_open/events", "params": {"date": "2025-04-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12672886.0, "x_used": "2327114", "session_used": 619.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2025-04-22T05:55:38Z", "data": []}}

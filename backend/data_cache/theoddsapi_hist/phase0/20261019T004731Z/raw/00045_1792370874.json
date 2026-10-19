@@ -1,0 +1,1 @@
+{"seq": 45, "requested_at": 1792370874.3295782, "path": "/historical/sports/tennis_atp_barcelona_open/events", "params": {"date": "2025-09-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673476.0, "x_used": "2326524", "session_used": 29.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-04-13T13:05:37Z", "data": []}}

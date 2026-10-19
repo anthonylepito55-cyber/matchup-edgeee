@@ -1,0 +1,1 @@
+{"seq": 59, "requested_at": 1792370880.6964188, "path": "/historical/sports/tennis_atp_canadian_open/events", "params": {"date": "2024-07-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673469.0, "x_used": "2326531", "session_used": 36.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2024-08-06T04:10:38Z", "data": []}}

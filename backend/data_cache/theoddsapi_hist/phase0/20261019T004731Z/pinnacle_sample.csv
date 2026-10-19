@@ -1,0 +1,37 @@
+half,week,sport_key,event,commence,home,away,t_star_req,pin_two_way,pin_fresh,pin_last_update,err,all_region_books
+2024H2,2024-W28,tennis_atp_wimbledon,518c8120c105c1b641234b9be88fb735,2024-07-10T13:53:00Z,Lorenzo Musetti,Taylor Fritz,2024-07-10T13:08:00Z,True,True,2024-07-10T13:04:34Z,,
+2024H2,2024-W28,tennis_atp_wimbledon,3cb53f410d03f2541dce3560e6f57f47,2024-07-11T09:00:00Z,Daniil Medvedev,Carlos Alcaraz,2024-07-11T08:15:00Z,True,True,2024-07-11T08:09:37Z,,
+2024H2,2024-W34,tennis_atp_cincinnati_open,99b8ee8d5ce0ed4c949cbc6788e4b47a,2024-08-19T22:13:35Z,Jannik Sinner,Frances Tiafoe,2024-08-19T21:28:35Z,True,True,2024-08-19T21:23:59Z,,
+2024H2,2024-W39,tennis_wta_us_open,1ea297ad2ccd452bce16ac1cd2f8d079,2024-09-25T04:30:00Z,Yuliia Starodubtseva,Laura Siegemund,2024-09-25T03:45:00Z,False,False,,,
+2024H2,2024-W39,tennis_wta_us_open,cc53dfb13c71fa8671308e31c19a9c0a,2024-09-25T04:30:00Z,Martina Trevisan,Taylor Townsend,2024-09-25T03:45:00Z,False,False,,,
+2024H2,2024-W41,tennis_atp_shanghai_masters,c44a7093d00026a7bb911daf02317b33,2024-10-09T09:36:00Z,Jakub Mensik,Grigor Dimitrov,2024-10-09T08:51:00Z,True,True,2024-10-09T08:49:54Z,,
+2024H2,2024-W41,tennis_atp_shanghai_masters,091455f522c82ee89c580b8c059d7dcc,2024-10-09T10:33:00Z,Roman Safiullin,Novak Djokovic,2024-10-09T09:48:00Z,True,True,2024-10-09T09:45:12Z,,
+2025H1,2025-W03,tennis_atp_aus_open_singles,2dfc4a929666bf2b2d6198facaddbc9c,2025-01-15T06:25:00Z,Arthur Cazaux,Jacob Fearnley,2025-01-15T05:40:00Z,True,True,2025-01-15T05:34:52Z,,
+2025H1,2025-W03,tennis_atp_aus_open_singles,c8285d558d3988ab9d03980b44ee6829,2025-01-15T08:15:00Z,Jack Draper,Thanasi Kokkinakis,2025-01-15T07:30:00Z,True,True,2025-01-15T07:25:00Z,,
+2025H1,2025-W08,tennis_atp_qatar_open,770a459c923efc8be27a5fb02b71f4ac,2025-02-19T11:35:00Z,Botic van de Zandschulp,Alex de Minaur,2025-02-19T10:50:00Z,True,True,2025-02-19T10:44:18Z,,
+2025H1,2025-W08,tennis_atp_qatar_open,f3521b2799bdc4eadb291a33f7704ce6,2025-02-19T13:00:00Z,Andrey Rublev,Nuno Borges,2025-02-19T12:15:00Z,True,True,2025-02-19T12:09:32Z,,
+2025H1,2025-W13,tennis_wta_miami_open,036d3bd02dfa7d5f057533c36a5a12eb,2025-03-26T17:00:00Z,Alexandra Eala,Iga Swiatek,2025-03-26T16:15:00Z,True,True,2025-03-26T16:10:30Z,,
+2025H1,2025-W13,tennis_wta_miami_open,aa7d1cfc26ec748b8e88702904865d6c,2025-03-26T23:00:00Z,Emma Raducanu,Jessica Pegula,2025-03-26T22:15:00Z,True,True,2025-03-26T22:09:16Z,,
+2025H1,2025-W18,tennis_atp_madrid_open,16b74ef534a56e80a8783b5f5d7f3f9e,2025-04-30T11:06:00Z,Frances Tiafoe,Matteo Arnaldi,2025-04-30T10:21:00Z,True,True,2025-04-30T10:20:22Z,,
+2025H1,2025-W18,tennis_atp_madrid_open,60789ad5edfbda8b374a8ae647c867e3,2025-04-30T14:00:00Z,Jack Draper,Tommy Paul,2025-04-30T13:15:00Z,True,True,2025-04-30T13:09:27Z,,
+2025H2,2025-W28,tennis_atp_wimbledon,7d5009f2ad8f82e584b16018a3d1e955,2025-07-09T13:40:00Z,Flavio Cobolli,Novak Djokovic,2025-07-09T12:55:00Z,True,True,2025-07-09T12:50:30Z,,
+2025H2,2025-W28,tennis_atp_wimbledon,bcc202e9803bc07e2f4dbca648ff8f3a,2025-07-09T13:47:00Z,Jannik Sinner,Ben Shelton,2025-07-09T13:02:00Z,True,True,2025-07-09T13:00:15Z,,
+2025H2,2025-W32,tennis_atp_canadian_open,d92a993c229eac6c93b19a2ec92f8d0a,2025-08-06T23:00:00Z,Alexander Zverev,Karen Khachanov,2025-08-06T22:15:00Z,True,True,2025-08-06T22:09:30Z,,
+2025H2,2025-W32,tennis_atp_canadian_open,f0eba01e7cdf0af581c735a4632710c8,2025-08-07T00:10:00Z,Ben Shelton,Taylor Fritz,2025-08-06T23:25:00Z,True,True,2025-08-06T23:19:52Z,,
+2025H2,2025-W34,tennis_atp_cincinnati_open,5f096e46a3e2cc5b4295a56934b623ab,2025-08-18T19:11:00Z,Jannik Sinner,Carlos Alcaraz,2025-08-18T18:26:00Z,True,True,2025-08-18T18:24:16Z,,
+2025H2,2025-W40,tennis_atp_china_open,0268e7ed4e934213c8ca8e881ef3a236,2025-10-01T06:11:00Z,Jannik Sinner,Learner Tien,2025-10-01T05:26:00Z,False,False,,,
+2026H1,2026-W03,tennis_atp_aus_open_singles,d4476718f3c9e16b6f06efe37fc9d5ef,2026-01-15T00:00:00Z,Dino Prizmic,Arthur Fery,2026-01-14T23:15:00Z,True,True,2026-01-14T23:10:09Z,,
+2026H1,2026-W03,tennis_atp_aus_open_singles,5098154a03e458ad9c0d9c93bf90b40b,2026-01-15T00:00:00Z,Stefano Travaglia,Dane Sweeny,2026-01-14T23:15:00Z,True,True,2026-01-14T23:10:09Z,,
+2026H1,2026-W09,tennis_atp_dubai,75ae20ff9e474caff3300d0bc55bb8bc,2026-02-25T10:15:00Z,Jenson Brooksby,Karen Khachanov,2026-02-25T09:30:00Z,True,True,2026-02-25T09:25:29Z,,
+2026H1,2026-W09,tennis_atp_dubai,39383369cc221af9dd5a7598d42ce62f,2026-02-25T12:00:00Z,Felix Auger-Aliassime,Giovanni Mpetshi Perricard,2026-02-25T11:15:00Z,True,True,2026-02-25T11:10:36Z,,
+2026H1,2026-W15,tennis_atp_monte_carlo_masters,09be75f3c15eb5ebadfd67d73bc12e20,2026-04-08T09:10:00Z,Jiri Lehecka,Alejandro Tabilo,2026-04-08T08:25:00Z,True,True,2026-04-08T08:20:21Z,,
+2026H1,2026-W15,tennis_atp_monte_carlo_masters,488cd3d8f0a4a3749093f3c9ecba4e65,2026-04-08T10:24:00Z,Cristian Garin,Alexander Zverev,2026-04-08T09:39:00Z,True,True,2026-04-08T09:35:17Z,,
+2026H1,2026-W21,tennis_atp_hamburg_open,64e3dd4b1edf95842687deaa01857af1,2026-05-20T10:00:00Z,Felix Auger-Aliassime,Aleksandar Kovacevic,2026-05-20T09:15:00Z,True,True,2026-05-20T09:10:24Z,,
+2026H1,2026-W21,tennis_atp_hamburg_open,17cf7e32dec49de5e303eef3c87e15fa,2026-05-20T11:00:00Z,Ignacio Buse,Jakub Mensik,2026-05-20T10:15:00Z,True,True,2026-05-20T10:10:18Z,,
+2026H2,2026-W28,tennis_atp_wimbledon,b0b9cf08523f2d1226ac4bf525ae0439,2026-07-08T13:10:00Z,Taylor Fritz,Alexander Zverev,2026-07-08T12:25:00Z,True,True,2026-07-08T12:20:34Z,,
+2026H2,2026-W28,tennis_atp_wimbledon,dddbd0f0e0bfc925a35cef4b17f733a8,2026-07-08T13:40:00Z,Flavio Cobolli,Arthur Fery,2026-07-08T12:55:00Z,True,True,2026-07-08T12:50:33Z,,
+2026H2,2026-W32,tennis_atp_washington_open,b84705609fe51f48fa0406f2661aec1e,2026-08-03T17:47:14Z,Taylor Fritz,Rafael Jodar,2026-08-03T17:02:14Z,True,True,2026-08-03T16:59:57Z,,49.0
+2026H2,2026-W34,tennis_atp_cincinnati_open,2932c93a0e7e835909cf7cc0756f4a22,2026-08-19T15:00:00Z,Rafael Jodar,Flavio Cobolli,2026-08-19T14:15:00Z,True,True,2026-08-19T14:10:25Z,,54.0
+2026H2,2026-W34,tennis_atp_cincinnati_open,1b928e271831575f1591dcbd0cbe8664,2026-08-19T16:10:00Z,Thiago Agustin Tirante,Jakub Mensik,2026-08-19T15:25:00Z,True,True,2026-08-19T15:20:36Z,,54.0
+2026H2,2026-W37,tennis_atp_us_open,c399320f054bede5f4cd2c5f6647e3ab,2026-09-09T18:00:00Z,Karen Khachanov,Alexander Blockx,2026-09-09T17:15:00Z,True,True,2026-09-09T17:10:23Z,,55.0
+2026H2,2026-W37,tennis_atp_us_open,78400a165e824a6df488266f0d2cf7a6,2026-09-09T23:30:00Z,Alexander Zverev,Botic van de Zandschulp,2026-09-09T22:45:00Z,True,True,2026-09-09T22:40:21Z,,52.0

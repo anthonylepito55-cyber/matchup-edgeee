@@ -1,0 +1,55 @@
+{
+ "run": "20261019T004731Z",
+ "weeks_total": 120,
+ "credits_session": 1911.0,
+ "remaining_end": 12671594.0,
+ "mapping": {
+  "log_rows_in_covered_weeks": 1267,
+  "log_mapped": 27,
+  "log_ambiguous": 7,
+  "note": "S2 holds ONE snapshot per week, so this UNDERCOUNTS mappability -- a lower bound"
+ },
+ "coverage": {
+  "denom_weeks_total": 118,
+  "covered_weeks_total": 55,
+  "2025": {
+   "denom": 51,
+   "covered": 21
+  },
+  "2026": {
+   "denom": 41,
+   "covered": 27
+  },
+  "2024H2": {
+   "denom": 26,
+   "covered": 7
+  }
+ },
+ "pinnacle_sample": {
+  "n": 36,
+  "two_way": 33,
+  "fresh": 33,
+  "by_half": {
+   "2024H2": {
+    "n": 7,
+    "fresh": 5
+   },
+   "2025H1": {
+    "n": 8,
+    "fresh": 8
+   },
+   "2025H2": {
+    "n": 6,
+    "fresh": 5
+   },
+   "2026H1": {
+    "n": 8,
+    "fresh": 8
+   },
+   "2026H2": {
+    "n": 7,
+    "fresh": 7
+   }
+  }
+ }
+}

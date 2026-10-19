@@ -1,0 +1,1 @@
+{"seq": 317, "requested_at": 1792371012.2316108, "path": "/historical/sports/tennis_atp_japan_open/events", "params": {"date": "2025-01-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673294.0, "x_used": "2326706", "session_used": 211.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-09-29T05:30:36Z", "data": []}}

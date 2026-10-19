@@ -1,0 +1,1 @@
+{"seq": 888, "requested_at": 1792371300.2538216, "path": "/historical/sports/tennis_wta_german_open/events", "params": {"date": "2025-12-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12672931.0, "x_used": "2327069", "session_used": 574.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-06-15T03:45:36Z", "data": []}}

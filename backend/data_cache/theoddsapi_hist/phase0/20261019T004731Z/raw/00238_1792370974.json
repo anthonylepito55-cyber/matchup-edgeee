@@ -1,0 +1,1 @@
+{"seq": 238, "requested_at": 1792370974.6483114, "path": "/historical/sports/tennis_atp_hamburg_open/events", "params": {"date": "2025-06-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673337.0, "x_used": "2326663", "session_used": 168.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-05-17T03:30:37Z", "data": []}}

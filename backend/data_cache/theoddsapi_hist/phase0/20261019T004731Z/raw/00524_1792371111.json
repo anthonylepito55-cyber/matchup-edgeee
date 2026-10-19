@@ -1,0 +1,1 @@
+{"seq": 524, "requested_at": 1792371111.4996946, "path": "/historical/sports/tennis_atp_queens_club_champ/events", "params": {"date": "2025-12-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673186.0, "x_used": "2326814", "session_used": 319.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2026-06-15T03:45:36Z", "data": []}}

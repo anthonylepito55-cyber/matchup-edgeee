@@ -1,0 +1,1 @@
+{"seq": 87, "requested_at": 1792370896.4904366, "path": "/historical/sports/tennis_atp_china_open/events", "params": {"date": "2024-07-15T12:00:00Z"}, "status": 200, "err": null, "x_remaining": 12673442.0, "x_used": "2326558", "session_used": 63.0, "body": {"timestamp": null, "previous_timestamp": null, "next_timestamp": "2024-09-24T19:25:39Z", "data": []}}
