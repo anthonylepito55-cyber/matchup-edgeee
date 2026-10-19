@@ -3,6 +3,7 @@ Large-population stages are driven through the REAL stage code by stubbing only 
 finalized_frame data source; every registered rule (thinning, counts, DE, blinding) runs real.
 """
 import os
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,25 @@ import opp1_stage as SG               # noqa: E402
 PASS, FAIL = [], []
 
 
+# ---- REGISTERED BLOB SOURCE, PORTABLE (2026-10-19, owner-approved) -------------------------
+# The suites used to source the registered spec bytes ONLY through `git show b0f59fb:...`, which
+# made them unrunnable on any host without that commit (the EC2 clone does not have it). They
+# now prefer an explicitly configured OPP1_SEED_ARTIFACT -- the exact artifact already installed
+# and verified on the host -- and fall back to the canonical git blob when the variable is
+# absent. Either way the bytes are verified against the registered sha256 before use, and the
+# seed is still derived by the committed SA.seed_from_bytes, so neither the production seed
+# derivation nor the registered thinning is touched and reconstructed bytes can never be used.
+def registered_blob():
+    p = os.environ.get("OPP1_SEED_ARTIFACT")
+    if p:
+        blob = open(p, "rb").read()
+        if hashlib.sha256(blob).hexdigest() != SA.REG_SHA256:
+            raise RuntimeError("OPP1_SEED_ARTIFACT does not hash to the registered sha256")
+        return blob
+    return subprocess.run(["git", "show", "%s:%s" % (SA.REG_COMMIT, SA.REG_BLOB_PATH)],
+                          cwd=ROOT, capture_output=True, check=True).stdout
+
+
 def check(name, cond):
     (PASS if cond else FAIL).append(name)
     print(("PASS " if cond else "FAIL ") + name)
@@ -29,9 +49,7 @@ def check(name, cond):
 
 TMP = tempfile.mkdtemp(prefix="opp1_stage_test_")
 ART = os.path.join(TMP, "registered_spec.blob")
-open(ART, "wb").write(subprocess.run(
-    ["git", "show", "%s:%s" % (SA.REG_COMMIT, SA.REG_BLOB_PATH)],
-    cwd=ROOT, capture_output=True, check=True).stdout)
+open(ART, "wb").write(registered_blob())
 
 BASE = pd.Timestamp("2027-01-04T00:00:00Z")      # a Monday
 

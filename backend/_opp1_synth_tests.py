@@ -21,6 +21,25 @@ import opp1_features as FE             # noqa: E402
 import opp1_eval as EV                 # noqa: E402
 
 PASS = []
+
+
+# ---- REGISTERED BLOB SOURCE, PORTABLE (2026-10-19, owner-approved) -------------------------
+# The suites used to source the registered spec bytes ONLY through `git show b0f59fb:...`, which
+# made them unrunnable on any host without that commit (the EC2 clone does not have it). They
+# now prefer an explicitly configured OPP1_SEED_ARTIFACT -- the exact artifact already installed
+# and verified on the host -- and fall back to the canonical git blob when the variable is
+# absent. Either way the bytes are verified against the registered sha256 before use, and the
+# seed is still derived by the committed SA.seed_from_bytes, so neither the production seed
+# derivation nor the registered thinning is touched and reconstructed bytes can never be used.
+def registered_blob():
+    p = os.environ.get("OPP1_SEED_ARTIFACT")
+    if p:
+        blob = open(p, "rb").read()
+        if hashlib.sha256(blob).hexdigest() != SA.REG_SHA256:
+            raise RuntimeError("OPP1_SEED_ARTIFACT does not hash to the registered sha256")
+        return blob
+    return subprocess.run(["git", "show", "%s:%s" % (SA.REG_COMMIT, SA.REG_BLOB_PATH)],
+                          cwd=ROOT, capture_output=True, check=True).stdout
 FAIL = []
 
 
@@ -140,14 +159,13 @@ check("V3: normalization order cast->trim->lower",
 blob = None
 try:
     import subprocess
-    blob = subprocess.run(["git", "show", "%s:%s" % (SA.REG_COMMIT, SA.REG_BLOB_PATH)],
-                          cwd=ROOT, capture_output=True, check=True).stdout
+    blob = registered_blob()
 except Exception:
     pass
 check("seed: registered blob readable", blob is not None and len(blob) > 1000)
 check("seed: blob hashes to the registered sha256",
       hashlib.sha256(blob).hexdigest() == SA.REG_SHA256)
-seed = SA.registered_seed(ROOT)
+seed = SA.seed_from_bytes(registered_blob())
 check("seed: equals int(first 16 hex of registered sha, 16)",
       seed == int("7539adbbafc84d22", 16))
 crlf = blob.replace(b"\n", b"\r\n")
@@ -385,7 +403,7 @@ check("seed policy: derive_seed matches the approved formula for every label",
 check("seed policy: six labels, all distinct, none equal to the thinning root",
       len(set(vals.values())) == 6 and seed not in vals.values())
 check("seed policy: thinning root unchanged by the policy",
-      SA.registered_seed(ROOT) == int("7539adbbafc84d22", 16))
+      SA.seed_from_bytes(registered_blob()) == int("7539adbbafc84d22", 16))
 try:
     SA.derive_seed("boot:unregistered")
     check("seed policy: unknown label refused", False)

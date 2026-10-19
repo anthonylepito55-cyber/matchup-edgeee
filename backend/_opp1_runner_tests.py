@@ -1,8 +1,10 @@
 """OPP1 v3.5 prospective-runner synthetic suite — constructed inputs only, temp-dir ledgers.
 No real records, no services, no network, no Phase 5, no accrual toward registered minimums.
 """
+import io
 import json
 import os
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -20,6 +22,25 @@ import opp1_sample as SA              # noqa: E402
 PASS, FAIL = [], []
 
 
+# ---- REGISTERED BLOB SOURCE, PORTABLE (2026-10-19, owner-approved) -------------------------
+# The suites used to source the registered spec bytes ONLY through `git show b0f59fb:...`, which
+# made them unrunnable on any host without that commit (the EC2 clone does not have it). They
+# now prefer an explicitly configured OPP1_SEED_ARTIFACT -- the exact artifact already installed
+# and verified on the host -- and fall back to the canonical git blob when the variable is
+# absent. Either way the bytes are verified against the registered sha256 before use, and the
+# seed is still derived by the committed SA.seed_from_bytes, so neither the production seed
+# derivation nor the registered thinning is touched and reconstructed bytes can never be used.
+def registered_blob():
+    p = os.environ.get("OPP1_SEED_ARTIFACT")
+    if p:
+        blob = open(p, "rb").read()
+        if hashlib.sha256(blob).hexdigest() != SA.REG_SHA256:
+            raise RuntimeError("OPP1_SEED_ARTIFACT does not hash to the registered sha256")
+        return blob
+    return subprocess.run(["git", "show", "%s:%s" % (SA.REG_COMMIT, SA.REG_BLOB_PATH)],
+                          cwd=ROOT, capture_output=True, check=True).stdout
+
+
 def check(name, cond):
     (PASS if cond else FAIL).append(name)
     print(("PASS " if cond else "FAIL ") + name)
@@ -28,8 +49,7 @@ def check(name, cond):
 TMP = tempfile.mkdtemp(prefix="opp1_runner_test_")
 ART = os.path.join(TMP, "registered_spec.blob")
 with open(ART, "wb") as f:
-    f.write(subprocess.run(["git", "show", "%s:%s" % (SA.REG_COMMIT, SA.REG_BLOB_PATH)],
-                           cwd=ROOT, capture_output=True, check=True).stdout)
+    f.write(registered_blob())
 BAD_ART = os.path.join(TMP, "bad.blob")
 open(BAD_ART, "wb").write(b"not the registered bytes")
 
@@ -354,6 +374,163 @@ check("report: blinded — no roi/log-loss/edge/clv/p-value anywhere",
 rec = RN.reconcile(L3, after_w2)
 check("reconcile: candidate ledger == reported totals", rec["consistent"])
 L3.close()
+
+# ================================================================ artifact-path portability
+os.environ["OPP1_SEED_ARTIFACT"] = ART
+check("artifact path: OPP1_SEED_ARTIFACT holding the registered bytes is accepted and used",
+      registered_blob() == open(ART, "rb").read()
+      and SA.seed_from_bytes(registered_blob()) == int("7539adbbafc84d22", 16))
+os.environ["OPP1_SEED_ARTIFACT"] = BAD_ART
+try:
+    registered_blob()
+    check("artifact path: a non-registered OPP1_SEED_ARTIFACT is REFUSED (no unchecked "
+          "fallback)", False)
+except RuntimeError:
+    check("artifact path: a non-registered OPP1_SEED_ARTIFACT is REFUSED (no unchecked "
+          "fallback)", True)
+os.environ.pop("OPP1_SEED_ARTIFACT")
+check("artifact path: with the variable absent the canonical git-blob path still yields the "
+      "registered seed",
+      SA.seed_from_bytes(registered_blob()) == int("7539adbbafc84d22", 16))
+
+# ================================================================ entry point (opp1_daily)
+import opp1_daily as DAILY                                              # noqa: E402
+
+DTMP = tempfile.mkdtemp(prefix="opp1_daily_")
+DSTORE = os.path.join(DTMP, "store")
+os.makedirs(DSTORE)
+DLOG = os.path.join(DTMP, "log.parquet")
+ACT2 = "2026-11-02T00:00:00Z"            # activation; anything observed before it is excluded
+ACT2_S = T(ACT2)
+DLOG_COLS = ["fixture_id", "league", "tournament", "player_1", "player_2", "start_time_utc",
+             "best_of_5", "settled", "p1_won", "void", "score", "mc2_p1", "mc2_recon",
+             "mc6_p1", "mc6_recon", "date", "pm_src"]
+
+
+def day_file(day, frames):
+    pd.concat(frames, ignore_index=True).to_parquet(os.path.join(DSTORE, "%s.parquet" % day))
+
+
+def qrows(fid, start_iso, poll_iso, home, away):
+    t = T(poll_iso)
+    rows = []
+    for sel, pr in ((home, -150), (away, 130)):
+        rows.append(srow("Pinnacle", sel, pr, t, t - 5, fid, start_iso, home, away))
+        rows.append(srow("Kalshi", sel, pr, t, t - 9, fid, start_iso, home, away))
+    df = pd.DataFrame(rows)
+    df["league"] = "atp"
+    return df
+
+
+def logrow(fid, start_iso, home, away, settled=True, p1_won=True):
+    return {"fixture_id": fid, "league": "atp", "tournament": "Vienna, Austria",
+            "player_1": home, "player_2": away, "start_time_utc": start_iso,
+            "best_of_5": False, "settled": settled, "p1_won": p1_won, "void": False,
+            "score": "6-3 6-4", "mc2_p1": 0.6, "mc2_recon": False, "mc6_p1": 0.61,
+            "mc6_recon": False, "date": start_iso[:10], "pm_src": "x"}
+
+
+# FPRE2    first observed BEFORE activation (Nov 1), still polled after it, starts Nov 3
+# FNEW     first observed AFTER activation (Nov 3), starts Nov 4 -> the clean accrual case
+# FRESCHED listed Nov 1 for a Nov 2 start, rescheduled to Nov 8 -> more than four days apart
+# FPEND    starts Nov 20, T* window nowhere near complete
+day_file("2026-11-01", [qrows("FPRE2", "2026-11-03T12:00:00Z", "2026-11-01T06:00:00Z", "Pre A", "Pre B"),
+                        qrows("FRESCHED", "2026-11-02T12:00:00Z", "2026-11-01T07:00:00Z", "Res A", "Res B")])
+day_file("2026-11-02", [qrows("FPRE2", "2026-11-03T12:00:00Z", "2026-11-02T06:00:00Z", "Pre A", "Pre B")])
+day_file("2026-11-03", [qrows("FPRE2", "2026-11-03T12:00:00Z", "2026-11-03T11:00:00Z", "Pre A", "Pre B"),
+                        qrows("FNEW", "2026-11-04T12:00:00Z", "2026-11-03T06:00:00Z", "New A", "New B")])
+day_file("2026-11-04", [qrows("FNEW", "2026-11-04T12:00:00Z", "2026-11-04T11:00:00Z", "New A", "New B"),
+                        qrows("FPEND", "2026-11-20T12:00:00Z", "2026-11-04T09:00:00Z", "Pend A", "Pend B")])
+day_file("2026-11-08", [qrows("FRESCHED", "2026-11-08T12:00:00Z", "2026-11-08T11:00:00Z", "Res A", "Res B")])
+pd.DataFrame([logrow("FPRE2", "2026-11-03T12:00:00Z", "Pre A", "Pre B"),
+              logrow("FNEW", "2026-11-04T12:00:00Z", "New A", "New B"),
+              logrow("FRESCHED", "2026-11-08T12:00:00Z", "Res A", "Res B"),
+              logrow("FPEND", "2026-11-20T12:00:00Z", "Pend A", "Pend B", settled=False,
+                     p1_won=None)])[DLOG_COLS].to_parquet(DLOG)
+
+DAILY.STORE, DAILY.LOG = DSTORE, DLOG
+DAILY.LEDGER = os.path.join(DTMP, "ledger")
+idx = DAILY.build_index(DSTORE, os.path.join(DTMP, "prov"))
+check("entry point: provenance index spans EVERY retained file, not a 4-day window",
+      idx["coverage"]["retained_days"] == 5 and idx["coverage"]["earliest_day"] == "2026-11-01"
+      and len(idx["fixtures"]) == 4)
+check("entry point: the Nov 5-7 outage is DETECTED as a coverage gap",
+      idx["coverage"]["missing_days"] == ["2026-11-05", "2026-11-06", "2026-11-07"])
+check("entry point: a reschedule more than four days after listing keeps BOTH observed starts",
+      idx["fixtures"]["FRESCHED"]["starts"]
+      == ["2026-11-02T12:00:00Z", "2026-11-08T12:00:00Z"])
+check("entry point: first_poll comes from the EARLIEST retained file, so no short window can "
+      "hide a pre-activation observation",
+      idx["fixtures"]["FPRE2"]["first_poll"] == T("2026-11-01T06:00:00Z") < ACT2_S)
+cut = max(e["last_poll"] for e in idx["fixtures"].values())
+b = DAILY.classify(idx, set(), cut)
+check("entry point: an incomplete T* window is its own bucket and nothing is frozen",
+      b["pending_tstar"] == ["FPEND"])
+check("entry point: fixtures whose history begins in the OLDEST retained file are held out as "
+      "first_obs_unverifiable (retention may have truncated them)",
+      set(b["first_obs_unverifiable"]) == {"FPRE2", "FRESCHED"})
+check("entry point: only the fully-evidenced fixture is processable",
+      b["processable"] == ["FNEW"])
+rws = DAILY.rows_for(DSTORE, idx, {"FNEW"})
+check("entry point: rows_for returns a fixture's COMPLETE history across files",
+      len(rws) == 8 and sorted(set(rws["poll_ts"])) == [T("2026-11-03T06:00:00Z"),
+                                                        T("2026-11-04T11:00:00Z")])
+# recover coverage: an older file plus the missing days -> the held-out fixtures qualify
+day_file("2026-10-31", [qrows("FSEED", "2026-10-31T12:00:00Z", "2026-10-31T06:00:00Z", "S A", "S B")])
+for d in ("2026-11-05", "2026-11-06", "2026-11-07"):
+    day_file(d, [qrows("FFILL", "%sT23:00:00Z" % d, "%sT06:00:00Z" % d, "F A", "F B")])
+# the poller keeps running past FRESCHED's rescheduled start, which is what carries the source
+# cutoff beyond its T* window end (11:30) -- without this it stays correctly pending_tstar
+day_file("2026-11-09", [qrows("FLATER", "2026-11-10T12:00:00Z", "2026-11-09T06:00:00Z", "L A", "L B")])
+idx2 = DAILY.build_index(DSTORE, os.path.join(DTMP, "prov"))
+b2 = DAILY.classify(idx2, set(), max(e["last_poll"] for e in idx2["fixtures"].values()))
+check("entry point: with coverage recovered after an outage the held-out fixtures become "
+      "processable (nothing was lost)",
+      set(["FPRE2", "FRESCHED", "FNEW"]) <= set(b2["processable"])
+      and not idx2["coverage"]["missing_days"])
+led = RN.Ledger(DAILY.LEDGER)
+RN.activate(led, ACT2, ART, ACT2_S)
+store_all = DAILY.rows_for(DSTORE, idx2, set(b2["processable"]))
+log_all = pd.read_parquet(DLOG, columns=DLOG_COLS)
+cut2 = max(e["last_poll"] for e in idx2["fixtures"].values())
+o = RN.process_snapshot(led, store_all, log_all, cut2, ACT2_S + 10)
+stt = led.state()["fixtures"]
+check("RULING: a fixture first observed BEFORE activation is excluded even with complete "
+      "history and post-activation polls",
+      "pre_activation_observed" in stt["FPRE2"]["obs"]["labels_at_obs"]
+      and "pre_activation_observed" in stt["FRESCHED"]["obs"]["labels_at_obs"])
+check("RULING: boundary_conflict events are preserved for registered-eligible pre-activation "
+      "fixtures", len(led.events("boundary_conflict")) >= 1)
+check("RULING: the post-activation fixture is NOT excluded by the ruling",
+      "pre_activation_observed" not in stt["FNEW"]["obs"]["labels_at_obs"])
+check("entry point: no premature freezing -- the pending fixture never got an observation",
+      "FPEND" not in stt)
+frz = dict(stt["FNEW"]["obs"])
+RN.settle_pass(led, log_all, ACT2_S + 20)
+check("entry point: settlement cannot leak into the frozen features",
+      led.state()["fixtures"]["FNEW"]["obs"] == frz)
+o2 = RN.process_snapshot(led, store_all, log_all, cut2, ACT2_S + 30)
+check("entry point: normal repeated execution is idempotent (no new observations)",
+      o2["new_obs"] == 0 and o2["skipped_existing"] >= 3)
+led.close()
+led2 = RN.Ledger(DAILY.LEDGER)
+check("entry point: restart reproduces the same fixture set",
+      set(led2.state()["fixtures"]) == set(stt))
+led2.close()
+try:
+    DAILY.build_index(os.path.join(DTMP, "nope"), os.path.join(DTMP, "prov2"))
+    check("entry point: a missing store directory fails closed", False)
+except RuntimeError:
+    check("entry point: a missing store directory fails closed", True)
+os.makedirs(os.path.join(DTMP, "empty"))
+try:
+    DAILY.build_index(os.path.join(DTMP, "empty"), os.path.join(DTMP, "prov3"))
+    check("entry point: an empty store fails closed", False)
+except RuntimeError:
+    check("entry point: an empty store fails closed", True)
+check("entry point: the dead `if False` expression is gone",
+      "if False" not in io.open(os.path.join(HERE, "opp1_daily.py"), encoding="utf-8").read())
+shutil.rmtree(DTMP, ignore_errors=True)
 
 shutil.rmtree(TMP, ignore_errors=True)
 print("\n%d passed, %d failed" % (len(PASS), len(FAIL)))

@@ -2,12 +2,15 @@
 No snapshot store, no frozen log, no live data, no outcomes/prices from real records.
 """
 import os
+import subprocess
+import hashlib
 import sys
 
 import numpy as np
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import opp1_adapters as AD             # noqa: E402
@@ -18,6 +21,24 @@ import opp1_sample as SA               # noqa: E402
 from oo_feed import am_to_prob         # noqa: E402
 
 PASS, FAIL = [], []
+
+# ---- REGISTERED BLOB SOURCE, PORTABLE (2026-10-19, owner-approved) -------------------------
+# The suites used to source the registered spec bytes ONLY through `git show b0f59fb:...`, which
+# made them unrunnable on any host without that commit (the EC2 clone does not have it). They
+# now prefer an explicitly configured OPP1_SEED_ARTIFACT -- the exact artifact already installed
+# and verified on the host -- and fall back to the canonical git blob when the variable is
+# absent. Either way the bytes are verified against the registered sha256 before use, and the
+# seed is still derived by the committed SA.seed_from_bytes, so neither the production seed
+# derivation nor the registered thinning is touched and reconstructed bytes can never be used.
+def registered_blob():
+    p = os.environ.get("OPP1_SEED_ARTIFACT")
+    if p:
+        blob = open(p, "rb").read()
+        if hashlib.sha256(blob).hexdigest() != SA.REG_SHA256:
+            raise RuntimeError("OPP1_SEED_ARTIFACT does not hash to the registered sha256")
+        return blob
+    return subprocess.run(["git", "show", "%s:%s" % (SA.REG_COMMIT, SA.REG_BLOB_PATH)],
+                          cwd=ROOT, capture_output=True, check=True).stdout
 
 
 def check(name, cond):
@@ -200,7 +221,7 @@ check("path: excluded fixture never reaches the candidate set",
       len(cand) == 11 and all(r["fixture_id"] != "FX07" for r in cand))
 cdf = pd.DataFrame({"fixture_id": [r["fixture_id"] for r in cand],
                     "K": [r["K"] for r in cand]})
-seed = SA.registered_seed(os.path.dirname(HERE))
+seed = SA.seed_from_bytes(registered_blob())
 kept, info = SA.thin(cdf, seed)
 check("path: N_pre counts candidates only (12 fixtures -> N_pre 11)",
       info["n_pre"] == 11 and info["cap_size"] == 1)
