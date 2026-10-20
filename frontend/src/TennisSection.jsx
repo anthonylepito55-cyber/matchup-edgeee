@@ -5702,6 +5702,18 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
         const md = match.model_d
         const pct = v => `${Math.round(100 * v)}%`
         const edge = md.edge_p1
+        // A FINISHED match carries no md.d1/md.d2 -- its stats live on card.dline, computed
+        // as of the day before it was played. Same four pieces, different field names, and
+        // already court-specific, so map them rather than showing nothing.
+        const asof = (!md.d1 || !md.d2) && match.dline && match.dline.p1 && match.dline.p2
+        const fromDline = d => (!d ? null : {
+          w52_court: d.w52, w52_court_n: d.w52_n, w52_court_win: d.w52_win,
+          l10: d.l10, form: d.form,
+          lvl_share_court: d.lvl_share, lvl_win_court: d.lvl_win,
+          fq_faced: d.fq_faced, fq_beaten: d.fq_beaten,
+        })
+        const det1 = asof ? fromDline(match.dline.p1) : md.d1
+        const det2 = asof ? fromDline(match.dline.p2) : md.d2
         return (
           <div className="mono" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}
             title={`TENNIS MODEL D (v6, 2026-10-01): HEAVY last-10 form, FULLY RANK-BLIND (user call — "ranks can be misleading"), plus our court-specific UTR as its class anchor (AUC .68 alone). No ranking is used anywhere: each of a player's last 10 opponents is judged by that opponent's OWN last-10 form at the time they played — form of the schedule faced, form of the players actually beaten, best in-form scalp, record + games-won share vs IN-FORM opponents (opp L10 ≥ 60%). PLUS (user adds): THIS-SEASON quality and volume (win rate, games share, matches played — flags players who've barely played or barely won this year), and the HOME-PLATFORM check: each player's prior-365d share of matches, win rate and games share AT TODAY'S LEVEL (tour / challenger / ITF) — catches a challenger regular stepping up against someone whose main platform this is. Also: recent win rates, form vs own 52-week baseline, loss closeness, recency-weighted (0.9/match) L10 serve & return splits, rest days. DISPLAY-ONLY${md.trained_at ? `. Trained ${md.trained_at}.` : '.'}`}>
@@ -5719,17 +5731,17 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
                 (market-aware: {pct(md.market_aware_p1)} — {pct(1 - md.market_aware_p1)})
               </div>
             ) : null}
-            {!(md.d1 && md.d2) ? (
-              // Never vanish silently. The 52-week court line disappeared from cards while the
-              // board was still warming after a restart -- md.d1/md.d2 arrive with the context
-              // build, so the header rendered and the stats under it just were not there, which
-              // reads as "the feature is gone" rather than "this card is not ready".
+            {!(det1 && det2) ? (
+              // Never vanish silently. The line disappeared from cards while the board was still
+              // warming after a restart -- the per-player stats arrive with the context build, so
+              // the header rendered with nothing under it, which reads as "the feature is gone"
+              // rather than "this card is not ready".
               <div style={{ color: '#d29922', fontSize: 9, marginTop: 2, opacity: 0.9 }}
                 title="The per-player 52-week court line is built with the board's context pass. If the board was restarted in the last few minutes it is still warming; reload shortly. If it persists for this card only, neither player resolved to a profile.">
                 52w court line not built for this card yet — reload in a minute
               </div>
             ) : null}
-            {(md.d1 && md.d2) ? (() => {
+            {(det1 && det2) ? (() => {
               const pc = v => (v == null ? '—' : `${Math.round(100 * v)}%`)
               const row = (name, dd) => (
                 <div style={{ color: 'var(--text-tertiary)', fontSize: 9.5, marginTop: 1 }}>
@@ -5749,10 +5761,10 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
                   + "\nA DAGGER (†) means this player has too little history on this court for that figure, so the ALL-SURFACE number is shown instead — it is not a this-court number. No dagger = genuinely this court only."
                   + "\nA court with almost no history reads '—'; that is the real sample, not a bug."}>
                   <div style={{ color: 'var(--text-tertiary)', fontSize: 9, marginTop: 2, opacity: 0.75 }}>
-                    {(match.surface || 'this court').toUpperCase()} ONLY
+                    {(match.surface || match.dline?.surface || 'this court').toUpperCase()} ONLY{asof ? ' · AS IT STOOD BEFORE THIS MATCH' : ''}
                   </div>
-                  {row(match.player_1, md.d1)}
-                  {row(match.player_2, md.d2)}
+                  {row(match.player_1, det1)}
+                  {row(match.player_2, det2)}
                 </div>
               )
             })() : null}
