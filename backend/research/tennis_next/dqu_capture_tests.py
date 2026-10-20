@@ -31,14 +31,15 @@ class Args(object):
 
 def with_temp_store(fn):
     """Point the module at a throwaway store for the duration of one test."""
-    real_store, real_manifest = C.STORE, C.MANIFEST
+    real_store, real_manifest, real_cp = C.STORE, C.MANIFEST, C.CHECKPOINTS
     tmp = tempfile.mkdtemp(prefix="dqu_cap_test_")
     C.STORE = tmp
     C.MANIFEST = os.path.join(tmp, "manifest.jsonl")
+    C.CHECKPOINTS = os.path.join(tmp, "checkpoints.jsonl")
     try:
         return fn(tmp)
     finally:
-        C.STORE, C.MANIFEST = real_store, real_manifest
+        C.STORE, C.MANIFEST, C.CHECKPOINTS = real_store, real_manifest, real_cp
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -122,10 +123,40 @@ def t_tamper_detection():
         ent = C.read_manifest()
         with open(C.MANIFEST, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(ent[0], sort_keys=True) + "\n")   # drop the last entry
-        check("verify passes on a truncated-but-consistent prefix (append-only, so a "
-              "removed TAIL is not detectable without an external head)",
-              C.cmd_verify(None) == 0, "known limitation, recorded")
+        check("WITHOUT a checkpoint, a removed tail is not detectable",
+              C.cmd_verify(None) == 0, "this is exactly why checkpoints exist")
     with_temp_store(body3)
+
+    def body4(tmp):
+        C.cmd_capture(Args(src, "a"))
+        C.cmd_capture(Args(src, "b"))          # duplicate -> a second entry
+        check("checkpoint records the chain length and head",
+              C.cmd_checkpoint(None) == 0)
+        cps = C.read_checkpoints()
+        check("the checkpoint is stored OUTSIDE the manifest",
+              len(cps) == 1 and cps[0]["entry_count"] == 2
+              and os.path.abspath(C.CHECKPOINTS) != os.path.abspath(C.MANIFEST))
+        check("verify still passes with a checkpoint in place",
+              C.cmd_verify(None) == 0)
+        ent = C.read_manifest()
+        with open(C.MANIFEST, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(ent[0], sort_keys=True) + "\n")    # remove the tail
+        check("WITH a checkpoint, a removed tail IS detected",
+              C.cmd_verify(None) == 1, "manifest shorter than the checkpoint")
+    with_temp_store(body4)
+
+    def body5(tmp):
+        C.cmd_capture(Args(src, "a"))
+        C.cmd_checkpoint(None)
+        C.cmd_capture(Args(src, "b"))          # legitimate growth after a checkpoint
+        check("the chain may legitimately GROW past a checkpoint",
+              C.cmd_verify(None) == 0, "growth is fine, shrinkage is not")
+        C.cmd_checkpoint(None)
+        cps = C.read_checkpoints()
+        check("checkpointing never rewrites existing history",
+              len(cps) == 2 and cps[0]["seq"] == 1 and cps[1]["seq"] == 2
+              and cps[0]["entry_count"] == 1 and cps[1]["entry_count"] == 2)
+    with_temp_store(body5)
 
 
 def t_refusals():

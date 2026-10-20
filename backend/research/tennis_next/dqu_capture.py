@@ -52,6 +52,55 @@ def entry_hash(prev, body):
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+CHECKPOINTS = os.path.join(STORE, "checkpoints.jsonl")
+
+
+def read_checkpoints():
+    """Checkpoints are stored in their own file, separate from the manifest.
+
+    An append-only chain cannot detect its own TAIL being removed: drop the last N entries
+    and what remains is still internally consistent. The fix is a record kept OUTSIDE the
+    chain saying how long it was and what its head hash was. Deleting the tail then
+    contradicts the checkpoint, and deleting the checkpoint too is itself conspicuous
+    because checkpoints are numbered consecutively.
+
+    This file is append-only like the manifest, and `checkpoint` never rewrites history --
+    it only states what the chain looked like at a moment in time.
+    """
+    if not os.path.exists(CHECKPOINTS):
+        return []
+    out = []
+    with open(CHECKPOINTS, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    return out
+
+
+def cmd_checkpoint(_args):
+    entries = read_manifest()
+    if not entries:
+        print("no manifest to checkpoint")
+        return 0
+    prior = read_checkpoints()
+    rec = {"seq": len(prior) + 1,
+           "checkpoint_ts_utc": dt.datetime.now(dt.timezone.utc)
+                                  .strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "entry_count": len(entries),
+           "chain_head": entries[-1]["entry_hash"],
+           "captures": sum(1 for e in entries if e.get("kind") == "capture"),
+           "manifest_sha256": sha256_file(MANIFEST),
+           "note": "independent record of the chain length and head; stored outside the "
+                   "manifest so that removing the manifest tail becomes detectable"}
+    os.makedirs(STORE, exist_ok=True)
+    with open(CHECKPOINTS, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, sort_keys=True) + "\n")
+    print("checkpoint %d recorded: %d entries, head %s"
+          % (rec["seq"], rec["entry_count"], rec["chain_head"][:16]))
+    return 0
+
+
 def read_manifest():
     if not os.path.exists(MANIFEST):
         return []
@@ -200,12 +249,40 @@ def cmd_verify(_args):
         if sha256_file(p) != e["stored_sha256"]:
             bad.append("entry %d: stored file has CHANGED since capture (%s)"
                        % (i, e["stored_path"]))
+    # tail-deletion check against the independently stored checkpoints
+    cps = read_checkpoints()
+    heads = {e["entry_hash"]: i for i, e in enumerate(entries)}
+    for cp in cps:
+        if cp["chain_head"] not in heads:
+            bad.append("checkpoint %d (%s) recorded head %s, which is NOT in the manifest "
+                       "-- entries have been removed or replaced"
+                       % (cp["seq"], cp["checkpoint_ts_utc"], cp["chain_head"][:16]))
+        elif heads[cp["chain_head"]] + 1 != cp["entry_count"]:
+            bad.append("checkpoint %d recorded %d entries at that head, manifest now has "
+                       "%d up to it" % (cp["seq"], cp["entry_count"],
+                                        heads[cp["chain_head"]] + 1))
+        elif len(entries) < cp["entry_count"]:
+            bad.append("checkpoint %d recorded %d entries, manifest now has only %d -- the "
+                       "TAIL has been removed" % (cp["seq"], cp["entry_count"],
+                                                  len(entries)))
+    if cps:
+        last = cps[-1]
+        if len(entries) < last["entry_count"]:
+            bad.append("the manifest is SHORTER than the latest checkpoint (%d < %d)"
+                       % (len(entries), last["entry_count"]))
+
     caps = [e for e in entries if e.get("kind") == "capture"]
     print("manifest entries %d  (captures %d, duplicates %d, failed %d)"
           % (len(entries), len(caps),
              sum(1 for e in entries if e.get("kind") == "duplicate"),
              sum(1 for e in entries if e.get("kind") == "failed_capture")))
-    print("chain head %s" % (entries[-1]["entry_hash"][:16]))
+    print("chain head %s   checkpoints %d%s"
+          % (entries[-1]["entry_hash"][:16], len(cps),
+             ("  (latest: %d entries at %s)"
+              % (cps[-1]["entry_count"], cps[-1]["checkpoint_ts_utc"])) if cps else ""))
+    if not cps:
+        print("  no checkpoint recorded yet -- a removed manifest TAIL would not be "
+              "detectable; run `dqu_capture.py checkpoint`")
     if bad:
         print("\nFAILED:")
         for b in bad:
@@ -235,12 +312,17 @@ def main():
     c.add_argument("--from", dest="frm", default="unspecified",
                    help="provenance, e.g. 'scp ec2-user@3.22.236.36 production archive'")
     sub.add_parser("verify", help="re-hash every capture and re-walk the chain")
+    sub.add_parser("checkpoint",
+                   help="record the chain length and head outside the manifest, so a "
+                        "removed tail becomes detectable")
     sub.add_parser("list", help="print the manifest")
     a = ap.parse_args()
     if a.cmd == "capture":
         return cmd_capture(a)
     if a.cmd == "verify":
         return cmd_verify(a)
+    if a.cmd == "checkpoint":
+        return cmd_checkpoint(a)
     if a.cmd == "list":
         return cmd_list(a)
     ap.print_help()
