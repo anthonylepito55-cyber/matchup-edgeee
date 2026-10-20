@@ -2338,6 +2338,11 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                   // match date so there is no hindsight.
                   const dl = m.card.dline
                   const pc = v => (v == null ? '—' : `${Math.round(100 * v)}%`)
+                  const md = m.card.model_d
+                  // which side D was on, and whether that side actually won
+                  const dSide = (md && md.p1_prob != null) ? (md.p1_prob >= 0.5 ? 1 : 2) : null
+                  const dHit = (dSide != null && m.p1_won != null)
+                    ? (dSide === (m.p1_won ? 1 : 2)) : null
                   const row = (nm, d) => {
                     if (!d) return null
                     return (
@@ -2353,6 +2358,32 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                   return (
                     <div style={{ borderLeft: '2px solid #58a6ff', background: 'rgba(88,166,255,0.06)', borderRadius: 4, padding: '5px 8px', margin: '6px 0 4px' }}
                       title={`Every number is THIS COURT (${dl.surface}) ONLY and PRE-MATCH: each window is cut at the day before this match, so nothing after it is used. 52w = rolling 52-week W-L on this court with its win rate. L10 = last-10 on this court, with how far that sits above or below the player's own 52-week norm on this court. 'this level' = share of the prior year's matches on this court at this level and the win rate there. 'opp form' = the last-10 opponents judged by THEIR OWN form at the time, and the form of the ones actually beaten.`}>
+                      {/* MODEL D's own frozen pre-match read, so the past game carries the same
+                          header the board showed (2026-10-20 user ask: "i want to see it on the
+                          results tab"). Taken from the frozen card -- nothing is recomputed for a
+                          decided match -- and the ✓/✗ is against the actual winner. */}
+                      {md && md.p1_prob != null ? (
+                        <div style={{ fontSize: 10.5, marginBottom: 3, lineHeight: 1.5 }}
+                          title={'Model D v6, heavy last-10 form vs the player\'s own baseline, fully rank-blind. DISPLAY-ONLY. This is the probability frozen before the match, not a re-run.'
+                            + (md.market_aware_p1 != null ? ' The market-aware number is the same model refit WITH the price as an input.' : '')}>
+                          <b style={{ color: '#3fb950' }}>MODEL D <span style={{ fontSize: 9, opacity: 0.8 }}>v6</span></b>{' '}
+                          <span style={{ color: dSide === 1 ? '#c9d1d9' : 'var(--text-tertiary)' }}>{(m.p1 || '').split(' ').slice(-1)[0]} {pc(md.p1_prob)}</span>
+                          {' — '}
+                          <span style={{ color: dSide === 2 ? '#c9d1d9' : 'var(--text-tertiary)' }}>{pc(md.p2_prob)} {(m.p2 || '').split(' ').slice(-1)[0]}</span>
+                          {dHit != null ? <b style={{ color: dHit ? '#3fb950' : '#f85149', marginLeft: 4 }}>{dHit ? '✓' : '✗'}</b> : null}
+                          {md.market_p1 != null ? (
+                            <span style={{ color: 'var(--text-tertiary)' }}>
+                              {' · '}market {pc(md.market_p1)}—{pc(1 - md.market_p1)}
+                              {md.edge_p1 != null ? ` · ${md.edge_p1 > 0 ? '+' : ''}${Math.round(100 * md.edge_p1)}pt` : ''}
+                            </span>
+                          ) : null}
+                          {md.market_aware_p1 != null ? (
+                            <span style={{ color: '#8b949e' }}>
+                              {' · '}(market-aware: {pc(md.market_aware_p1)} — {pc(1 - md.market_aware_p1)})
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div style={{ color: '#58a6ff', fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', marginBottom: 2 }}>
                         {String(dl.surface || '').toUpperCase()} ONLY · AS IT STOOD BEFORE THIS MATCH
                       </div>
