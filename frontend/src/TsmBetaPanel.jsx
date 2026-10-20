@@ -17,6 +17,25 @@ import React, { useEffect, useState } from 'react'
 const pct = (x) => (x == null ? '—' : (100 * x).toFixed(1) + '%')
 const short = (s, n) => (!s ? '—' : (s.length > n ? s.slice(0, n - 1) + '…' : s))
 
+// Start times in PACIFIC (2026-10-20 user ask), matching the rest of the board. The DATE is
+// taken in Pacific too, not sliced off the UTC string: a 02:00 UTC match on the 21st is the
+// evening of the 20th in PT, and slicing would date it a day late.
+const fmtPT = (utc) => {
+  if (!utc) return '—'
+  const d = new Date(utc)
+  if (isNaN(d)) return '—'
+  const opt = { timeZone: 'America/Los_Angeles' }
+  const day = d.toLocaleString('en-US', { ...opt, month: '2-digit', day: '2-digit' })
+  const tm = d.toLocaleTimeString('en-US', { ...opt, hour: 'numeric', minute: '2-digit' }).replace(' ', '')
+  return day + ' ' + tm
+}
+const ptDay = (utc) => {
+  if (!utc) return ''
+  const d = new Date(utc)
+  if (isNaN(d)) return ''
+  return d.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
+}
+
 const DQ = {
   NO_KNOWN_DATA_ISSUE: { c: '#3fb950', t: 'no known data issue' },
   'DATA-QUALITY-UNVERIFIED': { c: '#d29922', t: 'data-quality unverified' },
@@ -58,7 +77,13 @@ export default function TsmBetaPanel() {
   const c = d.counts || {}
   const perf = d.performance || {}
   const noneSettled = !perf.scored
-  let rows = d.predictions || []
+  // soonest start first (user ask). Sorted here as well as in the exporter so the order
+  // holds whatever order the snapshot happens to arrive in.
+  let rows = [...(d.predictions || [])].sort((a, b) => {
+    const ta = Date.parse(a.start_utc || '') || 0
+    const tb = Date.parse(b.start_utc || '') || 0
+    return ta - tb || (b.confidence - a.confidence)
+  })
   if (onlyClean) rows = rows.filter((r) => r.data_quality === 'NO_KNOWN_DATA_ISSUE' && !r.invalidated)
 
   return (
@@ -122,7 +147,7 @@ export default function TsmBetaPanel() {
         <table className="mono" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
           <thead>
             <tr style={{ color: 'var(--text-tertiary)', textAlign: 'left' }}>
-              {['start (utc)', 'tournament', 'surf', 'match', 'model pick', 'prob', 'data quality', 'result'].map((h) => (
+              {['start (PT)', 'tournament', 'surf', 'match', 'model pick', 'prob', 'data quality', 'result'].map((h) => (
                 <th key={h} style={{ padding: '5px 7px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
               ))}
             </tr>
@@ -133,7 +158,8 @@ export default function TsmBetaPanel() {
               const res = r.result
               return (
                 <tr key={r.id} style={{ borderBottom: '1px solid var(--line)', opacity: r.invalidated ? 0.45 : 1 }}>
-                  <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{(r.start_utc || '').slice(5, 16).replace('T', ' ')}</td>
+                  <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}
+                      title={ptDay(r.start_utc) + ' · ' + (r.start_utc || '') + ' UTC'}>{fmtPT(r.start_utc)}</td>
                   <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)' }}>{short(r.tournament, 18)}</td>
                   <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)' }}>{r.surface}</td>
                   <td style={{ padding: '5px 7px', whiteSpace: 'nowrap' }}>{short(r.p1, 20)} <span style={{ color: 'var(--text-tertiary)' }}>vs</span> {short(r.p2, 20)}</td>
@@ -157,6 +183,7 @@ export default function TsmBetaPanel() {
       </div>
 
       <div className="mono" style={{ fontSize: 9.5, color: 'var(--text-tertiary)', marginTop: 10, lineHeight: 1.6 }}>
+        all start times are PACIFIC, soonest first · hover a time for the UTC value<br />
         snapshot {d.generated_utc} · model {d.model?.version} · artifact {String(d.model?.artifact_sha256 || '').slice(0, 16)} · refit {String(d.model?.refit)}<br />
         ledger head {String(d.ledger?.prediction_chain_head || '').slice(0, 32)} · {d.ledger?.predictions} immutable prediction records<br />
         "no known data issue" means no problem was DETECTED — it does not prove a player's recent match history is complete.
