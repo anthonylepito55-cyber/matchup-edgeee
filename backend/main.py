@@ -2569,6 +2569,22 @@ def tennis_next_snapshot():
         return json.load(fh)
 
 
+# TSM D_rest PAPER BETA (2026-10-20, user "where can i see the new model we built"):
+# read-only snapshot of the supervised paper-prediction beta, exported from its frozen
+# append-only ledger by `research/tennis_next/tsm_beta_export.py`. Paper predictions only:
+# no money, no wager, no odds, no staking. Nothing here feeds the board, marks a card or
+# gates a pick, and it is separate from the official 16-week prospective trial.
+@app.get("/api/tennis/drest-beta")
+def tsm_drest_beta_snapshot():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_cache",
+                        "tsm_beta_public.json")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404,
+                            detail="no D_rest beta snapshot on this server")
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 @app.get("/api/tennis/scanner-record")
 def tennis_scanner_record():
     return tennis_scanner.get_scanner_track_record()
