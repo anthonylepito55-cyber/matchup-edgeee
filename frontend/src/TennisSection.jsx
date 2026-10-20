@@ -847,12 +847,15 @@ function ItfPanel({ query, laneRec, greenOnly, showCMC, showModels }) {
   const hasModel = m => m.model_c || m.model_i
   const filt = (data.matches || []).filter(m => hasModel(m) && (!q || (m.player_1 + ' ' + m.player_2 + ' ' + (m.tournament || '')).toLowerCase().includes(q)))
   // LIVE games get their own section at the very top (2026-10-02, user ask); the M/W
-  // sections below show only not-yet-live matches, best picks first then sooner→later.
+  // sections below show only not-yet-live matches, EARLIEST FIRST (2026-10-20 user ask —
+  // was best-picks-first, which scattered the day's order and made the card hard to read
+  // against a schedule). Pick quality now only breaks ties between simultaneous starts.
   const isLiveM = m => m.status === 'live'
-  const byPick = (a, b) => (pickScore(b) - pickScore(a)) || (a.start_time_utc || '').localeCompare(b.start_time_utc || '')
-  const liveAll = filt.filter(isLiveM).sort(byPick)
-  const men = filt.filter(m => m.league === 'itf_men' && !isLiveM(m)).sort(byPick)
-  const women = filt.filter(m => m.league === 'itf_women' && !isLiveM(m)).sort(byPick)
+  const byTime = (a, b) => (a.start_time_utc || '').localeCompare(b.start_time_utc || '')
+    || (pickScore(b) - pickScore(a))
+  const liveAll = filt.filter(isLiveM).sort(byTime)
+  const men = filt.filter(m => m.league === 'itf_men' && !isLiveM(m)).sort(byTime)
+  const women = filt.filter(m => m.league === 'itf_women' && !isLiveM(m)).sort(byTime)
   // priced games with no model (players not in pool) — shown as compact rows so every
   // game appears, not just the modeled ones (2026-10-02, user "missing a bunch").
   const unmodeled = (data.matches || []).filter(m => !hasModel(m) && m.live_odds
