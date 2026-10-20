@@ -175,6 +175,23 @@ def _load():
         df[pre + "_all"] = pd.to_numeric(parts[1], errors="coerce")
     df = df[df["date"].notna()].sort_values(["player_slug", "date"])
     df["won"] = (df["result"] == "Win").astype(int)
+    # Model-D context columns for the AS-OF history line (2026-10-20, user ask: show the
+    # same per-player line under finished games). Both are vectorised one-off passes over
+    # the whole frame, mirroring tennis_model_a._parse so the numbers agree with the board:
+    #   lvl      -- tour / challenger / ITF bucket, for the home-platform share
+    #   opp_form -- each opponent's OWN last-10 win rate AT THE TIME they played, so
+    #               opponent quality is judged by real form and never by ranking
+    _lv = df["tournament_level"].astype(str).str.lower()
+    df["lvl"] = np.where(_lv.str.contains("challenger"), 1,
+                         np.where(_lv.str.contains("futures|itf"), 2, 0))
+    _s0 = df.groupby("player_slug", sort=False)["won"].shift(1)
+    df["_o10w"] = _s0.groupby(df["player_slug"]).rolling(10, min_periods=4).mean() \
+        .reset_index(level=0, drop=True)
+    _opp = df[["player_slug", "date", "_o10w"]].rename(
+        columns={"player_slug": "rival_slugname", "_o10w": "opp_form"}
+    ).drop_duplicates(["rival_slugname", "date"])
+    df = df.merge(_opp, on=["rival_slugname", "date"], how="left")
+    df = df.sort_values(["player_slug", "date"])
     cutoff = df["date"].max() - pd.Timedelta(weeks=52)
     tours = _tour_map()
 
@@ -498,3 +515,98 @@ def _context_asof_uncached(player_name, surface, asof):
             "clutch": round(float(pr_won / pr_all), 3) if pr_all >= 40 else None,
             "avg_opp_rank": int(ranks.median()) if len(ranks) >= 3 else None,
             "asof": str(asof.date()), "last_date": str(g["date"].max().date())}
+
+
+# ---------------------------------------------------------------- AS-OF Model-D line
+_dline_memo = {"mtime": None, "v": {}}
+
+
+def dline_asof(player_name, surface, asof, level=None):
+    """The card's per-player context line AS IT STOOD BEFORE `asof` (2026-10-20 user ask:
+    show it under finished games too).
+
+    Same four pieces and the same definitions as the live board line, so a past game reads
+    exactly like a current one:
+      w52        W-L over the rolling 52 weeks ON THIS COURT, with its win rate
+      l10 / form last-10 win rate on this court, and how far that sits above or below the
+                 player's OWN 52-week norm on this court
+      lvl        share of the past 365 days' matches on this court at TODAY'S level, and
+                 the win rate there -- the home-platform check
+      fq         the last-10 opponents judged by THEIR OWN form at the time, and the form
+                 of the ones actually beaten
+
+    STRICTLY PRE-MATCH: every window is cut at `date < asof`, so the match itself and
+    everything after it are excluded. Returns None when the player has no history on the
+    court before that date.
+    """
+    try:
+        mtime = os.path.getmtime(LOGS_PARQUET)
+    except OSError:
+        mtime = None
+    if _dline_memo["mtime"] != mtime:
+        _dline_memo["mtime"] = mtime
+        _dline_memo["v"] = {}
+    key = (str(player_name), str(surface), str(asof)[:10], str(level))
+    memo = _dline_memo["v"]
+    if key in memo:
+        return memo[key]
+    out = _dline_asof_uncached(player_name, surface, asof, level)
+    if len(memo) < _ASOF_MEMO_MAX:
+        memo[key] = out
+    return out
+
+
+def _dline_asof_uncached(player_name, surface, asof, level=None):
+    c = _load()
+    if not c or not player_name or asof is None:
+        return None
+    cur = get_context(player_name, surface)
+    if not cur:
+        return None
+    g = (c.get("groups") or {}).get(cur["slug"])
+    if g is None:
+        return None
+    asof = pd.Timestamp(asof)
+    g = g[g["date"] < asof]
+    if g.empty:
+        return None
+    surf = (surface or "All").title()
+    sd = g if surf == "All" else g[g["surface"] == surf]
+    if sd.empty:
+        return None
+
+    w365 = sd[sd["date"] >= asof - pd.Timedelta(days=365)]
+    n52, w52 = int(len(w365)), int(w365["won"].sum())
+    win52 = float(w365["won"].mean()) if n52 else None
+
+    t10 = sd.tail(10)
+    l10 = float(t10["won"].mean()) if len(t10) >= 3 else None
+    form = (l10 - win52) if (l10 is not None and win52 is not None) else None
+
+    lvl_share = lvl_win = lvl_n = None
+    if level is not None and n52:
+        lv = str(level).lower()
+        bk = 1 if "challenger" in lv else (2 if ("itf" in lv or "futures" in lv) else 0)
+        lg = w365[w365["lvl"] == bk]
+        if len(lg):
+            lvl_share = float(len(lg) / n52)
+            lvl_win = float(lg["won"].mean())
+            lvl_n = int(len(lg))
+
+    fq_faced = fq_beaten = None
+    if "opp_form" in sd.columns:
+        _of = t10["opp_form"].dropna()
+        if len(_of) >= 4:
+            fq_faced = float(_of.mean())
+        _wf = t10.loc[t10["won"] == 1, "opp_form"].dropna()
+        if len(_wf):
+            fq_beaten = float(_wf.mean())
+
+    if n52 == 0 and l10 is None:
+        return None
+    return {"w52": ("%d-%d" % (w52, n52 - w52)) if n52 else None,
+            "w52_n": n52, "w52_win": win52,
+            "l10": l10, "form": form,
+            "lvl_share": lvl_share, "lvl_win": lvl_win, "lvl_n": lvl_n,
+            "fq_faced": fq_faced, "fq_beaten": fq_beaten,
+            "surface": surf, "asof": str(asof)[:10]}

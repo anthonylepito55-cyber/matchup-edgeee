@@ -2331,6 +2331,35 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                       ? <span style={{ color: '#e3b341' }}> · missed: {m.postmortem.missed_info.join(', ')}</span> : null}
                   </div>
                 ) : null}
+                {m.card && m.card.dline && (m.card.dline.p1 || m.card.dline.p2) ? (() => {
+                  // The card's per-player context line AS IT STOOD BEFORE this match
+                  // (2026-10-20 user ask: show it under previous games too). Same four
+                  // pieces and same definitions as the live board line, cut at date <
+                  // match date so there is no hindsight.
+                  const dl = m.card.dline
+                  const pc = v => (v == null ? '—' : `${Math.round(100 * v)}%`)
+                  const row = (nm, d) => {
+                    if (!d) return null
+                    return (
+                      <div key={nm} style={{ color: 'var(--text-tertiary)', fontSize: 9.5, marginTop: 1 }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>{(nm || '').split(' ').slice(-1)[0]}</span>
+                        {' '}52w {d.w52 || '—'}{d.w52_win != null ? ` (${pc(d.w52_win)})` : ''}
+                        {' · '}L10 {pc(d.l10)}{d.form != null ? ` (${d.form >= 0 ? '+' : ''}${Math.round(100 * d.form)} vs usual)` : ''}
+                        {' · '}this level {pc(d.lvl_share)} of yr, {pc(d.lvl_win)} won
+                        {' · '}opp form faced {pc(d.fq_faced)} / beat {pc(d.fq_beaten)}
+                      </div>
+                    )
+                  }
+                  return (
+                    <div title={`Every number is THIS COURT (${dl.surface}) ONLY and PRE-MATCH: each window is cut at the day before this match, so nothing after it is used. 52w = rolling 52-week W-L on this court with its win rate. L10 = last-10 on this court, with how far that sits above or below the player's own 52-week norm on this court. 'this level' = share of the prior year's matches on this court at this level and the win rate there. 'opp form' = the last-10 opponents judged by THEIR OWN form at the time, and the form of the ones actually beaten.`}>
+                      <div style={{ color: 'var(--text-tertiary)', fontSize: 9, marginTop: 3, opacity: 0.75 }}>
+                        {String(dl.surface || '').toUpperCase()} ONLY · AS IT STOOD BEFORE THIS MATCH
+                      </div>
+                      {row(m.p1, dl.p1)}
+                      {row(m.p2, dl.p2)}
+                    </div>
+                  )
+                })() : null}
                 {m.card && m.card.tr_context && (m.card.tr_context.p1 || m.card.tr_context.p2) ? (() => {
                   // 🎾 SERVE / RETURN as it stood BEFORE the match (2026-10-09, user "I want to see
                   // serve/return stats on the previous day page"): 52w on this surface (or last 20),

@@ -1155,6 +1155,22 @@ def _sr_asof(r):
         return None
 
 
+def _dline_asof(r):
+    """The card's per-player context line as it stood BEFORE this finished match
+    (2026-10-20 user ask: show the same line under previous games). Strictly pre-match --
+    tennis_context.dline_asof cuts every window at date < the match date."""
+    try:
+        import tennis_context as _tcx
+        d = pd.Timestamp(str(r.get("date"))[:10])
+        sf = str(r.get("surface") or "Hard")
+        lv = r.get("level") or r.get("tournament_level") or r.get("league")
+        a = _tcx.dline_asof(r.get("player_1"), sf, d, lv)
+        b = _tcx.dline_asof(r.get("player_2"), sf, d, lv)
+        return {"p1": a, "p2": b, "surface": sf} if (a or b) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _p_hist(r, mk1):
     try:
         import tennis_model_p as _tp
@@ -1448,6 +1464,7 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             # SERVE/RETURN as it stood BEFORE this match (2026-10-09, user "I want to see
             # serve/return stats on the previous day page") -- tennis_context.context_asof.
             "tr_context": _sr_asof(r),
+            "dline": _dline_asof(r),
         }
         rec = {
             "p1": str(r.get("player_1") or ""), "p2": str(r.get("player_2") or ""),
