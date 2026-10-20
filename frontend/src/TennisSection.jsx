@@ -5688,6 +5688,16 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
                 (market-aware: {pct(md.market_aware_p1)} — {pct(1 - md.market_aware_p1)})
               </div>
             ) : null}
+            {!(md.d1 && md.d2) ? (
+              // Never vanish silently. The 52-week court line disappeared from cards while the
+              // board was still warming after a restart -- md.d1/md.d2 arrive with the context
+              // build, so the header rendered and the stats under it just were not there, which
+              // reads as "the feature is gone" rather than "this card is not ready".
+              <div style={{ color: '#d29922', fontSize: 9, marginTop: 2, opacity: 0.9 }}
+                title="The per-player 52-week court line is built with the board's context pass. If the board was restarted in the last few minutes it is still warming; reload shortly. If it persists for this card only, neither player resolved to a profile.">
+                52w court line not built for this card yet — reload in a minute
+              </div>
+            ) : null}
             {(md.d1 && md.d2) ? (() => {
               const pc = v => (v == null ? '—' : `${Math.round(100 * v)}%`)
               const row = (name, dd) => (
