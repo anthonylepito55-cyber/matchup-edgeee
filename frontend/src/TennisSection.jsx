@@ -2341,8 +2341,8 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                   const row = (nm, d) => {
                     if (!d) return null
                     return (
-                      <div key={nm} style={{ color: 'var(--text-tertiary)', fontSize: 9.5, marginTop: 1 }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>{(nm || '').split(' ').slice(-1)[0]}</span>
+                      <div key={nm} style={{ color: 'var(--text-secondary)', fontSize: 10.5, marginTop: 2, lineHeight: 1.5 }}>
+                        <span style={{ color: '#58a6ff', fontWeight: 700 }}>{(nm || '').split(' ').slice(-1)[0]}</span>
                         {' '}52w {d.w52 || '—'}{d.w52_win != null ? ` (${pc(d.w52_win)})` : ''}
                         {' · '}L10 {pc(d.l10)}{d.form != null ? ` (${d.form >= 0 ? '+' : ''}${Math.round(100 * d.form)} vs usual)` : ''}
                         {' · '}this level {pc(d.lvl_share)} of yr, {pc(d.lvl_win)} won
@@ -2351,8 +2351,9 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                     )
                   }
                   return (
-                    <div title={`Every number is THIS COURT (${dl.surface}) ONLY and PRE-MATCH: each window is cut at the day before this match, so nothing after it is used. 52w = rolling 52-week W-L on this court with its win rate. L10 = last-10 on this court, with how far that sits above or below the player's own 52-week norm on this court. 'this level' = share of the prior year's matches on this court at this level and the win rate there. 'opp form' = the last-10 opponents judged by THEIR OWN form at the time, and the form of the ones actually beaten.`}>
-                      <div style={{ color: 'var(--text-tertiary)', fontSize: 9, marginTop: 3, opacity: 0.75 }}>
+                    <div style={{ borderLeft: '2px solid #58a6ff', background: 'rgba(88,166,255,0.06)', borderRadius: 4, padding: '5px 8px', margin: '6px 0 4px' }}
+                      title={`Every number is THIS COURT (${dl.surface}) ONLY and PRE-MATCH: each window is cut at the day before this match, so nothing after it is used. 52w = rolling 52-week W-L on this court with its win rate. L10 = last-10 on this court, with how far that sits above or below the player's own 52-week norm on this court. 'this level' = share of the prior year's matches on this court at this level and the win rate there. 'opp form' = the last-10 opponents judged by THEIR OWN form at the time, and the form of the ones actually beaten.`}>
+                      <div style={{ color: '#58a6ff', fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', marginBottom: 2 }}>
                         {String(dl.surface || '').toUpperCase()} ONLY · AS IT STOOD BEFORE THIS MATCH
                       </div>
                       {row(m.p1, dl.p1)}
