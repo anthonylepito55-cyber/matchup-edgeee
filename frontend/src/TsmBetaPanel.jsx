@@ -36,6 +36,14 @@ const ptDay = (utc) => {
   return d.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+// Why a row shows no price. Printed in place of the number so an absent market reads as a
+// coverage fact rather than a dash that could mean anything.
+const ABSENT = {
+  no_market_open_yet: { label: 'no market yet', why: 'nobody is quoting this fixture yet — usually a later round that depends on an unfinished match. It fills in once a book opens it.' },
+  started_before_any_price_was_seen: { label: 'started, never priced', why: 'first serve passed before any pre-match price was captured. A price read now would be an in-play price, so none is shown.' },
+  price_source_unavailable: { label: 'source down', why: 'the price feed could not be reached on the last export run.' },
+}
+
 const DQ = {
   NO_KNOWN_DATA_ISSUE: { c: '#3fb950', t: 'no known data issue' },
   'DATA-QUALITY-UNVERIFIED': { c: '#d29922', t: 'data-quality unverified' },
@@ -111,9 +119,16 @@ export default function TsmBetaPanel() {
       {d.market ? (
         <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)', lineHeight: 1.6, marginBottom: 8 }}>
           <b style={{ color: 'var(--text-secondary)' }}>Market column:</b> de-vigged price on the side the model picked, attached
-          AFTER the prediction was sealed — <b>the model is market-blind and never saw it</b>. Shown for {d.market.matched} of
-          {' '}{(d.market.matched || 0) + (d.market.unmatched || 0)}; the rest have no frozen price (ITF events and dates not yet
-          logged). Edge is model minus market, <b>context only, not a bet</b>. Withdrawn rows show no market or edge — their
+          AFTER the prediction was sealed — <b>the model is market-blind and never saw it</b>. Priced{' '}
+          <b style={{ color: 'var(--text-secondary)' }}>{d.market.matched} of {(d.market.matched || 0) + (d.market.unmatched || 0)}</b>
+          {d.market.from_board_log != null ? <> · {d.market.from_board_log} from the board's own closing line
+            (<span title="board log">log</span>), {d.market.from_polymarket} from a frozen pre-match Polymarket
+            capture (<span title="Polymarket Gamma">pm</span>)</> : null}.
+          A capture is taken once, while the match is still pre-match, and never re-read — a later read would be an in-play
+          price. The rest are shown with the reason in place of a number: <i>no market open yet</i> means nobody is quoting
+          that fixture (mostly later rounds that depend on today's results — those fill in as books open them), and
+          {' '}<i>started, never priced</i> means first serve passed before any price was seen, so none will ever be shown.
+          Edge is model minus market, <b>context only, not a bet</b>. Withdrawn rows show no market or edge — their
           probability was produced against a player who does not exist, so an "edge" against it would be meaningless.
         </div>
       ) : null}
@@ -180,9 +195,22 @@ export default function TsmBetaPanel() {
                   </td>
                   <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}
                       title={r.market_on_pick == null
-                        ? 'no frozen price for this fixture — ITF and not-yet-logged dates usually have none'
-                        : 'de-vigged market probability on the SAME side the model picked' + (r.market_vig_pts != null ? ' · ' + r.market_vig_pts + 'pt vig' : '')}>
-                    {r.invalidated || r.market_on_pick == null ? '—' : pct(r.market_on_pick)}
+                        ? (ABSENT[r.market_absent_reason] || {}).why || 'no price for this fixture'
+                        : 'de-vigged market probability on the SAME side the model picked · source '
+                          + (r.market_match === 'polymarket' ? 'Polymarket, captured ' + (r.market_captured_utc || '?')
+                             : "the board's own logged closing line")
+                          + (r.market_vig_pts != null ? ' · ' + r.market_vig_pts + 'pt vig' : '')}>
+                    {r.invalidated ? '—' : r.market_on_pick == null ? (
+                      <span style={{ fontSize: 9, fontStyle: 'italic', opacity: 0.8 }}>
+                        {(ABSENT[r.market_absent_reason] || {}).label || '—'}
+                      </span>
+                    ) : (
+                      <>{pct(r.market_on_pick)}
+                        <span style={{ fontSize: 8.5, opacity: 0.6, marginLeft: 3 }}>
+                          {r.market_match === 'polymarket' ? 'pm' : 'log'}
+                        </span>
+                      </>
+                    )}
                   </td>
                   <td style={{ padding: '5px 7px', whiteSpace: 'nowrap', fontWeight: 700,
                                color: r.edge_vs_market == null ? 'var(--text-tertiary)' : (r.edge_vs_market > 0 ? '#3fb950' : '#f85149') }}
