@@ -384,14 +384,19 @@ def _profile(gdf, today):
                     "t10_n": int(len(_t)),
                     "wo_dropped": int(len(sd) - len(_sdc)),
                 }
-        # COURT-SPECIFIC season + home-platform block (2026-10-20, user ask: the card
-        # readout must be this-court, not all games this season). Display only -- no model
-        # feature reads these, so the validated inputs are untouched.
+        # COURT-SPECIFIC record + home-platform block (2026-10-20, user ask: this-court
+        # only, and a ROLLING 52-WEEK window rather than the calendar season -- "instead of
+        # this being ssn i want this to be last 52 weeks and court specific"). Display only:
+        # no model feature reads these, so the validated inputs are untouched.
+        _w365s = sd[sd["date"] >= today - pd.Timedelta(days=365)]
+        e["w52_n_s"] = int(len(_w365s))
+        e["w52_w_s"] = int(_w365s["won"].sum()) if len(_w365s) else 0
+        e["w52_win_s"] = float(_w365s["won"].mean()) if len(_w365s) else None
+        # calendar-season figures kept so the tooltip can still show the old basis
         _yrs = sd[sd["date"].dt.year == today.year]
         e["sn_n_s"] = int(len(_yrs))
         e["sn_w_s"] = int(_yrs["won"].sum()) if len(_yrs) else 0
         e["sn_win_s"] = float(_yrs["won"].mean()) if len(_yrs) else None
-        _w365s = sd[sd["date"] >= today - pd.Timedelta(days=365)]
         e["lvl_s"] = {}
         if len(_w365s) and "lvl" in _w365s.columns:
             _nts = len(_w365s)
@@ -411,6 +416,11 @@ def _profile(gdf, today):
     # Model D v5 (2026-10-01): home-platform block -- prior-365d share / win rate /
     # games share per tournament level (0=tour, 1=challenger, 2=futures/ITF).
     w365a = gdf[gdf["date"] >= today - pd.Timedelta(days=365)]
+    # all-surface rolling 52-week record, used only as the daggered fallback on the card
+    # line when a player has no history on today's court (2026-10-20). Display only.
+    p["w52"] = {"n": int(len(w365a)),
+                "w": int(w365a["won"].sum()) if len(w365a) else 0,
+                "win": float(w365a["won"].mean()) if len(w365a) else None}
     p["lvl"] = {}
     if len(w365a) and "lvl" in w365a.columns:
         ntot = len(w365a)
@@ -1099,11 +1109,20 @@ def predict_d(name1, name2, surface, market_p1=None, level=None):
         fw = None
         if cc and e.get("won") is not None and cc.get("m_won") is not None:
             fw = e["won"] - cc["m_won"]
-        # court-specific season (2026-10-20 user ask). The all-surface values are kept
-        # alongside so the tooltip can still show them.
+        # ROLLING 52 WEEKS on this court -- the headline figure on the card line
+        # (2026-10-20 user ask). Season and all-surface values are kept alongside for the
+        # tooltip and for the daggered fallback.
+        n5s = int(e.get("w52_n_s") or 0)
+        w5s = int(e.get("w52_w_s") or 0)
+        wa = p.get("w52") or {}
+        na, waw = int(wa.get("n") or 0), int(wa.get("w") or 0)
         n9s = int(e.get("sn_n_s") or 0)
         w9s = int(e.get("sn_w_s") or 0)
-        return {"ssn": (f"{w9}-{n9 - w9}" if n9 else None),
+        return {"w52_court": (f"{w5s}-{n5s - w5s}" if n5s else None),
+                "w52_court_n": n5s, "w52_court_win": e.get("w52_win_s"),
+                "w52_all": (f"{waw}-{na - waw}" if na else None),
+                "w52_all_n": na, "w52_all_win": wa.get("win"),
+                "ssn": (f"{w9}-{n9 - w9}" if n9 else None),
                 "ssn_court": (f"{w9s}-{n9s - w9s}" if n9s else None),
                 "ssn_court_n": n9s, "ssn_court_win": e.get("sn_win_s"),
                 "l10": e.get("won"), "form": fw,

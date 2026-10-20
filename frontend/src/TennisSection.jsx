@@ -5662,13 +5662,14 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
               const row = (name, dd) => (
                 <div style={{ color: 'var(--text-tertiary)', fontSize: 9.5, marginTop: 1 }}>
                   <span style={{ color: 'var(--text-secondary)' }}>{name.split(' ').slice(-1)[0]}</span>
-                  {' '}ssn {dd.ssn_court || (dd.ssn ? `${dd.ssn}†` : '—')} · L10 {pc(dd.l10)}{dd.form != null ? ` (${dd.form >= 0 ? '+' : ''}${Math.round(100 * dd.form)} vs usual)` : ''} · this level {dd.lvl_share_court != null ? `${pc(dd.lvl_share_court)} of yr, ${pc(dd.lvl_win_court)} won` : (dd.lvl_share != null ? `${pc(dd.lvl_share)} of yr, ${pc(dd.lvl_win)} won†` : '— of yr, — won')} · opp form faced {pc(dd.fq_faced)} / beat {pc(dd.fq_beaten)}
+                  {' '}52w {dd.w52_court || (dd.w52_all ? `${dd.w52_all}†` : '—')}{dd.w52_court_n ? ` (${pc(dd.w52_court_win)})` : ''} · L10 {pc(dd.l10)}{dd.form != null ? ` (${dd.form >= 0 ? '+' : ''}${Math.round(100 * dd.form)} vs usual)` : ''} · this level {dd.lvl_share_court != null ? `${pc(dd.lvl_share_court)} of yr, ${pc(dd.lvl_win_court)} won` : (dd.lvl_share != null ? `${pc(dd.lvl_share)} of yr, ${pc(dd.lvl_win)} won†` : '— of yr, — won')} · opp form faced {pc(dd.fq_faced)} / beat {pc(dd.fq_beaten)}
                 </div>
               )
               return (
                 <div title={"EVERY NUMBER ON THIS LINE IS THIS COURT ONLY (" + (match.surface || 'this surface') + "), not all surfaces — changed on user ask 2026-10-20."
-                  + "\nssn = W-L this calendar year ON THIS COURT"
-                  + (md.d1?.ssn ? " (all surfaces: " + md.d1.ssn + " / " + (md.d2?.ssn || '—') + ")" : "")
+                  + "\n52w = W-L over the ROLLING LAST 52 WEEKS ON THIS COURT, with the win rate beside it — not the calendar season"
+                  + (md.d1?.w52_all ? " (all surfaces, 52w: " + md.d1.w52_all + " / " + (md.d2?.w52_all || '—') + ")" : "")
+                  + (md.d1?.ssn ? ". Calendar season to date, all surfaces, for reference: " + md.d1.ssn + " / " + (md.d2?.ssn || '—') : "")
                   + ".\nL10 = last-10 win rate on this court, with (±) how far above/below the player's OWN 52-week norm on this court that is."
                   + "\n'this level' = share of the past year's matches ON THIS COURT at today's level (tour/challenger/ITF) and the win rate there — the home-platform check"
                   + (md.d1?.lvl_share != null ? " (all surfaces: " + Math.round(100 * md.d1.lvl_share) + "% / " + (md.d2?.lvl_share != null ? Math.round(100 * md.d2.lvl_share) + "%" : '—') + ")" : "")
