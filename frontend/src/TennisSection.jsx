@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { americanOddsToImpliedProb } from './odds.js'
 import TestedPanel from './TestedPanel.jsx'
+import TennisNextPanel from './TennisNextPanel.jsx'
 import DogPicksPanel from './DogPicksPanel.jsx'
 
 // MC2/MC3/MC5 ONLY (2026-10-13, user "any signals under the picks u can remove them
@@ -745,7 +746,7 @@ export default function TennisSection() {
           className="mono" style={{ padding: '5px 12px', borderRadius: 14, fontSize: 11, width: 210,
             border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }} />
         {query ? <button onClick={() => setQuery('')} className="mono" style={{ padding: '5px 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-tertiary)' }}>✕</button> : null}
-        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['dogpicks', '🐕 Dog picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ...(SHOW_MODEL_P ? [['modelp', 'Ⓟ Model P']] : []), ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested']].filter(([k]) => !HIDDEN_TABS.has(k)).map(([k, label]) => (
+        {[['board', 'board'], ['best', '🏆 Best'], ['prices', '💰 Prices'], ['tabpl', '📊 Tab P/L'], ['sets', '🎲 Sets'], ['picks', '⭐ Picks'], ['dogpicks', '🐕 Dog picks'], ['itf', 'ITF (M+W)'], ['ab25', 'A vs B — $25'], ['splits', '🐕/⭐ Splits'], ['history', 'results history'], ['modelx', 'Model X'], ...(SHOW_MODEL_P ? [['modelp', 'Ⓟ Model P']] : []), ['uedog', '🧤 Low-error dogs'], ['tested', '🧪 Tested'], ['next', '🧬 NEXT']].filter(([k]) => !HIDDEN_TABS.has(k)).map(([k, label]) => (
           <button key={k} onClick={() => setView(k)} className="mono" style={{
             padding: '5px 14px', borderRadius: 14, fontSize: 11, cursor: 'pointer',
             border: `1px solid ${view === k ? '#e3b341' : 'var(--line)'}`,
@@ -780,7 +781,7 @@ export default function TennisSection() {
           }}>{showModels ? '● all models' : '○ other models'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'dogpicks' ? <DogPicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' && SHOW_MODEL_P ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'dogpicks' ? <DogPicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' && SHOW_MODEL_P ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : view === 'next' ? <TennisNextPanel /> : (<>
       {/* CROSS-BOOK SCANNER HIDDEN (2026-10-13, user: "hide the cross book scanner at the
           top of the page"). It sat above the board on every view. The component and its
           data (data.price_scan) are untouched, so restoring it is this one line -- and the
@@ -2871,12 +2872,12 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // over the market. Replay context (retro month): taking the FAVORITE here ran +5.6%
   // (114-42) — but the neighboring bands were negative (no dose-response), so this is
   // a WATCH highlight, not a bet mark; the mc2e58_fav lane is scoring it live.
-  const mc2DogEdge = (() => {
-    if (!match.mc2 || match.mc2.p1_prob == null || !mc3 || mc3.market_p1 == null) return null
+  const mc6DogEdge = (() => {
+    if (!match.mc6 || match.mc6.p1_prob == null || !mc3 || mc3.market_p1 == null) return null
     const d1 = mc3.market_p1 < 0.5
-    return (d1 ? match.mc2.p1_prob : 1 - match.mc2.p1_prob) - (d1 ? mc3.market_p1 : 1 - mc3.market_p1)
+    return (d1 ? match.mc6.p1_prob : 1 - match.mc6.p1_prob) - (d1 ? mc3.market_p1 : 1 - mc3.market_p1)
   })()
-  const orange58 = mc2DogEdge != null && mc2DogEdge >= 0.05 && mc2DogEdge < 0.08
+  const orange58 = mc6DogEdge != null && mc6DogEdge >= 0.05 && mc6DogEdge < 0.08
   // 🏛 TIER-1 BEDROCK BLUE (2026-10-08, user "make sure these are full highlighted"):
   // the cells positive in BOTH the 2024-26 walk-forward backtest AND the live log —
   // GRAY 4pt+ DOG (bt26 M +11.1/W +35.1, live +11.0%), STAR/TIER-1 dogs (M +12/W +34.7,
@@ -3282,21 +3283,23 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
         bt: 'bt NON-CLAY: hard +16.9% (n=199) 2024 +15.9 / 2025 +19.8 / 2026 +13.5 · grass +22.2% (n=59) · CLAY EXCLUDED, it lost −16.6% (n=72) · Tennis Abstract charting',
         rule: `${Math.round(uDog * 10) / 10} UEs/set vs ${Math.round(uFav * 10) / 10} (last 5 charted)` })
     }
-    // MC2 DOG (2026-10-09, user "mark the games mc2 is on the dog"): MC2 picks the
-    // market underdog. Frozen log 9/6-10/9 (pre-10/8 rows are the as-of replay, not
-    // forward picks): men +9.2% (40-42, n=82), +100..+200 +19.2% (35-31, n=66); women
-    // -5.2% (32-48, n=80), +100..+200 -4.5% (n=64). Archive backtest: every MC2 betting
-    // cell ~ -5%. Women are shown as WATCH, not TAKE. Lane pink_mc2_dog.
-    if (match.mc2 && match.mc2.p1_prob != null && !isNaN(odDog) && (match.mc2.p1_prob >= 0.5) === dog1) {
+    // MC6 DOG (2026-10-09 as MC2, switched to MC6 2026-10-19 on "all the mc2 stuff to be
+    // mc6 logs and lv %s"): the head picks the market underdog outright. Now read off MC6 and
+    // scored by MC6's OWN all-dog lane (mc6_all restricted to its dog side is the closest
+    // honest match, and mc6_dog2_all / mc6_dog3_all are the margin-gated cells the brown and
+    // gold marks above use). The backtest line below is the one piece that stays MC2's -- the
+    // old +9.2%/-5.2% split was measured on MC2's picks and is LABELLED as such, because MC6's
+    // own ungated dog side has no separate measurement yet.
+    if (match.mc6 && match.mc6.p1_prob != null && !isNaN(odDog) && (match.mc6.p1_prob >= 0.5) === dog1) {
       const inBand = odDog >= 100 && odDog <= 200
-      const mcDog = Math.round((dog1 ? match.mc2.p1_prob : 1 - match.mc2.p1_prob) * 1000) / 10
+      const mcDog = Math.round((dog1 ? match.mc6.p1_prob : 1 - match.mc6.p1_prob) * 1000) / 10
       out.push(isW
-        ? { n: 'MC2 DOG (W) ⚠', who: nmDog, od: odDog, lane: 'pink_mc2_dog', g: 'w', watch: true,
-            bt: `women log ${inBand ? '+100..+200 −4.5% (n=64)' : 'all dogs −5.2% (32-48, n=80)'} · archive MC2 cells ≈ −5%`,
-            rule: `MC2 ${mcDog}% on the dog` }
-        : { n: 'MC2 DOG (men)', who: nmDog, od: odDog, lane: 'pink_mc2_dog', g: 'm',
-            bt: `men log ${inBand ? '+100..+200 +19.2% (35-31, n=66)' : 'all dogs +9.2% (40-42, n=82)'} · ⚠ mostly replay pre-10/8 · archive MC2 cells ≈ −5%`,
-            rule: `MC2 ${mcDog}% on the dog` })
+        ? { n: 'MC6 DOG (W) ⚠', who: nmDog, od: odDog, lane: 'mc6_dog3_all', g: 'w', watch: true,
+            bt: `MC6 3pt+ W ${inBand ? '+100..+200: +12.9% (n=68) / +41.4% (n=47)' : 'all marked bands +12.9% to +54.4%'} · forward halves small and the +100..+150 one is negative`,
+            rule: `MC6 ${mcDog}% on the dog` }
+        : { n: 'MC6 DOG (men)', who: nmDog, od: odDog, lane: 'mc6_dog2_all', g: 'm',
+            bt: `MC6 2pt+ M ${inBand ? '+100..+150: +38.6% (46-27, n=73, t 3.06)' : '+200..+250: +12.5% (n=38)'} · mostly replay; blind dogs in band +14.8% (n=141)`,
+            rule: `MC6 ${mcDog}% on the dog` })
     }
     return out.length ? out : null
   })()
@@ -3370,7 +3373,10 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     c_alone_gray_dog: { m: true, w: true }, tier1: { m: true, w: true }, stardog_prime: { m: true, w: true },
     gray_dog4: { m: true, w: true }, mc_c75_dog: { m: true, w: true }, fade_a_dog_gray: { m: true, w: true },
     pink_fadeb_dog_m: { m: true }, pink_wcons_dog: { w: true }, pink_wall9_fav: { w: true },
-    pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false }, pink_mc2_dog: { m: false, w: false },
+    pink_cc75_dog: { m: true, w: true }, pink_cclose_c75fav_m: { m: false },
+    // MC6 dog cells (2026-10-19): measured positive for MC6 on the bands the board marks,
+    // unlike MC2's old pink_mc2_dog, whose women's half was negative. Live lanes still gate.
+    mc6_dog2_all: { m: true }, mc6_dog3_all: { w: true },
     p_dog: { m: true, w: true }, p_close: { m: true, w: true },
     // Ⓟ FAV DEMOTED TO WATCH 2026-10-10 (user "Demote P fav"). Backtest-positive both
     // genders (M +8.6% n=1,752, W +17.1% n=1,476) but live -18.5% (n=15), and the whole
@@ -3455,8 +3461,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   // So the MC2 cells keep marking regardless of their lane record while the samples build.
   // Their lanes still score in the background, so nothing is lost -- only the automatic
   // suppression is paused. Flip this to true to restore it.
-  const MC2_AUTO_UNMARK = false
-  const mc2Alive = (lane, g, isFav) => (MC2_AUTO_UNMARK ? fwdAlive(lane, g, isFav) : true)
+  const MC6_AUTO_UNMARK = false
+  const mc6Alive = (lane, g, isFav) => (MC6_AUTO_UNMARK ? fwdAlive(lane, g, isFav) : true)
   const fwdAlive = (lane, g, isFav) => {
     const c = ((((laneRec && laneRec.study) || {})[lane]) || {})[g] || {}
     const n = c.n || 0
@@ -3581,7 +3587,9 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     }
     return null                       // leans to the dog but never flips it -- not a G read
   })()
-  // 🟤 MC2 BROWN MARKS (2026-10-13, user "Okay highlight all favorites 2pt + to 8pt a brown
+  // 🟤 BROWN / 🥇 GOLD MC MARKS -- HISTORY OF THIS BLOCK (the live rules are the MC6 ones
+  // in the next comment; everything in THIS paragraph is what the block used to do on MC2):
+  // (2026-10-13, user "Okay highlight all favorites 2pt + to 8pt a brown
   // and all underdog flips a brown for mc2"). Two cells, one colour:
   //   FAV 2-8pt  -- MC2 between 2 and 8 points over the market's price on the favourite. A BAND,
   //                 not a floor, and that is the point: on the live log the favourite side is an
@@ -3592,55 +3600,29 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   //                 against +2.24% for backing every dog on the same rows.
   // Watch marks, like G's and for the same reason: five days of data and standard errors of
   // 12-15 points. Last in precedence with G, so neither can paint over a validated card.
-  const mc2Mark = (() => {
-    const m2 = match.mc2
+  // ---- READS MC6, NOT MC2 (2026-10-19, user: "on the board i want all the mc2 stuff to be
+  // mc6 logs and lv %s"). The head, the cells, the gates and the live records on this mark are
+  // now MC6's, which also makes the board agree with the 🐕 Dog picks tab -- that tab moved to
+  // MC6 cells on 2026-10-16 and the board had been left behind on MC2's.
+  //
+  // THE GATES MOVED WITH THE HEAD, on purpose. Keeping MC2's thresholds (4pt / 6pt dogs) while
+  // displaying an MC6 lane record is exactly the error that put MC2's numbers on MC6 lanes
+  // before: the gate would be one cell and the quoted record another. Every cell below is the
+  // MC6-measured cell from the Dog tab, so the rule that fires and the lane that scores it are
+  // the same thing.
+  const mc6Mark = (() => {
+    const m2 = match.mc6
     const mk = mc3 && mc3.market_p1 != null ? mc3.market_p1 : null
     if (!m2 || m2.p1_prob == null || mk == null) return null
     const fav1 = mk >= 0.5
     const mkfav = fav1 ? mk : 1 - mk
     const mcfav = fav1 ? m2.p1_prob : 1 - m2.p1_prob
     const over = mcfav - mkfav
-    // ALL THREE MC HEADS MUST AGREE ON THE SIDE (2026-10-13, user: "make sure all 3 mc2, mc3,
-    // and mc5 all agree on dogs or favorites before labeling them brown").
-    //
-    // A head's SIDE is where it sits against the DE-VIGGED market, which is the same definition
-    // the user's own take rule uses: at or above the market on the favourite means it is on the
-    // favourite, below means it is on the dog. So a brown dog cell now needs all three under the
-    // market and a brown favourite cell needs all three at or over it.
-    //
-    // CARE: the bare `mc3` on the market line above is NOT Model MC3 -- it is an outer-scope
-    // object that happens to carry market_p1. The models are read off match.mc3 / match.mc5.
-    //
-    // A MISSING head blocks the mark rather than being ignored. "All three agree" cannot be
-    // confirmed from two, and all three share the same >=4-serve-rated-matches gate, so a card
-    // missing one is a thin card -- exactly where agreement mattered in the first place.
-    // MC5 tracks MC3 closely by design, so in practice this bites mainly where MC2 and MC3
-    // disagree, which is the ~12% of cards the mc3_vs_mc2 lane counts.
-    const sideOf = (h) => {
-      if (!h || h.p1_prob == null) return null
-      const hf = fav1 ? h.p1_prob : 1 - h.p1_prob
-      return hf >= mkfav ? 'fav' : 'dog'
-    }
-    const mcSides = [sideOf(match.mc2), sideOf(match.mc3), sideOf(match.mc5)]
-    // AGREEMENT MUST BE AT THE CELL'S OWN THRESHOLD (2026-10-13, user: "shouldnt have a signal
-    // bcus mc5 doesnt agree and is not over 3 pts").
-    //
-    // The first version tested only the SIDE -- whether each head sat above or below the
-    // de-vigged market -- so a head 0.1pt off the market counted as agreeing and a three-head
-    // gate meant almost nothing. Svitolina -295 / Samsonova +235 was the case: MC2 +7.00pt and
-    // MC3 +4.11pt on the dog both cleared the 3pt bar, but MC5 was +2.76pt, under it, and the
-    // DOG 3pt+ mark fired anyway because 68.68% < 71.44% made MC5 "on the dog".
-    //
-    // Now every head must clear the same margin the cell is named for. `agree(want)` is kept as
-    // the side-only test for the AVOID cell, which is deliberately ungated.
-    const mcMargins = [match.mc2, match.mc3, match.mc5].map(h => {
-      if (!h || h.p1_prob == null) return null
-      const hf = fav1 ? h.p1_prob : 1 - h.p1_prob
-      return hf - mkfav                      // + = over on the favourite, - = over on the dog
-    })
-    const agree = (want) => mcSides.every(sd => sd === want)
-    const agreeAt = (want, minPt) => mcMargins.every(mg => mg != null
-      && (want === 'fav' ? mg >= minPt : -mg >= minPt))
+    // THE THREE-HEAD AGREEMENT GATE IS GONE (dropped 2026-10-14 when the gender x price-band
+    // rules came in, and its helper code -- sideOf / mcSides / mcMargins / agree / agreeAt --
+    // was removed on 2026-10-19 with the move to MC6. It had been dead code reading MC2, MC3
+    // and MC5 since the band rules replaced it, and leaving it there implied a gate that was
+    // not running. The cells below are single-head MC6 cells, exactly as the Dog tab has them.)
     const lo = match.live_odds || {}
     const num = (v) => { const n = Number(v); return isNaN(n) ? null : n }
     const rec = (lane) => {
@@ -3656,7 +3638,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // evidenced -- 485 all-rows bets against 119.
     const dogAm = fav1 ? Number(lo.player_2) : Number(lo.player_1)
     const dogInBand = !isNaN(dogAm) && dogAm >= 100 && dogAm <= 250
-    // ---- MC2 BAND RULES (board), 2026-10-14 ----
+    // ---- SUPERSEDED: MC2 BAND RULES (board), 2026-10-14 -- kept as provenance for where the
+    // gender x price-band shape came from. The live cells are MC6's, listed under DOG_CELLS. ----
     // User: "can u use the same mc2 rules on odds for the board brown highlights", and the
     // three-head agreement gate was dropped on the same call so the board matches the Dog picks
     // tab exactly. Those rules are gender x PRICE BAND, forward-measured, because the men's dog
@@ -3673,28 +3656,41 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // `over` is MC2 on the FAVOURITE minus the de-vigged market, so a dog N points over is
     // over <= -N/100. Bands are first-match, so +150 belongs to +100..+150 only.
     const _dogBand = (lo2, hi2) => !isNaN(dogAm) && dogAm >= lo2 && dogAm <= hi2
+    // ---- MC6 DOG CELLS (2026-10-19) -- the Dog tab's PINK_BANDS roster, verbatim, so the
+    // board and the tab fire on the same cards and quote the same lane.
+    // The MARGIN GATE IS PER GENDER because MC6's dog ladders run in opposite directions:
+    //   men   flat 0pt->2.5pt then decaying  -> 2pt gate, lane mc6_dog2_all
+    //   women climbing to 3-4pt              -> 3pt gate, lane mc6_dog3_all
+    // Bands NOT listed are the ones MC6 loses in for that gender (men +150..+200 is -24.22%
+    // on 50 at 2pt, women +200..+250 is off the tab), so they stay unmarked.
     const DOG_CELLS = [
-      { g: 'm', lo: 100, hi: 150, pt: 0.04, cell: 'DOG 4pt+ M +100/150', lane: 'mc2_dog_band' },
-      { g: 'w', lo: 100, hi: 150, pt: 0.04, cell: 'DOG 4pt+ W +100/150', lane: 'mc2_dog_band' },
-      { g: 'w', lo: 150, hi: 200, pt: 0.04, cell: 'DOG 4pt+ W +150/200', lane: 'mc2_dog_band' },
-      { g: 'm', lo: 200, hi: 250, pt: 0.06, cell: 'DOG 6pt+ M +200/250', lane: 'mc2_dog_long' },
-      { g: 'w', lo: 250, hi: 300, pt: 0.04, cell: 'DOG 4pt+ W +250/300', lane: 'mc2_dog_band' },
+      { g: 'm', lo: 100, hi: 150, pt: 0.02, cell: 'DOG 2pt+ M +100/150', lane: 'mc6_dog2_all' },
+      { g: 'w', lo: 100, hi: 150, pt: 0.03, cell: 'DOG 3pt+ W +100/150', lane: 'mc6_dog3_all' },
+      { g: 'w', lo: 150, hi: 200, pt: 0.03, cell: 'DOG 3pt+ W +150/200', lane: 'mc6_dog3_all' },
+      { g: 'm', lo: 200, hi: 250, pt: 0.02, cell: 'DOG 2pt+ M +200/250', lane: 'mc6_dog2_all' },
+      { g: 'w', lo: 250, hi: 300, pt: 0.03, cell: 'DOG 3pt+ W +250/300', lane: 'mc6_dog3_all' },
     ]
     for (const d of DOG_CELLS) {
       if (d.g !== gHL) continue
       if (!_dogBand(d.lo, d.hi)) continue
       if (!(over <= -d.pt)) continue
-      if (!mc2Alive(d.lane, gHL, false)) continue
+      if (!mc6Alive(d.lane, gHL, false)) continue
       return { cell: d.cell, lane: d.lane, who: fav1 ? match.player_2 : match.player_1,
                od: dogAm, amt: Math.round(-1000 * over) / 10, live: rec(d.lane),
                recon: !!m2.recon }
     }
     // the AVOID cell is deliberately NOT gated on agreement: it says do not back this dog, and
     // withholding a warning because the heads disagree would be backwards.
-    if (dogInBand && over > -0.03 && over <= -0.01) {
-      return { cell: 'NO DOG', avoid: true, lane: 'mc2_dog_dead',
+    // DEAD-ZONE WARNING, now read off MC6 and gender-coherent (2026-10-19): it fires when MC6
+    // leans the dog by at least 1pt but UNDER that gender's own take gate (men 2pt, women 3pt),
+    // i.e. a lean too small for any MC6 cell to back. NO MC6 LANE SCORES THIS -- the -1..-3pt
+    // dead zone was measured on MC2's version -- so it shows "no MC6 lane" rather than
+    // borrowing a record from a cell it is not.
+    const _takeGate = gHL === 'w' ? 0.03 : 0.02
+    if (dogInBand && over <= -0.01 && over > -_takeGate) {
+      return { cell: 'NO DOG', avoid: true, lane: null,
                who: fav1 ? match.player_2 : match.player_1, od: dogAm,
-               amt: Math.round(-1000 * over) / 10, live: rec('mc2_dog_dead'),
+               amt: Math.round(-1000 * over) / 10, live: 'no MC6 lane',
                recon: !!m2.recon }
     }
     // the favourite price band, -100..-250, now applied to all three brown favourite slices
@@ -3717,7 +3713,8 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     })()
     // null price -> cannot verify, so do not mark (fail closed)
     const favClearsPrice = _favDec != null && (mcfav * _favDec - 1) >= 0
-    // ---- MC2 FAVOURITE BAND RULES (board), 2026-10-14 ----
+    // ---- SUPERSEDED: MC2 FAVOURITE BAND RULES (board), 2026-10-14. The live favourite cells
+    // are MC6's, defined just below. ----
     // The same two cells the Dog picks tab marks gold, and nothing else:
     //   women -100..-200  4pt+   +22.85% / 51 pooled, t 2.16, positive in both windows
     //   men   -100..-150  4pt+   +18.51% / 12 forward  (the mens DEEP half is not marked --
@@ -3727,26 +3724,29 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
     // favClearsPrice is KEPT. The margin is measured against the DE-VIGGED market, so "4pt over"
     // can still sit below break-even at the offered price; a mark must not recommend backing a
     // favourite the head itself prices as a losing bet.
-    const _favLo = gHL === 'w' ? -200 : -150
-    const _favOK = !isNaN(favAm) && favAm <= -100 && favAm >= _favLo
-    // reads MC6 from 2026-10-16, matching the Dog tab -- same rule, different head
-    const _favLane = gHL === 'w' ? 'mc6_fav4_w' : 'mc6_fav4_m'
-    if (_favOK && over >= 0.04 && favClearsPrice && mc2Alive('mc2_fav_band', gHL, true)) {
+    // ---- MC6 FAVOURITE CELLS (2026-10-19) -- the Dog tab's own FAV_LANE pair, which are the
+    // two MC6-MEASURED favourite cells, not MC2's old 4pt test:
+    //   WOMEN  >= 6pt FLOOR + EV>=0   lane mc6_fav6_w     (+14.79% / 57; their side climbs
+    //                                 with the margin, so a cap removes the good half)
+    //   MEN    3-6pt BAND  + EV>=0    lane mc6_fav_band_m (+32.42% / 20; their side is an
+    //                                 inverted U, and the >6pt tail it cuts is +3.0% / 53)
+    // Price floor stays -100..-250 as before; the tab's extra -150..-200 cells
+    // (mc6_fav150_m/w) are tab-only and not duplicated here.
+    const _favOK = !isNaN(favAm) && favAm <= -100 && favAm >= -250
+    const _favPt = gHL === 'w' ? (over >= 0.06) : (over >= 0.03 && over < 0.06)
+    const _favLane = gHL === 'w' ? 'mc6_fav6_w' : 'mc6_fav_band_m'
+    if (_favOK && _favPt && favClearsPrice && mc6Alive(_favLane, gHL, true)) {
       // MC6'S VERDICT ON THE SAME BET (2026-10-16, user ask). Carried, not enforced: the
-      // gold rule still reads MC2 alone. MC6 is the only head here with a form term, and on
-      // Grant vs Ito it was the one that noticed a favourite on four straight losses.
-      // EV is taken at the OFFERED price -- the de-vigged margin is exactly what made MC2
-      // look right on that card -- so this is what the bet would actually return at MC6's
-      // number. Null when MC6 has no read, which must not be mistaken for agreement.
-      const _m6h = match.mc6
-      const _m6fav = (_m6h && _m6h.p1_prob != null)
-        ? (fav1 ? _m6h.p1_prob : 1 - _m6h.p1_prob) : null
-      return { cell: gHL === 'w' ? 'FAV 4pt+ W -100/200' : 'FAV 4pt+ M -100/150',
+      // The old "MC6'S VERDICT" chip that used to hang off this mark is GONE (2026-10-19): it
+      // existed to show where the newest head disagreed with an MC2 mark, and the mark is now
+      // MC6's own read, so it would have been MC6 agreeing with itself. The EV it carried is
+      // kept as `ev` -- the mark's own EV at the OFFERED price, which the gate already
+      // requires to be >= 0, so it is shown as a number rather than a verdict.
+      return { cell: gHL === 'w' ? 'FAV 6pt+ W' : 'FAV 3-6pt M',
                // isFav drives the GOLD treatment below: these are the cells the Dog picks tab
                // marks gold (2026-10-15), and the board must not disagree with it on colour.
                isFav: true,
-               mc6ev: (_m6fav != null && _favDec) ? (_m6fav * _favDec - 1) : null,
-               mc6over: _m6fav != null ? (_m6fav - mkfav) : null,
+               ev: _favDec ? (mcfav * _favDec - 1) : null,
                lane: _favLane, who: fav1 ? match.player_1 : match.player_2,
                od: favAm, amt: Math.round(1000 * over) / 10, live: rec(_favLane),
                recon: !!m2.recon }
@@ -3866,16 +3866,16 @@ function MatchCard({ match, animDelay, laneRec, greenOnly = false, showCMC = fal
   }
   // green first (oldest, deepest evidence), then the dark-blue marks, then G last
   // MC_ONLY: G's black/yellow marks are a third model's visibility marks, so they go too;
-  // brown (MC2+MC3+MC5 agreement) and the orange MC2 watch mark are all that can paint.
+  // brown/gold (MC6's own cells) and the orange MC6 watch mark are all that can paint.
   const gMarkShow = !MC_ONLY && gMark
   const HLs = hlAny ? HL
     : (hlGrayDog || hlS52) ? HL_DARKBLUE
       : (gMarkShow && !gMark.recon) ? ((gMark.cell === 'FAV-OVER') ? HL_BLACK : HL_YELLOW)
-        : (mc2Mark && !mc2Mark.recon && !mc2Mark.avoid)
-          ? (mc2Mark.isFav ? HL_GOLDFAV : HL_BROWN) : HL_ORANGE
+        : (mc6Mark && !mc6Mark.recon && !mc6Mark.avoid)
+          ? (mc6Mark.isFav ? HL_GOLDFAV : HL_BROWN) : HL_ORANGE
   // an AVOID cell must never paint the card like a pick -- it is the opposite instruction
   const hlOn = hlAny || hlGrayDog || hlS52 || !!(gMarkShow && !gMark.recon)
-    || !!(mc2Mark && !mc2Mark.recon && !mc2Mark.avoid) || !!orangeMark
+    || !!(mc6Mark && !mc6Mark.recon && !mc6Mark.avoid) || !!orangeMark
   const markVerdict = (() => {
     const study = (laneRec && laneRec.study) || {}
     const isW9 = match.league === 'wta' || match.league === 'itf_women'
@@ -4087,9 +4087,11 @@ READ THIS BEFORE TRUSTING IT. The catalogue keeps whatever is up out of 143 favo
           <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · fwd ${orangeMark.roi > 0 ? '+' : ''}${orangeMark.roi}% (${orangeMark.wins}-${orangeMark.n - orangeMark.wins}) ±${orangeMark.se} · watch only`}</span>
         </div>
       ) : null}
-      {mc2Mark && mc2Mark.avoid ? (
+      {mc6Mark && mc6Mark.avoid ? (
         <div className="mono"
-          title={`⛔ DO NOT BACK THIS DOG. MC2 sits only ${mc2Mark.amt}pt below the market on the favourite — inside the 1 to 3 point dead zone, where it shades toward the dog without really disagreeing with the price.
+          title={`⛔ DO NOT BACK THIS DOG. MC6 leans the dog by only ${mc6Mark.amt}pt — under the ${gHL === 'w' ? '3pt (women)' : '2pt (men)'} margin its own take cells require, so no MC6 cell backs it and no MC6 lane scores this badge. The evidence BELOW is MC2's dead-zone measurement on the same shape, kept because the direction is what it is about; MC6's own version of this slice has not been measured. Original MC2 text follows.
+
+MC2 sat only 1-3pt below the market on the favourite — inside the 1 to 3 point dead zone, where it shades toward the dog without really disagreeing with the price.
 
 Measured, dog +100..+250: forward −64.75% on 12 (16.7% hit) and all-rows −17.11% on 63 (34.9% hit), against a baseline of −0.90% for backing every dog in the band. The two halves of the zone: −1..−2pt is −8.22% on 36, −2..−3pt is −28.96% on 27.
 
@@ -4102,84 +4104,59 @@ The lane behind this badge still bets the dog, because that is the only way to k
             background: 'linear-gradient(90deg, rgba(248,81,73,0.20), transparent)',
             border: '1px dashed rgba(248,81,73,0.75)',
           }}>
-          {'⛔ 🧮 MC2 NO DOG → '}
+          {'⛔ 🧮⁶ MC6 NO DOG → '}
           <span style={{ fontSize: 11, fontWeight: 900, color: '#ffb3ab' }}>
-            {'DO NOT TAKE ' + mc2Mark.who.split(' ').slice(-1)[0].toUpperCase()}{`${mc2Mark.od > 0 ? ' +' : ' '}${mc2Mark.od}`}
+            {'DO NOT TAKE ' + mc6Mark.who.split(' ').slice(-1)[0].toUpperCase()}{`${mc6Mark.od > 0 ? ' +' : ' '}${mc6Mark.od}`}
           </span>
-          {` · only ${mc2Mark.amt}pt over (dead zone 1-3pt)`}
-          <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · −17.1% on the 485-row check`}</span>
+          {` · only ${mc6Mark.amt}pt over (under the ${gHL === 'w' ? '3' : '2'}pt take gate)`}
+          <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc6Mark.live} · dead zone measured on MC2`}</span>
         </div>
       ) : null}
-      {mc2Mark && !mc2Mark.avoid ? (
+      {mc6Mark && !mc6Mark.avoid ? (
         <div className="mono"
-          title={`${mc2Mark.isFav ? '🥇' : '🟤'} MC2 ${mc2Mark.cell} — where MC v2 is saying something, NOT a recommendation.
+          title={`${mc6Mark.isFav ? '🥇' : '🟤'} MC6 ${mc6Mark.cell} — where MC v6 is saying something, NOT a recommendation.
 
-${mc2Mark.cell === 'FAV 0-2pt'
-            ? `MC2 is ${mc2Mark.amt}pt over the market on this favourite — essentially on the price, or a touch above — with the favourite inside −100..−250. This slice exists so a card whose true margin is 1.9pt is not left unmarked by rounding alone: a −140 favourite de-vigs to 55.6%, and a displayed "58%" could be anything from 57.5 to 58.5, so the real gap can sit either side of a hard 2pt edge.
+${mc6Mark.isFav
+            ? (gHL === 'w'
+              ? `MC6 rates this WOMEN'S favourite ${mc6Mark.amt}pt over the de-vigged market, priced −100..−250, and the bet also clears break-even at the OFFERED price. A FLOOR at 6pt, not a band: the women's favourite side CLIMBS with the margin — >=4pt +9.3% on 68, >=6pt +14.8% on 57, >=8pt +19.0% on 41 — against a baseline of −7.9% on 405 for backing every women's favourite, so capping it would cut the good half (the 4-8pt band version measures −5.2% on 27).
 
-Measured, favourite −100..−250: this slice is −3.04% on 22 forward and −6.55% on 53 all-rows, against a baseline of −6.79% / −7.08% for backing every favourite in the band. It is the WEAKEST of the three brown favourite slices and negative in both samples. It is marked because the combined over≥0 cell is +2.33% on 70 forward and that is the agreed rule — and it will unmark itself once it reaches 25 settles if it stays negative.
+MC6's own record for this cell: +14.79% on 57, t 1.50 — by price, −100/150 +17.81% on 23, −150/200 +16.36% on 19, −200/300 +11.58% on 10, −300/500 +1.37% on 5, nothing deeper.`
+              : `MC6 rates this MEN'S favourite ${mc6Mark.amt}pt over the de-vigged market, priced −100..−250, and the bet also clears break-even at the OFFERED price. A BAND 3-6pt, not a floor: the men's favourite side is an inverted U — baseline −8.5% on 444 (t −2.61), in-band +21.2% on 35 (t 2.07), a plain >=3pt floor only +10.2% on 88, and the >6pt tail the cap removes is +3.0% on 53. A huge claimed margin on a short price means the head has misread the match rather than found value.
 
-The three slices for comparison, forward then all-rows: 0-2pt −3.0 / −6.6, 2-8pt +2.1 / −5.7, 8pt+ +8.0 / −1.2.`
-          : mc2Mark.cell === 'DOG LONG'
-            ? `MC2 rates this LONG DOG ${mc2Mark.amt}pt above its own price, with the dog between +200 and +250 — the one place on the board where a long price has beaten the market.
-At +225 you only have to win about 31% of the time to break even, so a model that lifts the hit rate a few points is worth far more here than the same lift on a short favourite. Measured: +28.27% on 55 all-rows (40.0% hit) and +21.21% on 19 forward, against −1.94% forward / +1.79% all-rows for backing EVERY dog in that band.
-The price window closes on both sides, which is the main reason to believe it: at this same 10pt margin, +100..+150 is −0.67% on 75, +150..+200 is −7.22% on 79, this cell is +22.55% on 49, +250..+300 is +32.11% on 53, and +300 and up is −24.35% on 107. The edge starts at +200 and dies by +300.
-The men's half is weak — +9.80% on 35 all-rows and +1.10% on 10 forward — so nearly all of this is the women's side (+60.60% on 20, +43.56% on 9). It is not gender-gated because both halves are positive in both samples, but read a men's card here as the thin one.
-Note Model C75 does NOT confirm this: on its own 3pt+ dog gate, +200..+250 comes back −6.22% on 89. Different head, so not a refutation, but it is not independent support either.`
-          : mc2Mark.cell === 'DOG 3pt+'
-            ? `MC2 puts the market FAVOURITE ${mc2Mark.amt}pt BELOW the market's own price on it — the same as rating this dog ${mc2Mark.amt}pt above its price — with the dog inside +100..+250.
+MC6's own record for this cell: +32.42% on 20, t 2.41. The EV>=0 condition is doing real work here — it removes 14 of the 34 band picks, and without it the band is +24.72% on 34.`)
+            : (gHL === 'w'
+              ? `MC6 rates this dog ${mc6Mark.amt}pt above its own price — 3pt or more, which is the WOMEN'S gate because their ladder climbs to 3-4pt and the men's does not.
 
-The best-evidenced cell on this board. Forward +13.23% on 153 (45.1% hit), all-rows +4.53% on 485 (41.2% hit), against −0.76% / −0.90% for backing every dog in the band. Both samples positive, and the hit rate clears the ~38.5% break-even at these prices, so it wins matches rather than catching one longshot.
+MC6's own records on the marked women's bands: +100..+150 +12.93% on 68 (t 0.96) but FORWARD −19.86% on 14, the weakest marked cell and dropped automatically at 25 forward settles if it stays non-positive; +150..+200 +41.38% on 47 (t 2.02, forward +3.25% on 8); +250..+300 +54.42% on 31 (t 1.64, forward +36.62% on 8) — though blind dogs in that band are already +17.66% on 44, so much of the last one is the price and not MC6. +200..+250 is NOT marked for women: it loses at every gate.`
+              : `MC6 rates this dog ${mc6Mark.amt}pt above its own price — 2pt or more, which is the MEN'S gate: their ladder is flat from 0pt to 2.5pt and decays above it, so the margin size carries nothing for them and a higher bar only trimmed the sample. 2pt rather than 0pt keeps a real disagreement requirement at no measured cost.
 
-A PLATEAU, not a tuned point: 2pt is +11.1%, 3pt +13.2%, 4pt +8.7% forward, and 2pt/3pt beat both 1pt and 4pt in both samples. The women's half is stronger (+24.0% on 63 forward, +12.6% on 188 all-rows); men are flat on 387 combined. Watch only, and it auto-unmarks once this lane is negative at 10+ settles.`
-          : mc2Mark.cell === 'FAV 8pt+'
-            ? `MC2 rates the market FAVOURITE ${mc2Mark.amt}pt over the market's own price on it — the DEEP cell, where MC2 thinks the price is badly wrong. Forward: 8pt+ is +3.28% on 23 and 9pt+ is +1.40% on 17, both inside noise of chalk (−8.46%), and the backfill disagrees (9pt+ −4.25% on 22). Worth knowing about the shape: at this margin the average favourite is only −158 against −325 for chalk overall, so a big claimed edge nearly always means a near-coin-flip favourite rather than a mispriced strong one. Added on your call; it auto-unmarks once its own lane is negative at 25+ settles.`
-          : mc2Mark.cell === 'FAV 2-8pt'
-            ? `MC2 rates the market FAVOURITE ${mc2Mark.amt}pt over the market's own price on it, inside the 2-8 point band. It is a BAND rather than a floor because the favourite side is an inverted U on the live log: worthless at ANY margin (−1.4% on 87), best around 3-4pt, and negative again past 10pt — a huge claimed margin on a short price means MC2 has misread the match, not found value. In-band so far: +4.46% on 36 (men −5.2%, women +17.9%), against −8.55% for backing every favourite on the same rows.`
-            : `MC2 puts the market UNDERDOG ${mc2Mark.amt}pt past 50% — it picks the dog outright rather than merely leaning that way. +14.63% on 57 (men +23.0%, women −3.4%), against +2.24% for backing every dog on the same rows. The sturdier version of this at scale: MC2 over the market on ANY dog by any margin is +6.75% on 256.`}
+MC6's own records on the marked men's bands: +100..+150 +38.64% on 73 (46-27, t 3.06) — replay +42.68% on 59, forward +21.64% on 14 — against +14.75% on 141 for backing every men's dog in that band, so forward MC6 is not yet clear of the blind band; +200..+250 +12.53% on 38 (t 0.49, forward +28.00% on 5), where the signal is MC6 agreeing with the dog at all rather than by how much. +150..+200 is NOT marked for men: MC6 loses there at every gate (−24.22% on 50 at 2pt).`)}
 
-MC2 is the independent third opinion — surface Elo blended 50/50 in log-odds with a point-level Markov engine off opponent-adjusted serve/return ratings, integrated over rating uncertainty. It is NOT a stat-diff model like G, which is why the two disagree on which cell fires 45% of the time. Its own reckoning measured residual-vs-close as market-minus-vig, so it never bets alone.
+MC6 is EXACTLY MC5 plus two terms — a recency-weighted head-to-head (365-day half-life, weight 0.25) and a surface-form RESIDUAL against what Elo expected (5-match half-life, weight 0.50) — so everything under it is literally MC5's and cannot drift. It is the most accurate head in the project (AUC .7071 against MC2's .6889 on 786 matched rows, market .7096), and the gain is the surface-form half: H2H alone is worth +0.0007 to +0.0011 and is NEGATIVE if turned up.
 
-ALL THREE MC HEADS AGREE on this side (MC2, MC3 and MC5 are all on the same side of the de-vigged market), which is required before a brown mark is drawn. A missing head blocks it too.\n\nWATCH ONLY: five days of forward data, standard errors of 12-15 points. Lane ${mc2Mark.lane} on the 🐕/⭐ Splits tab.`}
+THIS MARK USED TO READ MC2 and was switched to MC6 on 2026-10-19 at your ask, which also put the board on the same cells as the 🐕 Dog picks tab. The gates moved with the head: these are MC6-measured cells, so the rule that fires and the lane quoted below are the same thing — not MC2's thresholds wearing MC6's record.
+
+WATCH ONLY. Every number above is MC6's own, most of it replay rather than forward, and the forward halves are small. Lane ${mc6Mark.lane} on the 🐕/⭐ Splits tab.`}
           style={{
             fontSize: 9, fontWeight: 800, marginBottom: 6, letterSpacing: '0.05em',
             // GOLD chip for the favourite cells (2026-10-15): the card frame goes gold for
-            // mc2Mark.isFav, so the chip on it must not stay brown. Dog marks keep brown.
+            // mc6Mark.isFav, so the chip on it must not stay brown. Dog marks keep brown.
             padding: '3px 6px', borderRadius: 4,
-            color: mc2Mark.isFav ? '#ffe9a3' : '#e3b98f',
-            background: mc2Mark.isFav
+            color: mc6Mark.isFav ? '#ffe9a3' : '#e3b98f',
+            background: mc6Mark.isFav
               ? 'linear-gradient(90deg, rgba(255,215,0,0.26), transparent)'
               : 'linear-gradient(90deg, rgba(140,86,45,0.30), transparent)',
-            border: `1px solid ${mc2Mark.isFav ? 'rgba(255,215,0,0.75)' : 'rgba(176,110,60,0.70)'}`,
+            border: `1px solid ${mc6Mark.isFav ? 'rgba(255,215,0,0.75)' : 'rgba(176,110,60,0.70)'}`,
           }}>
-          {(mc2Mark.recon ? '~' : '') + '🟤 🧮 MC2 ' + mc2Mark.cell + ' → '}
+          {(mc6Mark.recon ? '~' : '') + (mc6Mark.isFav ? '🥇 ' : '🟤 ') + '🧮⁶ MC6 ' + mc6Mark.cell + ' → '}
           <span style={{ fontSize: 11, fontWeight: 900,
-            color: mc2Mark.isFav ? '#ffd700' : '#f0cba4' }}>
-            {mc2Mark.who.split(' ').slice(-1)[0].toUpperCase()}{mc2Mark.od != null ? `${mc2Mark.od > 0 ? ' +' : ' '}${mc2Mark.od}` : ''}
+            color: mc6Mark.isFav ? '#ffd700' : '#f0cba4' }}>
+            {mc6Mark.who.split(' ').slice(-1)[0].toUpperCase()}{mc6Mark.od != null ? `${mc6Mark.od > 0 ? ' +' : ' '}${mc6Mark.od}` : ''}
           </span>
-          {mc2Mark.cell === 'FAV 2-8pt' ? ` · ${mc2Mark.amt}pt over (2-8 band)` : mc2Mark.cell === 'FAV 8pt+' ? ` · ${mc2Mark.amt}pt over (deep)` : mc2Mark.cell === 'FAV 0-2pt' ? ` · ${mc2Mark.amt}pt over (on/just over)` : mc2Mark.cell === 'DOG LONG' ? ` · ${mc2Mark.amt}pt over, long dog` : mc2Mark.cell === 'DOG 3pt+' ? ` · ${mc2Mark.amt}pt over on the dog` : ` · flips ${mc2Mark.amt}pt past 50%`}
-          <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc2Mark.live} · watch only`}</span>
-          {/* MC6'S VERDICT ON THE SAME BET (2026-10-16). Shown, never enforced -- the mark is
-              still MC2's. MC6 is the only head with a form term, so where it disagrees the
-              reader gets to see it instead of the board presenting MC2's confidence alone. */}
-          {mc2Mark.isFav && mc2Mark.mc6ev != null ? (
-            <span style={{
-              marginLeft: 6, padding: '0 5px', borderRadius: 5, fontSize: 9.5, fontWeight: 800,
-              color: mc2Mark.mc6ev >= 0 ? '#3fb950' : '#f0883e',
-              border: `1px solid ${mc2Mark.mc6ev >= 0 ? 'rgba(63,185,80,0.55)' : 'rgba(240,136,62,0.65)'}`,
-              background: mc2Mark.mc6ev >= 0 ? 'rgba(63,185,80,0.10)' : 'rgba(240,136,62,0.12)',
-            }}
-              title={`MC6 ON THIS SAME BET: ${mc2Mark.mc6ev >= 0 ? '+' : ''}${Math.round(1000 * mc2Mark.mc6ev) / 10}% EV at the OFFERED price, `
-                + `${mc2Mark.mc6over >= 0 ? '+' : ''}${Math.round(1000 * mc2Mark.mc6over) / 10}pt over the de-vigged market `
-                + `(MC2 has it ${mc2Mark.amt}pt over).\n\n`
-                + `${mc2Mark.mc6ev >= 0
-                    ? 'MC6 AGREES this is a positive-EV bet. Both the oldest head and the newest are on the same side.'
-                    : 'MC6 DISAGREES: at its number this bet LOSES money at the price offered. The gold mark reads MC2 alone, and MC2 is the only head here with no form term -- it sees a favourite on a losing run only through slow-moving Elo.'}\n\n`
-                + `THIS IS NOT A GATE. Nothing is suppressed and the mark has not changed. A veto would fire on 12% of gold marks, and the vetoed half measures -18.84% on SIX bets against +13.08% on 46 for the rest -- the right direction, far too few to act on. It is shown so you can see the disagreement and decide.\n\n`
-                + `Measured context: MC6 is the most accurate head in the project (AUC .7071 against MC2's .6889 on 786 matched rows, market .7096) and on favourites the cards MC6 flags and MC2 rejects are the only positive favourite cell in that table (+0.26% on 12), while the cards both agree on are -16.73% on 13.`}>
-              {`MC6 ${mc2Mark.mc6ev >= 0 ? '\u2713' : '\u2717'} ${mc2Mark.mc6ev >= 0 ? '+' : ''}${Math.round(1000 * mc2Mark.mc6ev) / 10}% EV`}
-            </span>
-          ) : null}
+          {mc6Mark.isFav
+            ? ` · ${mc6Mark.amt}pt over${gHL === 'w' ? ' (6pt+ floor)' : ' (3-6pt band)'}${mc6Mark.ev != null ? `, ${mc6Mark.ev >= 0 ? '+' : ''}${Math.round(1000 * mc6Mark.ev) / 10}% EV at the price` : ''}`
+            : ` · ${mc6Mark.amt}pt over on the dog (${gHL === 'w' ? '3' : '2'}pt+ gate)`}
+          <span style={{ fontWeight: 400, opacity: 0.85 }}>{` · ${mc6Mark.live} · watch only`}</span>
         </div>
       ) : null}
       {gMarkShow ? (
@@ -4476,9 +4453,9 @@ This colour is UNGATED, by your request, and it is the only mark on the board th
         const c9 = (isW9 ? st9.w : st9.m) || {}
         const n9 = c9.n || 0
         return (
-          <div className="mono" title={`🟠 MC2 5-8pt DOG-EDGE: MC v2 prices the market dog ${(100 * mc2DogEdge).toFixed(1)} points above the market. WHO TO TAKE (replay month, by gender): MEN — the FAVORITE (+10.0%, 37-15; the dog itself ran −34%). WOMEN — whichever side c75 holds (10-1, +73.4% — n=11, treat as a lead not a law; the favorite blindly ran −29.7%). Dog outside +100..+200 = NO PLAY (favorites over long dogs −3%, the dogs −20%). LIVE = the forward mc2e58_fav lane for this gender (favorite side), building from 2026-10-08.`}
+          <div className="mono" title={`🟠 MC6 5-8pt DOG-EDGE (read off MC6 since 2026-10-19; every number below was measured on MC2's version of the same cell and is kept only as direction): MC v6 prices the market dog ${(100 * mc6DogEdge).toFixed(1)} points above the market. WHO TO TAKE (replay month, by gender): MEN — the FAVORITE (+10.0%, 37-15; the dog itself ran −34%). WOMEN — whichever side c75 holds (10-1, +73.4% — n=11, treat as a lead not a law; the favorite blindly ran −29.7%). Dog outside +100..+200 = NO PLAY (favorites over long dogs −3%, the dogs −20%). LIVE = the forward mc2e58_fav lane for this gender (favorite side), building from 2026-10-08.`}
             style={{ fontSize: 9, fontWeight: 800, color: '#f0883e', marginBottom: 6, letterSpacing: '0.04em' }}>
-            🟠 MC2 DOG-EDGE 5-8 ({(100 * mc2DogEdge).toFixed(1)}pt) · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span>{' · archive: back fav M −6.7% (n=6,151) / W −5.9% (n=3,574), every year negative'}
+            🟠 MC6 DOG-EDGE 5-8 ({(100 * mc6DogEdge).toFixed(1)}pt) · <span style={{ fontWeight: 900, color: '#ffd7d5' }}>NO BET</span>{' · archive: back fav M −6.7% (n=6,151) / W −5.9% (n=3,574), every year negative'}
             <span style={{ color: '#ffd9b8', fontWeight: 400 }}>{n9 ? ` · lane ${isW9 ? 'W' : 'M'} ${c9.roi_pct > 0 ? '+' : ''}${Math.round(c9.roi_pct * 10) / 10}% (${c9.wins}-${n9 - c9.wins})` : ''}</span>
           </div>
         )
@@ -5685,11 +5662,22 @@ This game: last-10 sample ${match.model_g2.t10_n1}/${match.model_g2.t10_n2}${(ma
               const row = (name, dd) => (
                 <div style={{ color: 'var(--text-tertiary)', fontSize: 9.5, marginTop: 1 }}>
                   <span style={{ color: 'var(--text-secondary)' }}>{name.split(' ').slice(-1)[0]}</span>
-                  {' '}ssn {dd.ssn || '—'} · L10 {pc(dd.l10)}{dd.form != null ? ` (${dd.form >= 0 ? '+' : ''}${Math.round(100 * dd.form)} vs usual)` : ''} · this level {pc(dd.lvl_share)} of yr, {pc(dd.lvl_win)} won · opp form faced {pc(dd.fq_faced)} / beat {pc(dd.fq_beaten)}
+                  {' '}ssn {dd.ssn_court || (dd.ssn ? `${dd.ssn}†` : '—')} · L10 {pc(dd.l10)}{dd.form != null ? ` (${dd.form >= 0 ? '+' : ''}${Math.round(100 * dd.form)} vs usual)` : ''} · this level {dd.lvl_share_court != null ? `${pc(dd.lvl_share_court)} of yr, ${pc(dd.lvl_win_court)} won` : (dd.lvl_share != null ? `${pc(dd.lvl_share)} of yr, ${pc(dd.lvl_win)} won†` : '— of yr, — won')} · opp form faced {pc(dd.fq_faced)} / beat {pc(dd.fq_beaten)}
                 </div>
               )
               return (
-                <div title="What Model D actually reads (v4-v6, made visible on user ask): ssn = this season's W-L. L10 = last-10 win rate on this surface, with (±) how far above/below the player's OWN 52-week norm that is. 'this level' = share of the past year's matches at today's level (tour/challenger/ITF) and the win rate there — the home-platform check. 'opp form' = the average last-10 win rate of the opponents faced / of the opponents actually BEATEN in the last 10 — opponent quality by their real form, never ranking.">
+                <div title={"EVERY NUMBER ON THIS LINE IS THIS COURT ONLY (" + (match.surface || 'this surface') + "), not all surfaces — changed on user ask 2026-10-20."
+                  + "\nssn = W-L this calendar year ON THIS COURT"
+                  + (md.d1?.ssn ? " (all surfaces: " + md.d1.ssn + " / " + (md.d2?.ssn || '—') + ")" : "")
+                  + ".\nL10 = last-10 win rate on this court, with (±) how far above/below the player's OWN 52-week norm on this court that is."
+                  + "\n'this level' = share of the past year's matches ON THIS COURT at today's level (tour/challenger/ITF) and the win rate there — the home-platform check"
+                  + (md.d1?.lvl_share != null ? " (all surfaces: " + Math.round(100 * md.d1.lvl_share) + "% / " + (md.d2?.lvl_share != null ? Math.round(100 * md.d2.lvl_share) + "%" : '—') + ")" : "")
+                  + ".\n'opp form' = the average last-10 win rate of the opponents faced on this court / of the opponents actually BEATEN — opponent quality by their real form, never ranking."
+                  + "\nA DAGGER (†) means this player has too little history on this court for that figure, so the ALL-SURFACE number is shown instead — it is not a this-court number. No dagger = genuinely this court only."
+                  + "\nA court with almost no history reads '—'; that is the real sample, not a bug."}>
+                  <div style={{ color: 'var(--text-tertiary)', fontSize: 9, marginTop: 2, opacity: 0.75 }}>
+                    {(match.surface || 'this court').toUpperCase()} ONLY
+                  </div>
                   {row(match.player_1, md.d1)}
                   {row(match.player_2, md.d2)}
                 </div>

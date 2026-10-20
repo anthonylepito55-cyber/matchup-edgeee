@@ -384,6 +384,21 @@ def _profile(gdf, today):
                     "t10_n": int(len(_t)),
                     "wo_dropped": int(len(sd) - len(_sdc)),
                 }
+        # COURT-SPECIFIC season + home-platform block (2026-10-20, user ask: the card
+        # readout must be this-court, not all games this season). Display only -- no model
+        # feature reads these, so the validated inputs are untouched.
+        _yrs = sd[sd["date"].dt.year == today.year]
+        e["sn_n_s"] = int(len(_yrs))
+        e["sn_w_s"] = int(_yrs["won"].sum()) if len(_yrs) else 0
+        e["sn_win_s"] = float(_yrs["won"].mean()) if len(_yrs) else None
+        _w365s = sd[sd["date"] >= today - pd.Timedelta(days=365)]
+        e["lvl_s"] = {}
+        if len(_w365s) and "lvl" in _w365s.columns:
+            _nts = len(_w365s)
+            for _lv, _lg in _w365s.groupby("lvl"):
+                e["lvl_s"][int(_lv)] = {"share": float(len(_lg) / _nts),
+                                        "n": int(len(_lg)),
+                                        "win": float(_lg["won"].mean())}
         p["surf"][surf] = e
     # Model C: this-season (calendar year, any surface)
     yr = gdf[gdf["date"].dt.year == today.year]
@@ -1077,19 +1092,27 @@ def predict_d(name1, name2, surface, market_p1=None, level=None):
 
     # per-player DETAIL readout (2026-10-01, user "i don't see v4/v5"): the season,
     # home-platform and opponent-form numbers the model actually uses, made visible.
-    def _det(p, e, cc, lv):
+    def _det(p, e, cc, lv, lvs):
         sn = p.get("season") or {}
         n9 = int(sn.get("sn_n") or 0)
         w9 = int(round((sn.get("sn_win") or 0) * n9))
         fw = None
         if cc and e.get("won") is not None and cc.get("m_won") is not None:
             fw = e["won"] - cc["m_won"]
+        # court-specific season (2026-10-20 user ask). The all-surface values are kept
+        # alongside so the tooltip can still show them.
+        n9s = int(e.get("sn_n_s") or 0)
+        w9s = int(e.get("sn_w_s") or 0)
         return {"ssn": (f"{w9}-{n9 - w9}" if n9 else None),
+                "ssn_court": (f"{w9s}-{n9s - w9s}" if n9s else None),
+                "ssn_court_n": n9s, "ssn_court_win": e.get("sn_win_s"),
                 "l10": e.get("won"), "form": fw,
                 "lvl_share": lv.get("share"), "lvl_win": lv.get("win"),
+                "lvl_share_court": lvs.get("share"), "lvl_win_court": lvs.get("win"),
+                "lvl_n_court": lvs.get("n"),
                 "fq_faced": e.get("fq_faced"), "fq_beaten": e.get("fq_beaten")}
-    out["d1"] = _det(p1, e1, c1, l1)
-    out["d2"] = _det(p2, e2, c2, l2)
+    out["d1"] = _det(p1, e1, c1, l1, (e1.get("lvl_s") or {}).get(_bk) or {})
+    out["d2"] = _det(p2, e2, c2, l2, (e2.get("lvl_s") or {}).get(_bk) or {})
     # Model P inputs (2026-10-09)
     out["pf"] = {k: float(f.get(k) or 0.0) for k in ("d_form_win", "d_sutr")}
     if market_p1 is not None and mdl.get("lr_ms") is not None:

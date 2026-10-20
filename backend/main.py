@@ -2555,6 +2555,20 @@ def tennis_leadlag_status():
     return tennis_leadlag.summary()
 
 
+# TENNIS NEXT (2026-10-19, user "1"): read-only snapshot of the isolated Experiment 2
+# paper-trading research project (backend/research/tennis_next). The file is exported from
+# the frozen append-only paper ledger by a supervised pass and copied here at deploy time.
+# No live computation, no order path, nothing feeds the board.
+@app.get("/api/tennis/next")
+def tennis_next_snapshot():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_cache",
+                        "tennis_next_public.json")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="no tennis-next snapshot on this server")
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 @app.get("/api/tennis/scanner-record")
 def tennis_scanner_record():
     return tennis_scanner.get_scanner_track_record()
