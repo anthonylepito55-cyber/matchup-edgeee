@@ -59,7 +59,7 @@ export default function TsmBetaPanel() {
   const perf = d.performance || {}
   const noneSettled = !perf.scored
   let rows = d.predictions || []
-  if (onlyClean) rows = rows.filter((r) => r.data_quality === 'NO_KNOWN_DATA_ISSUE')
+  if (onlyClean) rows = rows.filter((r) => r.data_quality === 'NO_KNOWN_DATA_ISSUE' && !r.invalidated)
 
   return (
     <div style={{ padding: '8px 2px 40px' }}>
@@ -77,10 +77,21 @@ export default function TsmBetaPanel() {
               sub={`${c.data_quality_unverified ?? 0} flagged`} />
         <Stat label="90%+ confidence" value={c.ge90 ?? '—'}
               sub={`only ${c.ge90_clean ?? 0} without data flags`} color={c.ge90_clean ? '#3fb950' : '#d29922'} />
-        <Stat label="elo-only" value={c.elo_only ?? '—'} color="#d29922"
+        <Stat label="elo-only" value={c.elo_only ?? '—'} color={c.elo_only ? '#d29922' : '#3fb950'}
               sub="no serve/return history" />
-        <Stat label="at calibrator ceiling" value={c.ceil ?? '—'} color="#d29922" sub="shown as CEIL, not 100%" />
+        <Stat label="withdrawn" value={c.invalidated ?? 0} color={c.invalidated ? '#f85149' : 'var(--text-primary)'}
+              sub="parser bug — excluded" />
       </div>
+
+      {c.invalidated ? (
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--panel)', border: '1px solid #f8514955', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+          <b style={{ color: '#f85149' }}>{c.invalidated} predictions withdrawn.</b> A bug in the schedule parser read the
+          placeholder avatar filename as a player, so those fixtures were priced against a player who does not exist — which is
+          also why they looked so confident. The parser is fixed and covered by regression tests. The original records are kept
+          in the ledger exactly as written and are marked <i>withdrawn</i> below; they are excluded from every figure above and
+          from all performance scoring. Nothing was rewritten.
+        </div>
+      ) : null}
 
       {noneSettled ? (
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
@@ -121,7 +132,7 @@ export default function TsmBetaPanel() {
               const dq = DQ[r.data_quality] || { c: 'var(--text-tertiary)', t: r.data_quality }
               const res = r.result
               return (
-                <tr key={r.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                <tr key={r.id} style={{ borderBottom: '1px solid var(--line)', opacity: r.invalidated ? 0.45 : 1 }}>
                   <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{(r.start_utc || '').slice(5, 16).replace('T', ' ')}</td>
                   <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)' }}>{short(r.tournament, 18)}</td>
                   <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)' }}>{r.surface}</td>
@@ -131,12 +142,12 @@ export default function TsmBetaPanel() {
                       title={r.ceil ? 'At the frozen calibrator\'s top bin — a ceiling, not a credible 100%.' : ''}>
                     {r.ceil ? 'CEIL' : pct(r.confidence)}
                   </td>
-                  <td style={{ padding: '5px 7px', color: dq.c, whiteSpace: 'nowrap' }}
+                  <td style={{ padding: '5px 7px', color: r.invalidated ? '#f85149' : dq.c, whiteSpace: 'nowrap' }}
                       title={(r.dq_reasons || []).join(', ') || 'no problem detected — this does NOT prove the history is complete'}>
-                    {r.data_quality === 'NO_KNOWN_DATA_ISSUE' ? 'ok' : (r.dq_reasons || []).join(', ')}
+                    {r.invalidated ? 'withdrawn (parser bug)' : (r.data_quality === 'NO_KNOWN_DATA_ISSUE' ? 'ok' : (r.dq_reasons || []).join(', '))}
                   </td>
                   <td style={{ padding: '5px 7px', whiteSpace: 'nowrap', color: !res ? 'var(--text-tertiary)' : (res.status === 'void' ? 'var(--text-tertiary)' : (res.correct ? '#3fb950' : '#f85149')) }}>
-                    {!res ? 'pending' : (res.status === 'void' ? 'void' : (res.correct ? '✓ ' + short(res.winner, 16) : '✗ ' + short(res.winner, 16)))}
+                    {r.invalidated ? 'withdrawn' : (!res ? 'pending' : (res.status === 'void' ? 'void' : (res.correct ? '✓ ' + short(res.winner, 16) : '✗ ' + short(res.winner, 16))))}
                   </td>
                 </tr>
               )

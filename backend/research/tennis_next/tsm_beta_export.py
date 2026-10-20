@@ -26,6 +26,7 @@ OUT = os.path.join(HERE, "..", "..", "data_cache", "tsm_beta_public.json")
 
 def build():
     preds, pred_head = S.read_predictions()
+    invalid = S.read_invalidated()
     latest = S.latest_settlements()
     _, settle_head = S.read_settlements()
     rows = []
@@ -42,6 +43,7 @@ def build():
                        "source": st.get("result_source"),
                        "retrieved_utc": st.get("retrieved_utc")}
         rows.append({
+            "invalidated": p["fixture_identity"] in invalid,
             "id": p["identity_digest"],
             "p1": p["player_1"], "p2": p["player_2"],
             "tournament": p["tournament"], "level": p["level"], "tier": p["tier"],
@@ -58,7 +60,8 @@ def build():
             "missing_result_risk": p.get("missing_result_risk"),
             "result": res})
     rows.sort(key=lambda r: (r["start_utc"] or "", -r["confidence"]))
-    settled = [r for r in rows if r["result"] and r["result"]["status"] == "settled"]
+    live = [r for r in rows if not r["invalidated"]]
+    settled = [r for r in live if r["result"] and r["result"]["status"] == "settled"]
     snap = {
         "schema": "tsm-d_rest-paper-beta/1",
         "generated_utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -74,23 +77,24 @@ def build():
                    "settlement_chain_head": settle_head,
                    "predictions": len(rows)},
         "counts": {
-            "total": len(rows),
+            "total": len(live),
+            "invalidated": len(rows) - len(live),
             "settled": len(settled),
-            "void": sum(1 for r in rows if r["result"]
+            "void": sum(1 for r in live if r["result"]
                         and r["result"]["status"] == "void"),
-            "pending": sum(1 for r in rows if not r["result"]),
-            "no_known_data_issue": sum(1 for r in rows
+            "pending": sum(1 for r in live if not r["result"]),
+            "no_known_data_issue": sum(1 for r in live
                                        if r["data_quality"] == "NO_KNOWN_DATA_ISSUE"),
             "data_quality_unverified": sum(
-                1 for r in rows if r["data_quality"] == "DATA-QUALITY-UNVERIFIED"),
-            "elo_only": sum(1 for r in rows if r["elo_only"]),
-            "ceil": sum(1 for r in rows if r["ceil"]),
-            "ge90": sum(1 for r in rows if r["confidence"] >= 0.90),
-            "ge90_clean": sum(1 for r in rows if r["confidence"] >= 0.90
+                1 for r in live if r["data_quality"] == "DATA-QUALITY-UNVERIFIED"),
+            "elo_only": sum(1 for r in live if r["elo_only"]),
+            "ceil": sum(1 for r in live if r["ceil"]),
+            "ge90": sum(1 for r in live if r["confidence"] >= 0.90),
+            "ge90_clean": sum(1 for r in live if r["confidence"] >= 0.90
                               and r["data_quality"] == "NO_KNOWN_DATA_ISSUE")},
-        "by_tier": dict(collections.Counter(r["tier"] for r in rows)),
-        "by_band": dict(collections.Counter(r["band"] for r in rows)),
-        "dq_reasons": dict(collections.Counter(x for r in rows for x in r["dq_reasons"])),
+        "by_tier": dict(collections.Counter(r["tier"] for r in live)),
+        "by_band": dict(collections.Counter(r["band"] for r in live)),
+        "dq_reasons": dict(collections.Counter(x for r in live for x in r["dq_reasons"])),
         "performance": S.report(),
         "predictions": rows}
     try:
