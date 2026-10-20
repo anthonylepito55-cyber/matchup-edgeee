@@ -108,6 +108,15 @@ export default function TsmBetaPanel() {
               sub="parser bug — excluded" />
       </div>
 
+      {d.market ? (
+        <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)', lineHeight: 1.6, marginBottom: 8 }}>
+          <b style={{ color: 'var(--text-secondary)' }}>Market column:</b> de-vigged price on the side the model picked, attached
+          AFTER the prediction was sealed — <b>the model is market-blind and never saw it</b>. Shown for {d.market.matched} of
+          {' '}{(d.market.matched || 0) + (d.market.unmatched || 0)}; the rest have no frozen price (ITF events and dates not yet
+          logged). Edge is model minus market, <b>context only, not a bet</b>.
+        </div>
+      ) : null}
+
       {c.invalidated ? (
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--panel)', border: '1px solid #f8514955', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
           <b style={{ color: '#f85149' }}>{c.invalidated} predictions withdrawn.</b> A bug in the schedule parser read the
@@ -147,7 +156,7 @@ export default function TsmBetaPanel() {
         <table className="mono" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
           <thead>
             <tr style={{ color: 'var(--text-tertiary)', textAlign: 'left' }}>
-              {['start (PT)', 'tournament', 'surf', 'match', 'model pick', 'prob', 'data quality', 'result'].map((h) => (
+              {['start (PT)', 'tournament', 'surf', 'match', 'model pick', 'prob', 'market', 'edge', 'data quality', 'result'].map((h) => (
                 <th key={h} style={{ padding: '5px 7px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
               ))}
             </tr>
@@ -167,6 +176,17 @@ export default function TsmBetaPanel() {
                   <td style={{ padding: '5px 7px', fontWeight: 700, whiteSpace: 'nowrap' }}
                       title={r.ceil ? 'At the frozen calibrator\'s top bin — a ceiling, not a credible 100%.' : ''}>
                     {r.ceil ? 'CEIL' : pct(r.confidence)}
+                  </td>
+                  <td style={{ padding: '5px 7px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}
+                      title={r.market_on_pick == null
+                        ? 'no frozen price for this fixture — ITF and not-yet-logged dates usually have none'
+                        : 'de-vigged market probability on the SAME side the model picked' + (r.market_vig_pts != null ? ' · ' + r.market_vig_pts + 'pt vig' : '')}>
+                    {r.market_on_pick == null ? '—' : pct(r.market_on_pick)}
+                  </td>
+                  <td style={{ padding: '5px 7px', whiteSpace: 'nowrap', fontWeight: 700,
+                               color: r.edge_vs_market == null ? 'var(--text-tertiary)' : (r.edge_vs_market > 0 ? '#3fb950' : '#f85149') }}
+                      title="model probability minus the de-vigged market, on the model's own side. CONTEXT ONLY — the model never saw the price, and this is not a bet.">
+                    {r.edge_vs_market == null ? '—' : ((r.edge_vs_market >= 0 ? '+' : '') + (100 * r.edge_vs_market).toFixed(1) + 'pt')}
                   </td>
                   <td style={{ padding: '5px 7px', color: r.invalidated ? '#f85149' : dq.c, whiteSpace: 'nowrap' }}
                       title={(r.dq_reasons || []).join(', ') || 'no problem detected — this does NOT prove the history is complete'}>
