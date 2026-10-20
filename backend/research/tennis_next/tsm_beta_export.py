@@ -283,6 +283,31 @@ def _no_market_reason(p, mkt, pm):
     return "no_market_open_yet"                   # nobody is quoting this fixture
 
 
+def _link_replacements(rows, live):
+    """Point each withdrawn row at the clean prediction that replaced it.
+
+    A withdrawn row was priced against the placeholder-avatar phantom, so its fixture
+    identity was built around a player who does not exist. Re-predicting the real pair
+    therefore produced a DIFFERENT identity and a brand-new record rather than a revision --
+    the ledger is append-only and nothing was rewritten. That leaves two populations the tab
+    was lumping together: fixtures that already have a clean prediction, and the handful that
+    started before the parser was fixed, where predicting now would be lookahead and none
+    will ever exist.
+    """
+    idx = collections.defaultdict(list)
+    for r in live:
+        idx[(str(r["start_utc"])[:10], S.pair_key(r["p1"], r["p2"]))].append(r)
+    for r in rows:
+        r["replaced_by"] = None
+        if not r["invalidated"]:
+            continue
+        for cand in idx.get((str(r["start_utc"])[:10], S.pair_key(r["p1"], r["p2"])), ()):
+            r["replaced_by"] = {"id": cand["id"], "pick": cand["pick"],
+                                "confidence": cand["confidence"],
+                                "changed_side": cand["pick"] != r["pick"]}
+            break
+
+
 def build():
     preds, pred_head = S.read_predictions()
     invalid = S.read_invalidated()
@@ -342,6 +367,7 @@ def build():
             "result": res})
     rows.sort(key=lambda r: (r["start_utc"] or "", -r["confidence"]))
     live = [r for r in rows if not r["invalidated"]]
+    _link_replacements(rows, live)
     settled = [r for r in live if r["result"] and r["result"]["status"] == "settled"]
     snap = {
         "schema": "tsm-d_rest-paper-beta/1",
@@ -360,6 +386,10 @@ def build():
         "counts": {
             "total": len(live),
             "invalidated": len(rows) - len(live),
+            "invalidated_replaced": sum(1 for r in rows
+                                        if r["invalidated"] and r["replaced_by"]),
+            "invalidated_unrecoverable": sum(1 for r in rows
+                                             if r["invalidated"] and not r["replaced_by"]),
             "settled": len(settled),
             "void": sum(1 for r in live if r["result"]
                         and r["result"]["status"] == "void"),

@@ -113,7 +113,9 @@ export default function TsmBetaPanel() {
         <Stat label="elo-only" value={c.elo_only ?? '—'} color={c.elo_only ? '#d29922' : '#3fb950'}
               sub="no serve/return history" />
         <Stat label="withdrawn" value={c.invalidated ?? 0} color={c.invalidated ? '#f85149' : 'var(--text-primary)'}
-              sub="parser bug — excluded" />
+              sub={c.invalidated_replaced != null
+                ? `${c.invalidated_replaced} re-predicted · ${c.invalidated_unrecoverable} unrecoverable`
+                : 'parser bug — excluded'} />
       </div>
 
       {d.market ? (
@@ -140,6 +142,20 @@ export default function TsmBetaPanel() {
           also why they looked so confident. The parser is fixed and covered by regression tests. The original records are kept
           in the ledger exactly as written and are marked <i>withdrawn</i> below; they are excluded from every figure above and
           from all performance scoring. Nothing was rewritten.
+          {c.invalidated_replaced != null ? (
+            <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid var(--line)', lineHeight: 1.65 }}>
+              <b style={{ color: '#3fb950' }}>{c.invalidated_replaced} of the {c.invalidated} already have a clean
+              prediction.</b> Re-running the real pair produced a different fixture identity, so each one is a NEW record
+              beside the withdrawn one rather than an edit of it — which is why the withdrawn count does not fall. Those
+              replacements are in the table below and count toward every figure.
+              {c.invalidated_unrecoverable ? (
+                <> <b style={{ color: '#d29922' }}>{c.invalidated_unrecoverable} cannot be recovered</b> — they had already
+                started when the parser was fixed, and predicting a match that is underway would use information the model
+                is not allowed to have. No clean prediction for those will ever exist, and that is the correct outcome
+                rather than a gap to be filled.</>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -219,7 +235,21 @@ export default function TsmBetaPanel() {
                   </td>
                   <td style={{ padding: '5px 7px', color: r.invalidated ? '#f85149' : dq.c, whiteSpace: 'nowrap' }}
                       title={(r.dq_reasons || []).join(', ') || 'no problem detected — this does NOT prove the history is complete'}>
-                    {r.invalidated ? 'withdrawn (parser bug)' : (r.data_quality === 'NO_KNOWN_DATA_ISSUE' ? 'ok' : (r.dq_reasons || []).join(', '))}
+                    {r.invalidated ? (
+                      r.replaced_by ? (
+                        <span title={`Re-predicted cleanly against the real opponent: ${r.replaced_by.pick} at ${(100 * r.replaced_by.confidence).toFixed(1)}%`
+                          + (r.replaced_by.changed_side ? ' — the clean model picked the OTHER player, so the withdrawn row was wrong about the side, not just over-confident.' : '')}>
+                          withdrawn → re-predicted{' '}
+                          <b style={{ color: r.replaced_by.changed_side ? '#d29922' : '#3fb950' }}>
+                            {r.replaced_by.changed_side ? 'other side' : 'same side'} {(100 * r.replaced_by.confidence).toFixed(0)}%
+                          </b>
+                        </span>
+                      ) : (
+                        <span title="This fixture had already started when the parser was fixed. Predicting a match in progress would use information the model is not allowed to have, so no clean replacement exists or ever will.">
+                          withdrawn — <b style={{ color: '#d29922' }}>unrecoverable</b> (already started)
+                        </span>
+                      )
+                    ) : (r.data_quality === 'NO_KNOWN_DATA_ISSUE' ? 'ok' : (r.dq_reasons || []).join(', '))}
                   </td>
                   <td style={{ padding: '5px 7px', whiteSpace: 'nowrap', color: !res ? 'var(--text-tertiary)' : (res.status === 'void' ? 'var(--text-tertiary)' : (res.correct ? '#3fb950' : '#f85149')) }}>
                     {r.invalidated ? 'withdrawn' : (!res ? 'pending' : (res.status === 'void' ? 'void' : (res.correct ? '✓ ' + short(res.winner, 16) : '✗ ' + short(res.winner, 16))))}
