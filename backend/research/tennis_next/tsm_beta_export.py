@@ -283,6 +283,46 @@ def _no_market_reason(p, mkt, pm):
     return "no_market_open_yet"                   # nobody is quoting this fixture
 
 
+def _gate_performance(perf):
+    """Withhold flag-conditioned accuracy from the PUBLIC snapshot until the gate opens.
+
+    The settler's report breaks performance out by data-quality flag, including
+    `missing_result_risk`. That is exactly the comparison the frozen pre-registration
+    reserves for a single analysis at >=300 settled and >=60 flagged, so publishing it on
+    the dashboard would both breach that and invite the repeated peeking the registration
+    exists to prevent -- watching a cell tick over week by week IS optional stopping, even
+    if nobody writes a conclusion down.
+
+    Only the flag-conditioned cells are withheld. The beta's own overall, band and tier
+    performance was separately approved and is unaffected, and the underlying report and
+    both ledgers are untouched: this redacts a view, not a record.
+    """
+    try:
+        import dqu_prospective as DP
+        rows, _, _, _, _ = DP.gather()
+        flagged = sum(1 for r in rows if r["missing_result_flag"])
+        open_gate = len(rows) >= DP.MIN_SETTLED and flagged >= DP.MIN_FLAGGED
+        progress = {"settled_eligible": len(rows), "flagged": flagged,
+                    "required_settled": DP.MIN_SETTLED,
+                    "required_flagged": DP.MIN_FLAGGED}
+    except Exception:  # noqa: BLE001 -- if the gate cannot be evaluated, withhold
+        open_gate, progress = False, {"note": "gate state could not be evaluated"}
+    if open_gate or not isinstance(perf, dict):
+        return perf
+    out = dict(perf)
+    dq = out.get("by_data_quality")
+    if isinstance(dq, dict):
+        out["by_data_quality"] = {
+            k: v for k, v in dq.items()
+            if k not in ("missing_result_risk", "DATA-QUALITY-UNVERIFIED")}
+        out["withheld_until_preregistered_gate"] = {
+            "cells": ["missing_result_risk", "DATA-QUALITY-UNVERIFIED"],
+            "reason": "flag-conditioned accuracy is reserved for ONE pre-registered "
+                      "analysis; publishing it now would permit optional stopping",
+            "gate": progress}
+    return out
+
+
 def _link_replacements(rows, live):
     """Point each withdrawn row at the clean prediction that replaced it.
 
@@ -422,7 +462,7 @@ def build():
         "by_tier": dict(collections.Counter(r["tier"] for r in live)),
         "by_band": dict(collections.Counter(r["band"] for r in live)),
         "dq_reasons": dict(collections.Counter(x for r in live for x in r["dq_reasons"])),
-        "performance": S.report(),
+        "performance": _gate_performance(S.report()),
         "predictions": rows}
     try:
         snap["model"]["artifact_sha256"] = json.load(
