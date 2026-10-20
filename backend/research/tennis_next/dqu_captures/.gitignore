@@ -1,0 +1,6 @@
+# The captured archives are ~18MB each and accumulate daily, so the BYTES stay out of git.
+# The manifest does not: it carries each capture's sha256, watermark, row and player counts
+# and provenance, hash-chained, which is what makes a capture checkable later. A capture
+# whose file is gone is detected by `dqu_capture.py verify` rather than quietly ignored.
+*.parquet
+!manifest.jsonl
