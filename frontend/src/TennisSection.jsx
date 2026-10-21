@@ -782,7 +782,7 @@ export default function TennisSection() {
           }}>{showModels ? '● all models' : '○ other models'}</button>
       </div>
 
-      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'dogpicks' ? <DogPicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' && SHOW_MODEL_P ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : view === 'next' ? <TennisNextPanel /> : view === 'drest' ? <TsmBetaPanel /> : (<>
+      {view === 'best' ? <BestPanel query={query} laneRec={laneRec} /> : view === 'prices' ? <BestPanel query={query} laneRec={laneRec} priceOnly /> : view === 'tabpl' ? <TabProfitPanel /> : view === 'sets' ? <SetScanPanel /> : view === 'picks' ? <PicksPanel query={query} /> : view === 'dogpicks' ? <DogPicksPanel query={query} /> : view === 'itf' ? <ItfPanel query={query} laneRec={laneRec} greenOnly={greenOnly} showCMC={showCMC} showModels={showModels} /> : view === 'splits' ? <SplitsPanel /> : view === 'history' ? <HistoryPanel query={query} greenOnly={greenOnly} showModels={showModels} /> : view === 'ab25' ? <Ab25Panel /> : view === 'modelx' ? <ModelXPanel /> : view === 'modelp' && SHOW_MODEL_P ? <ModelPPanel matches={matches} /> : view === 'uedog' ? <UeDogPanel laneRec={laneRec} /> : view === 'tested' ? <TestedPanel /> : view === 'next' ? <TennisNextPanel /> : view === 'drest' ? <TsmBetaPanel /> : (<>
       {/* CROSS-BOOK SCANNER HIDDEN (2026-10-13, user: "hide the cross book scanner at the
           top of the page"). It sat above the board on every view. The component and its
           data (data.price_scan) are untouched, so restoring it is this one line -- and the
@@ -1993,7 +1993,10 @@ function ModelXPanel() {
   )
 }
 
-function HistoryPanel({ query, greenOnly = false }) {
+// showModels added 2026-10-20 (user ask): the "all models" toggle in the header had no
+// effect here, because the history cards were rendered without it. It now reaches both
+// places a full card appears — an expanded day, and a corrected wrong-court card.
+function HistoryPanel({ query, greenOnly = false, showModels = false }) {
   const [hist, setHist] = useState(null)
   const [err, setErr] = useState(null)
   const [full, setFull] = useState(false)       // false = compact rows, true = full board cards
@@ -2079,7 +2082,7 @@ function HistoryPanel({ query, greenOnly = false }) {
             ) : null}
             {full ? (dayOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null), mc3: m.card.mc3 || (m.mc3 ? { p1_prob: m.mc3.p1_pct / 100, recon: !!m.mc3.recon } : null), mc5: m.card.mc5 || (m.mc5 ? { p1_prob: m.mc5.p1_pct / 100, recon: !!m.mc5.recon } : null), mc6: m.card.mc6 || (m.mc6 ? { p1_prob: m.mc6.p1_pct / 100, recon: !!m.mc6.recon, fromLog: true, d_mc5: (m.mc5 && m.mc5.p1_pct != null && m.mc6.p1_pct != null) ? (m.mc6.p1_pct - m.mc5.p1_pct) / 100 : null } : null), model_p: m.card.model_p || m.model_p || null, model_x: m.card.model_x || (m.model_x && m.model_x.p1_pct != null ? { p1_prob: m.model_x.p1_pct / 100, p2_prob: 1 - m.model_x.p1_pct / 100, market_p1: m.market_p1 != null ? m.market_p1 : null, edge_p1: m.market_p1 != null ? m.model_x.p1_pct / 100 - m.market_p1 : null, recon: !!m.model_x.recon, hit: m.model_x.hit } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} /> : null)}
+                {d.matches.map((m, i) => m.card ? <MatchCard key={i} match={{ ...m.card, mc2: m.card.mc2 || (m.mc2 ? { p1_prob: m.mc2.p1_pct / 100, recon: !!m.mc2.recon } : null), mc3: m.card.mc3 || (m.mc3 ? { p1_prob: m.mc3.p1_pct / 100, recon: !!m.mc3.recon } : null), mc5: m.card.mc5 || (m.mc5 ? { p1_prob: m.mc5.p1_pct / 100, recon: !!m.mc5.recon } : null), mc6: m.card.mc6 || (m.mc6 ? { p1_prob: m.mc6.p1_pct / 100, recon: !!m.mc6.recon, fromLog: true, d_mc5: (m.mc5 && m.mc5.p1_pct != null && m.mc6.p1_pct != null) ? (m.mc6.p1_pct - m.mc5.p1_pct) / 100 : null } : null), model_p: m.card.model_p || m.model_p || null, model_x: m.card.model_x || (m.model_x && m.model_x.p1_pct != null ? { p1_prob: m.model_x.p1_pct / 100, p2_prob: 1 - m.model_x.p1_pct / 100, market_p1: m.market_p1 != null ? m.market_p1 : null, edge_p1: m.market_p1 != null ? m.model_x.p1_pct / 100 - m.market_p1 : null, recon: !!m.model_x.recon, hit: m.model_x.hit } : null) }} animDelay={Math.min(i * 0.03, 0.3)} laneRec={laneRec} showCMC={true} greenOnly={greenOnly} showModels={showModels} /> : null)}
               </div>
             ) : null) : d.matches.map((m, i) => (
               <div key={i} className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 11, flexWrap: 'wrap' }}>
@@ -2263,7 +2266,7 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                       ) : null}
                       {fixOpen[key] && fx.card ? (
                         <div style={{ marginTop: 6 }} onClick={e => e.stopPropagation()}>
-                          <MatchCard match={fx.card} laneRec={laneRec} showCMC={true} greenOnly={false} />
+                          <MatchCard match={fx.card} laneRec={laneRec} showCMC={true} greenOnly={false} showModels={showModels} />
                         </div>
                       ) : null}
                     </div>
