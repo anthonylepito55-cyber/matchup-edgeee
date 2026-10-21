@@ -2395,6 +2395,31 @@ ${cell === 'FAV-OVER' ? '⬛ FAV-OVER — G2 rated the market FAVOURITE at least
                       </div>
                       {row(m.p1, dl.p1)}
                       {row(m.p2, dl.p2)}
+                      {m.utr && (m.utr.edge != null || m.utr.mom != null) ? (() => {
+                        // Frozen real-UTR, read from the log's own columns rather than the
+                        // board's current-ratings artifact, so it is what was known then.
+                        // Only the difference was frozen, so name the side it favours.
+                        const side = (v) => (v == null ? null
+                          : (v >= 0 ? m.p1 : m.p2).split(' ').slice(-1)[0])
+                        const fmt = (v) => Math.abs(v).toFixed(2)
+                        return (
+                          <div style={{ color: 'var(--text-secondary)', fontSize: 10.5, marginTop: 4, paddingTop: 4, borderTop: '1px dashed var(--line)', lineHeight: 1.5 }}
+                            title={'UTR as it stood before this match, read from the values frozen on the card at first serve. Rating = UTR\'s own singles rating difference; momentum = each player\'s 3-month trend against their level, differenced. Only the difference was ever frozen, not the two ratings. Available from 2026-10-07, when the UTR tracker started.'}>
+                            <span style={{ color: '#d2a8ff', fontWeight: 700 }}>UTR</span>
+                            {/* a difference that rounds to 0.00 names no side — the two were level */}
+                            {m.utr.edge != null
+                              ? (fmt(m.utr.edge) === '0.00'
+                                  ? <> rating <b>level</b></>
+                                  : <> rating <b>{side(m.utr.edge)}</b> by {fmt(m.utr.edge)}</>)
+                              : <> rating —</>}
+                            {m.utr.mom != null
+                              ? (fmt(m.utr.mom) === '0.00'
+                                  ? <>{' · '}3mo momentum <b>level</b></>
+                                  : <>{' · '}3mo momentum <b>{side(m.utr.mom)}</b> by {fmt(m.utr.mom)}</>)
+                              : null}
+                          </div>
+                        )
+                      })() : null}
                     </div>
                   )
                 })() : null}

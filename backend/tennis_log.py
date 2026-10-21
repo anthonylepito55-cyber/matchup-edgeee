@@ -1529,6 +1529,19 @@ def get_tennis_history(limit_dates: int = 30) -> dict:
             "model_g2": _g2_hist(r, mk1),
             "ue": _ue_asof(r),
             "conflicts": _conflict_resolvers_for_row(r, mk1),
+            # REAL UTR as it stood BEFORE this match (2026-10-20, user "i want the utr shown
+            # on the results tab as well"). These two are read straight from the FROZEN
+            # columns, so they are the numbers the card carried at first serve. The surface
+            # cUTR the board shows is deliberately NOT used here: it is a prebuilt artifact
+            # of CURRENT ratings, so against a finished match it would include results from
+            # after that match. Only the difference was ever frozen, never the two absolute
+            # ratings, so the edge is what can honestly be shown.
+            "utr": ({"edge": (None if pd.isna(r.get("utr_edge_p1"))
+                              else round(float(r["utr_edge_p1"]), 3)),
+                     "mom": (None if pd.isna(r.get("utr_mom_p1"))
+                             else round(float(r["utr_mom_p1"]), 3))}
+                    if (pd.notna(r.get("utr_edge_p1")) or pd.notna(r.get("utr_mom_p1")))
+                    else None),
             "card": card,
         }
         # WRONG COURT (2026-10-09, user "fix the wrongs for previous days so i can see what i
